@@ -103,6 +103,14 @@ class Lexer(object):
             self.gathered_chars = ch
             return (self._numeric_start, [])
 
+        # IdentifierName also manages to include reserved words (this function also captures the start of a unicode
+        # escape sequence).
+        elif self.is_identifier_start(ch):
+            self.gathered_chars = ch
+            if ch == '\\':
+                return (self._ident_start_escape, [])
+            return (self._ident_capture, [])
+
         # More to add still...
         return (self._initial, [])
 
@@ -440,8 +448,8 @@ class Lexer(object):
         return ((cat in ['Lu', 'Ll', 'Lt', 'Lm', 'Lo', 'Nl'] and ch != '\u2e2f') or
                 ch in '\u1885\u1886\u2118\u212e\u309b\u309c')
 
-    @staticmethod
-    def is_unicode_id_continue(ch):
+    @classmethod
+    def is_unicode_id_continue(cls, ch):
         # ID_Continue characters include ID_Start characters, plus characters having the Unicode General_Category of
         # nonspacing marks, spacing combining marks, decimal number, connector punctuation, plus Other_ID_Continue , minus
         # Pattern_Syntax and Pattern_White_Space code points.
@@ -461,12 +469,123 @@ class Lexer(object):
 
         # Again, the Pattern_Syntax and Pattern_White_Space don't actually take anything out -- those chars aren't in the
         # valid list to begin with.
-        return (is_unicode_id_start(ch) or
+        return (cls.is_unicode_id_start(ch) or
                 (unicodedata.category(ch) in [ 'Mn', 'Mc', 'Nd', 'Pc' ] or ch in other_id_continue))
 
     @classmethod
     def is_identifier_start(cls, ch):
         return cls.is_unicode_id_start(ch) or ch in '$_\\'
+
+    def _ident_capture(self, ch, lookahead):
+        if ch and (self.is_unicode_id_continue(ch) or ch in '$\u200c\u200d'):
+            self.gathered_chars += ch
+            return (self._ident_capture, [])
+        if ch == '\\':
+            self.gathered_chars += ch
+            return (self._identpart_escape_1, [])
+        captured_value = self.gathered_chars
+        state, result = self._initial(ch, lookahead)
+        return (state, chain([{'type': self.Type.Token, 'value': captured_value}], result))
+
+    def _identpart_escape_1(self, ch, lookahead):
+        if ch != 'u':
+            raise LexerError('Invalid IdentifierName escape sequence')
+        self.gathered_chars += 'u'
+        return (self._identpart_escape_2, [])
+
+    def _ident_start_escape(self, ch, lookahead):
+        if ch != 'u':
+            raise LexerError('Invalid IdentifierName escape sequence')
+        self.gathered_chars += 'u'
+        return (self._identstart_escape_2, [])
+
+    def _identpart_escape_2(self, ch, lookahead):
+        # We have '\u'. Next is either exactly 4 hex digits, or '{' <many digits> '}'.
+        if ch and ch in '0123456789abcdefABCDEF':
+            self.gathered_chars += ch
+            return (self._3_digits_left, [])
+        if ch == '{':
+            self.gathered_chars += '{'
+            return (self._n_digits_left, [])
+        raise LexerError('Invalid IdentifierName escape sequence')
+
+    def _identstart_escape_2(self, ch, lookahead):
+        # We have '\u'. Next is either exactly 4 hex digits, or '{' <many digits> '}'.
+        if ch and ch in '0123456789abcdefABCDEF':
+            self.gathered_chars += ch
+            return (self._istart_3_digits_left, [])
+        if ch == '{':
+            self.gathered_chars += '{'
+            return (self._istart_n_digits_left, [])
+        raise LexerError('Invalid IdentifierName escape sequence')
+
+    def _3_digits_left(self, ch, lookahead):
+        if ch and ch in '0123456789abcdefABCDEF':
+            self.gathered_chars += ch
+            return (self._2_digits_left, [])
+        raise LexerError('Invalid IdentifierName escape sequence')
+
+    def _istart_3_digits_left(self, ch, lookahead):
+        if ch and ch in '0123456789abcdefABCDEF':
+            self.gathered_chars += ch
+            return (self._istart_2_digits_left, [])
+        raise LexerError('Invalid IdentifierName escape sequence')
+
+    def _2_digits_left(self, ch, lookahead):
+        if ch and ch in '0123456789abcdefABCDEF':
+            self.gathered_chars += ch
+            return (self._1_digit_left, [])
+        raise LexerError('Invalid IdentifierName escape sequence')
+
+    def _istart_2_digits_left(self, ch, lookahead):
+        if ch and ch in '0123456789abcdefABCDEF':
+            self.gathered_chars += ch
+            return (self._istart_1_digit_left, [])
+        raise LexerError('Invalid IdentifierName escape sequence')
+
+    def _1_digit_left(self, ch, lookahead):
+        if ch and ch in '0123456789abcdefABCDEF':
+            self.gathered_chars += ch
+            escaped_char = chr(int(self.gathered_chars[-4:], 16))
+            if self.is_unicode_id_continue(escaped_char) or escaped_char in '$\u200c\u200d':
+                return (self._ident_capture, [])
+        raise LexerError('Invalid IdentifierName escape sequence')
+
+    def _istart_1_digit_left(self, ch, lookahead):
+        if ch and ch in '0123456789abcdefABCDEF':
+            self.gathered_chars += ch
+            escaped_char = chr(int(self.gathered_chars[-4:], 16))
+            if self.is_unicode_id_start(escaped_char) or escaped_char in '$_':
+                return (self._ident_capture, [])
+        raise LexerError('Invalid IdentifierName escape sequence')
+
+    def _n_digits_left(self, ch, lookahead):
+        if ch and ch in '0123456789abcdefABCDEF':
+            self.gathered_chars += ch
+            return (self._n_digits_left, [])
+        if ch == '}':
+            self.gathered_chars += ch
+            charcode = int(self.gathered_chars[self.gathered_chars.rfind('{')+1:-1], 16)
+            if charcode <= 0x10FFFF:
+                escaped_char = chr(charcode)
+                if self.is_unicode_id_continue(escaped_char) or escaped_char in '$\u200c\u200d':
+                    return (self._ident_capture, [])
+        raise LexerError('Invalid IdentifierName escape sequence')
+
+    def _istart_n_digits_left(self, ch, lookahead):
+        if ch and ch in '0123456789abcdefABCDEF':
+            self.gathered_chars += ch
+            return (self._istart_n_digits_left, [])
+        if ch == '}':
+            self.gathered_chars += ch
+            charcode = int(self.gathered_chars[self.gathered_chars.rfind('{')+1:-1], 16)
+            if charcode <= 0x10FFFF:
+                escaped_char = chr(charcode)
+                if self.is_unicode_id_start(escaped_char) or escaped_char in '$_':
+                    return (self._ident_capture, [])
+        raise LexerError('Invalid IdentifierName escape sequence')
+
+
 
     def lex(self, goal=Goal.InputElementDiv):
         state = self._initial
