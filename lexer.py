@@ -276,8 +276,10 @@ class Lexer(object):
         if ch != '' and ch not in self.line_terminators:
             self.gathered_chars += ch
             return (self._single_line_comment, [])
+        # capture the gathered chars, else the call to _initial might wipe it out
+        comment_value = self.gathered_chars
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Comment, 'value': self.gathered_chars}], results))
+        return (state, chain([{'type': self.Type.Comment, 'value': comment_value}], results))
 
     def _multi_line_comment(self, ch, lookahead):
         if ch == '':
@@ -317,48 +319,52 @@ class Lexer(object):
             self.gathered_chars += ch
             return (self._after_decimal, [])
 
-        if ch and ch in '0123456789':
-            # Also needs IdentifierStart in that.
+        if ch and (ch in '0123456789' or self.is_identifier_start(ch)):
             raise LexerError('Invalid chars after Numeric Literal')
 
+        # capture the gathered chars, else the call to _initial might wipe it out
+        captured_value = self.gathered_chars
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': self.gathered_chars}], results))
+        return (state, chain([{'type': self.Type.Token, 'value': captured_value}], results))
 
     def _binary_digits(self, ch, lookahead):
         if ch and ch in '01':
             self.gathered_chars += ch
             return (self._binary_digits, [])
-        if ch and ch in '23456789':
-            # Also needs IdentifierStart in that.
+        if ch and (ch in '23456789' or self.is_identifier_start(ch)):
             raise LexerError('Invalid chars after Numeric Literal')
         if self.gathered_chars[-1] not in '01':
             raise LexerError('Invalid numeric literal')
+        # capture the gathered chars, else the call to _initial might wipe it out
+        captured_value = self.gathered_chars
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': self.gathered_chars}], results))
+        return (state, chain([{'type': self.Type.Token, 'value': captured_value}], results))
 
     def _octal_digits(self, ch, lookahead):
         if ch and ch in '01234567':
             self.gathered_chars += ch
             return (self._octal_digits, [])
-        if ch and ch in '89':
-            # Also needs IdentifierStart in that.
+        if ch and (ch in '89' or self.is_identifier_start(ch)):
             raise LexerError('Invalid chars after Numeric Literal')
         if self.gathered_chars[-1] not in '01234567':
             raise LexerError('Invalid numeric literal')
+        # capture the gathered chars, else the call to _initial might wipe it out
+        captured_value = self.gathered_chars
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': self.gathered_chars}], results))
+        return (state, chain([{'type': self.Type.Token, 'value': captured_value}], results))
 
     def _hex_digits(self, ch, lookahead):
         if ch and ch in '0123456789abcdefABCDEF':
             self.gathered_chars += ch
             return (self._hex_digits, [])
-#        if ch in ??:
-            # Also needs IdentifierStart in that.
-#            raise LexerError('Invalid chars after Numeric Literal')
+        if ch and self.is_identifier_start(ch):
+            raise LexerError('Invalid chars after Numeric Literal')
         if self.gathered_chars[-1] not in '0123456789abcdefABCDEF':
             raise LexerError('Invalid numeric literal')
+        # capture the gathered chars, else the call to _initial might wipe it out
+        captured_value = self.gathered_chars
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': self.gathered_chars}], results))
+        return (state, chain([{'type': self.Type.Token, 'value': captured_value}], results))
 
     def _integer_part(self, ch, lookahead):
         if ch and ch in '0123456789':
@@ -371,9 +377,12 @@ class Lexer(object):
             self.gathered_chars += ch
             return (self._after_e, [])
 
-        # if ch in IndentifierStart, abort
+        if ch and self.is_identifier_start(ch):
+            raise LexerError('Invalid chars after Numeric Literal')
+        # capture the gathered chars, else the call to _initial might wipe it out
+        captured_value = self.gathered_chars
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': self.gathered_chars}], results))
+        return (state, chain([{'type': self.Type.Token, 'value': captured_value}], results))
 
     def _after_decimal(self, ch, lookahead):
         if ch and ch in '0123456789':
@@ -383,9 +392,12 @@ class Lexer(object):
             self.gathered_chars += ch
             return (self._after_e, [])
 
-        # if ch in IndentierStart, abort
+        if ch and self.is_identifier_start(ch):
+            raise LexerError('Invalid chars after Numeric Literal')
+        # capture the gathered chars, else the call to _initial might wipe it out
+        captured_value = self.gathered_chars
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': self.gathered_chars}], results))
+        return (state, chain([{'type': self.Type.Token, 'value': captured_value}], results))
 
     def _after_e(self, ch, lookahead):
         if ch and ch in '-+0123456789':
@@ -404,9 +416,57 @@ class Lexer(object):
         if ch and ch in '0123456789':
             self.gathered_chars += ch
             return (self._exponent_digits, [])
-        # if ch in IdentifierStart, abort
+        if ch and self.is_identifier_start(ch):
+            raise LexerError('Invalid chars after Numeric Literal')
+        # capture the gathered chars, else the call to _initial might wipe it out
+        captured_value = self.gathered_chars
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': self.gathered_chars}], results))
+        return (state, chain([{'type': self.Type.Token, 'value': captured_value}], results))
+
+    @staticmethod
+    def is_unicode_id_start(ch):
+        # ID_Start characters are derived from the Unicode General_Category of uppercase letters, lowercase letters,
+        # titlecase letters, modifier letters, other letters, letter numbers, plus Other_ID_Start, minus Pattern_Syntax and
+        # Pattern_White_Space code points.
+
+        # The General_Category parts of that are: Lu Ll Lt Lm Lo and Nl.
+        # Other_ID_Start is U+1885, U+1886, U+2118, U+212E, U+309B, and U+309C (which have categories Mn Sm So and Sk).
+        # Pattern_Syntax is a long list, but doesn't have anything from Other_ID_Start, and only 2E2F (vertical tilde) from
+        # the category matches.
+        # Pattern_White_Space is short, but doesn't have anything from the prior categories, so I'm not sure why it's even
+        # listed.
+
+        cat = unicodedata.category(ch)
+        return ((cat in ['Lu', 'Ll', 'Lt', 'Lm', 'Lo', 'Nl'] and ch != '\u2e2f') or
+                ch in '\u1885\u1886\u2118\u212e\u309b\u309c')
+
+    @staticmethod
+    def is_unicode_id_continue(ch):
+        # ID_Continue characters include ID_Start characters, plus characters having the Unicode General_Category of
+        # nonspacing marks, spacing combining marks, decimal number, connector punctuation, plus Other_ID_Continue , minus
+        # Pattern_Syntax and Pattern_White_Space code points.
+
+        # In set notation:
+        # [\p{ID_Start}\p{Mn}\p{Mc}\p{Nd}\p{Pc}\p{Other_ID_Continue}-\p{Pattern_Syntax}-\p{Pattern_White_Space}]
+
+        # ================================================
+        #
+        # 00B7          ; Other_ID_Continue # Po       MIDDLE DOT
+        # 0387          ; Other_ID_Continue # Po       GREEK ANO TELEIA
+        # 1369..1371    ; Other_ID_Continue # No   [9] ETHIOPIC DIGIT ONE..ETHIOPIC DIGIT NINE
+        # 19DA          ; Other_ID_Continue # No       NEW TAI LUE THAM DIGIT ONE
+        #
+        # Total code points: 12
+        other_id_continue = '\u00b7\u0387\u1369\u136a\u136b\u136c\u136d\u136e\u136f\u1370\u1371\u19da'
+
+        # Again, the Pattern_Syntax and Pattern_White_Space don't actually take anything out -- those chars aren't in the
+        # valid list to begin with.
+        return (is_unicode_id_start(ch) or
+                (unicodedata.category(ch) in [ 'Mn', 'Mc', 'Nd', 'Pc' ] or ch in other_id_continue))
+
+    @classmethod
+    def is_identifier_start(cls, ch):
+        return cls.is_unicode_id_start(ch) or ch in '$_\\'
 
     def lex(self, goal=Goal.InputElementDiv):
         state = self._initial

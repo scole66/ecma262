@@ -113,6 +113,8 @@ multiple lines!
 */'''}]),
                             ('//comment\n', [{'type': Lexer.Type.Comment, 'value': '//comment'},
                                              {'type': Lexer.Type.LineTerminator, 'value': '\n'}]),
+                            ('/* comment 1 *//* comment 2 */', [{'type': Lexer.Type.Comment, 'value': '/* comment 1 */'},
+                                                                {'type': Lexer.Type.Comment, 'value': '/* comment 2 */'}]),
                             ('0', [{'type': Lexer.Type.Token, 'value': '0'}]),
                             ('1', [{'type': Lexer.Type.Token, 'value': '1'}]),
                             ('10', [{'type': Lexer.Type.Token, 'value': '10'}]),
@@ -129,6 +131,7 @@ multiple lines!
                             ('0b010', [{'type': Lexer.Type.Token, 'value': '0b010'}]),
                             ('0O765', [{'type': Lexer.Type.Token, 'value': '0O765'}]),
                             ('0xabc8', [{'type': Lexer.Type.Token, 'value': '0xabc8'}]),
+                            ('69/90', [{'type': Lexer.Type.Token, 'value': '69'}, {'type': Lexer.Type.Token, 'value': '/'}, {'type': Lexer.Type.Token, 'value': '90'}]),
                          ])
 def test_lex(test_input, expected):
     l = Lexer(io.StringIO(test_input))
@@ -136,7 +139,7 @@ def test_lex(test_input, expected):
     assert result == expected
 
 @pytest.mark.parametrize('test_input',
-                         [ '/* unterminated', '0000', '0b1015', '0o3129', '0x', '0b', '0o', '3e' ])
+                         [ '/* unterminated', '0000', '0b1015', '0o3129', '0x', '0b', '0o', '3e', '0xab$', '0b0100r', '0o765_', '67.22e+21\u2118', '432A', '7.Z' ])
 def test_syntax_error(test_input):
     l = Lexer(io.StringIO(test_input))
     with pytest.raises(LexerError):
