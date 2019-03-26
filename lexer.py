@@ -24,20 +24,20 @@ class Lexer(object):
         Comment = auto()
         LineTerminator = auto()
 
-    whitespace_a = [
-        '\u0009',  # <TAB> CHARACTER TABULATION
-        '\u000b',  # <VT> LINE TABULATION
-        '\u000c',  # <FF> FORM FEED
-        '\u0020',  # <SP> SPACE
-        '\u00a0',  # <NBSP> NO-BREAK SPACE
+    whitespace_a = (
+        '\u0009'  # <TAB> CHARACTER TABULATION
+        '\u000b'  # <VT> LINE TABULATION
+        '\u000c'  # <FF> FORM FEED
+        '\u0020'  # <SP> SPACE
+        '\u00a0'  # <NBSP> NO-BREAK SPACE
         '\ufeff'  # <ZWNBSP> ZERO WIDTH NO-BREAK SPACE
-    ]
-    line_terminators = [
-        '\u000a',  # <LF> LINE FEED
-        '\u000d',  # <CR> CARRIAGE RETURN
-        '\u2028',  # <LS> LINE SEPARATOR
+    )
+    line_terminators = (
+        '\u000a'  # <LF> LINE FEED
+        '\u000d'  # <CR> CARRIAGE RETURN
+        '\u2028'  # <LS> LINE SEPARATOR
         '\u2029'  # <PS> PARAGRAPH SEPARATOR
-    ]
+    )
 
     def __init__(self, stream):
         super().__init__()
@@ -110,6 +110,13 @@ class Lexer(object):
             if ch == '\\':
                 return (self._ident_start_escape, [])
             return (self._ident_capture, [])
+
+        elif ch == "'":
+            self.gathered_chars = ch
+            return (self._single_string_capture, [])
+        elif ch == '"':
+            self.gathered_chars = ch
+            return (self._double_string_capture, [])
 
         # More to add still...
         return (self._initial, [])
@@ -564,6 +571,9 @@ class Lexer(object):
             self.gathered_chars += ch
             return (self._n_digits_left, [])
         if ch == '}':
+            if self.gathered_chars[-1] == '{':
+                # No digits!
+                raise LexerError('Invalid IdentifierName escape sequence')
             self.gathered_chars += ch
             charcode = int(self.gathered_chars[self.gathered_chars.rfind('{')+1:-1], 16)
             if charcode <= 0x10FFFF:
@@ -577,6 +587,9 @@ class Lexer(object):
             self.gathered_chars += ch
             return (self._istart_n_digits_left, [])
         if ch == '}':
+            if self.gathered_chars[-1] == '{':
+                # No digits!
+                raise LexerError('Invalid IdentifierName escape sequence')
             self.gathered_chars += ch
             charcode = int(self.gathered_chars[self.gathered_chars.rfind('{')+1:-1], 16)
             if charcode <= 0x10FFFF:
@@ -585,7 +598,86 @@ class Lexer(object):
                     return (self._ident_capture, [])
         raise LexerError('Invalid IdentifierName escape sequence')
 
+    def _single_string_capture(self, ch, lookahead):
+        self.gathered_chars += ch
+        if ch == "'":
+            return (self._initial, [{'type': self.Type.Token, 'value': self.gathered_chars}])
+        if ch == '\\':
+            return (self._string_escape, [])
+        if ch == '' or ch in self.line_terminators:
+            raise LexerError('Unterminated String')
+        return (self._single_string_capture, [])
 
+    def _string_escape(self, ch, lookahead):
+        # We've already consumed the leading slash of one of:
+        #  *  SingleStringCharacter :: \ EscapeSequence
+        #  *  SingleStringCharacter :: LineContinuation :: \ LineTerminatorSequence
+        if ch == '':
+            raise LexerError('Syntax Error: Unterminated string escape')
+        if ch in self.line_terminators:
+            # This is the LineContinuation bit
+            self.gathered_chars += ch
+            if ch != '\r' or lookahead != '\n':
+                return (self._single_string_capture, [])
+            return (self._single_string_lfonly, [])
+        if ch == '0' and (lookahead == '' or lookahead not in '0123456789'):
+            # EscapeSequence :: 0 (lookahead not in DecimalDigit)
+            self.gathered_chars += '0'
+            return (self._single_string_capture, [])
+        if ch == 'x':
+            self.gathered_chars += 'x'
+            return (self._single_string_hex_escape, [])
+        if ch == 'u':
+            self.gathered_chars += 'u'
+            return (self._single_string_unicode_escape, [])
+        if ch in '0123456789':
+            raise LexerError('Syntax Error in string escape')
+        self.gathered_chars += ch
+        return (self._single_string_capture, [])
+
+    def _single_string_lfonly(self, ch, lookahead):
+        # we already know ch is \n, so just capture and move on
+        self.gathered_chars += '\n'
+        return (self._single_string_capture, [])
+
+    def _single_string_hex_escape(self, ch, lookahead):
+        if ch and ch in '0123456789abcdefABCDEF':
+            self.gathered_chars += ch
+            if self.gathered_chars[-2] == 'x':
+                return (self._single_string_hex_escape, [])
+            return (self._single_string_capture, [])
+        raise LexerError('Syntax Error in Hex Value for String Escape')
+
+    def _single_string_unicode_escape(self, ch, lookahead):
+        # Either 4 hex digits, or '{' <many hex digits> '}'
+        if ch and ch in '0123456789abcdefABCDEF':
+            self.gathered_chars += ch
+            return (self._single_string_unicode_4digits, [])
+        if ch == '{':
+            self.gathered_chars += ch
+            return (self._single_string_unicode_brackets, [])
+        raise LexerError('Syntax Error in Unicode String Escape')
+
+    def _single_string_unicode_4digits(self, ch, lookahead):
+        # We've gotten \u<digit> .. with maybe more digits.
+        if ch and ch in '0123456789abcdefABCDEF':
+            self.gathered_chars += ch
+            if len(self.gathered_chars) - self.gathered_chars.rfind('u') == 5:
+                return (self._single_string_capture, [])
+            return (self._single_string_unicode_4digits, [])
+        raise LexerError('Syntax Error in Unicode String Escape')
+
+    def _single_string_unicode_brackets(self, ch, lookahead):
+        # We've gotten \u{ and maybe digits
+        if ch and ch in '0123456789abcdefABCDEF':
+            self.gathered_chars += ch
+            return (self._single_string_unicode_brackets, [])
+        if ch == '}' and self.gathered_chars[-1] != '{':
+            self.gathered_chars += ch
+            charcode = int(self.gathered_chars[self.gathered_chars.rfind('{')+1:-1], 16)
+            if charcode <= 0x10FFFF:
+                return (self._single_string_capture, [])
+        raise LexerError('Syntax Error in Unicode String Escape')
 
     def lex(self, goal=Goal.InputElementDiv):
         state = self._initial

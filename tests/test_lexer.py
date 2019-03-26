@@ -136,6 +136,17 @@ multiple lines!
                             ('\\ufd69thing', [{'type': Lexer.Type.Token, 'value': '\\ufd69thing'}]),
                             ('_\\u0068pop', [{'type': Lexer.Type.Token, 'value': '_\\u0068pop'}]),
                             ('\\u{10330}it', [{'type': Lexer.Type.Token, 'value': '\\u{10330}it'}]),
+                            #('""', [{'type': Lexer.Type.Token, 'value': '""'}]),
+                            ("''", [{'type': Lexer.Type.Token, 'value': "''"}]),
+                            ("'\\b'", [{'type': Lexer.Type.Token, 'value': "'\\b'"}]),
+                            ("'abcd'", [{'type': Lexer.Type.Token, 'value': "'abcd'"}]),
+                            ("'ab\\\ncd'", [{'type': Lexer.Type.Token, 'value': "'ab\\\ncd'"}]),
+                            ("'ab\\\rcd'", [{'type': Lexer.Type.Token, 'value': "'ab\\\rcd'"}]),
+                            ("'ab\\\r\ncd'", [{'type': Lexer.Type.Token, 'value': "'ab\\\r\ncd'"}]),
+                            ("'ab\\0cd'", [{'type': Lexer.Type.Token, 'value': "'ab\\0cd'"}]),
+                            ("'ab\\x09cd'", [{'type': Lexer.Type.Token, 'value': "'ab\\x09cd'"}]),
+                            ("'ab\\u09ffcd'", [{'type': Lexer.Type.Token, 'value': "'ab\\u09ffcd'"}]),
+                            ("'ab\\u{10330}cd'", [{'type': Lexer.Type.Token, 'value': "'ab\\u{10330}cd'"}]),
                          ])
 def test_lex(test_input, expected):
     l = Lexer(io.StringIO(test_input))
@@ -146,7 +157,9 @@ def test_lex(test_input, expected):
                          [ '/* unterminated', '0000', '0b1015', '0o3129', '0x', '0b', '0o', '3e', '0xab$', '0b0100r', '0o765_', '67.22e+21\u2118', '432A', '7.Z',
                            'id_\\tab', '\\tab', '_\\utab', '\\utab', '_\\u0m', '\\u0m',
                            '_\\u00m', '\\u00m', '_\\u000m', '\\u000m', '_\\u{718Q', '\\u{718Q',
-                           '_\\u{738190789503417839105170}', 'Embedded\\u0000Null'])
+                           '_\\u{738190789503417839105170}', '\\u{}p', '_\\u{}p', 'Embedded\\u0000Null',
+                           "'\\", "'", "'ab\ncd'", "'a\\09b'", "'ab\\xAX'", "'ab\\uX0000zzz'",
+                           "'ab\\u67XX'", "'ab\\u{}XX'", "'ab\\u{789401578910}'", "'ab\\u{###}'"])
 def test_syntax_error(test_input):
     l = Lexer(io.StringIO(test_input))
     with pytest.raises(LexerError):
