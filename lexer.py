@@ -2,7 +2,6 @@ from enum import Enum, auto, unique
 from itertools import chain
 import unicodedata
 
-
 class LexerError(Exception):
     def __init__(self, message):
         self.message = message
@@ -24,6 +23,15 @@ class Lexer(object):
         Comment = auto()
         LineTerminator = auto()
 
+    class Token(object):
+        def __init__(self, lexer, type, start, length):
+            self.lexer = lexer
+            self.type = type
+            self.start = start
+            self.length = length
+        def value(self):
+            return self.lexer.source[self.start:self.start+self.length]
+
     whitespace_a = (
         '\u0009'  # <TAB> CHARACTER TABULATION
         '\u000b'  # <VT> LINE TABULATION
@@ -39,11 +47,21 @@ class Lexer(object):
         '\u2029'  # <PS> PARAGRAPH SEPARATOR
     )
 
-    def __init__(self, stream):
+    def __init__(self, source_text):
         super().__init__()
-        self.stream = stream
+        self.source = source_text
         self.linenum = 1
-        self.gathered_chars = ''
+        self.start = 0
+        self.pos = 0
+
+    def _make_token(self, type, end_prior):
+        where = self.pos
+        length = where - self.start
+        if end_prior:
+            length -= 1
+        tok = self.Token(self, type, self.start, length)
+        self.start += length
+        return tok
 
     def _initial(self, ch, lookahead):
         # Empty string means we're done
@@ -60,19 +78,18 @@ class Lexer(object):
         #    RightBracePunctuator
         if ch in self.whitespace_a or unicodedata.category(ch) == 'Zs':
             # WhiteSpace
-            return (self._initial, [{'type': self.Type.Whitespace, 'value': ch}])
+            return (self._initial, [self._make_token(self.Type.Whitespace, False)])
         elif ch in self.line_terminators:
             # LineTerminator
             if ch != '\u000d' or lookahead != '\u000a':
                 self.linenum += 1
-            return (self._initial, [{'type': self.Type.LineTerminator, 'value': ch}])
+            return (self._initial, [self._make_token(self.Type.LineTerminator, False)])
         elif ch == '/':
             # Might be Comment::SingleLineComment, Comment::MultiLineComment, DivPunctuator::/, or DivPunctuator::/=
-            self.gathered_chars = ch
             return (self._comment_or_div, [])
         elif ch in '(),:;?[]{}~':
             # These are CommonToken::Punctuator or RightBracePunctuator that are uniquely one character in size
-            return (self._initial, [{'type': self.Type.Token, 'value': ch}])
+            return (self._initial, [self._make_token(self.Type.Token, False)])
         elif ch == '!':
             return (self._bang, [])
         elif ch == '%':
@@ -100,22 +117,18 @@ class Lexer(object):
 
         # NumericLiterals start with the digits 0 through 9, or the period. (Period is handled in self._period.)
         elif ch in '0123456789':
-            self.gathered_chars = ch
             return (self._numeric_start, [])
 
         # IdentifierName also manages to include reserved words (this function also captures the start of a unicode
         # escape sequence).
         elif self.is_identifier_start(ch):
-            self.gathered_chars = ch
             if ch == '\\':
                 return (self._ident_start_escape, [])
             return (self._ident_capture, [])
 
         elif ch == "'":
-            self.gathered_chars = ch
             return (self._single_string_capture, [])
         elif ch == '"':
-            self.gathered_chars = ch
             return (self._double_string_capture, [])
 
         # More to add still...
@@ -128,59 +141,67 @@ class Lexer(object):
         # We already have !. Might be !, !=, or !==.
         if ch == '=':
             return (self._bang_equals, [])
+        tok = self._make_token(self.Type.Token, True)
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': '!'}], results))
+        return (state, chain([tok], results))
 
     def _bang_equals(self, ch, lookahead):
         # We already have !=. Might also be !==.
         if ch == '=':
-            return (self._initial, [{'type': self.Type.Token, 'value': '!=='}])
+            return (self._initial, [self._make_token(self.Type.Token, False)])
+        tok = self._make_token(self.Type.Token, True)
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': '!='}], results))
+        return (state, chain([tok], results))
 
     def _percent(self, ch, lookahead):
         # We already have %. Might also be %=.
         if ch == '=':
-            return (self._initial, [{'type': self.Type.Token, 'value': '%='}])
+            return (self._initial, [self._make_token(self.Type.Token, False)])
+        tok = self._make_token(self.Type.Token, True)
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': '%'}], results))
+        return (state, chain([tok], results))
 
     def _ampersand(self, ch, lookahead):
         # We already have &. Might also be && or &=.
         if ch == '&' or ch == '=':
-            return (self._initial, [{'type': self.Type.Token, 'value': '&'+ch}])
+            return (self._initial, [self._make_token(self.Type.Token, False)])
+        tok = self._make_token(self.Type.Token, True)
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': '&'}], results))
+        return (state, chain([tok], results))
 
     def _asterisk(self, ch, lookahead):
         # We already have *. Might also be **, **=, or *=
         if ch == '=':
-            return (self._initial, [{'type': self.Type.Token, 'value': '*='}])
+            return (self._initial, [self._make_token(self.Type.Token, False)])
         if ch == '*':
             return (self._star_star, [])
+        tok = self._make_token(self.Type.Token, True)
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': '*'}], results))
+        return (state, chain([tok], results))
 
     def _star_star(self, ch, lookahead):
         # We already have **. Might also be **=.
         if ch == '=':
-            return (self._initial, [{'type': self.Type.Token, 'value': '**='}])
+            return (self._initial, [self._make_token(self.Type.Token, False)])
+        tok = self._make_token(self.Type.Token, True)
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': '**'}], results))
+        return (state, chain([tok], results))
 
     def _plus(self, ch, lookahead):
         # We already have +. Might also be ++ or +=.
         if ch == '+' or ch == '=':
-            return (self._initial, [{'type': self.Type.Token, 'value': '+'+ch}])
+            return (self._initial, [self._make_token(self.Type.Token, False)])
+        tok = self._make_token(self.Type.Token, True)
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': '+'}], results))
+        return (state, chain([tok], results))
 
     def _minus(self, ch, lookahead):
         # We already have -. Might also be -- or -=.
         if ch == '-' or ch == '=':
-            return (self._initial, [{'type': self.Type.Token, 'value': '-'+ch}])
+            return (self._initial, [self._make_token(self.Type.Token, False)])
+        tok = self._make_token(self.Type.Token, True)
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': '-'}], results))
+        return (state, chain([tok], results))
 
     def _period(self, ch, lookahead):
         # We already have '.'. Might also be '...'.
@@ -188,235 +209,222 @@ class Lexer(object):
             return (self._dot_dot, [])
         if ch and ch in '0123456789':
             # Hey, look, it's a number.
-            self.gathered_chars = '.' + ch
             return (self._after_decimal, [])
+        tok = self._make_token(self.Type.Token, True)
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': '.'}], results))
+        return (state, chain([tok], results))
 
     def _dot_dot(self, ch, lookahead):
         # We already have '..'. Might also be '...'.
         if ch == '.':
-            return (self._initial, [{'type': self.Type.Token, 'value': '...'}])
+            return (self._initial, [self._make_token(self.Type.Token, False)])
         # (But there's no '..', so that tokenizes into two individual dots.)
+        tok = self._make_token(self.Type.Token, True) # This is a '..' token...
+        tok.length -= 1 # Convert it to '.' (the first dot)
+        self.start -= 1 # back up start to point to the 2nd dot
+        tok2 = self._make_token(self.Type.Token, True) # This just got the 2nd dot
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': '.'}, {'type': self.Type.Token, 'value': '.'}], results))
+        return (state, chain([tok, tok2], results))
 
     def _less_than(self, ch, lookahead):
         # We already have '<'. Might also be '<<', '<<=', or '<='.
         if ch == '=':
-            return (self._initial, [{'type': self.Type.Token, 'value': '<='}])
+            return (self._initial, [self._make_token(self.Type.Token, False)])
         if ch == '<':
             return (self._less_less, [])
+        tok = self._make_token(self.Type.Token, True)
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': '<'}], results))
+        return (state, chain([tok], results))
 
     def _less_less(self, ch, lookahead):
         # We have <<. Might also be <<=.
         if ch == '=':
-            return (self._initial, [{'type': self.Type.Token, 'value': '<<='}])
+            return (self._initial, [self._make_token(self.Type.Token, False)])
+        tok = self._make_token(self.Type.Token, True)
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': '<<'}], results))
+        return (state, chain([tok], results))
 
     def _equals(self, ch, lookahead):
         # We have =. Might also be ==, ===, or =>.
         if ch == '>':
-            return (self._initial, [{'type': self.Type.Token, 'value': '=>'}])
+            return (self._initial, [self._make_token(self.Type.Token, False)])
         if ch == '=':
             return (self._equal_equal, [])
+        tok = self._make_token(self.Type.Token, True)
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': '='}], results))
+        return (state, chain([tok], results))
 
     def _equal_equal(self, ch, lookahead):
         # We have ==. Might also be ===.
         if ch == '=':
-            return (self._initial, [{'type': self.Type.Token, 'value': '==='}])
+            return (self._initial, [self._make_token(self.Type.Token, False)])
+        tok = self._make_token(self.Type.Token, True)
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': '=='}], results))
+        return (state, chain([tok], results))
 
     def _greater_than(self, ch, lookahead):
         # We have >. Might also be >=, >>, >>=, >>>, or >>>=.
         if ch == '=':
-            return (self._initial, [{'type': self.Type.Token, 'value': '>='}])
+            return (self._initial, [self._make_token(self.Type.Token, False)])
         if ch == '>':
             return (self._greater_greater, [])
+        tok = self._make_token(self.Type.Token, True)
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': '>'}], results))
+        return (state, chain([tok], results))
 
     def _greater_greater(self, ch, lookahead):
         # We have >>. Might also be >>=, >>>, or >>>=.
         if ch == '=':
-            return (self._initial, [{'type': self.Type.Token, 'value': '>>='}])
+            return (self._initial, [self._make_token(self.Type.Token, False)])
         if ch == '>':
             return (self._greater_x3, [])
+        tok = self._make_token(self.Type.Token, True)
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': '>>'}], results))
+        return (state, chain([tok], results))
 
     def _greater_x3(self, ch, lookahead):
         # We have >>>. Might also be >>>=.
         if ch == '=':
-            return (self._initial, [{'type': self.Type.Token, 'value': '>>>='}])
+            return (self._initial, [self._make_token(self.Type.Token, False)])
+        tok = self._make_token(self.Type.Token, True)
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': '>>>'}], results))
+        return (state, chain([tok], results))
 
     def _caret(self, ch, lookahead):
         # We have ^. Might also be ^=.
         if ch == '=':
-            return (self._initial, [{'type': self.Type.Token, 'value': '^='}])
+            return (self._initial, [self._make_token(self.Type.Token, False)])
+        tok = self._make_token(self.Type.Token, True)
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': '^'}], results))
+        return (state, chain([tok], results))
 
     def _pipe(self, ch, lookahead):
         # We have |. Might also be |= or ||.
         if ch and ch in '=|':
-            return (self._initial, [{'type': self.Type.Token, 'value': '|'+ch}])
+            return (self._initial, [self._make_token(self.Type.Token, False)])
+        tok = self._make_token(self.Type.Token, True)
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': '|'}], results))
+        return (state, chain([tok], results))
 
     def _comment_or_div(self, ch, lookahead):
         # We have one slash. All kinds of things this might be.
         if ch == '=':
-            return (self._initial, [{'type': self.Type.Token, 'value': '/='}])
+            return (self._initial, [self._make_token(self.Type.Token, False)])
         if ch == '/':
             # A SingleLineComment
-            self.gathered_chars = '//'
             return (self._single_line_comment, [])
         if ch == '*':
             # A MultiLineComment
-            self.gathered_chars = '/*'
             return (self._multi_line_comment, [])
+        tok = self._make_token(self.Type.Token, True)
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': '/'}], results))
+        return (state, chain([tok], results))
 
     def _single_line_comment(self, ch, lookahead):
-        if ch != '' and ch not in self.line_terminators:
-            self.gathered_chars += ch
+        if ch and ch not in self.line_terminators:
             return (self._single_line_comment, [])
-        # capture the gathered chars, else the call to _initial might wipe it out
-        comment_value = self.gathered_chars
+        tok = self._make_token(self.Type.Comment, True)
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Comment, 'value': comment_value}], results))
+        return (state, chain([tok], results))
 
     def _multi_line_comment(self, ch, lookahead):
         if ch == '':
             # Hit EOF! That's an unterminated comment error.
             raise LexerError('Unterminated multi-line comment')
-        self.gathered_chars += ch
-        if ch == '/' and len(self.gathered_chars) >= 4 and self.gathered_chars[-2] == '*':
-            return (self._initial, [{'type': self.Type.Comment, 'value': self.gathered_chars}])
+        pos = self.pos
+        if ch == '/' and (pos - self.start) >= 4 and self.source[pos-2] == '*':
+            return (self._initial, [self._make_token(self.Type.Comment, False)])
         return (self._multi_line_comment, [])
 
     def _numeric_start(self, ch, lookahead):
         # We have the first char of a number (though, not a period)
         # The new char might indicate a different base. Check that.
-        if self.gathered_chars == '0':
+        if self.source[self.start] == '0':
             if ch and ch in 'bB':
-                self.gathered_chars += ch
                 return (self._binary_digits, [])
             if ch and ch in 'oO':
-                self.gathered_chars += ch
                 return (self._octal_digits, [])
             if ch and ch in 'xX':
-                self.gathered_chars += ch
                 return (self._hex_digits, [])
             if ch and ch == '.':
-                self.gathered_chars += ch
                 return (self._after_decimal, [])
             if ch and ch in 'eE':
-                self.gathered_chars += ch
                 return (self._after_e, [])
         elif ch and ch in '0123456789':
-            self.gathered_chars += ch
             return (self._integer_part, [])
         elif ch and ch in 'eE':
-            self.gathered_chars += ch
             return (self._after_e, [])
         elif ch == '.':
-            self.gathered_chars += ch
             return (self._after_decimal, [])
 
         if ch and (ch in '0123456789' or self.is_identifier_start(ch)):
             raise LexerError('Invalid chars after Numeric Literal')
 
-        # capture the gathered chars, else the call to _initial might wipe it out
-        captured_value = self.gathered_chars
+        tok = self._make_token(self.Type.Token, True)
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': captured_value}], results))
+        return (state, chain([tok], results))
 
     def _binary_digits(self, ch, lookahead):
         if ch and ch in '01':
-            self.gathered_chars += ch
             return (self._binary_digits, [])
         if ch and (ch in '23456789' or self.is_identifier_start(ch)):
             raise LexerError('Invalid chars after Numeric Literal')
-        if self.gathered_chars[-1] not in '01':
+        if self.source[self.pos-2] not in '01':
             raise LexerError('Invalid numeric literal')
-        # capture the gathered chars, else the call to _initial might wipe it out
-        captured_value = self.gathered_chars
+        tok = self._make_token(self.Type.Token, True)
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': captured_value}], results))
+        return (state, chain([tok], results))
 
     def _octal_digits(self, ch, lookahead):
         if ch and ch in '01234567':
-            self.gathered_chars += ch
             return (self._octal_digits, [])
         if ch and (ch in '89' or self.is_identifier_start(ch)):
             raise LexerError('Invalid chars after Numeric Literal')
-        if self.gathered_chars[-1] not in '01234567':
+        if self.source[self.pos-2] not in '01234567':
             raise LexerError('Invalid numeric literal')
-        # capture the gathered chars, else the call to _initial might wipe it out
-        captured_value = self.gathered_chars
+        tok = self._make_token(self.Type.Token, True)
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': captured_value}], results))
+        return (state, chain([tok], results))
 
     def _hex_digits(self, ch, lookahead):
         if ch and ch in '0123456789abcdefABCDEF':
-            self.gathered_chars += ch
             return (self._hex_digits, [])
         if ch and self.is_identifier_start(ch):
             raise LexerError('Invalid chars after Numeric Literal')
-        if self.gathered_chars[-1] not in '0123456789abcdefABCDEF':
+        if self.source[self.pos-2] not in '0123456789abcdefABCDEF':
             raise LexerError('Invalid numeric literal')
-        # capture the gathered chars, else the call to _initial might wipe it out
-        captured_value = self.gathered_chars
+        tok = self._make_token(self.Type.Token, True)
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': captured_value}], results))
+        return (state, chain([tok], results))
 
     def _integer_part(self, ch, lookahead):
         if ch and ch in '0123456789':
-            self.gathered_chars += ch
             return (self._integer_part, [])
         if ch == '.':
-            self.gathered_chars += ch
             return (self._after_decimal, [])
         if ch and ch in 'eE':
-            self.gathered_chars += ch
             return (self._after_e, [])
 
         if ch and self.is_identifier_start(ch):
             raise LexerError('Invalid chars after Numeric Literal')
-        # capture the gathered chars, else the call to _initial might wipe it out
-        captured_value = self.gathered_chars
+        tok = self._make_token(self.Type.Token, True)
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': captured_value}], results))
+        return (state, chain([tok], results))
 
     def _after_decimal(self, ch, lookahead):
         if ch and ch in '0123456789':
-            self.gathered_chars += ch
             return (self._after_decimal, [])
         if ch and ch in 'eE':
-            self.gathered_chars += ch
             return (self._after_e, [])
 
         if ch and self.is_identifier_start(ch):
             raise LexerError('Invalid chars after Numeric Literal')
-        # capture the gathered chars, else the call to _initial might wipe it out
-        captured_value = self.gathered_chars
+        tok = self._make_token(self.Type.Token, True)
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': captured_value}], results))
+        return (state, chain([tok], results))
 
     def _after_e(self, ch, lookahead):
         if ch and ch in '-+0123456789':
-            self.gathered_chars += ch
             return (self._exponent_digits, [])
         # If we saw an 'e' but no number following, we wind up with a syntax error, thanks to the rule: "The
         # SourceCharacter immediately following a NumericLiteral must not be an IdentifierStart or DecimalDigit."
@@ -429,14 +437,12 @@ class Lexer(object):
 
     def _exponent_digits(self, ch, lookahead):
         if ch and ch in '0123456789':
-            self.gathered_chars += ch
             return (self._exponent_digits, [])
         if ch and self.is_identifier_start(ch):
             raise LexerError('Invalid chars after Numeric Literal')
-        # capture the gathered chars, else the call to _initial might wipe it out
-        captured_value = self.gathered_chars
+        tok = self._make_token(self.Type.Token, True)
         state, results = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': captured_value}], results))
+        return (state, chain([tok], results))
 
     @staticmethod
     def is_unicode_id_start(ch):
@@ -485,97 +491,85 @@ class Lexer(object):
 
     def _ident_capture(self, ch, lookahead):
         if ch and (self.is_unicode_id_continue(ch) or ch in '$\u200c\u200d'):
-            self.gathered_chars += ch
             return (self._ident_capture, [])
         if ch == '\\':
-            self.gathered_chars += ch
             return (self._identpart_escape_1, [])
-        captured_value = self.gathered_chars
-        state, result = self._initial(ch, lookahead)
-        return (state, chain([{'type': self.Type.Token, 'value': captured_value}], result))
+        tok = self._make_token(self.Type.Token, True)
+        state, results = self._initial(ch, lookahead)
+        return (state, chain([tok], results))
 
     def _identpart_escape_1(self, ch, lookahead):
         if ch != 'u':
             raise LexerError('Invalid IdentifierName escape sequence')
-        self.gathered_chars += 'u'
         return (self._identpart_escape_2, [])
 
     def _ident_start_escape(self, ch, lookahead):
         if ch != 'u':
             raise LexerError('Invalid IdentifierName escape sequence')
-        self.gathered_chars += 'u'
         return (self._identstart_escape_2, [])
 
     def _identpart_escape_2(self, ch, lookahead):
         # We have '\u'. Next is either exactly 4 hex digits, or '{' <many digits> '}'.
         if ch and ch in '0123456789abcdefABCDEF':
-            self.gathered_chars += ch
             return (self._3_digits_left, [])
         if ch == '{':
-            self.gathered_chars += '{'
             return (self._n_digits_left, [])
         raise LexerError('Invalid IdentifierName escape sequence')
 
     def _identstart_escape_2(self, ch, lookahead):
         # We have '\u'. Next is either exactly 4 hex digits, or '{' <many digits> '}'.
         if ch and ch in '0123456789abcdefABCDEF':
-            self.gathered_chars += ch
             return (self._istart_3_digits_left, [])
         if ch == '{':
-            self.gathered_chars += '{'
             return (self._istart_n_digits_left, [])
         raise LexerError('Invalid IdentifierName escape sequence')
 
     def _3_digits_left(self, ch, lookahead):
         if ch and ch in '0123456789abcdefABCDEF':
-            self.gathered_chars += ch
             return (self._2_digits_left, [])
         raise LexerError('Invalid IdentifierName escape sequence')
 
     def _istart_3_digits_left(self, ch, lookahead):
         if ch and ch in '0123456789abcdefABCDEF':
-            self.gathered_chars += ch
             return (self._istart_2_digits_left, [])
         raise LexerError('Invalid IdentifierName escape sequence')
 
     def _2_digits_left(self, ch, lookahead):
         if ch and ch in '0123456789abcdefABCDEF':
-            self.gathered_chars += ch
             return (self._1_digit_left, [])
         raise LexerError('Invalid IdentifierName escape sequence')
 
     def _istart_2_digits_left(self, ch, lookahead):
         if ch and ch in '0123456789abcdefABCDEF':
-            self.gathered_chars += ch
             return (self._istart_1_digit_left, [])
         raise LexerError('Invalid IdentifierName escape sequence')
 
     def _1_digit_left(self, ch, lookahead):
         if ch and ch in '0123456789abcdefABCDEF':
-            self.gathered_chars += ch
-            escaped_char = chr(int(self.gathered_chars[-4:], 16))
+            pos = self.pos
+            escaped_char = chr(int(self.source[pos-4:pos], 16))
             if self.is_unicode_id_continue(escaped_char) or escaped_char in '$\u200c\u200d':
                 return (self._ident_capture, [])
         raise LexerError('Invalid IdentifierName escape sequence')
 
     def _istart_1_digit_left(self, ch, lookahead):
         if ch and ch in '0123456789abcdefABCDEF':
-            self.gathered_chars += ch
-            escaped_char = chr(int(self.gathered_chars[-4:], 16))
+            pos = self.pos
+            escaped_char = chr(int(self.source[pos-4:pos], 16))
             if self.is_unicode_id_start(escaped_char) or escaped_char in '$_':
                 return (self._ident_capture, [])
         raise LexerError('Invalid IdentifierName escape sequence')
 
     def _n_digits_left(self, ch, lookahead):
         if ch and ch in '0123456789abcdefABCDEF':
-            self.gathered_chars += ch
             return (self._n_digits_left, [])
+        pos = self.pos
         if ch == '}':
-            if self.gathered_chars[-1] == '{':
+            if self.source[pos-2] == '{':
                 # No digits!
                 raise LexerError('Invalid IdentifierName escape sequence')
-            self.gathered_chars += ch
-            charcode = int(self.gathered_chars[self.gathered_chars.rfind('{')+1:-1], 16)
+            bracket = self.source.rfind('{', self.start, pos)
+            charcode = int(self.source[bracket+1:pos-1], 16)
             if charcode <= 0x10FFFF:
                 escaped_char = chr(charcode)
                 if self.is_unicode_id_continue(escaped_char) or escaped_char in '$\u200c\u200d':
@@ -584,14 +578,14 @@ class Lexer(object):
 
     def _istart_n_digits_left(self, ch, lookahead):
         if ch and ch in '0123456789abcdefABCDEF':
-            self.gathered_chars += ch
             return (self._istart_n_digits_left, [])
+        pos = self.pos
         if ch == '}':
-            if self.gathered_chars[-1] == '{':
+            if self.source[pos-2] == '{':
                 # No digits!
                 raise LexerError('Invalid IdentifierName escape sequence')
-            self.gathered_chars += ch
-            charcode = int(self.gathered_chars[self.gathered_chars.rfind('{')+1:-1], 16)
+            bracket = self.source.rfind('{', self.start, pos)
+            charcode = int(self.source[bracket+1:pos-1], 16)
             if charcode <= 0x10FFFF:
                 escaped_char = chr(charcode)
                 if self.is_unicode_id_start(escaped_char) or escaped_char in '$_':
@@ -599,9 +593,8 @@ class Lexer(object):
         raise LexerError('Invalid IdentifierName escape sequence')
 
     def _single_string_capture(self, ch, lookahead):
-        self.gathered_chars += ch
         if ch == "'":
-            return (self._initial, [{'type': self.Type.Token, 'value': self.gathered_chars}])
+            return (self._initial, [self._make_token(self.Type.Token, False)])
         if ch == '\\':
             return (self._string_escape, [])
         if ch == '' or ch in self.line_terminators:
@@ -616,34 +609,27 @@ class Lexer(object):
             raise LexerError('Syntax Error: Unterminated string escape')
         if ch in self.line_terminators:
             # This is the LineContinuation bit
-            self.gathered_chars += ch
             if ch != '\r' or lookahead != '\n':
                 return (self._single_string_capture, [])
             return (self._single_string_lfonly, [])
         if ch == '0' and (lookahead == '' or lookahead not in '0123456789'):
             # EscapeSequence :: 0 (lookahead not in DecimalDigit)
-            self.gathered_chars += '0'
             return (self._single_string_capture, [])
         if ch == 'x':
-            self.gathered_chars += 'x'
             return (self._single_string_hex_escape, [])
         if ch == 'u':
-            self.gathered_chars += 'u'
             return (self._single_string_unicode_escape, [])
         if ch in '0123456789':
             raise LexerError('Syntax Error in string escape')
-        self.gathered_chars += ch
         return (self._single_string_capture, [])
 
     def _single_string_lfonly(self, ch, lookahead):
         # we already know ch is \n, so just capture and move on
-        self.gathered_chars += '\n'
         return (self._single_string_capture, [])
 
     def _single_string_hex_escape(self, ch, lookahead):
         if ch and ch in '0123456789abcdefABCDEF':
-            self.gathered_chars += ch
-            if self.gathered_chars[-2] == 'x':
+            if self.source[self.pos-2] == 'x':
                 return (self._single_string_hex_escape, [])
             return (self._single_string_capture, [])
         raise LexerError('Syntax Error in Hex Value for String Escape')
@@ -651,18 +637,16 @@ class Lexer(object):
     def _single_string_unicode_escape(self, ch, lookahead):
         # Either 4 hex digits, or '{' <many hex digits> '}'
         if ch and ch in '0123456789abcdefABCDEF':
-            self.gathered_chars += ch
             return (self._single_string_unicode_4digits, [])
         if ch == '{':
-            self.gathered_chars += ch
             return (self._single_string_unicode_brackets, [])
         raise LexerError('Syntax Error in Unicode String Escape')
 
     def _single_string_unicode_4digits(self, ch, lookahead):
         # We've gotten \u<digit> .. with maybe more digits.
         if ch and ch in '0123456789abcdefABCDEF':
-            self.gathered_chars += ch
-            if len(self.gathered_chars) - self.gathered_chars.rfind('u') == 5:
+            upos = self.source.rfind('u', self.start, self.pos)
+            if self.pos - upos == 5:
                 return (self._single_string_capture, [])
             return (self._single_string_unicode_4digits, [])
         raise LexerError('Syntax Error in Unicode String Escape')
@@ -670,11 +654,10 @@ class Lexer(object):
     def _single_string_unicode_brackets(self, ch, lookahead):
         # We've gotten \u{ and maybe digits
         if ch and ch in '0123456789abcdefABCDEF':
-            self.gathered_chars += ch
             return (self._single_string_unicode_brackets, [])
-        if ch == '}' and self.gathered_chars[-1] != '{':
-            self.gathered_chars += ch
-            charcode = int(self.gathered_chars[self.gathered_chars.rfind('{')+1:-1], 16)
+        if ch == '}' and self.source[self.pos-2] != '{':
+            bracket = self.source.rfind('{', self.start, self.pos)
+            charcode = int(self.source[bracket+1:self.pos-1], 16)
             if charcode <= 0x10FFFF:
                 return (self._single_string_capture, [])
         raise LexerError('Syntax Error in Unicode String Escape')
@@ -682,12 +665,20 @@ class Lexer(object):
     def lex(self, goal=Goal.InputElementDiv):
         state = self._initial
 
-        ch = self.stream.read(1)
-        lookahead = self.stream.read(1)
+        ch = self.source[self.pos]
+        try:
+            lookahead = self.source[self.pos+1]
+        except IndexError:
+            lookahead = ''
+        self.pos += 1
 
         while state != self._done:
             state, results = state(ch, lookahead)
             for rval in results:
                 yield rval
             ch = lookahead
-            lookahead = self.stream.read(1)
+            try:
+                lookahead = self.source[self.pos+1]
+            except IndexError:
+                lookahead = ''
+            self.pos += 1

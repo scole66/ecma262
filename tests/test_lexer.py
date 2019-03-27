@@ -1,13 +1,12 @@
 import pytest
-import io
 
 from lexer import Lexer, LexerError
 
 
 def test_lex_simple_sample():
     input_text = "goat = pig + beard - curly tail"
-    l = Lexer(io.StringIO(input_text))
-    result = list(l.lex())
+    l = Lexer(input_text)
+    result = [{'type': token.type, 'value': token.value()} for token in l.lex()]
 
     expected = [
         {'type': Lexer.Type.Token, 'value': 'goat'},
@@ -149,9 +148,9 @@ multiple lines!
                             ("'ab\\u{10330}cd'", [{'type': Lexer.Type.Token, 'value': "'ab\\u{10330}cd'"}]),
                          ])
 def test_lex(test_input, expected):
-    l = Lexer(io.StringIO(test_input))
+    l = Lexer(test_input)
     result = list(l.lex())
-    assert result == expected
+    assert [{'type': token.type, 'value': token.value()} for token in result] == expected
 
 @pytest.mark.parametrize('test_input',
                          [ '/* unterminated', '0000', '0b1015', '0o3129', '0x', '0b', '0o', '3e', '0xab$', '0b0100r', '0o765_', '67.22e+21\u2118', '432A', '7.Z',
@@ -161,6 +160,6 @@ def test_lex(test_input, expected):
                            "'\\", "'", "'ab\ncd'", "'a\\09b'", "'ab\\xAX'", "'ab\\uX0000zzz'",
                            "'ab\\u67XX'", "'ab\\u{}XX'", "'ab\\u{789401578910}'", "'ab\\u{###}'"])
 def test_syntax_error(test_input):
-    l = Lexer(io.StringIO(test_input))
+    l = Lexer(test_input)
     with pytest.raises(LexerError):
         result = list(l.lex())
