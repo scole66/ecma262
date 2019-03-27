@@ -4,10 +4,11 @@ import unicodedata
 
 class LexerError(Exception):
     def __init__(self, message):
+        super().__init__()
         self.message = message
 
 
-class Lexer(object):
+class Lexer():
 
     @unique
     class Goal(Enum):
@@ -23,7 +24,7 @@ class Lexer(object):
         Comment = auto()
         LineTerminator = auto()
 
-    class Token(object):
+    class Token():
         def __init__(self, lexer, type, start, length):
             self.lexer = lexer
             self.type = type
