@@ -33,7 +33,7 @@ class Lexer():
         def value(self):
             return self.lexer.source[self.start:self.start+self.length]
 
-    whitespace_a = (
+    whitespace = (
         '\u0009'  # <TAB> CHARACTER TABULATION
         '\u000b'  # <VT> LINE TABULATION
         '\u000c'  # <FF> FORM FEED
@@ -77,7 +77,7 @@ class Lexer():
         #    CommonToken
         #    DivPunctuator
         #    RightBracePunctuator
-        if ch in self.whitespace_a or unicodedata.category(ch) == 'Zs':
+        if ch in self.whitespace or unicodedata.category(ch) == 'Zs':
             # WhiteSpace
             return (self._initial, [self._make_token(self.Type.Whitespace, False)])
         elif ch in self.line_terminators:
