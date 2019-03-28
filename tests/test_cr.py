@@ -5,19 +5,19 @@ import completion_record
 def test_NormalCompletion():
     z = completion_record.NormalCompletion('test_string')
 
-    assert z.ctype == completion_record.Completion.Type.NORMAL
+    assert z.ctype == completion_record.CompletionType.NORMAL
     assert z.value == 'test_string'
     assert z.target is None
 
 def test_ThrowCompletion():
     z = completion_record.ThrowCompletion('test_string')
 
-    assert z.ctype == completion_record.Completion.Type.THROW
+    assert z.ctype == completion_record.CompletionType.THROW
     assert z.value == 'test_string'
     assert z.target is None
 
 def test_UpdateEmpty():
-    z = completion_record.Completion(completion_record.Completion.Type.BREAK)
+    z = completion_record.Completion(completion_record.CompletionType.BREAK, None, None)
 
     r = completion_record.UpdateEmpty(z, 'update_string')
 

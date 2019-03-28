@@ -17,20 +17,17 @@
 # The term "abrupt completion" refers to any completion with a [[Type]] value other than normal.
 
 from enum import Enum, unique, auto
+from collections import namedtuple
 
-class Completion():
-    @unique
-    class Type(Enum):
-        NORMAL = auto()
-        BREAK = auto()
-        CONTINUE = auto()
-        RETURN = auto()
-        THROW = auto()
+@unique
+class CompletionType(Enum):
+    NORMAL = auto()
+    BREAK = auto()
+    CONTINUE = auto()
+    RETURN = auto()
+    THROW = auto()
 
-    def __init__(self, ctype=None, value=None, target=None):
-        self.ctype = ctype
-        self.value = value
-        self.target = target
+Completion = namedtuple('Completion', ['ctype', 'value', 'target'])
 
 # 6.2.3.2 NormalCompletion
 
@@ -42,7 +39,7 @@ def NormalCompletion(arg):
     # Is a shorthand that is defined as follows:
     #
     # 1. Return Completion { [[Type]]: normal, [[Value]]: argument, [[Target]]: empty }.
-    return Completion(ctype=Completion.Type.NORMAL, value=arg)
+    return Completion(ctype=CompletionType.NORMAL, value=arg, target=None)
 
 # 6.2.3.3 ThrowCompletion
 def ThrowCompletion(arg):
@@ -53,14 +50,14 @@ def ThrowCompletion(arg):
     # Is a shorthand that is defined as follows:
     #
     # 1. Return Completion { [[Type]]: throw, [[Value]]: argument, [[Target]]: empty }.
-    return Completion(ctype=Completion.Type.THROW, value=arg)
+    return Completion(ctype=CompletionType.THROW, value=arg, target=None)
 
 # 6.3.2.4 UpdateEmpty
 def UpdateEmpty(cr, value):
     # The abstract operation UpdateEmpty with arguments completionRecord and value performs the following steps:
 
     # 1. Assert: If completionRecord.[[Type]] is either return or throw, then completionRecord.[[Value]] is not empty.
-    assert cr.value is not None if cr.ctype in [Completion.Type.RETURN, Completion.Type.THROW] else True
+    assert cr.value is not None if cr.ctype in [CompletionType.RETURN, CompletionType.THROW] else True
 
     # 2. If completionRecord.[[Value]] is not empty, return Completion(completionRecord).
     if cr.value is not None:
