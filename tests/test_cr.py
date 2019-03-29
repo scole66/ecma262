@@ -17,7 +17,7 @@ def test_ThrowCompletion():
     assert z.target is None
 
 def test_UpdateEmpty():
-    z = completion_record.Completion(completion_record.CompletionType.BREAK, None, None)
+    z = completion_record.Completion(completion_record.CompletionType.BREAK, completion_record.Empty.EMPTY, None)
 
     r = completion_record.UpdateEmpty(z, 'update_string')
 
@@ -31,3 +31,10 @@ def test_UpdateEmpty():
     assert r2.ctype == z2.ctype
     assert r2.target == z2.target
     assert r2.value == 'gobbledygook'
+
+    z3 = completion_record.Completion(completion_record.CompletionType.CONTINUE, None, None)
+    r3 = completion_record.UpdateEmpty(z3, 'update_string')
+
+    assert r3.ctype == z3.ctype
+    assert r3.target == z3.target
+    assert r3.value is None

@@ -20,6 +20,10 @@ from enum import Enum, unique, auto
 from collections import namedtuple
 
 @unique
+class Empty(Enum):
+    EMPTY = auto()
+
+@unique
 class CompletionType(Enum):
     NORMAL = auto()
     BREAK = auto()
@@ -57,10 +61,10 @@ def UpdateEmpty(cr, value):
     # The abstract operation UpdateEmpty with arguments completionRecord and value performs the following steps:
 
     # 1. Assert: If completionRecord.[[Type]] is either return or throw, then completionRecord.[[Value]] is not empty.
-    assert cr.value is not None if cr.ctype in [CompletionType.RETURN, CompletionType.THROW] else True
+    assert cr.value != Empty.EMPTY if cr.ctype in [CompletionType.RETURN, CompletionType.THROW] else True
 
     # 2. If completionRecord.[[Value]] is not empty, return Completion(completionRecord).
-    if cr.value is not None:
+    if cr.value != Empty.EMPTY:
         return Completion(cr.ctype, cr.value, cr.target)
 
     # 3. Return Completion { [[Type]]: completionRecord.[[Type]], [[Value]]: value, [[Target]]: completionRecord.[[Target]] }.
