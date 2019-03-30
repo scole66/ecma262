@@ -223,7 +223,7 @@ def isNumber(arg):
 
 # 6.1.7.1 Property Attributes
 DataProperty = namedtuple('DataProperty', ['value', 'writable', 'enumerable', 'configurable'])
-AccessorProperty = namedtuple('AccerssorProperty', ['Get', 'Set', 'enumerable', 'configurable'])
+AccessorProperty = namedtuple('AccessorProperty', ['Get', 'Set', 'enumerable', 'configurable'])
 class JSObject:
     # This is all handled in chapter 9. I'll wait until I get there before dealing with the rest of this.
     pass
