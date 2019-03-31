@@ -37,6 +37,7 @@
 
 from collections import namedtuple
 from completion_record import NormalCompletion, ThrowCompletion, Empty
+from errors import CreateReferenceError, CreateTypeError
 
 #
 # 8.1.1 Environment Records
@@ -192,7 +193,7 @@ class DeclarativeEnvironmentRecord:
         if N not in self.bindings:
             # a. If S is true, throw a ReferenceError exception.
             if S:
-                return ThrowCompletion(ReferenceError())
+                return ThrowCompletion(CreateReferenceError())
             # b. Perform envRec.CreateMutableBinding(N, true).
             self.CreateMutableBinding(N, True)
             # c. Perform envRec.InitializeBinding(N, V).
@@ -204,7 +205,7 @@ class DeclarativeEnvironmentRecord:
             S = True
         # 4. If the binding for N in envRec has not yet been initialized, throw a ReferenceError exception.
         if not self.bindings[N].initialized:
-            return ThrowCompletion(ReferenceError())
+            return ThrowCompletion(CreateReferenceError())
         # 5. Else if the binding for N in envRec is a mutable binding, change its bound value to V.
         if self.bindings[N].mutable:
             self.bindings[N] = self.bindings[N]._replace(value=V)
@@ -213,7 +214,7 @@ class DeclarativeEnvironmentRecord:
             # a. Assert: This is an attempt to change the value of an immutable binding.
             # b. If S is true, throw a TypeError exception.
             if S:
-                return ThrowCompletion(TypeError())
+                return ThrowCompletion(CreateTypeError())
         # 7. Return NormalCompletion(empty).
         return NormalCompletion(Empty.EMPTY)
         # NOTE
@@ -230,7 +231,7 @@ class DeclarativeEnvironmentRecord:
         # 2. Assert: envRec has a binding for N.
         # 3. If the binding for N in envRec is an uninitialized binding, throw a ReferenceError exception.
         if not self.bindings[N].initialized:
-            return ThrowCompletion(ReferenceError())
+            return ThrowCompletion(CreateReferenceError())
         # 4. Return the value currently bound to N in envRec.
         return NormalCompletion(self.bindings[N].value)
 
@@ -285,6 +286,149 @@ class DeclarativeEnvironmentRecord:
 # value for use in function calls. The capability is controlled by a withEnvironment Boolean value that is associated
 # with each object Environment Record. By default, the value of withEnvironment is false for any object Environment
 # Record.
+
+class ObjectEnvironmentRecord:
+    def __init__(self, binding_object, with_environment):
+        self.binding_object = ToObject(binding_object)
+        self.with_environment = ToBoolean(with_environment)
+
+    # 8.1.1.2.1 HasBinding ( N )
+    def HasBinding(self, N):
+        # The concrete Environment Record method HasBinding for object Environment Records determines if its associated
+        # binding object has a property whose name is the value of the argument N:
+        # 1. Let envRec be the object Environment Record for which the method was invoked.
+        # 2. Let bindings be the binding object for envRec.
+        # 3. Let foundBinding be ? HasProperty(bindings, N).
+        cr = HasProperty(self.binding_object, N)
+        if cr.ctype != CompletionType.NORMAL:
+            return cr
+        found_binding = cr.value
+        # 4. If foundBinding is false, return false.
+        if not found_binding:
+            return NormalCompletion(False)
+        # 5. If the withEnvironment flag of envRec is false, return true.
+        if not with_environment:
+            return NormalCompletion(True)
+        # 6. Let unscopables be ? Get(bindings, @@unscopables).
+        cr = Get(self.binding_object, wks_unscopables)
+        if cr.ctype != CompletionType.NORMAL:
+            return cr
+        unscopables = cr.value
+        # 7. If Type(unscopables) is Object, then
+        if isObject(unscopables):
+            # a. Let blocked be ToBoolean(? Get(unscopables, N)).
+            cr = Get(unscopables, N)
+            if cr.ctype != CompletionType.NORMAL:
+                return cr
+            blocked = ToBoolean(cr.value)
+            # b. If blocked is true, return false.
+            if blocked:
+                return NormalCompletion(False)
+        # 8. Return true.
+        return NormalCompletion(True)
+
+    # 8.1.1.2.2 CreateMutableBinding ( N, D )
+    def CreateMutableBinding(self, name, deletable):
+        # The concrete Environment Record method CreateMutableBinding for object Environment Records creates in an
+        # Environment Record's associated binding object a property whose name is the String value and initializes it
+        # to the value undefined. If Boolean argument D has the value true the new property's [[Configurable]]
+        # attribute is set to true; otherwise it is set to false.
+
+        # 1. Let envRec be the object Environment Record for which the method was invoked.
+        # 2. Let bindings be the binding object for envRec.
+        # 3. Return ? DefinePropertyOrThrow(bindings, N, PropertyDescriptor { [[Value]]: undefined, [[Writable]]: true,
+        #             [[Enumerable]]: true, [[Configurable]]: D }).
+        return DefinePropertyOrThrow(self.binding_object, name,
+                                     PropertyDescriptor(Value=None, Writable=True,
+                                                        Enumerable=True, Configurable=deletable))
+        # NOTE
+        # Normally envRec will not have a binding for N but if it does, the semantics of DefinePropertyOrThrow may
+        # result in an existing binding being replaced or shadowed or cause an abrupt completion to be returned.
+
+    # 8.1.1.2.4 InitializeBinding ( N, V )
+    def InitializeBinding(self, name, value):
+        # The concrete Environment Record method InitializeBinding for object Environment Records is used to set the
+        # bound value of the current binding of the identifier whose name is the value of the argument N to the value of
+        # argument V. An uninitialized binding for N must already exist.
+
+        # 1. Let envRec be the object Environment Record for which the method was invoked.
+        # 2. Assert: envRec must have an uninitialized binding for N.
+        # 3. Record that the binding for N in envRec has been initialized.
+        # 4. Return ? envRec.SetMutableBinding(N, V, false).
+        return self.SetMutableBinding(name, value, False)
+        # NOTE
+        # In this specification, all uses of CreateMutableBinding for object Environment Records are immediately
+        # followed by a call to InitializeBinding for the same name. Hence, implementations do not need to explicitly
+        # track the initialization state of individual object Environment Record bindings.
+
+    # 8.1.1.2.5 SetMutableBinding ( N, V, S )
+    def SetMutableBinding(self, name, value, strict):
+        # The concrete Environment Record method SetMutableBinding for object Environment Records attempts to set the
+        # value of the Environment Record's associated binding object's property whose name is the value of the
+        # argument N to the value of argument V. A property named N normally already exists but if it does not or is
+        # not currently writable, error handling is determined by the value of the Boolean argument S.
+
+        # 1. Let envRec be the object Environment Record for which the method was invoked.
+        # 2. Let bindings be the binding object for envRec.
+        # 3. Return ? Set(bindings, N, V, S).
+        return Set(self.binding_object, name, value, strict)
+
+    # 8.1.1.2.6 GetBindingValue ( N, S )
+    def GetBindingValue(self, name, strict):
+        # The concrete Environment Record method GetBindingValue for object Environment Records returns the value of
+        # its associated binding object's property whose name is the String value of the argument identifier N. The
+        # property should already exist but if it does not the result depends upon the value of the S argument:
+
+        # 1. Let envRec be the object Environment Record for which the method was invoked.
+        # 2. Let bindings be the binding object for envRec.
+        # 3. Let value be ? HasProperty(bindings, N).
+        cr = HasProperty(self.binding_object, name)
+        if cr.ctype != CompletionType.NORMAL:
+            return cr
+        value = cr.value
+        # 4. If value is false, then
+        if not value:
+            # a. If S is false, return the value undefined; otherwise throw a ReferenceError exception.
+            if not strict:
+                return NormalCompletion(None)
+            return ThrowCompletion(CreateReferenceError())
+        # 5. Return ? Get(bindings, N).
+        return Get(self.binding_object, name)
+
+    # 8.1.1.2.7 DeleteBinding ( N )
+    def DeleteBinding(self, name):
+        # The concrete Environment Record method DeleteBinding for object Environment Records can only delete bindings
+        # that correspond to properties of the environment object whose [[Configurable]] attribute have the value true.
+
+        # 1. Let envRec be the object Environment Record for which the method was invoked.
+        # 2. Let bindings be the binding object for envRec.
+        # 3. Return ? bindings.[[Delete]](N).
+        return self.binding_object.Delete(name)
+
+    # 8.1.1.2.8 HasThisBinding ( )
+    def HasThisBinding(self):
+        # Regular object Environment Records do not provide a this binding.
+        # 1. Return false.
+        return NormalCompletion(False)
+
+    # 8.1.1.2.9 HasSuperBinding ( )
+    def HasSuperBinding(self):
+        # Regular object Environment Records do not provide a super binding.
+        # 1. Return false.
+        return NormalCompletion(False)
+
+    # 8.1.1.2.10 WithBaseObject ( )
+    def WithBaseObject(self):
+        # Object Environment Records return undefined as their WithBaseObject unless their withEnvironment flag is
+        # true.
+
+        # 1. Let envRec be the object Environment Record for which the method was invoked.
+        # 2. If the withEnvironment flag of envRec is true, return the binding object for envRec.
+        if self.with_environment:
+            return NormalCompletion(self.binding_object)
+        # 3. Otherwise, return undefined.
+        return NormalCompletion(None)
+
 
 # 8.1.1.4 Global Environment Records
 #
