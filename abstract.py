@@ -307,7 +307,7 @@ def ToUint8(arg):
 # 7.1.11 ToUint8Clamp ( argument )
 def ToUint8Clamp(arg):
     cr = ToNumber(arg)
-    if cr.crtype != CompletionType.NORMAL:
+    if cr.ctype != CompletionType.NORMAL:
         return cr
     number = cr.value
     if math.isnan(number) or number <= 0:
@@ -315,9 +315,11 @@ def ToUint8Clamp(arg):
     if number >= 255:
         return NormalCompletion(255)
     f = math.floor(number)
-    if f + 0.5 < number or f & 1 == 1:
+    if f + 0.5 < number:
         return NormalCompletion(f+1)
-    return NormalCompletion(f)
+    if number < f + 0.5 or f & 1 == 0:
+        return NormalCompletion(f)
+    return NormalCompletion(f+1)
 
 # 7.1.12 ToString ( argument )
 def ToString(arg):
@@ -328,7 +330,7 @@ def ToString(arg):
     if isBoolean(arg):
         return NormalCompletion('true' if arg else 'false')
     if isNumber(arg):
-        return NumberToString(arg)
+        return NormalCompletion(NumberToString(arg))
     if isString(arg):
         return NormalCompletion(arg)
     if isSymbol(arg):
@@ -343,11 +345,11 @@ def ToString(arg):
 # 7.1.12.1 NumberToString ( m )
 def NumberToString(m):
     if math.isnan(m):
-        return NormalCompletion('NaN')
+        return 'NaN'
     if m == 0:
-        return NormalCompletion ('0')
+        return '0'
     if m < 0:
-        return NormalCompletion('-' + NumberToString(-m))
+        return '-' + NumberToString(-m)
     if m == math.inf:
-        return NormalCompletion('Infinity')
-    return NormalCompletion(str(m))
+        return 'Infinity'
+    return str(m)

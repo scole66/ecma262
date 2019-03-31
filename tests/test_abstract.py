@@ -110,7 +110,9 @@ def test_to_integer_symbol():
     (math.inf, 0),
     (-math.inf, 0),
     (0x1234567890, 0x34567890),
-    (0xb4567890, -0x4ba98770)])
+    (0xb4567890, -0x4ba98770),
+    (367, 367),
+    (-56, -56)])
 def test_to_int32(input, expected):
     cr = abstract.ToInt32(input)
     assert cr == Completion(ctype=NORMAL, value=expected, target=None)
@@ -123,6 +125,141 @@ def test_to_int32_neg_zero():
 
 def test_to_int32_symbol():
     cr = abstract.ToInt32(wks_to_primitive)
+    assert cr.ctype == THROW
+    assert cr.target is None
+    assert isinstance(cr.value, TypeError)
+
+@pytest.mark.parametrize('input,expected', [
+    (math.nan, 0),
+    (0, 0),
+    (math.inf, 0),
+    (-math.inf, 0),
+    (0x1234567890, 0x34567890),
+    (0xb4567890, 0xb4567890),
+    (367, 367),
+    (-56, 0xffffffc8)])
+def test_to_uint32(input, expected):
+    cr = abstract.ToUint32(input)
+    assert cr == Completion(ctype=NORMAL, value=expected, target=None)
+
+def test_to_uint32_symbol():
+    cr = abstract.ToUint32(wks_to_primitive)
+    assert cr.ctype == THROW
+    assert cr.target is None
+    assert isinstance(cr.value, TypeError)
+
+@pytest.mark.parametrize('input,expected', [
+    (math.nan, 0),
+    (0, 0),
+    (math.inf, 0),
+    (-math.inf, 0),
+    (0x1234567890, 0x7890),
+    (0xf890, -0x770),
+    (367, 367),
+    (-56, -56)])
+def test_to_int16(input, expected):
+    cr = abstract.ToInt16(input)
+    assert cr == Completion(ctype=NORMAL, value=expected, target=None)
+def test_to_int16_symbol():
+    cr = abstract.ToInt16(wks_to_primitive)
+    assert cr.ctype == THROW
+    assert cr.target is None
+    assert isinstance(cr.value, TypeError)
+
+@pytest.mark.parametrize('input,expected', [
+    (math.nan, 0),
+    (0, 0),
+    (math.inf, 0),
+    (-math.inf, 0),
+    (0x1234567890, 0x7890),
+    (0xb456f890, 0xf890),
+    (367, 367),
+    (-56, 0xffc8)])
+def test_to_uint16(input, expected):
+    cr = abstract.ToUint16(input)
+    assert cr == Completion(ctype=NORMAL, value=expected, target=None)
+
+def test_to_uint16_symbol():
+    cr = abstract.ToUint16(wks_to_primitive)
+    assert cr.ctype == THROW
+    assert cr.target is None
+    assert isinstance(cr.value, TypeError)
+
+@pytest.mark.parametrize('input,expected', [
+    (math.nan, 0),
+    (0, 0),
+    (math.inf, 0),
+    (-math.inf, 0),
+    (0x12345678, 0x78),
+    (0x90, -0x70),
+    (67, 67),
+    (-56, -56)])
+def test_to_int8(input, expected):
+    cr = abstract.ToInt8(input)
+    assert cr == Completion(ctype=NORMAL, value=expected, target=None)
+def test_to_int8_symbol():
+    cr = abstract.ToInt8(wks_to_primitive)
+    assert cr.ctype == THROW
+    assert cr.target is None
+    assert isinstance(cr.value, TypeError)
+
+@pytest.mark.parametrize('input,expected', [
+    (math.nan, 0),
+    (0, 0),
+    (math.inf, 0),
+    (-math.inf, 0),
+    (0x12345678, 0x78),
+    (0xb456f890, 0x90),
+    (67, 67),
+    (-56, 0xc8)])
+def test_to_uint8(input, expected):
+    cr = abstract.ToUint8(input)
+    assert cr == Completion(ctype=NORMAL, value=expected, target=None)
+
+def test_to_uint8_symbol():
+    cr = abstract.ToUint8(wks_to_primitive)
+    assert cr.ctype == THROW
+    assert cr.target is None
+    assert isinstance(cr.value, TypeError)
+
+@pytest.mark.parametrize('input,expected', [
+    ('goblin', 0),
+    ('-0.0', 0),
+    (903, 255),
+    (-3, 0),
+    (math.inf, 255),
+    ('-Infinity', 0),
+    (20, 20),
+    (19.2, 19),
+    (19.7, 20),
+    (19.5, 20),
+    (18.5, 18)])
+def test_to_uint8_clamp(input, expected):
+    cr = abstract.ToUint8Clamp(input)
+    assert cr == Completion(ctype=NORMAL, value=expected, target=None)
+def test_to_uint8_clamp_symbol():
+    cr = abstract.ToUint8Clamp(wks_to_primitive)
+    assert cr.ctype == THROW
+    assert cr.target is None
+    assert isinstance(cr.value, TypeError)
+
+@pytest.mark.parametrize('input,expected', [
+    (None, 'undefined'),
+    (JSNull.NULL, 'null'),
+    (True, 'true'),
+    (False, 'false'),
+    ('green', 'green'),
+    (3.25, '3.25'),
+    (math.inf, 'Infinity'),
+    (-math.inf, '-Infinity'),
+    (math.nan, 'NaN'),
+    (-0.0, '0')
+])
+def test_to_string(input, expected):
+    cr = abstract.ToString(input)
+    assert cr == Completion(ctype=NORMAL, value=expected, target=None)
+def test_to_string_symbol():
+    cr = abstract.ToString(wks_to_primitive)
     assert cr.ctype == THROW
     assert cr.target is None
     assert isinstance(cr.value, TypeError)
