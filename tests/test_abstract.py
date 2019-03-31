@@ -48,12 +48,17 @@ def test_to_boolean(input, expected):
     ('10.e3', 10000),
     ('1e+3', 1000),
     ('.9e-3', 0.0009),
+    ('10.5e-2', 0.105),
+    ('6.', 6),
+    ('.5', 0.5),
     ('+Infinity', math.inf),
     ('-Infinity', -math.inf),
     ('Infinity', math.inf),
     ('inf', math.nan),
     ('\n\n56\t \r', 56),
-    ('0x'+'75789240758907289067984302789758920789089729803478592078975819920375801'*1000, math.inf),
+    ('0x'+'75789240758907289067984302789758920789089729803478592078975819920375801'*4, math.inf),
+    ('0b'+'1'*1025, math.inf),
+    ('0o'+'7'*342, math.inf),
     ('100e4000', math.inf),
     ('-5e4000', -math.inf),
     ('5e-4000', 0)
@@ -62,6 +67,62 @@ def test_to_number(input, expected):
     cr = abstract.ToNumber(input)
     assert cr == Completion(ctype=NORMAL, value=expected, target=None)
 
+@pytest.mark.parametrize('input,expected', [
+    ('-0', '-0.0'),
+    ('-.0', '-0.0'),
+    ('-0.0', '-0.0')])
+def test_to_number_negative_zero(input, expected):
+    cr = abstract.ToNumber(input)
+    cr2 = Completion(ctype=cr.ctype, value=str(cr.value), target=cr.target)
+    assert cr2 == Completion(ctype=NORMAL, value=expected, target=None)
+
 def test_to_number_symbol():
     cr = abstract.ToNumber(wks_to_primitive)
     assert cr.ctype == THROW
+    assert cr.target is None
+    assert isinstance(cr.value, TypeError)
+
+@pytest.mark.parametrize('input,expected', [
+    ('goblin', 0),
+    (0, 0),
+    (-math.inf, -math.inf),
+    (math.inf, math.inf),
+    (10.3, 10.0),
+    (-23.3, -23.0)])
+def test_to_integer(input, expected):
+    cr = abstract.ToInteger(input)
+    assert cr == Completion(ctype=NORMAL, value=expected, target=None)
+
+def test_to_integer_negative_zero():
+    cr = abstract.ToInteger(-0.0)
+    cr2 = Completion(ctype=cr.ctype, value=str(cr.value), target=cr.target)
+    assert cr2 == Completion(ctype=NORMAL, value='-0.0', target=None)
+
+def test_to_integer_symbol():
+    cr = abstract.ToInteger(wks_to_primitive)
+    assert cr.ctype == THROW
+    assert cr.target is None
+    assert isinstance(cr.value, TypeError)
+
+@pytest.mark.parametrize('input,expected', [
+    (math.nan, 0),
+    (0, 0),
+    (math.inf, 0),
+    (-math.inf, 0),
+    (0x1234567890, 0x34567890),
+    (0xb4567890, -0x4ba98770)])
+def test_to_int32(input, expected):
+    cr = abstract.ToInt32(input)
+    assert cr == Completion(ctype=NORMAL, value=expected, target=None)
+    assert cr.value == abstract.ToInt32(cr.value).value  # Idempotentcy check
+
+def test_to_int32_neg_zero():
+    cr = abstract.ToInt32(-0.0)
+    cr2 = Completion(ctype=cr.ctype, value=str(cr.value), target=cr.target)
+    assert cr2 == Completion(ctype=NORMAL, value='0', target=None)
+
+def test_to_int32_symbol():
+    cr = abstract.ToInt32(wks_to_primitive)
+    assert cr.ctype == THROW
+    assert cr.target is None
+    assert isinstance(cr.value, TypeError)

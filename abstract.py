@@ -193,10 +193,7 @@ def ToNumber(arg):
 
                     decimal = re.match(r'[-+]?((Infinity)|([0-9]+\.([0-9]+)?([eE][-+]?[0-9]+)?)|(\.[0-9]+([eE][-+]?[0-9]+)?)|([0-9]+([eE][-+]?[0-9]+)?))$', digits)
                     if decimal:
-                        try:
-                            result = float(digits)
-                        except OverflowError:
-                            result = -math.inf if decimal[0] == '-' else math.inf
+                        result = float(digits)
                     else:
                         result = math.nan
     return NormalCompletion(result)
