@@ -1,8 +1,6 @@
 import pytest
 
-from completion_record import CompletionType, Empty
-import environment
-
+from ecmascript import *
 
 NORMAL = CompletionType.NORMAL
 THROW = CompletionType.THROW
@@ -10,7 +8,7 @@ empty = Empty.EMPTY
 
 def test_de_HasBinding():
     # setup
-    der = environment.DeclarativeEnvironmentRecord()
+    der = DeclarativeEnvironmentRecord()
     der.CreateMutableBinding('blue_moon', False)
 
     # probe
@@ -19,7 +17,7 @@ def test_de_HasBinding():
 
 def test_de_CreateMutableBinding():
     # setup
-    der = environment.DeclarativeEnvironmentRecord()
+    der = DeclarativeEnvironmentRecord()
 
     # probe
     cr1 = der.CreateMutableBinding('goblin', True)
@@ -45,7 +43,7 @@ def test_de_CreateMutableBinding():
 
 def test_de_CreateImmutableBinding():
     # setup
-    der = environment.DeclarativeEnvironmentRecord()
+    der = DeclarativeEnvironmentRecord()
 
     # probe
     cr1 = der.CreateImmutableBinding('goblin', True)
@@ -71,7 +69,7 @@ def test_de_CreateImmutableBinding():
     assert cr6.ctype == NORMAL
 
 def test_de_InitializedBinding():
-    der = environment.DeclarativeEnvironmentRecord()
+    der = DeclarativeEnvironmentRecord()
 
     cr1 = der.CreateMutableBinding('goblin', True)
     cr2 = der.CreateMutableBinding('kobold', False)
@@ -116,7 +114,7 @@ def test_SetMutableBinding():
     # the value of argument V. A binding for N normally already exists, but in rare cases it may not. If the
     # binding is an immutable binding, a TypeError is thrown if S is true.
 
-    der = environment.DeclarativeEnvironmentRecord()
+    der = DeclarativeEnvironmentRecord()
 
     cr1 = der.CreateMutableBinding('goblin', True)
     cr2 = der.CreateMutableBinding('kobold', False)
@@ -168,7 +166,7 @@ def test_SetMutableBinding():
     assert cr.ctype == NORMAL and cr.value == 'baked potato'
 
 def test_GetBindingValue():
-    der = environment.DeclarativeEnvironmentRecord()
+    der = DeclarativeEnvironmentRecord()
 
     cr = der.CreateMutableBinding('goblin', False)
     assert cr.ctype == NORMAL
@@ -183,7 +181,7 @@ def test_GetBindingValue():
     assert cr.ctype == NORMAL and cr.value == 'grenade' and cr.target is None
 
 def test_DeleteBinding():
-    der = environment.DeclarativeEnvironmentRecord()
+    der = DeclarativeEnvironmentRecord()
 
     cr1 = der.CreateMutableBinding('goblin', True)
     cr2 = der.CreateMutableBinding('kobold', False)
@@ -194,7 +192,7 @@ def test_DeleteBinding():
     assert cr.ctype == NORMAL and not cr.value
 
 def test_remaining():
-    der = environment.DeclarativeEnvironmentRecord()
+    der = DeclarativeEnvironmentRecord()
     assert not der.HasThisBinding()
     assert not der.HasSuperBinding()
     assert der.WithBaseObject() is None

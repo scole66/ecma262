@@ -1,8 +1,6 @@
 import pytest
 
-from completion_record import Completion, CompletionType
-
-import property_descriptor
+from ecmascript import *
 
 NORMAL = CompletionType.NORMAL
 THROW = CompletionType.THROW
@@ -25,7 +23,7 @@ THROW = CompletionType.THROW
     (True, True, True, False, True),
     (True, True, True, True, True)])
 def test_is_accessor_descriptor(get, set, value, writable, expected):
-    pd = property_descriptor.PropertyDescriptor()
+    pd = PropertyDescriptor()
     if get:
         pd.Get = None
     if set:
@@ -54,7 +52,7 @@ def test_is_accessor_descriptor(get, set, value, writable, expected):
     (True, True, True, False, True),
     (True, True, True, True, True)])
 def test_is_data_descriptor(get, set, value, writable, expected):
-    pd = property_descriptor.PropertyDescriptor()
+    pd = PropertyDescriptor()
     if get:
         pd.Get = None
     if set:
@@ -83,7 +81,7 @@ def test_is_data_descriptor(get, set, value, writable, expected):
     (True, True, True, False, False),
     (True, True, True, True, False)])
 def test_is_generic_descriptor(get, set, value, writable, expected):
-    pd = property_descriptor.PropertyDescriptor()
+    pd = PropertyDescriptor()
     if get:
         pd.Get = None
     if set:
@@ -95,7 +93,7 @@ def test_is_generic_descriptor(get, set, value, writable, expected):
     assert pd.is_generic_descriptor() == expected
 
 def test_complete_property_descriptor_empty():
-    pd = property_descriptor.PropertyDescriptor()
+    pd = PropertyDescriptor()
     filled = pd.complete_property_descriptor()
 
     assert filled == pd
@@ -111,7 +109,7 @@ def test_complete_property_descriptor_empty():
     assert not filled.configurable
 
 def test_complete_property_descriptor_value():
-    pd = property_descriptor.PropertyDescriptor()
+    pd = PropertyDescriptor()
     pd.value = 'green'
     filled = pd.complete_property_descriptor()
 
@@ -128,7 +126,7 @@ def test_complete_property_descriptor_value():
     assert not filled.configurable
 
 def test_complete_property_descriptor_writable():
-    pd = property_descriptor.PropertyDescriptor()
+    pd = PropertyDescriptor()
     pd.writable = True
     filled = pd.complete_property_descriptor()
 
@@ -145,7 +143,7 @@ def test_complete_property_descriptor_writable():
     assert not filled.configurable
 
 def test_complete_property_descriptor_Get():
-    pd = property_descriptor.PropertyDescriptor()
+    pd = PropertyDescriptor()
     pd.Get = 'red'
     filled = pd.complete_property_descriptor()
 
@@ -162,7 +160,7 @@ def test_complete_property_descriptor_Get():
     assert not filled.configurable
 
 def test_complete_property_descriptor_Set():
-    pd = property_descriptor.PropertyDescriptor()
+    pd = PropertyDescriptor()
     pd.Set = 'blue'
     filled = pd.complete_property_descriptor()
 
@@ -179,7 +177,7 @@ def test_complete_property_descriptor_Set():
     assert not filled.configurable
 
 def test_complete_property_descriptor_enumerable():
-    pd = property_descriptor.PropertyDescriptor()
+    pd = PropertyDescriptor()
     pd.enumerable = True
     filled = pd.complete_property_descriptor()
 
@@ -196,7 +194,7 @@ def test_complete_property_descriptor_enumerable():
     assert not filled.configurable
 
 def test_complete_property_descriptor_configurable():
-    pd = property_descriptor.PropertyDescriptor()
+    pd = PropertyDescriptor()
     pd.configurable = True
     filled = pd.complete_property_descriptor()
 
@@ -213,31 +211,31 @@ def test_complete_property_descriptor_configurable():
     assert filled.configurable
 
 def test_IsAccessorDescriptor_None():
-    assert not property_descriptor.IsAccessorDescriptor(None)
+    assert not IsAccessorDescriptor(None)
 def test_IsAccessorDescriptor_True():
-    pd = property_descriptor.PropertyDescriptor()
+    pd = PropertyDescriptor()
     pd.Get = None
     pd.Set = None
-    assert property_descriptor.IsAccessorDescriptor(pd)
+    assert IsAccessorDescriptor(pd)
 
 def test_IsDataDescriptor_None():
-    assert not property_descriptor.IsDataDescriptor(None)
+    assert not IsDataDescriptor(None)
 def test_IsDataDescriptor_True():
-    pd = property_descriptor.PropertyDescriptor()
+    pd = PropertyDescriptor()
     pd.value = 'puce'
     pd.writable = True
-    assert property_descriptor.IsDataDescriptor(pd)
+    assert IsDataDescriptor(pd)
 
 def test_IsGenericDescriptor_None():
-    assert not property_descriptor.IsGenericDescriptor(None)
+    assert not IsGenericDescriptor(None)
 def test_IsGenericDescriptor_True():
-    pd = property_descriptor.PropertyDescriptor()
+    pd = PropertyDescriptor()
     pd.configurable = True
-    assert property_descriptor.IsGenericDescriptor(pd)
+    assert IsGenericDescriptor(pd)
 
 def test_CompletePropertyDescriptor():
-    pd = property_descriptor.PropertyDescriptor()
-    filled = property_descriptor.CompletePropertyDescriptor(pd)
+    pd = PropertyDescriptor()
+    filled = CompletePropertyDescriptor(pd)
 
     assert filled == pd
     assert hasattr(filled, 'value')
