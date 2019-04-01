@@ -124,6 +124,8 @@ def ToBoolean(arg):
     # | Object        | Return true.
     # +---------------+---------------------------------------------------------------------------------------------
 
+    # Note: The ToBoolean function does not return a CompletionRecord; it can't fail.
+
     if isUndefined(arg) or isNull(arg):
         result = False
     elif isBoolean(arg):
@@ -134,7 +136,7 @@ def ToBoolean(arg):
         result = len(arg) > 0
     else: # isSymbol(arg) or isObject(arg)
         result = True
-    return NormalCompletion(result)
+    return result
 
 # 7.1.3 ToNumber ( argument )
 def ToNumber(arg):

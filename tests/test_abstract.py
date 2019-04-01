@@ -30,7 +30,7 @@ def test_toprimitive():
     ])
 def test_to_boolean(input, expected):
     cr = abstract.ToBoolean(input)
-    assert cr == Completion(ctype=NORMAL, value=expected, target=None)
+    assert cr == expected
 
 @pytest.mark.parametrize('input,expected', [
     (None, math.nan),
