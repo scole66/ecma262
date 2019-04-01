@@ -152,83 +152,83 @@ def ToPropertyDescriptor(obj):
     # 2. Let desc be a new Property Descriptor that initially has no fields.
     desc = PropertyDescriptor()
     # 3. Let hasEnumerable be ? HasProperty(Obj, "enumerable").
-    has_enumerable = HasProperty(obj, 'enumerable')
-    if has_enumerable.ctype != CompletionType.NORMAL:
+    has_enumerable, ok = ec(HasProperty(obj, 'enumerable'))
+    if not ok:
         return has_enumerable
     # 4. If hasEnumerable is true, then
-    if has_enumerable.value:
+    if has_enumerable:
         # a. Let enum be ToBoolean(? Get(Obj, "enumerable")).
-        enumble = Get(obj, 'enumerable')
-        if enumble.ctype != CompletionType.NORMAL:
+        enumble, ok = ec(Get(obj, 'enumerable'))
+        if not ok:
             return enumble
         # b. Set desc.[[Enumerable]] to enum.
         desc.enumerable = ToBoolean(enumble.value)
     # 5. Let hasConfigurable be ? HasProperty(Obj, "configurable").
-    has_configurable = HasProperty(obj, 'configurable')
-    if has_configurable.ctype != CompletionResult.NORMAL:
+    has_configurable, ok = ec(HasProperty(obj, 'configurable'))
+    if not ok:
         return has_configurable
     # 6. If hasConfigurable is true, then
-    if has_configurable.value:
+    if has_configurable:
         # a. Let conf be ToBoolean(? Get(Obj, "configurable")).
-        conf = Get(obj, 'configurable')
-        if conf.ctype != CompletionType.NORMAL:
+        conf, ok = ec(Get(obj, 'configurable'))
+        if not ok:
             return conf
         # b. Set desc.[[Configurable]] to conf.
-        desc.configurable = ToBoolean(conf.value)
+        desc.configurable = ToBoolean(conf)
     # 7. Let hasValue be ? HasProperty(Obj, "value").
-    has_value = HasProperty(obj, 'value')
-    if has_value.ctype != CompletionType.NORMAL:
+    has_value, ok = ec(HasProperty(obj, 'value'))
+    if not ok:
         return has_value
     # 8. If hasValue is true, then
-    if has_value.value:
+    if has_value:
         # a. Let value be ? Get(Obj, "value").
-        value = Get(obj, 'value')
-        if value.ctype != CompletionType.NORMAL:
+        value, ok = ec(Get(obj, 'value'))
+        if not ok:
             return value
         # b. Set desc.[[Value]] to value.
-        desc.value = value.value
+        desc.value = value
     # 9. Let hasWritable be ? HasProperty(Obj, "writable").
-    has_writable = HasProperty(obj, 'writable')
-    if has_writable.ctype != CompletionType.NORMAL:
+    has_writable, ok = ec(HasProperty(obj, 'writable'))
+    if not ok:
         return has_writable
     # 10. If hasWritable is true, then
-    if has_writable.value:
+    if has_writable:
         # a. Let writable be ToBoolean(? Get(Obj, "writable")).
-        writable = Get(obj, 'writable')
-        if writable.ctype != CompletionType.NORMAL:
+        writable, ok = ec(Get(obj, 'writable'))
+        if not ok:
             return writable
         # b. Set desc.[[Writable]] to writable.
-        desc.writable = ToBoolean(writable.value)
+        desc.writable = ToBoolean(writable)
     # 11. Let hasGet be ? HasProperty(Obj, "get").
-    has_get = HasProperty(obj, 'get')
-    if has_get.ctype != CompletionType.NORMAL:
+    has_get, ok = ec(HasProperty(obj, 'get'))
+    if not ok:
         return has_get
     # 12. If hasGet is true, then
-    if has_get.value:
+    if has_get:
         # a. Let getter be ? Get(Obj, "get").
-        getter = Get(obj, 'get')
-        if getter.ctype != CompletionType.NORMAL:
+        getter, ok = ec(Get(obj, 'get'))
+        if not ok:
             return getter
         # b. If IsCallable(getter) is false and getter is not undefined, throw a TypeError exception.
-        if not IsCallable(getter.value) and getter.value is not None:
+        if not IsCallable(getter) and getter is not None:
             return ThrowCompletion(CreateTypeError())
         # c. Set desc.[[Get]] to getter.
-        desc.Get = getter.value
+        desc.Get = getter
     # 13. Let hasSet be ? HasProperty(Obj, "set").
-    has_set = HasProperty(obj, 'set')
-    if has_set.ctype != CompletionType.NORMAL:
+    has_set, ok = ec(HasProperty(obj, 'set'))
+    if not ok:
         return has_set
     # 14. If hasSet is true, then
-    if has_set.value:
+    if has_set:
         # a. Let setter be ? Get(Obj, "set").
-        setter = Get(obj, 'set')
-        if setter.ctype != CompletionType.NORMAL:
+        setter, ok = ec(Get(obj, 'set'))
+        if not ok:
             return setter
         # b. If IsCallable(setter) is false and setter is not undefined, throw a TypeError exception.
-        if not IsCallable(setter.value) and setter.value is not None:
+        if not IsCallable(setter) and setter is not None:
             return ThrowCompletion(CreateTypeError())
         # c. Set desc.[[Set]] to setter.
-        desc.Set = setter.value
+        desc.Set = setter
     # 15. If desc.[[Get]] is present or desc.[[Set]] is present, then
     if hasattr(desc, 'Get') or hasattr(desc, 'Set'):
         # a. If desc.[[Value]] is present or desc.[[Writable]] is present, throw a TypeError exception.
