@@ -38,3 +38,10 @@ def test_UpdateEmpty():
     assert r3.ctype == z3.ctype
     assert r3.target == z3.target
     assert r3.value is None
+
+def test_ec():
+    okcr = completion_record.Completion(completion_record.CompletionType.NORMAL, 'green', None)
+    abortcr = completion_record.Completion(completion_record.CompletionType.THROW, 'blue', None)
+
+    assert completion_record.ec(okcr) == ('green', True)
+    assert completion_record.ec(abortcr) == (abortcr, False)

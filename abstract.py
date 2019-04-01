@@ -8,7 +8,7 @@ specification.
 import math
 import re
 
-from completion_record import CompletionType, NormalCompletion, ThrowCompletion
+from completion_record import NormalCompletion, ThrowCompletion, ec
 from jstypes import JSObject, JSSymbol, wks_to_primitive, isEcmaValue, isObject, isUndefined, isNull, isBoolean, isNumber, isString, isSymbol
 from lexer import Lexer
 from errors import CreateTypeError
@@ -38,17 +38,15 @@ def ToPrimitive(input, preferred_type='default'):
         # b. Else if PreferredType is hint String, let hint be "string".
         # c. Else PreferredType is hint Number, let hint be "number".
         # d. Let exoticToPrim be ? GetMethod(input, @@toPrimitive).
-        cr = GetMethod(input, wks_to_primitive)
-        if cr.ctype != CompletionType.NORMAL:
-            return cr
-        exotic_to_prim = cr.value
+        exotic_to_prim, ok = ec(GetMethod(input, wks_to_primitive))
+        if not ok:
+            return exotic_to_prim
         # e. If exoticToPrim is not undefined, then
         if exotic_to_prim is not None:
             # i. Let result be ? Call(exoticToPrim, input, « hint »).
-            cr = Call(exotic_to_prim, input, [ preferred_type ])
-            if cr.ctype != CompletionType.NORMAL:
-                return cr
-            result = cr.value
+            result, ok = ec(Call(exotic_to_prim, input, [ preferred_type ]))
+            if not ok:
+                return result
             # ii. If Type(result) is not Object, return result.
             if not isObject(result):
                 return NormalCompletion(result)
@@ -90,17 +88,15 @@ def OrdinaryToPrimitive(obj, hint):
     # 5. For each name in methodNames in List order, do
     for name in method_names:
         # a. Let method be ? Get(O, name).
-        cr = Get(obj, name)
-        if cr.ctype != CompletionType.NORMAL:
-            return cr
-        method = cr.value
+        method, ok = ec(Get(obj, name))
+        if not ok:
+            return method
         # b. If IsCallable(method) is true, then
         if IsCallable(method):
             # i. Let result be ? Call(method, O).
-            cr = Call(method, obj)
-            if cr.ctype != CompletionType.NORMAL:
-                return cr
-            result = cr.value
+            result, ok = ec(Call(method, obj))
+            if not ok:
+                return result
             # ii. If Type(result) is not Object, return result.
             if not isObject(result):
                 return NormalCompletion(result)
@@ -151,14 +147,12 @@ def ToNumber(arg):
     elif isSymbol(arg):
         return ThrowCompletion(CreateTypeError())
     elif isObject(arg):
-        cr = ToPrimitive(arg, 'number')
-        if cr.ctype != CompletionType.NORMAL:
-            return cr
-        prim_value = cr.value
-        cr = ToNumber(prim_value)
-        if cr.ctype != CompletionType.NORMAL:
-            return cr
-        result = cr.value
+        prim_value, ok = ec(ToPrimitive(arg, 'number'))
+        if not ok:
+            return prim_value
+        result, ok = ec(ToNumber(prim_value))
+        if not ok:
+            return result
     else: # String!
         digits = arg.strip(Lexer.whitespace + Lexer.line_terminators)
         binary = re.match(r'0[bB]([0-1]+)$', digits)
@@ -202,10 +196,9 @@ def ToNumber(arg):
 
 # 7.1.4 ToInteger ( argument )
 def ToInteger(arg):
-    cr = ToNumber(arg)
-    if cr.ctype != CompletionType.NORMAL:
-        return cr
-    number = cr.value
+    number, ok = ec(ToNumber(arg))
+    if not ok:
+        return number
     if math.isnan(number):
         result = 0
     elif number == 0.0 or abs(number) == math.inf:
@@ -218,10 +211,9 @@ def ToInteger(arg):
 
 # 7.1.5 ToInt32 ( argument )
 def ToInt32(arg):
-    cr = ToNumber(arg)
-    if cr.ctype != CompletionType.NORMAL:
-        return cr
-    number = cr.value
+    number, ok = ec(ToNumber(arg))
+    if not ok:
+        return number
     if math.isnan(number) or number == 0 or abs(number) == math.inf:
         return NormalCompletion(0)
     this_int = math.floor(abs(number))
@@ -234,10 +226,9 @@ def ToInt32(arg):
 
 # 7.1.6 ToUint32 ( argument )
 def ToUint32(arg):
-    cr = ToNumber(arg)
-    if cr.ctype != CompletionType.NORMAL:
-        return cr
-    number = cr.value
+    number, ok = ec(ToNumber(arg))
+    if not ok:
+        return number
     if math.isnan(number) or number == 0 or abs(number) == math.inf:
         return NormalCompletion(0)
     this_int = math.floor(abs(number))
@@ -248,10 +239,9 @@ def ToUint32(arg):
 
 # 7.1.7 ToInt16 ( argument )
 def ToInt16(arg):
-    cr = ToNumber(arg)
-    if cr.ctype != CompletionType.NORMAL:
-        return cr
-    number = cr.value
+    number, ok = ec(ToNumber(arg))
+    if not ok:
+        return number
     if math.isnan(number) or number == 0 or abs(number) == math.inf:
         return NormalCompletion(0)
     this_int = math.floor(abs(number))
@@ -264,10 +254,9 @@ def ToInt16(arg):
 
 # 7.1.8 ToUint16 ( argument )
 def ToUint16(arg):
-    cr = ToNumber(arg)
-    if cr.ctype != CompletionType.NORMAL:
-        return cr
-    number = cr.value
+    number, ok = ec(ToNumber(arg))
+    if not ok:
+        return number
     if math.isnan(number) or number == 0 or abs(number) == math.inf:
         return NormalCompletion(0)
     this_int = math.floor(abs(number))
@@ -278,10 +267,9 @@ def ToUint16(arg):
 
 # 7.1.9 ToInt8 ( argument )
 def ToInt8(arg):
-    cr = ToNumber(arg)
-    if cr.ctype != CompletionType.NORMAL:
-        return cr
-    number = cr.value
+    number, ok = ec(ToNumber(arg))
+    if not ok:
+        return number
     if math.isnan(number) or number == 0 or abs(number) == math.inf:
         return NormalCompletion(0)
     this_int = math.floor(abs(number))
@@ -294,10 +282,9 @@ def ToInt8(arg):
 
 # 7.1.10 ToUint8 ( argument )
 def ToUint8(arg):
-    cr = ToNumber(arg)
-    if cr.ctype != CompletionType.NORMAL:
-        return cr
-    number = cr.value
+    number, ok = ec(ToNumber(arg))
+    if not ok:
+        return number
     if math.isnan(number) or number == 0 or abs(number) == math.inf:
         return NormalCompletion(0)
     this_int = math.floor(abs(number))
@@ -308,10 +295,9 @@ def ToUint8(arg):
 
 # 7.1.11 ToUint8Clamp ( argument )
 def ToUint8Clamp(arg):
-    cr = ToNumber(arg)
-    if cr.ctype != CompletionType.NORMAL:
-        return cr
-    number = cr.value
+    number, ok = ec(ToNumber(arg))
+    if not ok:
+        return number
     if math.isnan(number) or number <= 0:
         return NormalCompletion(0)
     if number >= 255:
@@ -338,10 +324,9 @@ def ToString(arg):
     if isSymbol(arg):
         return ThrowCompletion(CreateTypeError())
     # isObject
-    cr = ToPrimitive(arg, 'string')
-    if cr.ctype != CompletionType.NORMAL:
-        return cr
-    prim_value = cr.value
+    prim_value, ok = ec(ToPrimitive(arg, 'string'))
+    if not ok:
+        return prim_value
     return ToString(prim_value)
 
 # 7.1.12.1 NumberToString ( m )

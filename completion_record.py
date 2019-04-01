@@ -69,3 +69,32 @@ def UpdateEmpty(cr, value):
 
     # 3. Return Completion { [[Type]]: completionRecord.[[Type]], [[Value]]: value, [[Target]]: completionRecord.[[Target]] }.
     return Completion(cr.ctype, value, cr.target)
+
+# 5.2.3.3 ReturnIfAbrupt
+# So I'm adding a lot of boilerplate to each function to handle this, and I'd like to simplify that.
+#
+# Old Way:
+# obj = ? someroutine()
+#
+# would be written
+#
+# obj = someroutine()
+# if obj.ctype != CompletionType.NORMAL:
+#    return obj
+# obj = obh.value
+#
+# Which is a lot of lines. And I realize I'm not doing the isinstance check there, which I really should be.
+#
+# How about instead:
+#
+# obj, ok = ec(someroutine())
+# if not ok:
+#    return obj
+#
+# (ec shorthand for "error check")
+def ec(val):
+    if isinstance(val, Completion):
+        if val.ctype != CompletionType.NORMAL:
+            return (val, False)
+        val = val.value
+    return (val, True)

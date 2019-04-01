@@ -75,10 +75,9 @@ def IsSuperReference(value):
 # 6.2.4.8 GetValue ( V )
 def GetValue(value):
     # 1. ReturnIfAbrupt(V).
-    if isinstance(value, Completion):
-        if value.ctype != CompletionType.NORMAL:
-            return value
-        value = value.value
+    value, ok = ec(value)
+    if not ok:
+        return value
     # 2. If Type(V) is not Reference, return V.
     if not isinstance(value, Reference):
         return NormalCompletion(value)
@@ -108,15 +107,13 @@ def GetValue(value):
 # 6.2.4.9 PutValue ( V, W )
 def PutValue(ref, value):
     # 1. ReturnIfAbrupt(V).
-    if isinstance(ref, Completion):
-        if ref.ctype != CompletionType.NORMAL:
-            return ref
-        ref = ref.value
+    ref, ok = ec(ref)
+    if not ok:
+        return ref
     # 2. ReturnIfAbrupt(W).
-    if isinstance(value, Completion):
-        if value.ctype != CompletionType.NORMAL:
-            return value
-        value = value.value
+    value, ok = ec(ref)
+    if not ok:
+        return ref
     # 3. If Type(V) is not Reference, throw a ReferenceError exception.
     if not isinstance(ref, Reference):
         return ThrowCompletion(CreateReferenceError())
@@ -141,10 +138,9 @@ def PutValue(ref, value):
             # ii. Set base to ! ToObject(base).
             base = ToObject(base).value
         # b. Let succeeded be ? base.[[Set]](GetReferencedName(V), W, GetThisValue(V)).
-        cr = base.Set(GetReferencedName(ref), value, GetThisValue(ref))
-        if cr.ctype != CompletionType.NORMAL:
-            return cr
-        succeeded = cr.value
+        succeeded, ok = ec(base.Set(GetReferencedName(ref), value, GetThisValue(ref)))
+        if not ok:
+            return succeeded
         # c. If succeeded is false and IsStrictReference(V) is true, throw a TypeError exception.
         if not succeeded and IsStrictReference(ref):
             return ThrowCompletion(CreateTypeError())
@@ -171,15 +167,13 @@ def GetThisValue(ref):
 # 6.2.4.11 InitializeReferencedBinding ( V, W )
 def InitializeReferencedBinding(ref, value):
     # 1. ReturnIfAbrupt(V).
-    if isinstance(ref, Completion):
-        if ref.ctype != CompletionType.NORMAL:
-            return ref
-        ref = ref.value
+    ref, ok = ec(ref)
+    if not ok:
+        return ref
     # 2. ReturnIfAbrupt(W).
-    if isinstance(value, Completion):
-        if value.ctype != CompletionType.NORMAL:
-            return value
-        value = value.value
+    value, ok = ec(value)
+    if not ok:
+        return value
     # 3. Assert: Type(V) is Reference.
     assert isinstance(ref, Reference)
     # 4. Assert: IsUnresolvableReference(V) is false.
