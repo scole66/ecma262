@@ -93,8 +93,20 @@ def UpdateEmpty(cr, value):
 #
 # (ec shorthand for "error check")
 def ec(val):
+    """ErrorCheck:
+       Check val for an abrupt completion, returning "not ok" if that's the case. Else unwrap the Completion and return
+       the actual value. Just response with the value itself, if this isn't a completion record."""
     if isinstance(val, Completion):
         if val.ctype != CompletionType.NORMAL:
             return (val, False)
         val = val.value
     return (val, True)
+
+def nc(val):
+    """NeverCheck:
+       Assert that if the val is a Completion Record, that the completion type is Normal. Then just return the value.
+       """
+    if isinstance(val, Completion):
+        assert val.ctype == CompletionType.NORMAL
+        val = val.value
+    return val
