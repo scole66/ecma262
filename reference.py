@@ -93,12 +93,12 @@ def GetValue(value):
             # i. Assert: In this case, base will never be undefined or null.
             assert base is not None and not IsNull(base)
             # ii. Set base to ! ToObject(base).
-            base = ToObject(base).value
+            base = nc(ToObject(base))
         # b. Return ? base.[[Get]](GetReferencedName(V), GetThisValue(V)).
         return base.Get(GetReferencedName(value), GetThisValue(value))
     # 6. Else base must be an Environment Record,
     # a. Return ? base.GetBindingValue(GetReferencedName(V), IsStrictReference(V)) (see 8.1.1).
-    return NormalCompletion(base.GetBindingValue(GetReferencedName(value), IsStrictReference(value)))
+    return base.GetBindingValue(GetReferencedName(value), IsStrictReference(value))
     # NOTE
     # The object that may be created in step 5.a.ii is not accessible outside of the above abstract operation and the
     # ordinary object [[Get]] internal method. An implementation might choose to avoid the actual creation of the
@@ -136,7 +136,7 @@ def PutValue(ref, value):
             # i. Assert: In this case, base will never be undefined or null.
             assert base is not None and not IsNull(base)
             # ii. Set base to ! ToObject(base).
-            base = ToObject(base).value
+            base = nc(ToObject(base))
         # b. Let succeeded be ? base.[[Set]](GetReferencedName(V), W, GetThisValue(V)).
         succeeded, ok = ec(base.Set(GetReferencedName(ref), value, GetThisValue(ref)))
         if not ok:

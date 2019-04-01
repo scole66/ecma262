@@ -45,3 +45,7 @@ def test_ec():
 
     assert completion_record.ec(okcr) == ('green', True)
     assert completion_record.ec(abortcr) == (abortcr, False)
+
+def test_nc():
+    okcr = completion_record.Completion(completion_record.CompletionType.NORMAL, 'green', None)
+    assert completion_record.nc(okcr) == 'green'
