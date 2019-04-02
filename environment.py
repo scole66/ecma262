@@ -382,10 +382,9 @@ class ObjectEnvironmentRecord:
         # 1. Let envRec be the object Environment Record for which the method was invoked.
         # 2. Let bindings be the binding object for envRec.
         # 3. Let value be ? HasProperty(bindings, N).
-        cr = HasProperty(self.binding_object, name)
-        if cr.ctype != CompletionType.NORMAL:
-            return cr
-        value = cr.value
+        value, ok = ec(HasProperty(self.binding_object, name))
+        if not ok:
+            return value
         # 4. If value is false, then
         if not value:
             # a. If S is false, return the value undefined; otherwise throw a ReferenceError exception.
@@ -522,3 +521,342 @@ class ObjectEnvironmentRecord:
 # |                                      | treatment.
 # +--------------------------------------+------------------------------------------------------------------------------
 
+class GlobalEnvironmentRecord:
+    def __init__(self, binding_object, global_this_value):
+        self.object_record = ObjectEnvironmentRecord(binding_object, False)
+        self.global_this_value = ToObject(global_this_value)
+        self.declarative_record = DeclarativeEnvironmentRecord()
+        self.var_names = []
+
+    # 8.1.1.4.1 HasBinding ( N )
+    def HasBinding(self, name):
+        # The concrete Environment Record method HasBinding for global Environment Records simply determines if the
+        # argument identifier is one of the identifiers bound by the record:
+        #
+        # 1. Let envRec be the global Environment Record for which the method was invoked.
+        # 2. Let DclRec be envRec.[[DeclarativeRecord]].
+        # 3. If DclRec.HasBinding(N) is true, return true.
+        if self.declarative_record.HasBinding(name):
+            return NormalCompletion(True)
+        # 4. Let ObjRec be envRec.[[ObjectRecord]].
+        # 5. Return ? ObjRec.HasBinding(N).
+        return self.object_record.HasBinding(name)
+
+    # 8.1.1.4.2 CreateMutableBinding ( N, D )
+    def CreateMutableBinding(self, name, deletable):
+        # The concrete Environment Record method CreateMutableBinding for global Environment Records creates a new
+        # mutable binding for the name N that is uninitialized. The binding is created in the associated
+        # DeclarativeRecord. A binding for N must not already exist in the DeclarativeRecord. If Boolean argument D has
+        # the value true the new binding is marked as being subject to deletion.
+        #
+        # 1. Let envRec be the global Environment Record for which the method was invoked.
+        # 2. Let DclRec be envRec.[[DeclarativeRecord]].
+        # 3. If DclRec.HasBinding(N) is true, throw a TypeError exception.
+        if self.declarative_record.HasBinding(name):
+            return ThrowCompletion(CreateTypeError())
+        # 4. Return DclRec.CreateMutableBinding(N, D).
+        return self.declarative_record.CreateMutableBinding(name, deletable)
+
+    # 8.1.1.4.3 CreateImmutableBinding ( N, S )
+    def CreateImmutableBinding(self, name, strict):
+        # The concrete Environment Record method CreateImmutableBinding for global Environment Records creates a new
+        # immutable binding for the name N that is uninitialized. A binding must not already exist in this Environment
+        # Record for N. If the Boolean argument S has the value true the new binding is marked as a strict binding.
+        #
+        # 1. Let envRec be the global Environment Record for which the method was invoked.
+        # 2. Let DclRec be envRec.[[DeclarativeRecord]].
+        # 3. If DclRec.HasBinding(N) is true, throw a TypeError exception.
+        if self.declarative_record.HasBinding(name):
+            return ThrowCompletion(CreateTypeError())
+        # 4. Return DclRec.CreateImmutableBinding(N, S).
+        return self.declarative_record.CreateImmutableBinding(name, strict)
+
+    # 8.1.1.4.4 InitializeBinding ( N, V )
+    def InitializeBinding(self, name, value):
+        # The concrete Environment Record method InitializeBinding for global Environment Records is used to set the
+        # bound value of the current binding of the identifier whose name is the value of the argument N to the value
+        # of argument V. An uninitialized binding for N must already exist.
+        #
+        # 1. Let envRec be the global Environment Record for which the method was invoked.
+        # 2. Let DclRec be envRec.[[DeclarativeRecord]].
+        # 3. If DclRec.HasBinding(N) is true, then
+        if self.declarative_record.HasBinding(name):
+            # a. Return DclRec.InitializeBinding(N, V).
+            return self.declarative_record.InitializeBinding(name, value)
+        # 4. Assert: If the binding exists, it must be in the object Environment Record.
+        # 5. Let ObjRec be envRec.[[ObjectRecord]].
+        # 6. Return ? ObjRec.InitializeBinding(N, V).
+        return self.object_record.InitializeBinding(name, value)
+
+    # 8.1.1.4.5 SetMutableBinding ( N, V, S )
+    def SetMutableBinding(self, name, value, strict):
+        # The concrete Environment Record method SetMutableBinding for global Environment Records attempts to change
+        # the bound value of the current binding of the identifier whose name is the value of the argument N to the
+        # value of argument V. If the binding is an immutable binding, a TypeError is thrown if S is true. A property
+        # named N normally already exists but if it does not or is not currently writable, error handling is determined
+        # by the value of the Boolean argument S.
+        #
+        # 1. Let envRec be the global Environment Record for which the method was invoked.
+        # 2. Let DclRec be envRec.[[DeclarativeRecord]].
+        # 3. If DclRec.HasBinding(N) is true, then
+        if self.declarative_record.HasBinding(name):
+            # a. Return DclRec.SetMutableBinding(N, V, S).
+            return self.declarative_record.SetMutableBinding(name, value, strict)
+        # 4. Let ObjRec be envRec.[[ObjectRecord]].
+        # 5. Return ? ObjRec.SetMutableBinding(N, V, S).
+        return self.object_record.SetMutableBinding(name, value, strict)
+
+    # 8.1.1.4.6 GetBindingValue ( N, S )
+    def GetBindingValue(self, name, strict):
+        # The concrete Environment Record method GetBindingValue for global Environment Records returns the value of
+        # its bound identifier whose name is the value of the argument N. If the binding is an uninitialized binding
+        # throw a ReferenceError exception. A property named N normally already exists but if it does not or is not
+        # currently writable, error handling is determined by the value of the Boolean argument S.
+        #
+        # 1. Let envRec be the global Environment Record for which the method was invoked.
+        # 2. Let DclRec be envRec.[[DeclarativeRecord]].
+        # 3. If DclRec.HasBinding(N) is true, then
+        if self.declarative_record.HasBinding(name):
+            # a. Return DclRec.GetBindingValue(N, S).
+            return self.declarative_record.GetBindingValue(name, strict)
+        # 4. Let ObjRec be envRec.[[ObjectRecord]].
+        # 5. Return ? ObjRec.GetBindingValue(N, S).
+        return self.object_record.GetBindingValue(name, strict)
+
+    # 8.1.1.4.7 DeleteBinding ( N )
+    def DeleteBinding(self, name):
+        # The concrete Environment Record method DeleteBinding for global Environment Records can only delete bindings
+        # that have been explicitly designated as being subject to deletion.
+        #
+        # 1. Let envRec be the global Environment Record for which the method was invoked.
+        # 2. Let DclRec be envRec.[[DeclarativeRecord]].
+        # 3. If DclRec.HasBinding(N) is true, then
+        if self.declarative_record.HasBinding(name):
+            # a. Return DclRec.DeleteBinding(N).
+            return self.declarative_record.DeleteBinding(name)
+        # 4. Let ObjRec be envRec.[[ObjectRecord]].
+        # 5. Let globalObject be the binding object for ObjRec.
+        global_object = self.object_record.binding_object
+        # 6. Let existingProp be ? HasOwnProperty(globalObject, N).
+        existing_prop, ok = ec(HasOwnProperty(global_object, name))
+        if not ok:
+            return existing_prop
+        # 7. If existingProp is true, then
+        if existing_prop:
+            # a. Let status be ? ObjRec.DeleteBinding(N).
+            status, ok = ec(self.object_record.DeleteBinding(name))
+            if not ok:
+                return status
+            # b. If status is true, then
+            if status:
+                # i. Let varNames be envRec.[[VarNames]].
+                # ii. If N is an element of varNames, remove that element from the varNames.
+                try:
+                    self.var_names.remove(name)
+                except ValueError:
+                    pass
+            # c. Return status.
+            return NormalCompletion(status)
+        # 8. Return true.
+        return NormalCompletion(True)
+
+    # 8.1.1.4.8 HasThisBinding ( )
+    def HasThisBinding(self):
+        # Return true.
+        return NormalCompletion(True)
+
+    # 8.1.1.4.9 HasSuperBinding ( )
+    def HasSuperBinding(self):
+        # Return false.
+        return NormalCompletion(False)
+
+    # 8.1.1.4.10 WithBaseObject ( )
+    def WithBaseObject(self):
+        # Global Environment Records always return undefined as their WithBaseObject.
+        # Return undefined.
+        return NormalCompletion(None)
+
+    # 8.1.1.4.11 GetThisBinding ( )
+    def GetThisBinding(self):
+        # 1. Let envRec be the global Environment Record for which the method was invoked.
+        # 2. Return envRec.[[GlobalThisValue]].
+        return NormalCompletion(self.global_this_value)
+
+    # 8.1.1.4.12 HasVarDeclaration ( N )
+    def HasVarDeclaration(self, name):
+        # The concrete Environment Record method HasVarDeclaration for global Environment Records determines if the
+        # argument identifier has a binding in this record that was created using a VariableStatement or a
+        # FunctionDeclaration:
+        #
+        # 1. Let envRec be the global Environment Record for which the method was invoked.
+        # 2. Let varDeclaredNames be envRec.[[VarNames]].
+        # 3. If varDeclaredNames contains N, return true.
+        # 4. Return false.
+        return NormalCompletion(name in self.var_names)
+
+    # 8.1.1.4.13 HasLexicalDeclaration ( N )
+    def HasLexicalDeclaration(self, name):
+        # The concrete Environment Record method HasLexicalDeclaration for global Environment Records determines if the
+        # argument identifier has a binding in this record that was created using a lexical declaration such as a
+        # LexicalDeclaration or a ClassDeclaration:
+        #
+        # 1. Let envRec be the global Environment Record for which the method was invoked.
+        # 2. Let DclRec be envRec.[[DeclarativeRecord]].
+        # 3. Return DclRec.HasBinding(N).
+        return NormalCompletion(self.declarative_record.HasBinding(name))
+
+    # 8.1.1.4.14 HasRestrictedGlobalProperty ( N )
+    def HasRestrictedGlobalProperty(self, name):
+        # The concrete Environment Record method HasRestrictedGlobalProperty for global Environment Records determines
+        # if the argument identifier is the name of a property of the global object that must not be shadowed by a
+        # global lexical binding:
+        #
+        # 1. Let envRec be the global Environment Record for which the method was invoked.
+        # 2. Let ObjRec be envRec.[[ObjectRecord]].
+        # 3. Let globalObject be the binding object for ObjRec.
+        global_object = self.object_record.binding_object
+        # 4. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
+        existing_prop, ok = ec(global_object.GetOwnProperty(name))
+        if not ok:
+            return existing_prop
+        # 5. If existingProp is undefined, return false.
+        if isUndefined(existing_prop):
+            return NormalCompletion(False)
+        # 6. If existingProp.[[Configurable]] is true, return false.
+        # 7. Return true.
+        return NormalCompletion(not existing_prop.Configurable)
+        # NOTE
+        # Properties may exist upon a global object that were directly created rather than being declared using a var
+        # or function declaration. A global lexical binding may not be created that has the same name as a
+        # non-configurable property of the global object. The global property undefined is an example of such a
+        # property.
+
+    # 8.1.1.4.15 CanDeclareGlobalVar ( N )
+    def CanDeclareGlobalVar(self, name):
+        # The concrete Environment Record method CanDeclareGlobalVar for global Environment Records determines if a
+        # corresponding CreateGlobalVarBinding call would succeed if called for the same argument N. Redundant var
+        # declarations and var declarations for pre-existing global object properties are allowed.
+        #
+        # 1. Let envRec be the global Environment Record for which the method was invoked.
+        # 2. Let ObjRec be envRec.[[ObjectRecord]].
+        # 3. Let globalObject be the binding object for ObjRec.
+        global_object = self.object_record.binding_object
+        # 4. Let hasProperty be ? HasOwnProperty(globalObject, N).
+        has_property, ok = ec(HasOwnProperty(global_object, name))
+        if not ok:
+            return has_property
+        # 5. If hasProperty is true, return true.
+        if has_property:
+            return NormalCompletion(True)
+        # 6. Return ? IsExtensible(globalObject).
+        return IsExtensible(global_object)
+
+    # 8.1.1.4.16 CanDeclareGlobalFunction ( N )
+    def CanDeclareGlobalFunction(self, name):
+        # The concrete Environment Record method CanDeclareGlobalFunction for global Environment Records determines if
+        # a corresponding CreateGlobalFunctionBinding call would succeed if called for the same argument N.
+        #
+        # 1. Let envRec be the global Environment Record for which the method was invoked.
+        # 2. Let ObjRec be envRec.[[ObjectRecord]].
+        # 3. Let globalObject be the binding object for ObjRec.
+        global_object = self.object_record.binding_object
+        # 4. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
+        existing_prop, ok = ec(global_object.GetOwnProperty(name))
+        if not ok:
+            return existing_prop
+        # 5. If existingProp is undefined, return ? IsExtensible(globalObject).
+        if isUndefined(existing_prop):
+            return IsExtensible(global_object)
+        # 6. If existingProp.[[Configurable]] is true, return true.
+        if existing_prop['configurable']:
+            return NormalCompletion(True)
+        # 7. If IsDataDescriptor(existingProp) is true and existingProp has attribute values { [[Writable]]: true,
+        #    [[Enumerable]]: true }, return true.
+        if IsDataDescriptor(existing_prop) and existing_prop['writable'] and existing_prop['enumerable']:
+            return NormalCompletion(True)
+        # 8. Return false.
+        return NormalCompletion(False)
+
+    # 8.1.1.4.17 CreateGlobalVarBinding ( N, D )
+    def CreateGlobalVarBinding(self, name, deletable):
+        # The concrete Environment Record method CreateGlobalVarBinding for global Environment Records creates and
+        # initializes a mutable binding in the associated object Environment Record and records the bound name in the
+        # associated [[VarNames]] List. If a binding already exists, it is reused and assumed to be initialized.
+        #
+        # 1. Let envRec be the global Environment Record for which the method was invoked.
+        # 2. Let ObjRec be envRec.[[ObjectRecord]].
+        # 3. Let globalObject be the binding object for ObjRec.
+        global_object = self.object_record.binding_object
+        # 4. Let hasProperty be ? HasOwnProperty(globalObject, N).
+        has_property, ok = ec(HasOwnProperty(global_object, name))
+        if not ok:
+            return has_property
+        # 5. Let extensible be ? IsExtensible(globalObject).
+        extensible, ok = ec(IsExtensible(global_object))
+        if not ok:
+            return extensible
+        # 6. If hasProperty is false and extensible is true, then
+        if not has_property and extensible:
+            # a. Perform ? ObjRec.CreateMutableBinding(N, D).
+            cr, ok = ec(self.object_record.CreateMutableBinding(name, deletable))
+            if not ok:
+                return cr
+            # b. Perform ? ObjRec.InitializeBinding(N, undefined).
+            cr, ok = ec(self.object_record.InitializeBinding(name, None))
+            if not ok:
+                return cr
+        # 7. Let varDeclaredNames be envRec.[[VarNames]].
+        # 8. If varDeclaredNames does not contain N, then
+        if name not in self.var_names:
+            # a. Append N to varDeclaredNames.
+            self.var_names.append(name)
+        # 9. Return NormalCompletion(empty).
+        return NormalCompletion(Empty.EMPTY)
+
+    # 8.1.1.4.18 CreateGlobalFunctionBinding ( N, V, D )
+    def CreateGlobalFunctionBinding(self, name, value, deletable):
+        # The concrete Environment Record method CreateGlobalFunctionBinding for global Environment Records creates and
+        # initializes a mutable binding in the associated object Environment Record and records the bound name in the
+        # associated [[VarNames]] List. If a binding already exists, it is replaced.
+        #
+        # 1. Let envRec be the global Environment Record for which the method was invoked.
+        # 2. Let ObjRec be envRec.[[ObjectRecord]].
+        # 3. Let globalObject be the binding object for ObjRec.
+        global_object = self.object_record.binding_object
+        # 4. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
+        existing_prop, ok = ec(global_object.GetOwnProperty(name))
+        if not ok:
+            return existing_prop
+        # 5. If existingProp is undefined or existingProp.[[Configurable]] is true, then
+        if existing_prop is None or existing_prop['configurable']:
+            # a. Let desc be the PropertyDescriptor { [[Value]]: V, [[Writable]]: true, [[Enumerable]]: true,
+            #    [[Configurable]]: D }.
+            desc = { 'value': value, 'writable': True, 'enumerable': True, 'configurable': deletable }
+        # 6. Else,
+        else:
+            # a. Let desc be the PropertyDescriptor { [[Value]]: V }.
+            desc = { 'value': value }
+        # 7. Perform ? DefinePropertyOrThrow(globalObject, N, desc).
+        cr, ok = ec(DefinePropertyOrThrow(global_object, name, desc))
+        if not ok:
+            return cr
+        # 8. Record that the binding for N in ObjRec has been initialized.
+        # .... object records aren't supposed to need to do this, so I'm not sure where I'm storing this info and when
+        # it's used. A problem for later....
+        pass
+        # 9. Perform ? Set(globalObject, N, V, false).
+        cr, ok = ec(Set(global_object, name, value, False))
+        if not ok:
+            return cr
+        # 10. Let varDeclaredNames be envRec.[[VarNames]].
+        # 11. If varDeclaredNames does not contain N, then
+        if name not in self.var_names:
+            # a. Append N to varDeclaredNames.
+            self.var_names.append(name)
+        # 12. Return NormalCompletion(empty).
+        return NormalCompletion(Empty.EMPTY)
+        # NOTE
+        # Global function declarations are always represented as own properties of the global object. If possible, an
+        # existing own property is reconfigured to have a standard set of attribute values. Steps 8-9 are equivalent to
+        # what calling the InitializeBinding concrete method would do and if globalObject is a Proxy will produce the
+        # same sequence of Proxy trap calls.
