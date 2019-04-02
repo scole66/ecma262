@@ -1,6 +1,6 @@
 import pytest
 
-from lexer import Lexer, LexerError
+from ecmascript import *
 
 
 def test_lex_simple_sample():
