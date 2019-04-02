@@ -1651,7 +1651,7 @@ def NumberToString(m):
         return '-' + NumberToString(-m)
     if m == math.inf:
         return 'Infinity'
-    return str(m)
+    return '{:.21g}'.format(m)
 
 # 7.1.13 ToObject ( argument )
 def ToObject(argument):
