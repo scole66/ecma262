@@ -257,7 +257,12 @@ def test_to_uint8_clamp_symbol():
     (math.inf, 'Infinity'),
     (-math.inf, '-Infinity'),
     (math.nan, 'NaN'),
-    (-0.0, '0')
+    (-0.0, '0'),
+    (1, '1'),
+    (1.0, '1'),
+    (-1, '-1'),
+    (-1.0, '-1'),
+    (10.5, '10.5')
 ])
 def test_to_string(input, expected):
     cr = ToString(input)
