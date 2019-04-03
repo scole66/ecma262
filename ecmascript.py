@@ -2209,10 +2209,9 @@ class ObjectEnvironmentRecord:
         # 1. Let envRec be the object Environment Record for which the method was invoked.
         # 2. Let bindings be the binding object for envRec.
         # 3. Let foundBinding be ? HasProperty(bindings, N).
-        cr = HasProperty(self.binding_object, N)
-        if cr.ctype != CompletionType.NORMAL:
-            return cr
-        found_binding = cr.value
+        found_binding, ok = ec(HasProperty(self.binding_object, N))
+        if not ok:
+            return found_binding
         # 4. If foundBinding is false, return false.
         if not found_binding:
             return NormalCompletion(False)
@@ -2220,17 +2219,16 @@ class ObjectEnvironmentRecord:
         if not with_environment:
             return NormalCompletion(True)
         # 6. Let unscopables be ? Get(bindings, @@unscopables).
-        cr = Get(self.binding_object, wks_unscopables)
-        if cr.ctype != CompletionType.NORMAL:
-            return cr
-        unscopables = cr.value
+        unscopables, ok = ec(Get(self.binding_object, wks_unscopables))
+        if not ok:
+            return unscopables
         # 7. If Type(unscopables) is Object, then
         if isObject(unscopables):
             # a. Let blocked be ToBoolean(? Get(unscopables, N)).
-            cr = Get(unscopables, N)
-            if cr.ctype != CompletionType.NORMAL:
-                return cr
-            blocked = ToBoolean(cr.value)
+            blocked, ok = ec(Get(unscopables, N))
+            if not ok:
+                return blocked
+            blocked = ToBoolean(blocked)
             # b. If blocked is true, return false.
             if blocked:
                 return NormalCompletion(False)
