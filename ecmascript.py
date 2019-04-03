@@ -2336,6 +2336,117 @@ class ObjectEnvironmentRecord:
         # 3. Otherwise, return undefined.
         return NormalCompletion(None)
 
+# 8.1.1.3 Function Environment Records
+#
+# A function Environment Record is a declarative Environment Record that is used to represent the top-level scope of a
+# function and, if the function is not an ArrowFunction, provides a this binding. If a function is not an ArrowFunction
+# function and references super, its function Environment Record also contains the state that is used to perform super
+# method invocations from within the function.
+#
+# Function Environment Records have the additional state fields listed in Table 15.
+#
+# Table 15: Additional Fields of Function Environment Records
+# +-----------------------+---------------------------+-----------------------------------------------------------------
+# | Field Name            | Value                     | Meaning
+# +-----------------------+---------------------------+-----------------------------------------------------------------
+# | [[ThisValue]]         | Any                       | This is the this value used for this invocation of the function.
+# +-----------------------+---------------------------+-----------------------------------------------------------------
+# | [[ThisBindingStatus]] | "lexical" | "initialized" | If the value is "lexical", this is an ArrowFunction and does not
+# |                       |   | "uninitialized"       | have a local this value.
+# +-----------------------+---------------------------+-----------------------------------------------------------------
+# | [[FunctionObject]]    | Object                    | The function object whose invocation caused this Environment
+# |                       |                           | Record to be created.
+# +-----------------------+---------------------------+-----------------------------------------------------------------
+# | [[HomeObject]]        | Object | undefined        | If the associated function has super property accesses and is
+# |                       |                           | not an ArrowFunction, [[HomeObject]] is the object that the
+# |                       |                           | function is bound to as a method. The default value for
+# |                       |                           | [[HomeObject]] is undefined.
+# +-----------------------+---------------------------+-----------------------------------------------------------------
+# | [[NewTarget]]         | Object | undefined        | If this Environment Record was created by the [[Construct]]
+# |                       |                           | internal method, [[NewTarget]] is the value of the [[Construct]]
+# |                       |                           | newTarget parameter. Otherwise, its value is undefined.
+# +-----------------------+---------------------------+-----------------------------------------------------------------
+#
+# Function Environment Records support all of the declarative Environment Record methods listed in Table 14 and share
+# the same specifications for all of those methods except for HasThisBinding and HasSuperBinding. In addition, function
+# Environment Records support the methods listed in Table 16:
+#
+# Table 16: Additional Methods of Function Environment Records
+# +------------------+--------------------------------------------------------------------------------------------------
+# | Method           | Purpose
+# +------------------+--------------------------------------------------------------------------------------------------
+# | BindThisValue(V) | Set the [[ThisValue]] and record that it has been initialized.
+# +------------------+--------------------------------------------------------------------------------------------------
+# | GetThisBinding() | Return the value of this Environment Record's this binding. Throws a ReferenceError if the this
+# |                  | binding has not been initialized.
+# +------------------+--------------------------------------------------------------------------------------------------
+# | GetSuperBase()   | Return the object that is the base for super property accesses bound in this Environment Record.
+# |                  | The object is derived from this Environment Record's [[HomeObject]] field. The value undefined
+# |                  | indicates that super property accesses will produce runtime errors.
+# +------------------+--------------------------------------------------------------------------------------------------
+class FunctionEnvironmentRecord(DeclarativeEnvironmentRecord):
+    def __init__(self):
+        super().__init__()
+        self.this_value = None
+        self.this_binding_status = 'uninitialized'
+        self.function_object = JSNull.NULL
+        self.home_object = None
+        self.new_target = None
+
+    # 8.1.1.3.1 BindThisValue ( V )
+    def BindThisValue(value):
+        # 1. Let envRec be the function Environment Record for which the method was invoked.
+        # 2. Assert: envRec.[[ThisBindingStatus]] is not "lexical".
+        assert self.this_binding_status != 'lexical'
+        # 3. If envRec.[[ThisBindingStatus]] is "initialized", throw a ReferenceError exception.
+        if self.this_binding_status == 'initialized':
+            return ThrowCompletion(CreateReferenceError())
+        # 4. Set envRec.[[ThisValue]] to V.
+        self.this_value = value
+        # 5. Set envRec.[[ThisBindingStatus]] to "initialized".
+        self.this_binding_status = 'initialized'
+        # 6. Return V.
+        return NormalCompletion(value)
+
+    # 8.1.1.3.2 HasThisBinding ( )
+    def HasThisBinding(self):
+        # 1. Let envRec be the function Environment Record for which the method was invoked.
+        # 2. If envRec.[[ThisBindingStatus]] is "lexical", return false; otherwise, return true.
+        return self.this_binding_status != 'lexical'
+
+    # 8.1.1.3.3 HasSuperBinding ( )
+    def HasSuperBinding(self):
+        # 1. Let envRec be the function Environment Record for which the method was invoked.
+        # 2. If envRec.[[ThisBindingStatus]] is "lexical", return false.
+        if self.this_binding_status == 'lexical':
+            return False
+        # e. If envRec.[[HomeObject]] has the value undefined, return false; otherwise, return true.
+        return self.home_object is not None
+
+    # 8.1.1.3.4 GetThisBinding ( )
+    def GetThisBinding(self):
+        # 1. Let envRec be the function Environment Record for which the method was invoked.
+        # 2. Assert: envRec.[[ThisBindingStatus]] is not "lexical".
+        assert self.this_binding_status != 'lexical'
+        # 3. If envRec.[[ThisBindingStatus]] is "uninitialized", throw a ReferenceError exception.
+        if self.this_binding_status == 'uninitialized':
+            return ThrowCompletion(CreateReferenceError())
+        # 4. Return envRec.[[ThisValue]].
+        return NormalCompletion(self.this_value)
+
+    # 8.1.1.3.5 GetSuperBase ( )
+    def GetSuperBase(self):
+        # 1. Let envRec be the function Environment Record for which the method was invoked.
+        # 2. Let home be envRec.[[HomeObject]].
+        home = self.home_object
+        # 3. If home has the value undefined, return undefined.
+        if home is None:
+            return NormalCompletion(None)
+        # 4. Assert: Type(home) is Object.
+        assert isObject(home)
+        # 5. Return ? home.[[GetPrototypeOf]]().
+        return home.GetPrototypeOf()
+
 
 # 8.1.1.4 Global Environment Records
 #
@@ -2769,6 +2880,128 @@ class GlobalEnvironmentRecord:
         # what calling the InitializeBinding concrete method would do and if globalObject is a Proxy will produce the
         # same sequence of Proxy trap calls.
 
+class LexicalEnvironment:
+    pass
+
+@unique
+class ThisMode(Enum):
+    LEXICAL = auto()
+    STRICT = auto()
+    GLOBAL = auto()
+
+# 8.1.2.1 GetIdentifierReference ( lex, name, strict )
+def GetIdentifierReference(lex, name, strict):
+    # The abstract operation GetIdentifierReference is called with a Lexical Environment lex, a String name, and a
+    # Boolean flag strict. The value of lex may be null. When called, the following steps are performed:
+    #
+    # 1. If lex is the value null, then
+    if isNull(lex):
+        # a. Return a value of type Reference whose base value component is undefined, whose referenced name component
+        #    is name, and whose strict reference flag is strict.
+        return NormalCompletion(Reference(None, name, strict))
+    # 2. Let envRec be lex's EnvironmentRecord.
+    env_rec = lex.environment_record
+    # 3. Let exists be ? envRec.HasBinding(name).
+    exists, ok = ec(env_rec.HasBinding(name))
+    if not ok:
+        return exists
+    # 4. If exists is true, then
+    if exists:
+        # a. Return a value of type Reference whose base value component is envRec, whose referenced name component is
+        # name, and whose strict reference flag is strict.
+        return NormalCompletion(Reference(env_rec, name, strict))
+    # 5. Else,
+    # a. Let outer be the value of lex's outer environment reference.
+    outer = lex.outer
+    # b. Return ? GetIdentifierReference(outer, name, strict).
+    return GetIdentifierReference(outer, name, strict)
+
+# 8.1.2.2 NewDeclarativeEnvironment ( E )
+def NewDeclarativeEnvironment(outer):
+    # When the abstract operation NewDeclarativeEnvironment is called with a Lexical Environment as argument E the
+    # following steps are performed:
+    #
+    # 1. Let env be a new Lexical Environment.
+    env = LexicalEnvironment()
+    # 2. Let envRec be a new declarative Environment Record containing no bindings.
+    env_rec = DeclarativeEnvironmentRecord()
+    # 3. Set env's EnvironmentRecord to envRec.
+    env.environment_record = env_rec
+    # 4. Set the outer lexical environment reference of env to E.
+    env.outer = outer
+    # 5. Return env.
+    return env
+
+# 8.1.2.3 NewObjectEnvironment ( O, E )
+def NewObjectEnvironment(obj, outer):
+    # When the abstract operation NewObjectEnvironment is called with an Object O and a Lexical Environment E as
+    # arguments, the following steps are performed:
+    #
+    # 1. Let env be a new Lexical Environment.
+    env = LexicalEnvironment()
+    # 2. Let envRec be a new object Environment Record containing O as the binding object.
+    env_rec = ObjectEnvironmentRecord()
+    # 3. Set env's EnvironmentRecord to envRec.
+    env.environment_record = env_rec
+    # 4. Set the outer lexical environment reference of env to E.
+    env.outer = outer
+    # 5. Return env.
+    return env
+
+# 8.1.2.4 NewFunctionEnvironment ( F, newTarget )
+def NewFunctionEnvironment(func, new_target):
+    # When the abstract operation NewFunctionEnvironment is called with arguments F and newTarget the following steps
+    # are performed:
+    #
+    # 1. Assert: F is an ECMAScript function.
+    # 2. Assert: Type(newTarget) is Undefined or Object.
+    assert isUndefined(new_target) or isObject(new_target)
+    # 3. Let env be a new Lexical Environment.
+    env = LexicalEnvironment()
+    # 4. Let envRec be a new function Environment Record containing no bindings.
+    env_rec = FunctionEnvironmentRecord()
+    # 5. Set envRec.[[FunctionObject]] to F.
+    env_rec.function_object = func
+    # 6. If F.[[ThisMode]] is lexical, set envRec.[[ThisBindingStatus]] to "lexical".
+    if func.this_mode == ThisMode.LEXICAL:
+        env_rec.this_binding_status = 'lexical'
+    # 7. Else, set envRec.[[ThisBindingStatus]] to "uninitialized".
+    else:
+        env_rec.this_binding_status = 'uninitialized'
+    # 8. Let home be F.[[HomeObject]].
+    home = func.home_object
+    # 9. Set envRec.[[HomeObject]] to home.
+    env_rec.home_object = home
+    # 10. Set envRec.[[NewTarget]] to newTarget.
+    env_rec.new_target = new_target
+    # 11. Set env's EnvironmentRecord to envRec.
+    env.environment_record = env_rec
+    # 12. Set the outer lexical environment reference of env to F.[[Environment]].
+    env.outer = func.environment
+    # 13. Return env.
+    return env
+
+# 8.1.2.5 NewGlobalEnvironment ( G, thisValue )
+def NewGlobalEnvironment(global_obj, this_value):
+    # When the abstract operation NewGlobalEnvironment is called with arguments G and thisValue, the following steps
+    # are performed:
+    #
+    # 1. Let env be a new Lexical Environment.
+    env = LexicalEnvironment()
+    # 2. Let objRec be a new object Environment Record containing G as the binding object.
+    # 3. Let dclRec be a new declarative Environment Record containing no bindings.
+    # 4. Let globalRec be a new global Environment Record.
+    # 5. Set globalRec.[[ObjectRecord]] to objRec.
+    # 6. Set globalRec.[[GlobalThisValue]] to thisValue.
+    # 7. Set globalRec.[[DeclarativeRecord]] to dclRec.
+    # 8. Set globalRec.[[VarNames]] to a new empty List.
+    global_rec = GlobalEnvironmentRecord(global_obj, this_value)
+    # 9. Set env's EnvironmentRecord to globalRec.
+    env.environment_record = global_rec
+    # 10. Set the outer lexical environment reference of env to null.
+    env.outer = JSNull.NULL
+    # 11. Return env.
+    return env
 
 # 8.2 Realms
 #
@@ -2842,9 +3075,9 @@ def CreateIntrinsics(realm_rec):
     # 4. Set intrinsics.[[%ObjectPrototype%]] to objProto.
     intrinsics['%ObjectPrototype%'] = obj_proto
     # 5. Let throwerSteps be the algorithm steps specified in 9.2.9.1 for the %ThrowTypeError% function.
-    thrower_steps = object_behaviors.ThrowTypeError
+    thrower_steps = lambda: ThrowCompletion(CreateTypeError())
     # 6. Let thrower be CreateBuiltinFunction(throwerSteps, « », realmRec, null).
-    thrower = CreateBuiltinFunction(thrower_steps, [], self, None)
+    thrower = CreateBuiltinFunction(thrower_steps, [], realm_rec, JSNull.NULL)
     # 7. Set intrinsics.[[%ThrowTypeError%]] to thrower.
     intrinsics['%ThrowTypeError%'] = thrower
     # 8. Let noSteps be an empty sequence of algorithm steps.
@@ -2870,6 +3103,133 @@ def CreateIntrinsics(realm_rec):
     # 14. Return intrinsics.
     return intrinsics
 
+# 8.3 Execution Contexts
+#
+# An execution context is a specification device that is used to track the runtime evaluation of code by an ECMAScript
+# implementation. At any point in time, there is at most one execution context per agent that is actually executing
+# code. This is known as the agent's running execution context. All references to the running execution context in this
+# specification denote the running execution context of the surrounding agent.
+#
+# The execution context stack is used to track execution contexts. The running execution context is always the top
+# element of this stack. A new execution context is created whenever control is transferred from the executable code
+# associated with the currently running execution context to executable code that is not associated with that execution
+# context. The newly created execution context is pushed onto the stack and becomes the running execution context.
+#
+# An execution context contains whatever implementation specific state is necessary to track the execution progress of
+# its associated code. Each execution context has at least the state components listed in Table 21.
+#
+# Table 21: State Components for All Execution Contexts
+# +-----------------------+---------------------------------------------------------------------------------------------
+# | Component             | Purpose
+# +-----------------------+---------------------------------------------------------------------------------------------
+# | code evaluation state | Any state needed to perform, suspend, and resume evaluation of the code associated with
+# |                       | this execution context.
+# +-----------------------+---------------------------------------------------------------------------------------------
+# | Function              | If this execution context is evaluating the code of a function object, then the value of
+# |                       | this component is that function object. If the context is evaluating the code of a Script
+# |                       | or Module, the value is null.
+# +-----------------------+---------------------------------------------------------------------------------------------
+# | Realm                 | The Realm Record from which associated code accesses ECMAScript resources.
+# +-----------------------+---------------------------------------------------------------------------------------------
+# | ScriptOrModule        | The Module Record or Script Record from which associated code originates. If there is no
+# |                       | originating script or module, as is the case for the original execution context created in
+# |                       | InitializeHostDefinedRealm, the value is null.
+# +-----------------------+---------------------------------------------------------------------------------------------
+#
+# Evaluation of code by the running execution context may be suspended at various points defined within this
+# specification. Once the running execution context has been suspended a different execution context may become the
+# running execution context and commence evaluating its code. At some later time a suspended execution context may
+# again become the running execution context and continue evaluating its code at the point where it had previously been
+# suspended. Transition of the running execution context status among execution contexts usually occurs in stack-like
+# last-in/first-out manner. However, some ECMAScript features require non-LIFO transitions of the running execution
+# context.
+#
+# The value of the Realm component of the running execution context is also called the current Realm Record. The value
+# of the Function component of the running execution context is also called the active function object.
+#
+# Execution contexts for ECMAScript code have the additional state components listed in Table 22.
+#
+# Table 22: Additional State Components for ECMAScript Code Execution Contexts
+# +---------------------+-----------------------------------------------------------------------------------------------
+# | Component           | Purpose
+# +---------------------+-----------------------------------------------------------------------------------------------
+# | LexicalEnvironment  | Identifies the Lexical Environment used to resolve identifier references made by code within
+# |                     | this execution context.
+# +---------------------+-----------------------------------------------------------------------------------------------
+# | VariableEnvironment | Identifies the Lexical Environment whose EnvironmentRecord holds bindings created by
+# |                     | VariableStatements within this execution context.
+# +---------------------+-----------------------------------------------------------------------------------------------
+#
+# The LexicalEnvironment and VariableEnvironment components of an execution context are always Lexical Environments.
+#
+# Execution contexts representing the evaluation of generator objects have the additional state components listed in
+# Table 23.
+#
+# Table 23: Additional State Components for Generator Execution Contexts
+# +-----------+---------------------------------------------------------------------------------------------------------
+# | Component | Purpose
+# +-----------+---------------------------------------------------------------------------------------------------------
+# | Generator | The GeneratorObject that this execution context is evaluating.
+# +-----------+---------------------------------------------------------------------------------------------------------
+#
+# In most situations only the running execution context (the top of the execution context stack) is directly manipulated
+# by algorithms within this specification. Hence when the terms “LexicalEnvironment”, and “VariableEnvironment” are
+# used without qualification they are in reference to those components of the running execution context.
+#
+# An execution context is purely a specification mechanism and need not correspond to any particular artefact of an
+# ECMAScript implementation. It is impossible for ECMAScript code to directly access or observe an execution context.
+
+# 8.3.1 GetActiveScriptOrModule ( )
+# The GetActiveScriptOrModule abstract operation is used to determine the running script or module, based on the running execution context. GetActiveScriptOrModule performs the following steps:
+#
+# 1. If the execution context stack is empty, return null.
+# 2. Let ec be the topmost execution context on the execution context stack whose ScriptOrModule component is not null.
+# 3. If no such execution context exists, return null. Otherwise, return ec's ScriptOrModule component.
+
+# 8.3.2 ResolveBinding ( name [ , env ] )
+# The ResolveBinding abstract operation is used to determine the binding of name passed as a String value. The optional argument env can be used to explicitly provide the Lexical Environment that is to be searched for the binding. During execution of ECMAScript code, ResolveBinding is performed using the following algorithm:
+#
+# 1. If env is not present or if env is undefined, then
+# a. Set env to the running execution context's LexicalEnvironment.
+# 2. Assert: env is a Lexical Environment.
+# 3. If the code matching the syntactic production that is being evaluated is contained in strict mode code, let strict be true, else let strict be false.
+# 4. Return ? GetIdentifierReference(env, name, strict).
+# NOTE
+# The result of ResolveBinding is always a Reference value with its referenced name component equal to the name argument.
+
+# 8.3.3 GetThisEnvironment ( )
+# The abstract operation GetThisEnvironment finds the Environment Record that currently supplies the binding of the keyword this. GetThisEnvironment performs the following steps:
+#
+# 1. Let lex be the running execution context's LexicalEnvironment.
+# 2. Repeat,
+# a. Let envRec be lex's EnvironmentRecord.
+# b. Let exists be envRec.HasThisBinding().
+# c. If exists is true, return envRec.
+# d. Let outer be the value of lex's outer environment reference.
+# e. Assert: outer is not null.
+# f. Set lex to outer.
+# NOTE
+# The loop in step 2 will always terminate because the list of environments always ends with the global environment which has a this binding.
+
+# 8.3.4 ResolveThisBinding ( )
+# The abstract operation ResolveThisBinding determines the binding of the keyword this using the LexicalEnvironment of the running execution context. ResolveThisBinding performs the following steps:
+#
+# 1. Let envRec be GetThisEnvironment().
+# 2. Return ? envRec.GetThisBinding().
+
+# 8.3.5 GetNewTarget ( )
+# The abstract operation GetNewTarget determines the NewTarget value using the LexicalEnvironment of the running execution context. GetNewTarget performs the following steps:
+#
+# 1. Let envRec be GetThisEnvironment().
+# 2. Assert: envRec has a [[NewTarget]] field.
+# 3. Return envRec.[[NewTarget]].
+
+# 8.3.6 GetGlobalObject ( )
+# The abstract operation GetGlobalObject returns the global object used by the currently running execution context. GetGlobalObject performs the following steps:
+#
+# 1. Let ctx be the running execution context.
+# 2. Let currentRealm be ctx's Realm.
+# 3. Return currentRealm.[[GlobalObject]].
 
 # 8.5 InitializeHostDefinedRealm ( )
 def InitializeHostDefinedRealm():
@@ -3014,6 +3374,38 @@ def AgentCanSuspend():
     # NOTE: In some environments it may not be reasonable for a given agent to suspend. For example, in a
     # web browser environment, it may be reasonable to disallow suspending a document's main event
     # handling thread, while still allowing workers' event handling threads to suspend.
+
+
+# 9.3.3 CreateBuiltinFunction ( steps, internalSlotsList [ , realm [ , prototype ] ] )
+class missing(Enum):
+    MISSING = auto()
+def CreateBuiltinFunction(steps, internal_slots_list, realm=missing.MISSING, prototype=missing.MISSING):
+    # The abstract operation CreateBuiltinFunction takes arguments steps, internalSlotsList, realm, and prototype. The
+    # argument internalSlotsList is a List of the names of additional internal slots that must be defined as part of the
+    # object. CreateBuiltinFunction returns a built-in function object created by the following steps:
+    #
+    # 1. Assert: steps is either a set of algorithm steps or other definition of a function's behaviour provided in this
+    #    specification.
+    # 2. If realm is not present, set realm to the current Realm Record.
+    if realm == missing.MISSING:
+        realm = surrounding_agent.running_ec.realm
+    # 3. Assert: realm is a Realm Record.
+    assert isinstance(realm, Realm)
+    # 4. If prototype is not present, set prototype to realm.[[Intrinsics]].[[%FunctionPrototype%]].
+    if prototype == missing.MISSING:
+        prototype = realm.intrinsics['%FunctionPrototype%']
+    # 5. Let func be a new built-in function object that when called performs the action described by steps. The new
+    #    function object has internal slots whose names are the elements of internalSlotsList. The initial value of each
+    #    of those internal slots is undefined.
+    pass # ???
+    # 6. Set func.[[Realm]] to realm.
+    # 7. Set func.[[Prototype]] to prototype.
+    # 8. Set func.[[Extensible]] to true.
+    # 9. Set func.[[ScriptOrModule]] to null.
+    # 10. Return func.
+    # Each built-in function defined in this specification is created by calling the CreateBuiltinFunction abstract
+    # operation.
+
 
 # Stuff from chap 10: Source Text
 
