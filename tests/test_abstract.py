@@ -273,6 +273,24 @@ def test_to_string_symbol():
     assert cr.target is None
     assert isinstance(cr.value, TypeError)
 
+def test_ToObject():
+    # @@@ Needs more, when ready.
+    obj = ObjectCreate(JSNull.NULL)
+    cr = ToObject(obj)
+    assert cr == Completion(ctype=NORMAL, value=obj, target=None)
+
+@pytest.mark.parametrize('arg,expected', [
+    ('1', 1),
+    ('Infinity', math.inf),
+    ('-3', -3),
+    ('1.125', 1.125),
+    ('     1.125', None),
+    ('0x13', None)])
+def test_CanonicalNumericIndexString(arg, expected):
+    assert CanonicalNumericIndexString(arg) == expected
+def test_CanonicalNumericIndexString_nan():
+    assert math.isnan(CanonicalNumericIndexString('NaN'))
+
 @pytest.mark.parametrize('arg_x,arg_y,expected', [
     (0, '0', False),
     (0.0, 0.0, True),
