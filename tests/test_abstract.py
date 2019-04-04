@@ -6,6 +6,63 @@ from ecmascript import *
 NORMAL = CompletionType.NORMAL
 THROW = CompletionType.THROW
 
+@pytest.fixture
+def some_objects():
+    InitializeHostDefinedRealm()
+    realm = surrounding_agent.running_ec.realm
+
+    # A plain object.
+    plain = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
+    # An object with a [[Get]] method that throws an exception with the value 'I am EvilGet'
+    evil_get = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
+    evil_get.Get = types.MethodType(lambda _a, _b, _c: ThrowCompletion('I am EvilGet'), 'Get')
+    # An object with a "toString" method that throws an exception with the value 'I am evil tostring'
+    evil_tostring = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
+    CreateMethodPropertyOrThrow(evil_tostring, 'toString',
+                                CreateBuiltinFunction(lambda _: ThrowCompletion('I am evil tostring'),
+                                                      [], realm, JSNull.NULL))
+    # An object whose "toString" and "toValue" methods both produce objects.
+    bad_primitives = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
+    objfunc = CreateBuiltinFunction(
+        lambda _: NormalCompletion(ObjectCreate(realm.intrinsics['%ObjectPrototype%'])),
+        [], realm, JSNull.NULL)
+    CreateMethodPropertyOrThrow(bad_primitives, 'toString', objfunc)
+    CreateMethodPropertyOrThrow(bad_primitives, 'toValue', objfunc)
+    # An object whose "toString" method returns 'You found the treasure', and whose 'valueOf' method returns 42
+    treasure = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
+    objfunc = CreateBuiltinFunction(lambda _: NormalCompletion('You found the treasure'), [], realm,
+                                    JSNull.NULL)
+    CreateMethodPropertyOrThrow(treasure, 'toString', objfunc)
+    objfunc = CreateBuiltinFunction(lambda _: NormalCompletion(42), [], realm, JSNull.NULL)
+    CreateMethodPropertyOrThrow(treasure, 'valueOf', objfunc)
+
+    return {
+        'plain': plain,
+        'evil_get': evil_get,
+        'evil_tostring': evil_tostring,
+        'bad_primitives': bad_primitives,
+        'treasure': treasure
+        }
+
+@pytest.mark.parametrize('objname, cnvtype, result_val, result_type', [
+    ('plain', 'string', '[object Object]', NORMAL),
+    ('plain', 'number', '[object Object]', NORMAL),
+    ('evil_get', 'string', 'I am EvilGet', THROW),
+    ('evil_tostring', 'string', 'I am evil tostring', THROW),
+    ('bad_primitives', 'string', TypeError(), THROW),
+    ('treasure', 'string', 'You found the treasure', NORMAL),
+    ('treasure', 'number', 42, NORMAL)
+])
+def test_OrdinaryToPrimitive(some_objects, objname, cnvtype, result_val, result_type):
+    cr = OrdinaryToPrimitive(some_objects[objname], cnvtype)
+    if result_type == THROW and isinstance(result_val, TypeError):
+        assert isinstance(cr, Completion)
+        assert cr.ctype == THROW
+        assert isinstance(cr.value, TypeError)
+        assert cr.target is None
+    else:
+        assert cr == Completion(ctype=result_type, value=result_val, target=None)
+
 def test_toprimitive_notobj():
     # Need the object inputs, in the future!!
     cr = ToPrimitive('string')

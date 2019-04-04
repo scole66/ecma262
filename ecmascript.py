@@ -8,7 +8,8 @@ import math
 from itertools import chain
 import unicodedata
 import uuid
-
+import random
+import types
 
 def CreateReferenceError():
     return ReferenceError() # This is a python object, not an ecmascript object. This will change when objects are turned on.
@@ -358,7 +359,7 @@ class JSObject:
         if not ok:
             return has_own
         # 3. If hasOwn is not undefined, return true.
-        if has_ownW is not None:
+        if has_own is not None:
             return NormalCompletion(True)
         # 4. Let parent be ? O.[[GetPrototypeOf]]().
         parent, ok = ec(self.GetPrototypeOf())
@@ -473,7 +474,7 @@ def ValidateAndApplyPropertyDescriptor(obj, propkey, extensible, desc, current):
         # e. Return true.
         return NormalCompletion(True)
     # 3. If every field in Desc is absent, return true.
-    if not any(hasattr(field, desc) for field in ['value', 'writable', 'Get', 'Set', 'enumerable', 'configurable']):
+    if not any(hasattr(desc, field) for field in ['value', 'writable', 'Get', 'Set', 'enumerable', 'configurable']):
         return NormalCompletion(True)
     # 4. If current.[[Configurable]] is false, then
     if not current.configurable:
@@ -668,7 +669,7 @@ def OrdinaryOwnPropertyKeys(obj):
     keys = []
     # 2. For each own property key P of O that is an integer index, in ascending numeric index order, do
     index_keys = [key for key in obj.properties.keys() if isIntegerIndex(key)]
-    sort(index_keys, key=lambda k: CanonicalNumericIndexString(k))
+    index_keys.sort(key=lambda k: CanonicalNumericIndexString(k))
     for p in index_keys:
         # a. Add P as the last element of keys.
         keys.append(p)
@@ -775,6 +776,41 @@ def TypeOf(arg):
     if isObject(arg):
         return JSType.OBJECT
 
+# 6.2.1 The List and Record Specification Types
+#
+# The List type is used to explain the evaluation of argument lists (see 12.3.6) in new expressions, in function calls,
+# and in other algorithms where a simple ordered list of values is needed. Values of the List type are simply ordered
+# sequences of list elements containing the individual values. These sequences may be of any length. The elements of a
+# list may be randomly accessed using 0-origin indices. For notational convenience an array-like syntax can be used to
+# access List elements. For example, arguments[2] is shorthand for saying the 3rd element of the List arguments.
+#
+# For notational convenience within this specification, a literal syntax can be used to express a new List value. For
+# example, « 1, 2 » defines a List value that has two elements each of which is initialized to a specific value. A new
+# empty List can be expressed as « ».
+#
+# The Record type is used to describe data aggregations within the algorithms of this specification. A Record type
+# value consists of one or more named fields. The value of each field is either an ECMAScript value or an abstract
+# value represented by a name associated with the Record type. Field names are always enclosed in double brackets, for
+# example [[Value]].
+#
+# For notational convenience within this specification, an object literal-like syntax can be used to express a Record
+# value. For example, { [[Field1]]: 42, [[Field2]]: false, [[Field3]]: empty } defines a Record value that has three
+# fields, each of which is initialized to a specific value. Field name order is not significant. Any fields that are
+# not explicitly listed are considered to be absent.
+#
+# In specification text and algorithms, dot notation may be used to refer to a specific field of a Record value. For
+# example, if R is the record shown in the previous paragraph then R.[[Field2]] is shorthand for “the field of R named
+# [[Field2]]”.
+#
+# Schema for commonly used Record field combinations may be named, and that name may be used as a prefix to a literal
+# Record value to identify the specific kind of aggregations that is being described. For example: PropertyDescriptor
+# { [[Value]]: 42, [[Writable]]: false, [[Configurable]]: true }.
+class Record:
+    def __init__(self, **kwargs):
+        for key, val in kwargs.items():
+            setattr(self, key, val)
+
+
 # Section 6.2.3
 #
 # The Completion Record Specification Type
@@ -817,6 +853,8 @@ def NormalCompletion(arg):
     # Is a shorthand that is defined as follows:
     #
     # 1. Return Completion { [[Type]]: normal, [[Value]]: argument, [[Target]]: empty }.
+    if isinstance(arg, Completion):
+        return arg
     return Completion(ctype=CompletionType.NORMAL, value=arg, target=None)
 
 # 6.2.3.3 ThrowCompletion
@@ -841,7 +879,8 @@ def UpdateEmpty(cr, value):
     if cr.value != Empty.EMPTY:
         return Completion(cr.ctype, cr.value, cr.target)
 
-    # 3. Return Completion { [[Type]]: completionRecord.[[Type]], [[Value]]: value, [[Target]]: completionRecord.[[Target]] }.
+    # 3. Return Completion { [[Type]]: completionRecord.[[Type]], [[Value]]: value,
+    #                        [[Target]]: completionRecord.[[Target]] }.
     return Completion(cr.ctype, value, cr.target)
 
 # 5.2.3.3 ReturnIfAbrupt
@@ -935,7 +974,7 @@ def HasPrimitiveBase(value):
     # 1. Assert: Type(V) is Reference.
     assert isinstance(value, Reference)
     # 2. If Type(V's base value component) is Boolean, String, Symbol, or Number, return true; otherwise return false.
-    return IsBoolean(value.base) or IsString(value.base) or IsSymbol(value.base) or IsNumber(value.base)
+    return isBoolean(value.base) or isString(value.base) or isSymbol(value.base) or isNumber(value.base)
 
 # 6.2.4.5 IsPropertyReference ( V )
 def IsPropertyReference(value):
@@ -943,7 +982,7 @@ def IsPropertyReference(value):
     assert isinstance(value, Reference)
     # 2. If either the base value component of V is an Object or HasPrimitiveBase(V) is true, return true; otherwise
     #    return false.
-    return IsObject(value.base) or HasPrimitiveBase(value)
+    return isObject(value.base) or HasPrimitiveBase(value)
 
 # 6.2.4.6 IsUnresolvableReference ( V )
 def IsUnresolvableReference(value):
@@ -978,7 +1017,7 @@ def GetValue(value):
         # a. If HasPrimitiveBase(V) is true, then
         if HasPrimitiveBase(value):
             # i. Assert: In this case, base will never be undefined or null.
-            assert base is not None and not IsNull(base)
+            assert base is not None and not isNull(base)
             # ii. Set base to ! ToObject(base).
             base = nc(ToObject(base))
         # b. Return ? base.[[Get]](GetReferencedName(V), GetThisValue(V)).
@@ -1021,7 +1060,7 @@ def PutValue(ref, value):
         # a. If HasPrimitiveBase(V) is true, then
         if HasPrimitiveBase(ref):
             # i. Assert: In this case, base will never be undefined or null.
-            assert base is not None and not IsNull(base)
+            assert base is not None and not isNull(base)
             # ii. Set base to ! ToObject(base).
             base = nc(ToObject(base))
         # b. Let succeeded be ? base.[[Set]](GetReferencedName(V), W, GetThisValue(V)).
@@ -1089,7 +1128,7 @@ def InitializeReferencedBinding(ref, value):
 # data Property Descriptor and that has all of the fields that correspond to the property attributes defined in either
 # Table 2 or Table 3.
 
-class PropertyDescriptor:
+class PropertyDescriptor(Record):
     def is_accessor_descriptor(self):
         "Returns True if this descriptor is an accessor style descriptor."
         # 2. If both Desc.[[Get]] and Desc.[[Set]] are absent, return false.
@@ -1176,7 +1215,7 @@ def FromPropertyDescriptor(desc):
     if desc is None:
         return None
     # 2. Let obj be ObjectCreate(%ObjectPrototype%).
-    obj = ObjectCreate(intrinsics.ObjectPrototype)
+    obj = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics['%ObjectPrototype%'])
     # 3. Assert: obj is an extensible ordinary object with no own properties.
     # 4. If Desc has a [[Value]] field, then
     crs = []
@@ -1706,6 +1745,28 @@ def CanonicalNumericIndexString(arg):
     # A canonical numeric string is any String value for which the CanonicalNumericIndexString abstract operation does
     # not return undefined.
 
+# 7.2.1 IsArray ( argument )
+def IsArray(arg):
+    # The abstract operation IsArray takes one argument argument, and performs the following steps:
+    #
+    # 1. If Type(argument) is not Object, return false.
+    if not isObject(arg):
+        return NormalCompletion(False)
+    # 2. If argument is an Array exotic object, return true.
+    if isinstance(arg, ArrayObject):
+        return NormalCompletion(True)
+    # 3. If argument is a Proxy exotic object, then
+    if isinstance(arg, ProxyObject):
+        # a. If argument.[[ProxyHandler]] is null, throw a TypeError exception.
+        if isNull(arg.ProxyHandler):
+            return ThrowCompletion(CreateTypeError())
+        # b. Let target be argument.[[ProxyTarget]].
+        target = arg.ProxyTarget
+        # c. Return ? IsArray(target).
+        return IsArray(target)
+    # 4. Return false.
+    return NormalCompletion(False)
+
 # 7.2.3 IsCallable ( argument )
 def IsCallable(arg):
     # The abstract operation IsCallable determines if argument, which must be an ECMAScript language value, is a
@@ -1717,6 +1778,28 @@ def IsCallable(arg):
     # 2. If argument has a [[Call]] internal method, return true.
     # 3. Return false.
     return hasattr(arg, 'Call')
+
+# 7.2.4 IsConstructor ( argument )
+def IsConstructor(arg):
+    # The abstract operation IsConstructor determines if argument, which must be an ECMAScript language value, is a
+    # function object with a [[Construct]] internal method.
+    #
+    # 1. If Type(argument) is not Object, return false.
+    if not isObject(arg):
+        return False
+    # 2. If argument has a [[Construct]] internal method, return true.
+    # 3. Return false.
+    return hasattr(arg, 'Construct')
+
+# 7.2.5 IsExtensible ( O )
+def IsExtensible(o_value):
+    # The abstract operation IsExtensible is used to determine whether additional properties can be added to the object
+    # that is O. A Boolean value is returned. This abstract operation performs the following steps:
+    #
+    # 1. Assert: Type(O) is Object.
+    assert isObject(o_value)
+    # 2. Return ? O.[[IsExtensible]]().
+    return o_value.IsExtensible()
 
 # 7.2.6 IsInteger ( argument )
 def IsInteger(argument):
@@ -1842,6 +1925,34 @@ def CreateDataProperty(obj, propkey, value):
     # created by the ECMAScript language assignment operator. Normally, the property will not already exist. If it does
     # exist and is not configurable or if O is not extensible, [[DefineOwnProperty]] will return false.
 
+# 7.3.5 CreateMethodProperty ( O, P, V )
+def CreateMethodProperty(obj, propkey, value):
+    # The abstract operation CreateMethodProperty is used to create a new own property of an object. The operation is
+    # called with arguments O, P, and V where O is the object, P is the property key, and V is the value for the
+    # property. This abstract operation performs the following steps:
+    #
+    # 1. Assert: Type(O) is Object.
+    assert isObject(obj)
+    # 2. Assert: IsPropertyKey(P) is true.
+    assert IsPropertyKey(propkey)
+    # 3. Let newDesc be the PropertyDescriptor { [[Value]]: V, [[Writable]]: true, [[Enumerable]]: false,
+    #    [[Configurable]]: true }.
+    new_desc = PropertyDescriptor(value=value, writable=True, enumerable=False, configurable=True)
+    # 4. Return ? O.[[DefineOwnProperty]](P, newDesc).
+    return obj.DefineOwnProperty(propkey, new_desc)
+    # NOTE
+    # This abstract operation creates a property whose attributes are set to the same defaults used for built-in
+    # methods and methods defined using class declaration syntax. Normally, the property will not already exist. If it
+    # does exist and is not configurable or if O is not extensible, [[DefineOwnProperty]] will return false.
+
+def CreateMethodPropertyOrThrow(obj, propkey, value):
+    success, ok = ec(CreateMethodProperty(obj, propkey, value))
+    if not ok:
+        return success
+    if not success:
+        return ThrowCompletion(CreateTypeError())
+    return NormalCompletion(success)
+
 # 7.3.7 DefinePropertyOrThrow ( O, P, desc )
 def DefinePropertyOrThrow(obj, propkey, desc):
     # The abstract operation DefinePropertyOrThrow is used to call the [[DefineOwnProperty]] internal method of an
@@ -1856,10 +1967,10 @@ def DefinePropertyOrThrow(obj, propkey, desc):
     # 3. Let success be ? O.[[DefineOwnProperty]](P, desc).
     success, ok = ec(obj.DefineOwnProperty(propkey, desc))
     if not ok:
-       return success
+        return success
     # 4. If success is false, throw a TypeError exception.
     if not success:
-         return ThrowCompletion(CreateTypeError())
+        return ThrowCompletion(CreateTypeError())
     # 5. Return success.
     return NormalCompletion(success)
 
@@ -1898,6 +2009,65 @@ def Call(func, value, *args):
         return ThrowCompletion(CreateTypeError())
     # 3. Return ? F.[[Call]](V, argumentsList).
     return func.Call(value, list(args))
+
+# 7.3.15 TestIntegrityLevel ( O, level )
+def TestIntegrityLevel(o_value, level):
+    # The abstract operation TestIntegrityLevel is used to determine if the set of own properties of an object are
+    # fixed. This abstract operation performs the following steps:
+    #
+    # 1. Assert: Type(O) is Object.
+    assert isObject(o_value)
+    # 2. Assert: level is either "sealed" or "frozen".
+    assert level in ['sealed', 'frozen']
+    # 3. Let status be ? IsExtensible(O).
+    status, ok = ec(IsExtensible())
+    if not ok:
+        return status
+    # 4. If status is true, return false.
+    if status:
+        return NormalCompletion(False)
+    # 5. NOTE: If the object is extensible, none of its properties are examined.
+    # 6. Let keys be ? O.[[OwnPropertyKeys]]().
+    keys, ok = ec(o_value.OwnPropertyKeys())
+    if not ok:
+        return keys
+    # 7. For each element k of keys, do
+    for k in keys:
+        # a. Let currentDesc be ? O.[[GetOwnProperty]](k).
+        current_desc, ok = ec(o_value.GetOwnProperty(k))
+        if not ok:
+            return current_desc
+        # b. If currentDesc is not undefined, then
+        if current_desc is not None:
+            # i. If currentDesc.[[Configurable]] is true, return false.
+            if current_desc.configurable:
+                return NormalCompletion(False)
+            # ii. If level is "frozen" and IsDataDescriptor(currentDesc) is true, then
+            if level == 'frozen' and IsDataDescriptor(current_desc):
+                # 1. If currentDesc.[[Writable]] is true, return false.
+                if current_desc.writable:
+                    return NormalCompletion(False)
+    # 8. Return true.
+    return NormalCompletion(True)
+
+# 7.3.18 Invoke ( V, P [ , argumentsList ] )
+def Invoke(v, p, arguments_list=[]):
+    # The abstract operation Invoke is used to call a method property of an ECMAScript language value. The operation is
+    # called with arguments V, P, and optionally argumentsList where V serves as both the lookup point for the property
+    # and the this value of the call, P is the property key, and argumentsList is the list of arguments values passed
+    # to the method. If argumentsList is not present, a new empty List is used as its value. This abstract operation
+    # performs the following steps:
+    #
+    # 1. Assert: IsPropertyKey(P) is true.
+    assert IsPropertyKey(p)
+    # 2. If argumentsList is not present, set argumentsList to a new empty List.
+    # 3. Let func be ? GetV(V, P).
+    func, ok = ec(GetV(v, p))
+    if not ok:
+        return func
+    # 4. Return ? Call(func, V, argumentsList).
+    return Call(func, v, arguments_list)
+
 
 # 7.3.22 GetFunctionRealm ( obj )
 def GetFunctionRealm(obj):
@@ -2415,7 +2585,7 @@ class FunctionEnvironmentRecord(DeclarativeEnvironmentRecord):
         self.new_target = None
 
     # 8.1.1.3.1 BindThisValue ( V )
-    def BindThisValue(value):
+    def BindThisValue(self, value):
         # 1. Let envRec be the function Environment Record for which the method was invoked.
         # 2. Assert: envRec.[[ThisBindingStatus]] is not "lexical".
         assert self.this_binding_status != 'lexical'
@@ -3092,17 +3262,19 @@ def CreateIntrinsics(realm_rec):
     # 2. Set realmRec.[[Intrinsics]] to intrinsics.
     realm_rec.intrinsics = intrinsics
     # 3. Let objProto be ObjectCreate(null).
-    obj_proto = ObjectCreate(None)
+    obj_proto = ObjectCreate(JSNull.NULL)
+    # Transform that prototype into an exotic object. See 19.1.3.
+    obj_proto.SetPrototypeOf = types.MethodType(SetImmutablePrototype, obj_proto)
     # 4. Set intrinsics.[[%ObjectPrototype%]] to objProto.
     intrinsics['%ObjectPrototype%'] = obj_proto
     # 5. Let throwerSteps be the algorithm steps specified in 9.2.9.1 for the %ThrowTypeError% function.
-    thrower_steps = lambda this_value, arguments_list: ThrowCompletion(CreateTypeError())
+    thrower_steps = lambda this_value: ThrowCompletion(CreateTypeError())
     # 6. Let thrower be CreateBuiltinFunction(throwerSteps, « », realmRec, null).
     thrower = CreateBuiltinFunction(thrower_steps, [], realm_rec, JSNull.NULL)
     # 7. Set intrinsics.[[%ThrowTypeError%]] to thrower.
     intrinsics['%ThrowTypeError%'] = thrower
     # 8. Let noSteps be an empty sequence of algorithm steps.
-    no_steps = lambda this_value, arguments_list: None
+    no_steps = lambda this_value: None
     # 9. Let funcProto be CreateBuiltinFunction(noSteps, « », realmRec, objProto).
     func_proto = CreateBuiltinFunction(no_steps, [], realm_rec, obj_proto)
     # 10. Set intrinsics.[[%FunctionPrototype%]] to funcProto.
@@ -3120,9 +3292,89 @@ def CreateIntrinsics(realm_rec):
     #     a list of the names, if any, of the function's specified internal slots, and <prototype> is the specified
     #     value of the function's [[Prototype]] internal slot. The creation of the intrinsics and their properties
     #     must be ordered to avoid any dependencies upon objects that have not yet been created.
-    pass # yeah, later, dudez
+    intrinsics['%Object%'] = CreateObjectConstructor(realm_rec)
+    AddObjectPrototypeProps(realm_rec)
+
     # 14. Return intrinsics.
     return intrinsics
+
+# 8.2.3 SetRealmGlobalObject ( realmRec, globalObj, thisValue )
+def SetRealmGlobalObject(realm_rec, global_obj, this_value):
+    # The abstract operation SetRealmGlobalObject with arguments realmRec, globalObj, and thisValue performs the
+    # following steps:
+    #
+    # 1. If globalObj is undefined, then
+    if global_obj is None:
+        # a. Let intrinsics be realmRec.[[Intrinsics]].
+        intrinsics = realm_rec.intrinsics
+        # b. Set globalObj to ObjectCreate(intrinsics.[[%ObjectPrototype%]]).
+        global_obj = ObjectCreate(intrinsics['%ObjectPrototype%'])
+    # 2. Assert: Type(globalObj) is Object.
+    assert isObject(global_obj)
+    # 3. If thisValue is undefined, set thisValue to globalObj.
+    if this_value is None:
+        this_value = global_obj
+    # 4. Set realmRec.[[GlobalObject]] to globalObj.
+    realm_rec.global_object = global_obj
+    # 5. Let newGlobalEnv be NewGlobalEnvironment(globalObj, thisValue).
+    new_global_env = NewGlobalEnvironment(global_obj, this_value)
+    # 6. Set realmRec.[[GlobalEnv]] to newGlobalEnv.
+    realm_rec.global_env = new_global_env
+    # 7. Return realmRec.
+    return realm_rec
+
+# 8.2.4 SetDefaultGlobalBindings ( realmRec )
+def SetDefaultGlobalBindings(realm_rec):
+    # The abstract operation SetDefaultGlobalBindings with argument realmRec performs the following steps:
+    #
+    # 1. Let global be realmRec.[[GlobalObject]].
+    globl = realm_rec.global_object
+    # 2. For each property of the Global Object specified in clause 18, do
+    global_values = [
+        ('Infinity', math.inf),
+        ('Nan', math.nan),
+        ('undefined', None)
+    ]
+    global_intrinsics = [
+        'eval',
+        'isFinfite',
+        'isNaN',
+        'parseFloat',
+        'parseInt',
+        'decodeURI',
+        'decodeURIComponent',
+        'encodeURI',
+        'encodeURIComponent',
+        'Array',
+        'ArrayBuffer',
+        'Boolean',
+        'DataView',
+        'Date',
+        'Error',
+        'EvalError',
+        'Float32Array',
+        'Float64Array',
+        'Function',
+        'Int8Array',
+        'Int16Array',
+        'Int32Array',
+        'Map', 'Number', 'Object', 'Promise', 'Proxy', 'RangeError', 'ReferenceError', 'RegExp', 'Set', 'SharedArrayBuffer',
+        'String', 'Symbol', 'SyntaxError', 'TypeError', 'Uint8Array', 'Uint8ClampedArray', 'Uint16Array', 'Uint32Array',
+        'URIError', 'WeapMap', 'WeakSet', 'Atomics', 'JSON', 'Math', 'Reflect']
+    # @@@ Note: The "if" clause, below, should not be there. It's just to allow this fcn to work even if I haven't
+    # implemented everything yet.
+    for name, value in chain(global_values, ((name, realm_rec.intrinsics['%'+name+'%']) for name in global_intrinsics if hasattr(realm_rec.intrinsics, '%'+name+'%'))):
+        # a. Let name be the String value of the property name.x
+        # b. Let desc be the fully populated data property descriptor for the property containing the specified
+        #    attributes for the property. For properties listed in 18.2, 18.3, or 18.4 the value of the [[Value]]
+        #    attribute is the corresponding intrinsic object from realmRec.
+        # c. Perform ? DefinePropertyOrThrow(global, name, desc).
+        desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=False)
+        cr, ok = ec(DefinePropertyOrThrow(globl, name, desc))
+        if not ok:
+            return cr
+    # 3. Return global.
+    return globl
 
 # 8.3 Execution Contexts
 #
@@ -3208,6 +3460,8 @@ class ExecutionContext:
         self.lexical_environment = None
         self.variable_environment = None
         self.generator = None
+    def suspend(self):
+        pass
 
 # 8.3.1 GetActiveScriptOrModule ( )
 def GetActiveScriptOrModule():
@@ -3305,6 +3559,100 @@ def GetGlobalObject():
     # 3. Return currentRealm.[[GlobalObject]].
     return current_realm.global_object
 
+# 8.4 Jobs and Job Queues
+#
+# A Job is an abstract operation that initiates an ECMAScript computation when no other ECMAScript computation is
+# currently in progress. A Job abstract operation may be defined to accept an arbitrary set of job parameters.
+#
+# Execution of a Job can be initiated only when there is no running execution context and the execution context stack
+# is empty. A PendingJob is a request for the future execution of a Job. A PendingJob is an internal Record whose
+# fields are specified in Table 24. Once execution of a Job is initiated, the Job always executes to completion. No
+# other Job may be initiated until the currently running Job completes. However, the currently running Job or external
+# events may cause the enqueuing of additional PendingJobs that may be initiated sometime after completion of the
+# currently running Job.
+#
+# Table 24: PendingJob Record Fields
+# +--------------------+----------------------------+------------------------------------------------------------------
+# | Field Name         | Value                      | Meaning
+# +--------------------+----------------------------+------------------------------------------------------------------
+# | [[Job]]            | The name of a Job abstract | This is the abstract operation that is performed when execution
+# |                    | operation                  |  of this PendingJob is initiated.
+# +--------------------+----------------------------+------------------------------------------------------------------
+# | [[Arguments]]      | A List                     | The List of argument values that are to be passed to [[Job]] when
+# |                    |                            | it is activated.
+# +--------------------+----------------------------+------------------------------------------------------------------
+# | [[Realm]]          | A Realm Record             | The Realm Record for the initial execution context when this
+# |                    |                            | PendingJob is initiated.
+# +--------------------+----------------------------+------------------------------------------------------------------
+# | [[ScriptOrModule]] | A Script Record or Module  | The script or module for the initial execution context when this
+# |                    | Record                     | PendingJob is initiated.
+# +--------------------+----------------------------+------------------------------------------------------------------
+# | [[HostDefined]]    | Any, default value is      | Field reserved for use by host environments that need to
+# |                    | undefined.                 |  associate additional information with a pending Job.
+# +--------------------+----------------------------+------------------------------------------------------------------
+#
+# A Job Queue is a FIFO queue of PendingJob records. Each Job Queue has a name and the full set of available Job Queues
+# are defined by an ECMAScript implementation. Every ECMAScript implementation has at least the Job Queues defined in
+# Table 25.
+#
+# Each agent has its own set of named Job Queues. All references to a named job queue in this specification denote the
+# named job queue of the surrounding agent.
+#
+# Table 25: Required Job Queues
+# +-------------+------------------------------------------------------------------------------------------------------
+# | Name        | Purpose
+# +-------------+------------------------------------------------------------------------------------------------------
+# | ScriptJobs  | Jobs that validate and evaluate ECMAScript Script and Module source text. See clauses 10 and 15.
+# +-------------+------------------------------------------------------------------------------------------------------
+# | PromiseJobs | Jobs that are responses to the settlement of a Promise (see 25.6).
+# +-------------+------------------------------------------------------------------------------------------------------
+#
+# A request for the future execution of a Job is made by enqueueing, on a Job Queue, a PendingJob record that includes
+# a Job abstract operation name and any necessary argument values. When there is no running execution context and the
+# execution context stack is empty, the ECMAScript implementation removes the first PendingJob from a Job Queue and
+# uses the information contained in it to create an execution context and starts execution of the associated Job
+# abstract operation.
+#
+# The PendingJob records from a single Job Queue are always initiated in FIFO order. This specification does not define
+# the order in which multiple Job Queues are serviced. An ECMAScript implementation may interweave the FIFO evaluation
+# of the PendingJob records of a Job Queue with the evaluation of the PendingJob records of one or more other Job
+# Queues. An implementation must define what occurs when there are no running execution context and all Job Queues are
+# empty.
+#
+# NOTE
+# Typically an ECMAScript implementation will have its Job Queues pre-initialized with at least one PendingJob and one
+# of those Jobs will be the first to be executed. An implementation might choose to free all resources and terminate if
+# the current Job completes and all Job Queues are empty. Alternatively, it might choose to wait for a some
+# implementation specific agent or mechanism to enqueue new PendingJob requests.
+
+
+
+# 8.4.1 EnqueueJob ( queueName, job, arguments )
+def EnqueueJob(queue_name, job, arguments):
+    # The EnqueueJob abstract operation requires three arguments: queueName, job, and arguments. It performs the
+    # following steps:
+    #
+    # 1. Assert: Type(queueName) is String and its value is the name of a Job Queue recognized by this implementation.
+    assert isString(queue_name)
+    # 2. Assert: job is the name of a Job.
+    # 3. Assert: arguments is a List that has the same number of elements as the number of parameters required by job.
+    # 4. Let callerContext be the running execution context.
+    caller_context = surrounding_agent.running_ec
+    # 5. Let callerRealm be callerContext's Realm.
+    caller_realm = caller_context.realm
+    # 6. Let callerScriptOrModule be callerContext's ScriptOrModule.
+    caller_script_or_module = caller_context.script_or_module
+    # 7. Let pending be PendingJob { [[Job]]: job, [[Arguments]]: arguments, [[Realm]]: callerRealm,
+    #    [[ScriptOrModule]]: callerScriptOrModule, [[HostDefined]]: undefined }.
+    pending = Record(job=job, arguments=arguments, realm=caller_realm, script_or_module=caller_script_or_module,
+                     host_defined=None)
+    # 8. Perform any implementation or host environment defined processing of pending. This may include modifying the
+    #    [[HostDefined]] field or any other field of pending.
+    # 9. Add pending at the back of the Job Queue named by queueName.
+    surrounding_agent.job_queues[queue_name].append(pending)
+    # 10. Return NormalCompletion(empty).
+    return NormalCompletion(Empty.EMPTY)
+
 # 8.5 InitializeHostDefinedRealm ( )
 def InitializeHostDefinedRealm():
     # The abstract operation InitializeHostDefinedRealm performs the following steps:
@@ -3374,7 +3722,7 @@ def RunJobs(scripts=[], modules=[]):
             break
         next_queue = random.choice(non_empty_job_queues)
         # d. Let nextPending be the PendingJob record at the front of nextQueue. Remove that record from nextQueue.
-        next_pending = surrounding_agent.job_queues[name].popleft()
+        next_pending = surrounding_agent.job_queues[next_queue].popleft()
         # e. Let newContext be a new execution context.
         new_context = ExecutionContext()
         # f. Set newContext's Function to null.
@@ -3460,15 +3808,10 @@ def AddRestrictedFunctionProperties(func, realm):
     thrower = realm.intrinsics['%ThrowTypeError%']
     # 3. Perform ! DefinePropertyOrThrow(F, "caller", PropertyDescriptor { [[Get]]: thrower, [[Set]]: thrower,
     #    [[Enumerable]]: false, [[Configurable]]: true }).
-    pd = PropertyDescriptor()
-    pd.Get = thrower
-    pd.Set = thrower
-    pd.enumerable = False
-    pd.configurable = True
-    nc(DefinePropertyOrThrow(func, 'caller', pd))
+    nc(DefinePropertyOrThrow(func, 'caller', PropertyDescriptor(Get=thrower, Set=thrower, enumerable=False, configurable=True)))
     # 4. Return ! DefinePropertyOrThrow(F, "arguments", PropertyDescriptor { [[Get]]: thrower, [[Set]]: thrower,
     #    [[Enumerable]]: false, [[Configurable]]: true }).
-    return nc(DefinePropertyOrThrow(func, 'arguments', pd))
+    return nc(DefinePropertyOrThrow(func, 'arguments', PropertyDescriptor(Get=thrower, Set=thrower, enumerable=False, configurable=True)))
 
 class BuiltinFunction(JSObject):
     def __init__(self, steps, realm, prototype, extensible, script_or_module, internal_slots_list):
@@ -3507,7 +3850,7 @@ class BuiltinFunction(JSObject):
         # 10. Let result be the Completion Record that is the result of evaluating F in an implementation-defined
         #     manner that conforms to the specification of F. thisArgument is the this value, argumentsList provides
         #     the named parameters, and the NewTarget value is undefined.
-        result = self.steps(this_argument, arguments_list)
+        result = self.steps(this_argument, *arguments_list)
         if not isinstance(result, Completion):
             result = NormalCompletion(result)
         # 11. Remove calleeContext from the execution context stack and restore callerContext as the running execution
@@ -3550,6 +3893,69 @@ def CreateBuiltinFunction(steps, internal_slots_list, realm=missing.MISSING, pro
     return func
     # Each built-in function defined in this specification is created by calling the CreateBuiltinFunction abstract
     # operation.
+
+# 9.4.2 Array Exotic Objects
+#
+# An Array object is an exotic object that gives special treatment to array index property keys (see 6.1.7). A property
+# whose property name is an array index is also called an element. Every Array object has a length property whose value
+# is always a nonnegative integer less than 232. The value of the length property is numerically greater than the name
+# of every own property whose name is an array index; whenever an own property of an Array object is created or changed,
+# other properties are adjusted as necessary to maintain this invariant. Specifically, whenever an own property is
+# added whose name is an array index, the value of the length property is changed, if necessary, to be one more than the
+# numeric value of that array index; and whenever the value of the length property is changed, every own property whose
+# name is an array index whose value is not smaller than the new length is deleted. This constraint applies only to own
+# properties of an Array object and is unaffected by length or array index properties that may be inherited from its
+# prototypes.
+#
+# NOTE
+# A String property name P is an array index if and only if ToString(ToUint32(P)) is equal to P and ToUint32(P) is not
+# equal to 2^32-1.
+#
+# Array exotic objects always have a non-configurable property named "length".
+#
+# Array exotic objects provide an alternative definition for the [[DefineOwnProperty]] internal method. Except for that
+# internal method, Array exotic objects provide all of the other essential internal methods as specified in 9.1.
+class ArrayObject(JSObject):
+    pass
+
+# 9.4.3 String Exotic Objects
+class StringObject(JSObject):
+    pass
+
+# 9.4.7 Immutable Prototype Exotic Objects
+#
+# An immutable prototype exotic object is an exotic object that has a [[Prototype]] internal slot that will not change
+# once it is initialized.
+#
+# Immutable prototype exotic objects have the same internal slots as ordinary objects. They are exotic only in the
+# following internal methods. All other internal methods of immutable prototype exotic objects that are not explicitly
+# defined below are instead defined as in ordinary objects.
+#
+# 9.4.7.1 [[SetPrototypeOf]] ( V )
+# When the [[SetPrototypeOf]] internal method of an immutable prototype exotic object O is called with argument V, the
+# following steps are taken:
+#
+# 1. Return ? SetImmutablePrototype(O, V).
+#
+# 9.4.7.2 SetImmutablePrototype ( O, V )
+def SetImmutablePrototype(obj, value):
+    # When the SetImmutablePrototype abstract operation is called with arguments O and V, the following steps are
+    # taken:
+    #
+    # 1. Assert: Either Type(V) is Object or Type(V) is Null.
+    assert isObject(value) or isNull(value)
+    # 2. Let current be ? O.[[GetPrototypeOf]]().
+    current, ok = ec(obj.GetPrototypeOf())
+    if not ok:
+        return current
+    # 3. If SameValue(V, current) is true, return true.
+    # 4. Return false.
+    return NormalCompletion(SameValue(value, current))
+
+# 9.5 ProxyObjects
+class ProxyObject(JSObject):
+    pass
+
 
 
 # Stuff from chap 10: Source Text
@@ -4266,6 +4672,672 @@ class Lexer():
             except IndexError:
                 lookahead = ''
             self.pos += 1
+
+# 15.1.12 Runtime Semantics: ScriptEvaluationJob ( sourceText, hostDefined )
+def ScriptEvaluationJob(source_text, host_defined):
+    # The job ScriptEvaluationJob with parameters sourceText and hostDefined parses, validates, and evaluates
+    # sourceText as a Script.
+    #
+    # 1. Assert: sourceText is an ECMAScript source text (see clause 10).
+    assert isString(source_text)
+    # 2. Let realm be the current Realm Record.
+    realm = surrounding_agent.running_ec.realm
+    # 3. Let s be ParseScript(sourceText, realm, hostDefined).
+    script_nodes = ParseScript(source_text, realm, host_defined)
+    # 4. If s is a List of errors, then
+    if isinstance(script_nodes, list):
+        # a. Perform HostReportErrors(s).
+        HostReportErrors(script_nodes)
+        # b. Return NormalCompletion(undefined).
+        return NormalCompletion(None)
+    # 5. Return ? ScriptEvaluation(s).
+    return ScriptEvaluation(script_nodes)
+
+# 19.1.1 The Object Constructor
+#
+# The Object constructor:
+#
+#     * is the intrinsic object %Object%.
+#     * is the initial value of the Object property of the global object.
+#     * creates a new ordinary object when called as a constructor.
+#     * performs a type conversion when called as a function rather than as a constructor.
+#     * is designed to be subclassable. It may be used as the value of an extends clause of a class definition.
+def CreateObjectConstructor(realm):
+    intrinsics = realm.intrinsics
+    obj = ObjectCreate(intrinsics['%FunctionPrototype%'])
+    for key, value in [('length', 1), ('name', 'Object')]:
+        cr, ok = ec(DefinePropertyOrThrow(obj, key, PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)))
+        if not ok:
+            return cr
+    cr, ok = ec(DefinePropertyOrThrow(obj, 'prototype', PropertyDescriptor(value=intrinsics['%ObjectPrototype%'], writable=False, enumerable=False, configurable=False)))
+    if not ok:
+        return cr
+    for key, fcn, length in [
+        ('assign', ObjectMethod_assign, 2),
+        ('create', ObjectMethod_create, 2),
+        ('defineProperties', ObjectMethod_defineProperties, 2),
+        ('defineProperty', ObjectMethod_defineProperty, 3),
+        ('entries', ObjectMethod_entries, 1),
+        ('freeze', ObjectMethod_freeze, 1),
+        ('getOwnPropertyDescriptor', ObjectMethod_getOwnPropertyDescriptor, 2),
+        ('getOwnPropertyDescriptors', ObjectMethod_getOwnPropertyDescriptors, 1),
+        ('getOwnPropertyNames', ObjectMethod_getOwnPropertyNames, 1),
+        ('getOwnPropertySymbols', ObjectMethod_getOwnPropertySymbols, 1),
+        ('getPrototypeOf', ObjectMethod_getPrototypeOf, 1),
+        ('is', ObjectMethod_is, 2),
+        ('isExtensible', ObjectMethod_isExtensible, 1),
+        ('isFrozen', ObjectMethod_isFrozen, 1),
+        ('isSealed', ObjectMethod_isSealed, 1),
+        ('keys', ObjectMethod_keys, 1),
+        ('preventExtensions', ObjectMethod_preventExtensions, 1),
+        ('seal', ObjectMethod_seal, 1),
+        ('setPrototypeOf', ObjectMethod_setPrototypeOf, 2),
+        ('values', ObjectMethod_values, 1)
+    ]:
+        func_obj, ok = ec(CreateBuiltinFunction(fcn, [], realm))
+        if not ok:
+            return func_obj
+        success, ok = ec(DefinePropertyOrThrow(func_obj, 'length', PropertyDescriptor(value=length, writable=False, enumerable=False, configurable=True)))
+        if not ok:
+            return success
+        success, ok = ec(DefinePropertyOrThrow(func_obj, 'name', PropertyDescriptor(value=key, writable=False, enumerable=False, configurable=True)))
+        if not ok:
+            return success
+        success, ok = ec(CreateMethodPropertyOrThrow(obj, key, func_obj))
+        if not ok:
+            return success
+    return obj
+
+# 19.1.2.1 Object.assign ( target, ...sources )
+def ObjectMethod_assign(target, *sources):
+    # The assign function is used to copy the values of all of the enumerable own properties from one or more source
+    # objects to a target object. When the assign function is called, the following steps are taken:
+    #
+    # 1. Let to be ? ToObject(target).
+    to_obj, ok = ec(ToObject(target))
+    if not ok:
+        return to_obj
+    # 2. If only one argument was passed, return to.
+    if len(sources) == 0:
+        return NormalCompletion(to_obj)
+    # 3. Let sources be the List of argument values starting with the second argument.
+    # 4. For each element nextSource of sources, in ascending index order, do
+    for next_source in sources:
+        # a. If nextSource is undefined or null, let keys be a new empty List.
+        if isNull(next_source) or next_source is None:
+            keys = []
+        # b. Else,
+        else:
+            # i. Let from be ! ToObject(nextSource).
+            from_obj = nc(ToObject(next_source))
+            # ii. Let keys be ? from.[[OwnPropertyKeys]]().
+            keys, ok = ec(from_obj.OwnPropertyKeys())
+            if not ok:
+                return keys
+        # c. For each element nextKey of keys in List order, do
+        for next_key in keys:
+            # i. Let desc be ? from.[[GetOwnProperty]](nextKey).
+            desc, ok = ec(from_obj.GetOwnProperty(next_key))
+            if not ok:
+                return desc
+            # ii. If desc is not undefined and desc.[[Enumerable]] is true, then
+            if desc is not None and desc.enumerable:
+                # 1. Let propValue be ? Get(from, nextKey).
+                prop_value, ok = ec(Get(from_obj, next_key))
+                if not ok:
+                    return prop_value
+                # 2. Perform ? Set(to, nextKey, propValue, true).
+                cr, ok = ec(Set(to_obj, next_key, prop_value, True))
+                if not ok:
+                    return cr
+    # 5. Return to.
+    return NormalCompletion(to_obj)
+
+# 19.1.2.2 Object.create ( O, Properties )
+def ObjectMethod_create(o_value, properties):
+    # The create function creates a new object with a specified prototype. When the create function is called, the
+    # following steps are taken:
+    #
+    # 1. If Type(O) is neither Object nor Null, throw a TypeError exception.
+    if not isObject(o_value) and not isNull(o_value):
+        return ThrowCompletion(CreateTypeError())
+    # 2. Let obj be ObjectCreate(O).
+    obj = ObjectCreate(o_value)
+    # 3. If Properties is not undefined, then
+    if properties is not None:
+        # a. Return ? ObjectDefineProperties(obj, Properties).
+        return ObjectDefineProperties(obj, properties)
+    # 4. Return obj.
+    return NormalCompletion(obj)
+
+# 19.1.2.3 Object.defineProperties ( O, Properties )
+def ObjectMethod_defineProperties(o_value, properties):
+    # The defineProperties function is used to add own properties and/or update the attributes of existing own
+    # properties of an object. When the defineProperties function is called, the following steps are taken:
+    #
+    # 1. Return ? ObjectDefineProperties(O, Properties).
+    return ObjectDefineProperties(o_value, properties)
+
+# 19.1.2.3.1 Runtime Semantics: ObjectDefineProperties ( O, Properties )
+def ObjectDefineProperties(o_value, properties):
+    # The abstract operation ObjectDefineProperties with arguments O and Properties performs the following steps:
+    #
+    # 1. If Type(O) is not Object, throw a TypeError exception.
+    if not isObject(o_value):
+        return ThrowCompletion(CreateTypeError())
+    # 2. Let props be ? ToObject(Properties).
+    props, ok = ec(ToObject(properties))
+    if not ok:
+        return props
+    # 3. Let keys be ? props.[[OwnPropertyKeys]]().
+    keys, ok = ec(props.OwnPropertyKeys())
+    if not ok:
+        return keys
+    # 4. Let descriptors be a new empty List.
+    descriptors = []
+    # 5. For each element nextKey of keys in List order, do
+    for next_key in keys:
+        # a. Let propDesc be ? props.[[GetOwnProperty]](nextKey).
+        prop_desc, ok = ec(props.GetOwnProperty(next_key))
+        if not ok:
+            return prop_desc
+        # b. If propDesc is not undefined and propDesc.[[Enumerable]] is true, then
+        if prop_desc is not None and prop_desc.enumerable:
+            # i. Let descObj be ? Get(props, nextKey).
+            desc_obj, ok = ec(Get(props, next_key))
+            if not ok:
+                return desc_obj
+            # ii. Let desc be ? ToPropertyDescriptor(descObj).
+            desc, ok = ec(ToPropertyDescriptor(desc_obj))
+            if not ok:
+                return desc
+            # iii. Append the pair (a two element List) consisting of nextKey and desc to the end of descriptors.
+            descriptors.append((next_key, desc))
+    # 6. For each pair from descriptors in list order, do
+    for prop_key, desc in descriptors:
+        # a. Let P be the first element of pair.
+        # b. Let desc be the second element of pair.
+        # c. Perform ? DefinePropertyOrThrow(O, P, desc).
+        cr, ok = ec(DefinePropertyOrThrow(o_value, prop_key, desc))
+        if not ok:
+            return cr
+    # 7. Return O.
+    return NormalCompletion(o_value)
+
+# 19.1.2.4 Object.defineProperty ( O, P, Attributes )
+def ObjectMethod_defineProperty(o_value, prop, attributes):
+    # The defineProperty function is used to add an own property and/or update the attributes of an existing own
+    # property of an object. When the defineProperty function is called, the following steps are taken:
+    #
+    # 1. If Type(O) is not Object, throw a TypeError exception.
+    if not isObject(o_value):
+        return ThrowCompletion(CreateTypeError())
+    # 2. Let key be ? ToPropertyKey(P).
+    key, ok = ec(ToPropertyKey(prop))
+    if not ok:
+        return key
+    # 3. Let desc be ? ToPropertyDescriptor(Attributes).
+    desc, ok = ec(ToPropertyDescriptor(attributes))
+    if not ok:
+        return desc
+    # 4. Perform ? DefinePropertyOrThrow(O, key, desc).
+    cr, ok = ec(DefinePropertyOrThrow(o_value, key, desc))
+    if not ok:
+        return cr
+    # 5. Return O.
+    return NormalCompletion(o_value)
+
+# 19.1.2.5 Object.entries ( O )
+def ObjectMethod_entries(o_value):
+    # When the entries function is called with argument O, the following steps are taken:
+    #
+    # 1. Let obj be ? ToObject(O).
+    obj, ok = ec(ToObject(o_value))
+    if not ok:
+        return obj
+    # 2. Let nameList be ? EnumerableOwnPropertyNames(obj, "key+value").
+    name_list, ok = ec(EnumerableOwnPropertyNames(obj, 'key+value'))
+    if not ok:
+        return name_list
+    # 3. Return CreateArrayFromList(nameList).
+    return NormalCompletion(CreateArrayFromList(name_list))
+
+# 19.1.2.6 Object.freeze ( O )
+def ObjectMethod_freeze(o_value):
+    # When the freeze function is called, the following steps are taken:
+    #
+    # 1. If Type(O) is not Object, return O.
+    if not isObject(o_value):
+        return NormalCompletion(o_value)
+    # 2. Let status be ? SetIntegrityLevel(O, "frozen").
+    status, ok = ec(SetIntegrityLevel(o_value, 'frozen'))
+    if not ok:
+        return status
+    # 3. If status is false, throw a TypeError exception.
+    if not status:
+        return ThrowCompletion(CreateTypeError())
+    # 4. Return O.
+    return NormalCompletion(o_value)
+
+# 19.1.2.7 Object.getOwnPropertyDescriptor ( O, P )
+def ObjectMethod_getOwnPropertyDescriptor(o_value, propkey):
+    # When the getOwnPropertyDescriptor function is called, the following steps are taken:
+    #
+    # 1. Let obj be ? ToObject(O).
+    obj, ok = ec(ToObject(o_value))
+    if not ok:
+        return obj
+    # 2. Let key be ? ToPropertyKey(P).
+    key, ok = ec(ToPropertyKey(propkey))
+    if not ok:
+        return key
+    # 3. Let desc be ? obj.[[GetOwnProperty]](key).
+    desc, ok = ec(obj.GetOwnProperty(key))
+    if not ok:
+        return desc
+    # 4. Return FromPropertyDescriptor(desc).
+    return NormalCompletion(FromPropertyDescriptor(desc))
+
+# 19.1.2.8 Object.getOwnPropertyDescriptors ( O )
+def ObjectMethod_getOwnPropertyDescriptors(o_value):
+    # When the getOwnPropertyDescriptors function is called, the following steps are taken:
+    #
+    # 1. Let obj be ? ToObject(O).
+    obj, ok = ec(ToObject(o_value))
+    if not ok:
+        return obj
+    # 2. Let ownKeys be ? obj.[[OwnPropertyKeys]]().
+    own_keys, ok = ec(obj.OwnPropertyKeys())
+    if not ok:
+        return own_keys
+    # 3. Let descriptors be ! ObjectCreate(%ObjectPrototype%).
+    descriptors = nc(ObjectCreate(surrounding_agent.realm.intrinsics['%ObjectPrototype%']))
+    # 4. For each element key of ownKeys in List order, do
+    for key in own_keys:
+        # a. Let desc be ? obj.[[GetOwnProperty]](key).
+        desc, ok = ec(obj.GetOwnProperty(key))
+        if not ok:
+            return desc
+        # b. Let descriptor be ! FromPropertyDescriptor(desc).
+        descriptor = nc(FromPropertyDescriptor(desc))
+        # c. If descriptor is not undefined, perform ! CreateDataProperty(descriptors, key, descriptor).
+        if descriptor is not None:
+            nc(CreateDataProperty(descriptors, key, descriptor))
+    # 5. Return descriptors.
+    return NormalCompletion(descriptors)
+
+# 19.1.2.9 Object.getOwnPropertyNames ( O )
+def ObjectMethod_getOwnPropertyNames(o_value):
+    # When the getOwnPropertyNames function is called, the following steps are taken:
+    #
+    # 1. Return ? GetOwnPropertyKeys(O, String).
+    return GetOwnPropertyKeys(o_value, isString)
+
+# 19.1.2.10 Object.getOwnPropertySymbols ( O )
+def ObjectMethod_getOwnPropertySymbols(o_value):
+    # When the getOwnPropertySymbols function is called with argument O, the following steps are taken:
+    #
+    # 1. Return ? GetOwnPropertyKeys(O, Symbol).
+    return GetOwnPropertyKeys(o_value, isSymbol)
+
+# 19.1.2.10.1 Runtime Semantics: GetOwnPropertyKeys ( O, Type )
+def GetOwnPropertyKeys(o_value, type_checker):
+    # The abstract operation GetOwnPropertyKeys is called with arguments O and Type where O is an Object and Type is
+    # one of the ECMAScript specification types String or Symbol. The following steps are taken:
+    #
+    # 1. Let obj be ? ToObject(O).
+    obj, ok = ec(ToObject(o_value))
+    if not ok:
+        return obj
+    # 2. Let keys be ? obj.[[OwnPropertyKeys]]().
+    keys, ok = ec(obj.OwnPropertyKeys())
+    if not ok:
+        return keys
+    # 3. Let nameList be a new empty List.
+    # 4. For each element nextKey of keys in List order, do
+        # a. If Type(nextKey) is Type, then
+            # i. Append nextKey as the last element of nameList.
+    name_list = [key for key in keys if type_checker(key)]
+    # 5. Return CreateArrayFromList(nameList).
+    return NormalCompletion(CreateArrayFromList(name_list))
+
+# 19.1.2.11 Object.getPrototypeOf ( O )
+def ObjectMethod_getPrototypeOf(o_value):
+    # When the getPrototypeOf function is called with argument O, the following steps are taken:
+    #
+    # 1. Let obj be ? ToObject(O).
+    obj, ok = ec(ToObject(o_value))
+    if not ok:
+        return obj
+    # 2. Return ? obj.[[GetPrototypeOf]]().
+    return obj.GetPrototypeOf()
+
+# 19.1.2.12 Object.is ( value1, value2 )
+def ObjectMethod_is(value1, value2):
+    # When the is function is called with arguments value1 and value2, the following steps are taken:
+    #
+    # 1. Return SameValue(value1, value2).
+    return NormalCompletion(SameValue(value1, value2))
+
+# 19.1.2.13 Object.isExtensible ( O )
+def ObjectMethod_isExtensible(o_value):
+    # When the isExtensible function is called with argument O, the following steps are taken:
+    #
+    # 1. If Type(O) is not Object, return false.
+    if not isObject(o_value):
+        return NormalCompletion(False)
+    # 2. Return ? IsExtensible(O).
+    return IsExtensible(o_value)
+
+# 19.1.2.14 Object.isFrozen ( O )
+def ObjectMethod_isFrozen(o_value):
+    # When the isFrozen function is called with argument O, the following steps are taken:
+    #
+    # 1. If Type(O) is not Object, return true.
+    if not isObject(o_value):
+        return NormalCompletion(True)
+    # 2. Return ? TestIntegrityLevel(O, "frozen").
+    return TestIntegrityLevel(o_value, 'frozen')
+
+# 19.1.2.15 Object.isSealed ( O )
+def ObjectMethod_isSealed(o_value):
+    # When the isSealed function is called with argument O, the following steps are taken:
+    #
+    # 1. If Type(O) is not Object, return true.
+    if not isObject(o_value):
+        return NormalCompletion(True)
+    # 2. Return ? TestIntegrityLevel(O, "sealed").
+    return TestIntegrityLevel(o_value, 'sealed')
+
+# 19.1.2.16 Object.keys ( O )
+def ObjectMethod_keys(o_value):
+    # When the keys function is called with argument O, the following steps are taken:
+    #
+    # 1. Let obj be ? ToObject(O).
+    obj, ok = ec(ToObject(o_value))
+    if not ok:
+        return obj
+    # 2. Let nameList be ? EnumerableOwnPropertyNames(obj, "key").
+    name_list, ok = ec(EnumerableOwnProperetyNames(obj, 'key'))
+    if not ok:
+        return name_list
+    # 3. Return CreateArrayFromList(nameList).
+    return NormalCompletion(CreateArrayFromList(name_list))
+
+# 19.1.2.17 Object.preventExtensions ( O )
+def ObjectMethod_preventExtensions(o_value):
+    # When the preventExtensions function is called, the following steps are taken:
+    #
+    # 1. If Type(O) is not Object, return O.
+    if not isObject(o_value):
+        return NormalCompletion(o_value)
+    # 2. Let status be ? O.[[PreventExtensions]]().
+    status, ok = ec(obj.PreventExtensions())
+    if not ok:
+        return status
+    # 3. If status is false, throw a TypeError exception.
+    if not status:
+        return ThrowCompletion(CreateTypeError())
+    # 4. Return O.
+    return NormalCompletion(o_value)
+
+# 19.1.2.19 Object.seal ( O )
+def ObjectMethod_seal(o_value):
+    # When the seal function is called, the following steps are taken:
+    #
+    # 1. If Type(O) is not Object, return O.
+    if not isObject(o_value):
+        return NormalCompletion(o_value)
+    # 2. Let status be ? SetIntegrityLevel(O, "sealed").
+    status, ok = ec(SetIntegrityLevel(o_value, 'sealed'))
+    if not ok:
+        return status
+    # 3. If status is false, throw a TypeError exception.
+    if not status:
+        return ThrowCompletion(CreateTypeError())
+    # 4. Return O.
+    return NormalCompletion(o_value)
+
+# 19.1.2.20 Object.setPrototypeOf ( O, proto )
+def ObjectMethod_setPrototypeOf(o_value, proto):
+    # When the setPrototypeOf function is called with arguments O and proto, the following steps are taken:
+    #
+    # 1. Let O be ? RequireObjectCoercible(O).
+    o_value, ok = ec(RequireObjectCoercible(o_value))
+    if not ok:
+        return o_value
+    # 2. If Type(proto) is neither Object nor Null, throw a TypeError exception.
+    if not isObject(proto) and not isNull(proto):
+        return ThrowCompletion(CreateTypeError())
+    # 3. If Type(O) is not Object, return O.
+    if not isObject(o_value):
+        return NormalCompletion(o_value)
+    # 4. Let status be ? O.[[SetPrototypeOf]](proto).
+    status, ok = ec(o_value.SetPrototypeOf(proto))
+    if not ok:
+        return status
+    # 5. If status is false, throw a TypeError exception.
+    if not status:
+        return ThrowCompletion(CreateTypeError())
+    # 6. Return O.
+    return NormalCompletion(o_value)
+
+# 19.1.2.21 Object.values ( O )
+def ObjectMethod_values(o_value):
+    # When the values function is called with argument O, the following steps are taken:
+    #
+    # 1. Let obj be ? ToObject(O).
+    obj, ok = ec(ToObject(o_value))
+    if not ok:
+        return obj
+    # 2. Let nameList be ? EnumerableOwnPropertyNames(obj, "value").
+    name_list, ok = ec(EnumerableOwnPropertyNames(obj, 'value'))
+    if not ok:
+        return name_list
+    # 3. Return CreateArrayFromList(nameList).
+    return NormalCompletion(CreateArrayFromList(name_list))
+
+# 19.1.3 Properties of the Object Prototype Object
+#
+# The Object prototype object:
+#    * is the intrinsic object %ObjectPrototype%.
+#    * is an immutable prototype exotic object.
+#    * has a [[Prototype]] internal slot whose value is null.
+#
+def AddObjectPrototypeProps(realm_rec):
+    intrinsics = realm_rec.intrinsics
+    obj = intrinsics['%ObjectPrototype%']
+    # 19.1.3.1 Object.prototype.constructor
+    # The initial value of Object.prototype.constructor is the intrinsic object %Object%.
+    cr, ok = ec(DefinePropertyOrThrow(obj, 'constructor', PropertyDescriptor(value=intrinsics['%Object%'], writable=False, enumerable=False, configurable=False)))
+    if not ok:
+        return cr
+    for key, fcn, length in [
+        ('hasOwnProperty', ObjectPrototype_hasOwnProperty, 1),
+        ('isPrototypeOf', ObjectPrototype_isPrototypeOf, 1),
+        ('propertyIsEnumerable', ObjectPrototype_propertyIsEnumerable, 1),
+        ('toLocaleString', ObjectPrototype_toLocaleString, 0),
+        ('toString', ObjectPrototype_toString, 0),
+        ('valueOf', ObjectPrototype_valueOf, 0)
+    ]:
+        func_obj, ok = ec(CreateBuiltinFunction(fcn, [], realm_rec))
+        if not ok:
+            return func_obj
+        success, ok = ec(DefinePropertyOrThrow(func_obj, 'length', PropertyDescriptor(value=length, writable=False, enumerable=False, configurable=True)))
+        if not ok:
+            return success
+        success, ok = ec(DefinePropertyOrThrow(func_obj, 'name', PropertyDescriptor(value=key, writable=False, enumerable=False, configurable=True)))
+        if not ok:
+            return success
+        success, ok = ec(CreateMethodPropertyOrThrow(obj, key, func_obj))
+        if not ok:
+            return success
+    return NormalCompletion(None)
+
+# 19.1.3.2 Object.prototype.hasOwnProperty ( V )
+def ObjectPrototype_hasOwnProperty(this_value, key):
+    # When the hasOwnProperty method is called with argument V, the following steps are taken:
+    #
+    # 1. Let P be ? ToPropertyKey(V).
+    p, ok = ec(ToPropertyKey(key))
+    if not ok:
+        return p
+    # 2. Let O be ? ToObject(this value).
+    o, ok = ec(ToObject(this_value))
+    if not ok:
+        return o
+    # 3. Return ? HasOwnProperty(O, P).
+    return HasOwnProperty(o, p)
+    # NOTE
+    # The ordering of steps 1 and 2 is chosen to ensure that any exception that would have been thrown by step 1 in
+    # previous editions of this specification will continue to be thrown even if the this value is undefined or null.
+
+# 19.1.3.3 Object.prototype.isPrototypeOf ( V )
+def ObjectPrototype_isPrototypeOf(this_value, obj):
+    # When the isPrototypeOf method is called with argument V, the following steps are taken:
+    #
+    # 1. If Type(V) is not Object, return false.
+    if not isObject(obj):
+        return NormalCompletion(False)
+    # 2. Let O be ? ToObject(this value).
+    o, ok = ec(ToObject(this_value))
+    if not ok:
+        return o
+    # 3. Repeat,
+    while 1:
+        # a. Let V be ? V.[[GetPrototypeOf]]().
+        obj, ok = ec(obj.GetPrototypeOf())
+        if not ok:
+            return obj
+        # b. If V is null, return false.
+        if isNull(obj):
+            return NormalCompletion(False)
+        # c. If SameValue(O, V) is true, return true.
+        if SameValue(o, obj):
+            return NormalCompletion(True)
+    # NOTE
+    # The ordering of steps 1 and 2 preserves the behaviour specified by previous editions of this specification for
+    # the case where V is not an object and the this value is undefined or null.
+
+# 19.1.3.4 Object.prototype.propertyIsEnumerable ( V )
+def ObjectPrototype_propertyIsEnumerable(this_value, v):
+    # When the propertyIsEnumerable method is called with argument V, the following steps are taken:
+    #
+    # 1. Let P be ? ToPropertyKey(V).
+    p, ok = ec(ToPropertyKey(v))
+    if not ok:
+        return p
+    # 2. Let O be ? ToObject(this value).
+    o, ok = ec(ToObject(this_value))
+    if not ok:
+        return o
+    # 3. Let desc be ? O.[[GetOwnProperty]](P).
+    desc, ok = ec(o.GetOwnProperty(p))
+    if not ok:
+        return desc
+    # 4. If desc is undefined, return false.
+    if desc is None:
+        return NormalCompletion(False)
+    # 5. Return desc.[[Enumerable]].
+    return NormalCompletion(desc.enumerable)
+    # NOTE 1
+    # This method does not consider objects in the prototype chain.
+    # NOTE 2
+    # The ordering of steps 1 and 2 is chosen to ensure that any exception that would have been thrown by step 1 in
+    # previous editions of this specification will continue to be thrown even if the this value is undefined or null.
+
+# 19.1.3.5 Object.prototype.toLocaleString ( [ reserved1 [ , reserved2 ] ] )
+def ObjectPrototype_toLocaleString(this_value, reserved1=None, reserved2=None):
+    # When the toLocaleString method is called, the following steps are taken:
+    #
+    # 1. Let O be the this value.
+    o = this_value
+    # 2. Return ? Invoke(O, "toString").
+    return Invoke(o, 'toString')
+    # The optional parameters to this function are not used but are intended to correspond to the parameter pattern
+    # used by ECMA-402  toLocaleString functions. Implementations that do not include ECMA-402 support must not use
+    # those parameter positions for other purposes.
+    #
+    # NOTE 1
+    # This function provides a generic toLocaleString implementation for objects that have no locale-specific toString
+    # behaviour. Array, Number, Date, and Typed Arrays provide their own locale-sensitive toLocaleString methods.
+    # NOTE 2
+    # ECMA-402 intentionally does not provide an alternative to this default implementation.
+
+# 19.1.3.6 Object.prototype.toString ( )
+def ObjectPrototype_toString(this_value):
+    # When the toString method is called, the following steps are taken:
+    #
+    # 1. If the this value is undefined, return "[object Undefined]".
+    if this_value is None:
+        return NormalCompletion('[object Undefined]')
+    # 2. If the this value is null, return "[object Null]".
+    if isNull(this_value):
+        return NormalCompletion('[object Null]')
+    # 3. Let O be ! ToObject(this value).
+    o = nc(ToObject(this_value))
+    # 4. Let isArray be ? IsArray(O).
+    is_array, ok = ec(IsArray(o))
+    if not ok:
+        return is_array
+    # 5. If isArray is true, let builtinTag be "Array".
+    if is_array:
+        builtin_tag = 'Array'
+    # 6. Else if O is a String exotic object, let builtinTag be "String".
+    elif isinstance(o, StringObject):
+        builtin_tag = 'String'
+    # 7. Else if O has a [[ParameterMap]] internal slot, let builtinTag be "Arguments".
+    elif hasattr(o, 'ParameterMap'):
+        builtin_tag = 'Arguments'
+    # 8. Else if O has a [[Call]] internal method, let builtinTag be "Function".
+    elif hasattr(o, 'Call'):
+        builtin_tag = 'Function'
+    # 9. Else if O has an [[ErrorData]] internal slot, let builtinTag be "Error".
+    elif hasattr(o, 'ErrorData'):
+        builtin_tag = 'Error'
+    # 10. Else if O has a [[BooleanData]] internal slot, let builtinTag be "Boolean".
+    elif hasattr(o, 'BooleanData'):
+        builtin_tag = 'Boolean'
+    # 11. Else if O has a [[NumberData]] internal slot, let builtinTag be "Number".
+    elif hasattr(o, 'NumberData'):
+        builtin_tag = 'Number'
+    # 12. Else if O has a [[DateValue]] internal slot, let builtinTag be "Date".
+    elif hasattr(o, 'DateValue'):
+        builtin_tag = 'Date'
+    # 13. Else if O has a [[RegExpMatcher]] internal slot, let builtinTag be "RegExp".
+    elif hasattr(o, 'RegExpMatcher'):
+        builtin_tag = 'RegExp'
+    # 14. Else, let builtinTag be "Object".
+    else:
+        builtin_tag = 'Object'
+    # 15. Let tag be ? Get(O, @@toStringTag).
+    tag, ok = ec(Get(o, wks_to_string_tag))
+    if not ok:
+        return tag
+    # 16. If Type(tag) is not String, let tag be builtinTag.
+    if not isString(tag):
+        tag = builtin_tag
+    # 17. Return the string-concatenation of "[object ", tag, and "]".
+    return NormalCompletion('[object %s]' % tag)
+    # This function is the %ObjProto_toString% intrinsic object.
+    # NOTE
+    # Historically, this function was occasionally used to access the String value of the [[Class]] internal slot that
+    # was used in previous editions of this specification as a nominal type tag for various built-in objects. The above
+    # definition of toString preserves compatibility for legacy code that uses toString as a test for those specific
+    # kinds of built-in objects. It does not provide a reliable type testing mechanism for other kinds of built-in or
+    # program defined objects. In addition, programs can use @@toStringTag in ways that will invalidate the reliability
+    # of such legacy type tests.
+
+# 19.1.3.7 Object.prototype.valueOf ( )
+def ObjectPrototype_valueOf(this_value):
+    # When the valueOf method is called, the following steps are taken:
+    #
+    # 1. Return ? ToObject(this value).
+    return ToObject(this_value)
+    # This function is the %ObjProto_valueOf% intrinsic object.
+
+
+
 
 if __name__ == '__main__':
     RunJobs(['a'])
