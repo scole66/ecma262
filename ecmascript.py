@@ -1842,6 +1842,27 @@ def CreateDataProperty(obj, propkey, value):
     # created by the ECMAScript language assignment operator. Normally, the property will not already exist. If it does
     # exist and is not configurable or if O is not extensible, [[DefineOwnProperty]] will return false.
 
+# 7.3.7 DefinePropertyOrThrow ( O, P, desc )
+def DefinePropertyOrThrow(obj, propkey, desc):
+    # The abstract operation DefinePropertyOrThrow is used to call the [[DefineOwnProperty]] internal method of an
+    # object in a manner that will throw a TypeError exception if the requested property update cannot be performed.
+    # The operation is called with arguments O, P, and desc where O is the object, P is the property key, and desc is
+    # the Property Descriptor for the property. This abstract operation performs the following steps:
+    #
+    # 1. Assert: Type(O) is Object.
+    assert isObject(obj)
+    # 2. Assert: IsPropertyKey(P) is true.
+    assert IsPropertyKey(propkey)
+    # 3. Let success be ? O.[[DefineOwnProperty]](P, desc).
+    success, ok = ec(obj.DefineOwnProperty(propkey, desc))
+    if not ok:
+       return success
+    # 4. If success is false, throw a TypeError exception.
+    if not success:
+         return ThrowCompletion(CreateTypeError())
+    # 5. Return success.
+    return NormalCompletion(success)
+
 # 7.3.9 GetMethod ( V, P )
 def GetMethod(value, propkey):
     # The abstract operation GetMethod is used to get the value of a specific property of an ECMAScript language value
@@ -3075,19 +3096,19 @@ def CreateIntrinsics(realm_rec):
     # 4. Set intrinsics.[[%ObjectPrototype%]] to objProto.
     intrinsics['%ObjectPrototype%'] = obj_proto
     # 5. Let throwerSteps be the algorithm steps specified in 9.2.9.1 for the %ThrowTypeError% function.
-    thrower_steps = lambda: ThrowCompletion(CreateTypeError())
+    thrower_steps = lambda this_value, arguments_list: ThrowCompletion(CreateTypeError())
     # 6. Let thrower be CreateBuiltinFunction(throwerSteps, « », realmRec, null).
     thrower = CreateBuiltinFunction(thrower_steps, [], realm_rec, JSNull.NULL)
     # 7. Set intrinsics.[[%ThrowTypeError%]] to thrower.
     intrinsics['%ThrowTypeError%'] = thrower
     # 8. Let noSteps be an empty sequence of algorithm steps.
-    no_steps = lambda: None
+    no_steps = lambda this_value, arguments_list: None
     # 9. Let funcProto be CreateBuiltinFunction(noSteps, « », realmRec, objProto).
     func_proto = CreateBuiltinFunction(no_steps, [], realm_rec, obj_proto)
     # 10. Set intrinsics.[[%FunctionPrototype%]] to funcProto.
     intrinsics['%FunctionPrototype%'] = func_proto
     # 11. Call thrower.[[SetPrototypeOf]](funcProto).
-    thrower.set_prototype_of(func_proto)
+    thrower.SetPrototypeOf(func_proto)
     # 12. Perform AddRestrictedFunctionProperties(funcProto, realmRec).
     AddRestrictedFunctionProperties(func_proto, realm_rec)
     # 13. Set fields of intrinsics with the values listed in Table 7 that have not already been handled above. The
@@ -3178,58 +3199,111 @@ def CreateIntrinsics(realm_rec):
 #
 # An execution context is purely a specification mechanism and need not correspond to any particular artefact of an
 # ECMAScript implementation. It is impossible for ECMAScript code to directly access or observe an execution context.
+class ExecutionContext:
+    def __init__(self):
+        self.state = None
+        self.function = JSNull.NULL
+        self.realm = None
+        self.script_or_module = JSNull.NULL
+        self.lexical_environment = None
+        self.variable_environment = None
+        self.generator = None
 
 # 8.3.1 GetActiveScriptOrModule ( )
-# The GetActiveScriptOrModule abstract operation is used to determine the running script or module, based on the running execution context. GetActiveScriptOrModule performs the following steps:
-#
-# 1. If the execution context stack is empty, return null.
-# 2. Let ec be the topmost execution context on the execution context stack whose ScriptOrModule component is not null.
-# 3. If no such execution context exists, return null. Otherwise, return ec's ScriptOrModule component.
+def GetActiveScriptOrModule():
+    # The GetActiveScriptOrModule abstract operation is used to determine the running script or module, based on the
+    # running execution context. GetActiveScriptOrModule performs the following steps:
+    #
+    # 1. If the execution context stack is empty, return null.
+    # 2. Let ec be the topmost execution context on the execution context stack whose ScriptOrModule component is not
+    #    null.
+    # 3. If no such execution context exists, return null. Otherwise, return ec's ScriptOrModule component.
+    for idx in range(len(surrounding_agent.ec_stack)-1,-1,-1):
+        som = surrounding_agent.ec_stack[idx].script_or_module
+        if not isNull(som):
+            return som
+    return JSNull.null
 
 # 8.3.2 ResolveBinding ( name [ , env ] )
-# The ResolveBinding abstract operation is used to determine the binding of name passed as a String value. The optional argument env can be used to explicitly provide the Lexical Environment that is to be searched for the binding. During execution of ECMAScript code, ResolveBinding is performed using the following algorithm:
-#
-# 1. If env is not present or if env is undefined, then
-# a. Set env to the running execution context's LexicalEnvironment.
-# 2. Assert: env is a Lexical Environment.
-# 3. If the code matching the syntactic production that is being evaluated is contained in strict mode code, let strict be true, else let strict be false.
-# 4. Return ? GetIdentifierReference(env, name, strict).
-# NOTE
-# The result of ResolveBinding is always a Reference value with its referenced name component equal to the name argument.
+def ResolveBinding(name, env=None):
+    # The ResolveBinding abstract operation is used to determine the binding of name passed as a String value. The
+    # optional argument env can be used to explicitly provide the Lexical Environment that is to be searched for the
+    # binding. During execution of ECMAScript code, ResolveBinding is performed using the following algorithm:
+    #
+    # 1. If env is not present or if env is undefined, then
+    if env is None:
+        # a. Set env to the running execution context's LexicalEnvironment.
+        env = surrounding_agent.running_ec.lexical_environment
+    # 2. Assert: env is a Lexical Environment.
+    assert isinstance(env, LexicalEnvironment)
+    # 3. If the code matching the syntactic production that is being evaluated is contained in strict mode code, let
+    #    strict be true, else let strict be false.
+    strict = FigureOutWhatTheHeckThisIs()  # See 10.2.1.
+    # 4. Return ? GetIdentifierReference(env, name, strict).
+    return GetIdentifierReference(env, name, strict)
+    # NOTE
+    # The result of ResolveBinding is always a Reference value with its referenced name component equal to the name
+    # argument.
 
 # 8.3.3 GetThisEnvironment ( )
-# The abstract operation GetThisEnvironment finds the Environment Record that currently supplies the binding of the keyword this. GetThisEnvironment performs the following steps:
-#
-# 1. Let lex be the running execution context's LexicalEnvironment.
-# 2. Repeat,
-# a. Let envRec be lex's EnvironmentRecord.
-# b. Let exists be envRec.HasThisBinding().
-# c. If exists is true, return envRec.
-# d. Let outer be the value of lex's outer environment reference.
-# e. Assert: outer is not null.
-# f. Set lex to outer.
-# NOTE
-# The loop in step 2 will always terminate because the list of environments always ends with the global environment which has a this binding.
+def GetThisEnvironment():
+    # The abstract operation GetThisEnvironment finds the Environment Record that currently supplies the binding of the
+    # keyword this. GetThisEnvironment performs the following steps:
+    #
+    # 1. Let lex be the running execution context's LexicalEnvironment.
+    lex = surrounding_agent.running_ec.lexical_environment
+    # 2. Repeat,
+    while 1:
+        # a. Let envRec be lex's EnvironmentRecord.
+        env_rec = lex.environment_record
+        # b. Let exists be envRec.HasThisBinding().
+        exists = env_rec.HasThisBinding()
+        # c. If exists is true, return envRec.
+        if exists:
+            return env_rec
+        # d. Let outer be the value of lex's outer environment reference.
+        outer = lex.outer
+        # e. Assert: outer is not null.
+        assert not isNull(outer)
+        # f. Set lex to outer.
+        lex = outer
+    # NOTE
+    # The loop in step 2 will always terminate because the list of environments always ends with the global environment
+    # which has a this binding.
 
 # 8.3.4 ResolveThisBinding ( )
-# The abstract operation ResolveThisBinding determines the binding of the keyword this using the LexicalEnvironment of the running execution context. ResolveThisBinding performs the following steps:
-#
-# 1. Let envRec be GetThisEnvironment().
-# 2. Return ? envRec.GetThisBinding().
+def ResolveThisBinding():
+    # The abstract operation ResolveThisBinding determines the binding of the keyword this using the LexicalEnvironment
+    # of the running execution context. ResolveThisBinding performs the following steps:
+    #
+    # 1. Let envRec be GetThisEnvironment().
+    env_rec = GetThisEnvironment()
+    # 2. Return ? envRec.GetThisBinding().
+    return env_rec.GetThisBinding()
 
 # 8.3.5 GetNewTarget ( )
-# The abstract operation GetNewTarget determines the NewTarget value using the LexicalEnvironment of the running execution context. GetNewTarget performs the following steps:
-#
-# 1. Let envRec be GetThisEnvironment().
-# 2. Assert: envRec has a [[NewTarget]] field.
-# 3. Return envRec.[[NewTarget]].
+def GetNewTarget():
+    # The abstract operation GetNewTarget determines the NewTarget value using the LexicalEnvironment of the running
+    # execution context. GetNewTarget performs the following steps:
+    #
+    # 1. Let envRec be GetThisEnvironment().
+    env_rec = GetThisEnvironment()
+    # 2. Assert: envRec has a [[NewTarget]] field.
+    assert hasattr(env_rec, 'new_target')
+    # 3. Return envRec.[[NewTarget]].
+    return env_rec.new_target
 
 # 8.3.6 GetGlobalObject ( )
-# The abstract operation GetGlobalObject returns the global object used by the currently running execution context. GetGlobalObject performs the following steps:
-#
-# 1. Let ctx be the running execution context.
-# 2. Let currentRealm be ctx's Realm.
-# 3. Return currentRealm.[[GlobalObject]].
+def GetGlobalObject():
+    # The abstract operation GetGlobalObject returns the global object used by the currently running execution context.
+    # GetGlobalObject performs the following steps:
+    #
+    # 1. Let ctx be the running execution context.
+    ctx = surrounding_agent.running_ec
+    # 2. Let currentRealm be ctx's Realm.
+    current_realm = ctx.realm
+    # 3. Return currentRealm.[[GlobalObject]].
+    return current_realm.global_object
 
 # 8.5 InitializeHostDefinedRealm ( )
 def InitializeHostDefinedRealm():
@@ -3244,7 +3318,7 @@ def InitializeHostDefinedRealm():
     # 4. Set the Realm of newContext to realm.
     new_context.realm = realm
     # 5. Set the ScriptOrModule of newContext to null.
-    new_context.script_or_module = None
+    new_context.script_or_module = JSNull.NULL
     # 6. Push newContext onto the execution context stack; newContext is now the running execution context.
     surrounding_agent.ec_stack.append(new_context)
     surrounding_agent.running_ec = new_context
@@ -3375,6 +3449,76 @@ def AgentCanSuspend():
     # web browser environment, it may be reasonable to disallow suspending a document's main event
     # handling thread, while still allowing workers' event handling threads to suspend.
 
+# 9.2.9 AddRestrictedFunctionProperties ( F, realm )
+def AddRestrictedFunctionProperties(func, realm):
+    # The abstract operation AddRestrictedFunctionProperties is called with a function object F and Realm Record realm
+    # as its argument. It performs the following steps:
+    #
+    # 1. Assert: realm.[[Intrinsics]].[[%ThrowTypeError%]] exists and has been initialized.
+    assert isinstance(realm.intrinsics['%ThrowTypeError%'], BuiltinFunction)
+    # 2. Let thrower be realm.[[Intrinsics]].[[%ThrowTypeError%]].
+    thrower = realm.intrinsics['%ThrowTypeError%']
+    # 3. Perform ! DefinePropertyOrThrow(F, "caller", PropertyDescriptor { [[Get]]: thrower, [[Set]]: thrower,
+    #    [[Enumerable]]: false, [[Configurable]]: true }).
+    pd = PropertyDescriptor()
+    pd.Get = thrower
+    pd.Set = thrower
+    pd.enumerable = False
+    pd.configurable = True
+    nc(DefinePropertyOrThrow(func, 'caller', pd))
+    # 4. Return ! DefinePropertyOrThrow(F, "arguments", PropertyDescriptor { [[Get]]: thrower, [[Set]]: thrower,
+    #    [[Enumerable]]: false, [[Configurable]]: true }).
+    return nc(DefinePropertyOrThrow(func, 'arguments', pd))
+
+class BuiltinFunction(JSObject):
+    def __init__(self, steps, realm, prototype, extensible, script_or_module, internal_slots_list):
+        super().__init__()
+        self.steps = steps
+        self.realm = realm
+        self.Prototype = prototype
+        self.Extensible = extensible
+        self.script_or_module = script_or_module
+        for slotname in internal_slots_list:
+            setattr(self, slotname, None)
+
+    # 9.3.1 [[Call]] ( thisArgument, argumentsList )
+    def Call(self, this_argument, arguments_list):
+        # The [[Call]] internal method for a built-in function object F is called with parameters thisArgument and
+        # argumentsList, a List of ECMAScript language values. The following steps are taken:
+        #
+        # 1. Let callerContext be the running execution context.
+        caller_context = surrounding_agent.running_ec
+        # 2. If callerContext is not already suspended, suspend callerContext.
+        caller_context.suspend()
+        # 3. Let calleeContext be a new ECMAScript code execution context.
+        callee_context = ExecutionContext()
+        # 4. Set the Function of calleeContext to F.
+        callee_context.function = self
+        # 5. Let calleeRealm be F.[[Realm]].
+        callee_realm = self.realm
+        # 6. Set the Realm of calleeContext to calleeRealm.
+        callee_context.realm = callee_realm
+        # 7. Set the ScriptOrModule of calleeContext to F.[[ScriptOrModule]].
+        callee_context.script_or_module = self.script_or_module
+        # 8. Perform any necessary implementation-defined initialization of calleeContext.
+        # 9. Push calleeContext onto the execution context stack; calleeContext is now the running execution context.
+        surrounding_agent.ec_stack.append(callee_context)
+        surrounding_agent.running_ec = callee_context
+        # 10. Let result be the Completion Record that is the result of evaluating F in an implementation-defined
+        #     manner that conforms to the specification of F. thisArgument is the this value, argumentsList provides
+        #     the named parameters, and the NewTarget value is undefined.
+        result = self.steps(this_argument, arguments_list)
+        if not isinstance(result, Completion):
+            result = NormalCompletion(result)
+        # 11. Remove calleeContext from the execution context stack and restore callerContext as the running execution
+        #     context.
+        surrounding_agent.ec_stack.pop()
+        surrounding_agent.running_ec = caller_context
+        # 12. Return result.
+        return result
+        # NOTE
+        # When calleeContext is removed from the execution context stack it must not be destroyed if it has been
+        # suspended and retained by an accessible generator object for later resumption.
 
 # 9.3.3 CreateBuiltinFunction ( steps, internalSlotsList [ , realm [ , prototype ] ] )
 class missing(Enum):
@@ -3397,12 +3541,13 @@ def CreateBuiltinFunction(steps, internal_slots_list, realm=missing.MISSING, pro
     # 5. Let func be a new built-in function object that when called performs the action described by steps. The new
     #    function object has internal slots whose names are the elements of internalSlotsList. The initial value of each
     #    of those internal slots is undefined.
-    pass # ???
+    func = BuiltinFunction(steps, realm, prototype, True, JSNull.NULL, internal_slots_list)
     # 6. Set func.[[Realm]] to realm.
     # 7. Set func.[[Prototype]] to prototype.
     # 8. Set func.[[Extensible]] to true.
     # 9. Set func.[[ScriptOrModule]] to null.
     # 10. Return func.
+    return func
     # Each built-in function defined in this specification is created by calling the CreateBuiltinFunction abstract
     # operation.
 
@@ -4121,3 +4266,6 @@ class Lexer():
             except IndexError:
                 lookahead = ''
             self.pos += 1
+
+if __name__ == '__main__':
+    RunJobs(['a'])
