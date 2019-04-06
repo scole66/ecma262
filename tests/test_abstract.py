@@ -63,16 +63,30 @@ def test_OrdinaryToPrimitive(some_objects, objname, cnvtype, result_val, result_
     else:
         assert cr == Completion(ctype=result_type, value=result_val, target=None)
 
-def test_toprimitive_notobj():
+def test_ToPrimitive_notobj():
     # Need the object inputs, in the future!!
     cr = ToPrimitive('string')
     assert cr == Completion(ctype=NORMAL, value='string', target=None)
 
-@pytest.mark.xfail(reason='waiting for object methods before functionality')
-def test_ToPrimitive():
-    o = ObjectCreate(JSNull.NULL)
-    cr = ToPrimitive(o)
-    assert cr == Completion(ctype=NORMAL, value='', target=None)
+@pytest.mark.parametrize('objname, cnvtype, result_val, result_type',
+[
+    ('plain', 'string', '[object Object]', NORMAL),
+    ('plain', 'number', '[object Object]', NORMAL),
+    ('evil_get', 'string', 'I am EvilGet', THROW),
+    ('evil_tostring', 'string', 'I am evil tostring', THROW),
+    ('bad_primitives', 'string', TypeError(), THROW),
+    ('treasure', 'string', 'You found the treasure', NORMAL),
+    ('treasure', 'number', 42, NORMAL),
+])
+def test_ToPrimitive(some_objects, objname, cnvtype, result_val, result_type):
+    cr = ToPrimitive(some_objects[objname], cnvtype)
+    if result_type == THROW and isinstance(result_val, TypeError):
+        assert isinstance(cr, Completion)
+        assert cr.ctype == THROW
+        assert isinstance(cr.value, TypeError)
+        assert cr.target is None
+    else:
+        assert cr == Completion(ctype=result_type, value=result_val, target=None)
 
 @pytest.mark.parametrize('input,expected', [
     (None, False),
