@@ -1400,7 +1400,8 @@ def ToPrimitive(input, preferred_type='default'):
         # e. If exoticToPrim is not undefined, then
         if exotic_to_prim is not None:
             # i. Let result be ? Call(exoticToPrim, input, � hint �).
-            result, ok = ec(Call(exotic_to_prim, input, [ preferred_type ]))
+            # --> spec bug. That hint should not be in a list.
+            result, ok = ec(Call(exotic_to_prim, input, preferred_type))
             if not ok:
                 return result
             # ii. If Type(result) is not Object, return result.
@@ -2012,7 +2013,7 @@ def Call(func, value, *args):
     if not IsCallable(func):
         return ThrowCompletion(CreateTypeError())
     # 3. Return ? F.[[Call]](V, argumentsList).
-    return func.Call(value, list(args))
+    return func.Call(value, args)
 
 # 7.3.15 TestIntegrityLevel ( O, level )
 def TestIntegrityLevel(o_value, level):
@@ -5341,4 +5342,5 @@ def ObjectPrototype_valueOf(this_value):
     # This function is the %ObjProto_valueOf% intrinsic object.
 
 if __name__ == '__main__':
-    RunJobs(['a'])
+    InitializeHostDefinedRealm()
+    realm = surrounding_agent.running_ec.realm

@@ -7,10 +7,12 @@ NORMAL = CompletionType.NORMAL
 THROW = CompletionType.THROW
 
 @pytest.fixture
-def some_objects():
+def realm():
     InitializeHostDefinedRealm()
-    realm = surrounding_agent.running_ec.realm
+    return surrounding_agent.running_ec.realm
 
+@pytest.fixture
+def some_objects(realm):
     # A plain object.
     plain = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
     # An object with a [[Get]] method that throws an exception with the value 'I am EvilGet'
@@ -77,6 +79,7 @@ def test_ToPrimitive_notobj():
     ('bad_primitives', 'string', TypeError(), THROW),
     ('treasure', 'string', 'You found the treasure', NORMAL),
     ('treasure', 'number', 42, NORMAL),
+    ('treasure', 'default', 42, NORMAL)
 ])
 def test_ToPrimitive(some_objects, objname, cnvtype, result_val, result_type):
     cr = ToPrimitive(some_objects[objname], cnvtype)
@@ -87,6 +90,52 @@ def test_ToPrimitive(some_objects, objname, cnvtype, result_val, result_type):
         assert cr.target is None
     else:
         assert cr == Completion(ctype=result_type, value=result_val, target=None)
+
+def test_ToPrimitive_GetMethodThrows(realm):
+    # If an object has a @@toPrimitive property, the ToPrimitive routine tries to use as a conversion method.
+    # But if it can't actually be used as a method, we'll get an exception instead.
+    obj = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
+    CreateDataProperty(obj, wks_to_primitive, 100)
+
+    cr = ToPrimitive(obj, 'number')
+    assert isinstance(cr, Completion)
+    assert cr.ctype == THROW
+    assert isinstance(cr.value, TypeError)
+    assert cr.target is None
+
+@pytest.mark.parametrize('input,expected', [('number', 'I was passed number.'), ('string', 'I was passed string.')])
+def test_ToPrimitive_exotictoprim(realm, input, expected):
+    # If an object has a @@toPrimitive method, ToPrimitive should use it.
+    obj = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
+    def exotic_to_primitive(obj, hint):
+        return NormalCompletion('I was passed %s.' % hint)
+    CreateMethodProperty(obj, wks_to_primitive, CreateBuiltinFunction(exotic_to_primitive, [], realm))
+
+    cr = ToPrimitive(obj, input)
+    assert cr == Completion(NORMAL, expected, None)
+
+def test_ToPrimitive_exoticthrows(realm):
+    # If an object's @@toPrimitive throws an error, it's not ignored.
+    obj = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
+    def exotic_to_primitive(obj, hint):
+        return ThrowCompletion('I am evil.')
+    CreateMethodProperty(obj, wks_to_primitive, CreateBuiltinFunction(exotic_to_primitive, [], realm))
+
+    cr = ToPrimitive(obj, 'string')
+    assert cr == Completion(THROW, 'I am evil.', None)
+
+def test_ToPrimitive_exoticreturnsobj(realm):
+    # If an object's @@toPrimitive returns an Object, ToPrimitive throws a TypeError
+    obj = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
+    def exotic_to_primitive(obj, hint):
+        return NormalCompletion(obj)
+    CreateMethodProperty(obj, wks_to_primitive, CreateBuiltinFunction(exotic_to_primitive, [], realm))
+
+    cr = ToPrimitive(obj, 'string')
+    assert isinstance(cr, Completion)
+    assert cr.ctype == THROW
+    assert isinstance(cr.value, TypeError)
+    assert cr.target is None
 
 @pytest.mark.parametrize('input,expected', [
     (None, False),
