@@ -239,7 +239,10 @@ def isNumber(arg):
 
 class JSObject:
     class Property:
-        pass
+        def __init__(self, **kwargs):
+            for key, val in kwargs.items():
+                setattr(self, key, val)
+
     def __init__(self):
         self.Prototype = JSNull.NULL
         self.Extensible = False
@@ -283,7 +286,8 @@ class JSObject:
                 # i. If p.[[GetPrototypeOf]] is not the ordinary object internal method defined in 9.1.1, set done to
                 #    true.
                 # There has to be a better way!
-                match = re.match(r'<bound method of (.*) <[^>]+>>', str(p.GetPrototypeOf))
+                method_repr = str(p.GetPrototypeOf)
+                match = re.match(r'<bound method (.*) of <[^>]+>>', method_repr)
                 if not (match and match.group(1) == 'JSObject.GetPrototypeOf'):
                     done = True
                 # ii. Else, set p to p.[[Prototype]].
@@ -452,11 +456,11 @@ def ValidateAndApplyPropertyDescriptor(obj, propkey, extensible, desc, current):
             #    attribute field of Desc is absent, the attribute of the newly created property is set to its default
             #    value.
             if obj is not None:
-                newprop = JSObject.Property()
-                newprop.value = desc.value if hasattr(desc, 'value') else None
-                newprop.writable = desc.writable if hasattr(desc, 'writable') else False
-                newprop.enumerable = desc.enumerable if hasattr(desc, 'enumerable') else False
-                newprop.configurable = desc.configurable if hasattr(desc, 'configurable') else False
+                newprop = JSObject.Property(
+                    value = desc.value if hasattr(desc, 'value') else None,
+                    writable = desc.writable if hasattr(desc, 'writable') else False,
+                    enumerable = desc.enumerable if hasattr(desc, 'enumerable') else False,
+                    configurable = desc.configurable if hasattr(desc, 'configurable') else False)
                 obj.properties[propkey] = newprop
         # d. Else Desc must be an accessor Property Descriptor,
         else:
@@ -465,11 +469,11 @@ def ValidateAndApplyPropertyDescriptor(obj, propkey, extensible, desc, current):
             #    attribute field of Desc is absent, the attribute of the newly created property is set to its default
             #    value.
             if obj is not None:
-                newprop = JSObject.Property()
-                newprop.Get = desc.Get if hasattr(desc, 'Get') else None
-                newprop.Set = desc.Set if hasattr(desc, 'Set') else None
-                newprop.enumerable = desc.enumerable if hasattr(desc, 'enumerable') else False
-                newprop.configurable = desc.configurable if hasattr(desc, 'configurable') else False
+                newprop = JSObject.Property(
+                    Get = desc.Get if hasattr(desc, 'Get') else None,
+                    Set = desc.Set if hasattr(desc, 'Set') else None,
+                    enumerable = desc.enumerable if hasattr(desc, 'enumerable') else False,
+                    configurable = desc.configurable if hasattr(desc, 'configurable') else False)
                 obj.properties[propkey] = newprop
         # e. Return true.
         return NormalCompletion(True)
@@ -1408,7 +1412,7 @@ def ToPrimitive(input, preferred_type='default'):
         if preferred_type == 'default':
             preferred_type = 'number'
         # g. Return ? OrdinaryToPrimitive(input, hint).
-        return OrdinaryToPrimitive(input, preferred_type) # Because we're just returning, we don't need to validate error condition
+        return OrdinaryToPrimitive(input, preferred_type)
     # 3. Return input.
     return NormalCompletion(input)
 
@@ -5335,9 +5339,6 @@ def ObjectPrototype_valueOf(this_value):
     # 1. Return ? ToObject(this value).
     return ToObject(this_value)
     # This function is the %ObjProto_valueOf% intrinsic object.
-
-
-
 
 if __name__ == '__main__':
     RunJobs(['a'])
