@@ -660,3 +660,38 @@ def test_OrdinarySetWithOwnDescriptor_13(setprops):
     set_fcn = CreateBuiltinFunction(custom_setter, [], realm=surrounding_agent.running_ec.realm)
     val = OrdinarySetWithOwnDescriptor(setprops, 'codish', -90, setprops, PropertyDescriptor(Set=set_fcn))
     assert val == Completion(THROW, 'Thrown from custom_setter', None)
+
+@pytest.fixture()
+def deletable(obj):
+    obj.DefineOwnProperty('normal', PropertyDescriptor(value=10, writable=True, enumerable=True, configurable=True))
+    obj.DefineOwnProperty('permanent', PropertyDescriptor(value=9, writable=True, enumerable=True, configurable=False))
+    return obj
+
+def test_object_Delete_method(deletable):
+    # This just delegates to OrdinaryDelete, so we're just confirming the code path.
+    val = deletable.Delete('normal')
+    assert val == Completion(NORMAL, True, None)
+    assert 'normal' not in nc(deletable.OwnPropertyKeys())
+
+def test_OrdinaryDelete_01(deletable):
+    # A run of the mill, normal deletion
+    val = OrdinaryDelete(deletable, 'normal')
+    assert val == Completion(NORMAL, True, None)
+    assert 'normal' not in nc(deletable.OwnPropertyKeys())
+
+def test_OrdinaryDelete_02(deletable):
+    # Trying to delete something that's not actually there.
+    val = OrdinaryDelete(deletable, 'mystery')
+    assert val == Completion(NORMAL, True, None)
+
+def test_OrdinaryDelete_03(deletable):
+    # Trying to delete a non-configurable property
+    val = OrdinaryDelete(deletable, 'permanent')
+    assert val == Completion(NORMAL, False, None)
+    assert 'permanent' in nc(deletable.OwnPropertyKeys())
+
+def test_OrdinaryDelete_04(deletable):
+    deletable.GetOwnProperty = types.MethodType(lambda _a, _b: ThrowCompletion('Thrown from OrdinaryDelete_04'),
+                                                'GetOwnProperty')
+    val = OrdinaryDelete(deletable, 'normal')
+    assert val == Completion(THROW, 'Thrown from OrdinaryDelete_04', None)
