@@ -695,3 +695,35 @@ def test_OrdinaryDelete_04(deletable):
                                                 'GetOwnProperty')
     val = OrdinaryDelete(deletable, 'normal')
     assert val == Completion(THROW, 'Thrown from OrdinaryDelete_04', None)
+
+def test_object_OwnPropertyKeys_method(obj):
+    # The [[OwnPropertyKeys]] method just delegates to OrdinaryOwnPropertyKeys, so we're just checking the code path here.
+    val = obj.OwnPropertyKeys()
+    assert val == Completion(NORMAL, [], None)
+
+def test_OrdinaryOwnPropertyKeys_01(obj):
+    # There's a bunch of sorting activity that goes on here, so I'm making lots of properties.
+    symbol_1 = JSSymbol('Symbol.unittest')
+    symbol_2 = JSSymbol('Symbol.elephant')
+    big = nc(ToString(2**53 - 1))
+    toobig = nc(ToString(2**53))
+    for propkey in [ 'first', '100', '-30', 'second', 'third', 'fourth', 'fifth', '   67  ', '67', '-0', '0', '45.5', '0xb22',
+                     symbol_1, symbol_2, '88', '0.0', big, toobig, 'last' ]:
+        CreateDataProperty(obj, propkey, propkey)
+
+    val = obj.OwnPropertyKeys()
+    assert val == Completion(NORMAL, ['0', '67', '88', '100', big, 'first', '-30', 'second', 'third', 'fourth', 'fifth', '   67  ',
+                                      '-0', '45.5', '0xb22', '0.0', toobig, 'last', symbol_1, symbol_2], None)
+
+@pytest.mark.parametrize('input, expected', [
+    ('0', True),
+    ('-0', False),
+    (JSSymbol('testsymbol'), False),
+    ('notnumeric', False),
+    ('9007199254740992', False),
+    ('9007199254740991', True),
+    ('2.5', False),
+    ('351235', True)
+])
+def test_isIntegerIndex_(input, expected):
+    assert isIntegerIndex(input) == expected
