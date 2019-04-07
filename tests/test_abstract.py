@@ -406,10 +406,14 @@ def test_ToObject():
     ('1.125', 1.125),
     ('     1.125', None),
     ('0x13', None)])
-def test_CanonicalNumericIndexString(arg, expected):
+def test_CanonicalNumericIndexString_(arg, expected):
     assert CanonicalNumericIndexString(arg) == expected
 def test_CanonicalNumericIndexString_nan():
     assert math.isnan(CanonicalNumericIndexString('NaN'))
+def test_CanonicalNumericIndexString_negative_zero():
+    val = CanonicalNumericIndexString('-0')
+    assert math.copysign(1.0, val) == -1.0 and val == 0.0
+
 
 @pytest.mark.parametrize('arg_x,arg_y,expected', [
     (0, '0', False),

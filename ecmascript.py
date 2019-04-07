@@ -454,7 +454,7 @@ class JSObject:
         # When the [[OwnPropertyKeys]] internal method of O is called, the following steps are taken:
         #
         # 1. Return ! OrdinaryOwnPropertyKeys(O).
-        return nc(OrdinaryOwnPropertyKeys(self))
+        return NormalCompletion(nc(OrdinaryOwnPropertyKeys(self)))
 
 # 9.1.6.3 ValidateAndApplyPropertyDescriptor ( O, P, extensible, Desc, current )
 def ValidateAndApplyPropertyDescriptor(obj, propkey, extensible, desc, current):
