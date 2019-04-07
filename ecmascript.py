@@ -250,11 +250,16 @@ class JSObject:
 
     # 9.1.1 [[GetPrototypeOf]] ( )
     def GetPrototypeOf(self):
+        """Determine the object that provides inherited properties for this object. A null value indicates that there are no
+           inherited properties."""
         # 1. Return O.[[Prototype]].
         return NormalCompletion(self.Prototype)
 
     # 9.1.2 [[SetPrototypeOf]] ( V )
     def SetPrototypeOf(self, value):
+        """Associate this object with another object that provides inherited properties. Passing null indicates that there are
+           no inherited properties. Returns true indicating that the operation was completed successfully or false indicating
+           that the operation was not successful."""
         # When the abstract operation OrdinarySetPrototypeOf is called with Object O and value V, the following steps
         # are taken:
         # 1. Assert: Either Type(V) is Object or Type(V) is Null.
@@ -303,11 +308,14 @@ class JSObject:
 
     # 9.1.3 [[IsExtensible]] ( )
     def IsExtensible(self):
+        """Determine whether it is permitted to add additional properties to this object."""
         # 1. Return O.[[Extensible]].
         return NormalCompletion(self.Extensible)
 
     # 9.1.4 [[PreventExtensions]] ( )
     def PreventExtensions(self):
+        """Control whether new properties may be added to this object. Returns true if the operation was successful or false if
+           the operation was unsuccessful."""
         # 1. Set O.[[Extensible]] to false.
         self.Extensible = False
         # 2. Return true.
@@ -315,6 +323,8 @@ class JSObject:
 
     # 9.1.5 [[GetOwnProperty]] ( P )
     def GetOwnProperty(self, propkey):
+        """Return a Property Descriptor for the own property of this object whose key is propertyKey, or undefined if no such
+           property exists."""
         # 1. Assert: IsPropertyKey(P) is true.
         assert IsPropertyKey(propkey)
         # 2. If O does not have an own property with key P, return undefined.
@@ -345,6 +355,9 @@ class JSObject:
 
     # 9.1.6 [[DefineOwnProperty]] ( P, Desc )
     def DefineOwnProperty(self, propkey, desc):
+        """Create or alter the own property, whose key is propertyKey, to have the state described by PropertyDescriptor.
+           Return true if that property was successfully created/updated or false if the property could not be created or
+           updated."""
         # 1. Let current be ? O.[[GetOwnProperty]](P).
         current, ok = ec(self.GetOwnProperty(propkey))
         if not ok:
@@ -356,6 +369,8 @@ class JSObject:
 
     # 9.1.7 [[HasProperty]] ( P )
     def HasProperty(self, propkey):
+        """Return a Boolean value indicating whether this object already has either an own or inherited property whose key is
+           propertyKey."""
         # 1. Assert: IsPropertyKey(P) is true.
         assert IsPropertyKey(propkey)
         # 2. Let hasOwn be ? O.[[GetOwnProperty]](P).
@@ -378,6 +393,8 @@ class JSObject:
 
     # 9.1.8 [[Get]] ( P, Receiver )
     def Get(self, propkey, receiver):
+        """Return the value of the property whose key is propertyKey from this object. If any ECMAScript code must be executed
+           to retrieve the property value, Receiver is used as the this value when evaluating the code."""
         # When the abstract operation OrdinaryGet is called with Object O, property key P, and ECMAScript language
         # value Receiver, the following steps are taken:
         #
@@ -413,6 +430,9 @@ class JSObject:
 
     # 9.1.9 [[Set]] ( P, V, Receiver )
     def Set(self, propkey, value, receiver):
+        """Set the value of the property whose key is propertyKey to value. If any ECMAScript code must be executed to set the
+           property value, Receiver is used as the this value when evaluating the code. Returns true if the property value was
+           set or false if it could not be set."""
         # When the [[Set]] internal method of O is called with property key P, value V, and ECMAScript language value
         # Receiver, the following steps are taken:
         #
@@ -421,6 +441,8 @@ class JSObject:
 
     # 9.1.10 [[Delete]] ( P )
     def Delete(self, propkey):
+        """Remove the own property whose key is propertyKey from this object. Return false if the property was not deleted and
+           is still present. Return true if the property was deleted or is not present."""
         # When the [[Delete]] internal method of O is called with property key P, the following steps are taken:
         #
         # 1. Return ? OrdinaryDelete(O, P).
@@ -428,6 +450,7 @@ class JSObject:
 
     # 9.1.11 [[OwnPropertyKeys]] ( )
     def OwnPropertyKeys(self):
+        """Return a List whose elements are all of the own property keys for the object."""
         # When the [[OwnPropertyKeys]] internal method of O is called, the following steps are taken:
         #
         # 1. Return ! OrdinaryOwnPropertyKeys(O).
@@ -545,7 +568,8 @@ def ValidateAndApplyPropertyDescriptor(obj, propkey, extensible, desc, current):
     if obj is not None:
         # a. For each field of Desc that is present, set the corresponding attribute of the property named P of object
         #    O to the value of the field.
-        for fieldname in (f for f in ['value', 'writable', 'Get', 'Set', 'configurable', 'enumerable'] if hasattr(desc, f)):
+        for fieldname in (f for f in ['value', 'writable', 'Get', 'Set', 'configurable', 'enumerable']
+                          if hasattr(desc, f)):
             setattr(obj.properties[propkey], fieldname, getattr(desc, fieldname))
     # 10. Return true.
     return NormalCompletion(True)
@@ -912,7 +936,7 @@ def UpdateEmpty(cr, value):
 def ec(val):
     """ErrorCheck:
        Check val for an abrupt completion, returning "not ok" if that's the case. Else unwrap the Completion and return
-       the actual value. Just response with the value itself, if this isn't a completion record."""
+       the actual value. Just respond with the value itself, if this isn't a completion record."""
     if isinstance(val, Completion):
         if val.ctype != CompletionType.NORMAL:
             return (val, False)
@@ -1364,10 +1388,9 @@ def CompletePropertyDescriptor(desc):
 
 # 7 Abstract Operations
 #
-# These operations are not a part of the ECMAScript language; they are defined here to solely to aid the specification of
-# the semantics of the ECMAScript language. Other, more specialized abstract operations are defined throughout this
+# These operations are not a part of the ECMAScript language; they are defined here to solely to aid the specification
+# of the semantics of the ECMAScript language. Other, more specialized abstract operations are defined throughout this
 # specification.
-
 
 # 7.1 Type Conversion
 #
@@ -2100,7 +2123,7 @@ def GetFunctionRealm(obj):
         # c. Return ? GetFunctionRealm(proxyTarget).
         return GetFunctionRealm(proxy_target)
     # 5. Return the current Realm Record.
-    return None ## @@@FIXME@@@
+    return surrounding_agent.running_ec.realm
     # NOTE
     # Step 5 will only be reached if obj is a non-standard function exotic object that does not have a [[Realm]]
     # internal slot.
@@ -3337,7 +3360,7 @@ def SetDefaultGlobalBindings(realm_rec):
     # 2. For each property of the Global Object specified in clause 18, do
     global_values = [
         ('Infinity', math.inf),
-        ('Nan', math.nan),
+        ('NaN', math.nan),
         ('undefined', None)
     ]
     global_intrinsics = [
@@ -3368,7 +3391,7 @@ def SetDefaultGlobalBindings(realm_rec):
         'URIError', 'WeapMap', 'WeakSet', 'Atomics', 'JSON', 'Math', 'Reflect']
     # @@@ Note: The "if" clause, below, should not be there. It's just to allow this fcn to work even if I haven't
     # implemented everything yet.
-    for name, value in chain(global_values, ((name, realm_rec.intrinsics['%'+name+'%']) for name in global_intrinsics if hasattr(realm_rec.intrinsics, '%'+name+'%'))):
+    for name, value in chain(global_values, ((name, realm_rec.intrinsics['%'+name+'%']) for name in global_intrinsics if '%'+name+"%" in realm_rec.intrinsics)):
         # a. Let name be the String value of the property name.x
         # b. Let desc be the fully populated data property descriptor for the property containing the specified
         #    attributes for the property. For properties listed in 18.2, 18.3, or 18.4 the value of the [[Value]]
@@ -4707,6 +4730,22 @@ def ScriptEvaluationJob(source_text, host_defined):
 #     * creates a new ordinary object when called as a constructor.
 #     * performs a type conversion when called as a function rather than as a constructor.
 #     * is designed to be subclassable. It may be used as the value of an extends clause of a class definition.
+def BindBuiltinFunctions(realm, obj, details):
+    for key, fcn, length in details:
+        func_obj, ok = ec(CreateBuiltinFunction(fcn, [], realm))
+        if not ok:
+            return func_obj
+        success, ok = ec(DefinePropertyOrThrow(func_obj, 'length', PropertyDescriptor(value=length, writable=False, enumerable=False, configurable=True)))
+        if not ok:
+            return success
+        success, ok = ec(DefinePropertyOrThrow(func_obj, 'name', PropertyDescriptor(value=key, writable=False, enumerable=False, configurable=True)))
+        if not ok:
+            return success
+        success, ok = ec(CreateMethodPropertyOrThrow(obj, key, func_obj))
+        if not ok:
+            return success
+    return NormalCompletion(None)
+
 def CreateObjectConstructor(realm):
     intrinsics = realm.intrinsics
     obj = ObjectCreate(intrinsics['%FunctionPrototype%'])
@@ -4717,7 +4756,7 @@ def CreateObjectConstructor(realm):
     cr, ok = ec(DefinePropertyOrThrow(obj, 'prototype', PropertyDescriptor(value=intrinsics['%ObjectPrototype%'], writable=False, enumerable=False, configurable=False)))
     if not ok:
         return cr
-    for key, fcn, length in [
+    cr, ok = ec(BindBuiltinFunctions(realm, obj, [
         ('assign', ObjectMethod_assign, 2),
         ('create', ObjectMethod_create, 2),
         ('defineProperties', ObjectMethod_defineProperties, 2),
@@ -4737,20 +4776,9 @@ def CreateObjectConstructor(realm):
         ('preventExtensions', ObjectMethod_preventExtensions, 1),
         ('seal', ObjectMethod_seal, 1),
         ('setPrototypeOf', ObjectMethod_setPrototypeOf, 2),
-        ('values', ObjectMethod_values, 1)
-    ]:
-        func_obj, ok = ec(CreateBuiltinFunction(fcn, [], realm))
-        if not ok:
-            return func_obj
-        success, ok = ec(DefinePropertyOrThrow(func_obj, 'length', PropertyDescriptor(value=length, writable=False, enumerable=False, configurable=True)))
-        if not ok:
-            return success
-        success, ok = ec(DefinePropertyOrThrow(func_obj, 'name', PropertyDescriptor(value=key, writable=False, enumerable=False, configurable=True)))
-        if not ok:
-            return success
-        success, ok = ec(CreateMethodPropertyOrThrow(obj, key, func_obj))
-        if not ok:
-            return success
+        ('values', ObjectMethod_values, 1)]))
+    if not ok:
+        return cr
     return obj
 
 # 19.1.2.1 Object.assign ( target, ...sources )
@@ -5157,26 +5185,16 @@ def AddObjectPrototypeProps(realm_rec):
     cr, ok = ec(DefinePropertyOrThrow(obj, 'constructor', PropertyDescriptor(value=intrinsics['%Object%'], writable=False, enumerable=False, configurable=False)))
     if not ok:
         return cr
-    for key, fcn, length in [
+    cr, ok = ec(BindBuiltinFunctions(realm_rec, obj, [
         ('hasOwnProperty', ObjectPrototype_hasOwnProperty, 1),
         ('isPrototypeOf', ObjectPrototype_isPrototypeOf, 1),
         ('propertyIsEnumerable', ObjectPrototype_propertyIsEnumerable, 1),
         ('toLocaleString', ObjectPrototype_toLocaleString, 0),
         ('toString', ObjectPrototype_toString, 0),
         ('valueOf', ObjectPrototype_valueOf, 0)
-    ]:
-        func_obj, ok = ec(CreateBuiltinFunction(fcn, [], realm_rec))
-        if not ok:
-            return func_obj
-        success, ok = ec(DefinePropertyOrThrow(func_obj, 'length', PropertyDescriptor(value=length, writable=False, enumerable=False, configurable=True)))
-        if not ok:
-            return success
-        success, ok = ec(DefinePropertyOrThrow(func_obj, 'name', PropertyDescriptor(value=key, writable=False, enumerable=False, configurable=True)))
-        if not ok:
-            return success
-        success, ok = ec(CreateMethodPropertyOrThrow(obj, key, func_obj))
-        if not ok:
-            return success
+        ]))
+    if not ok:
+        return cr
     return NormalCompletion(None)
 
 # 19.1.3.2 Object.prototype.hasOwnProperty ( V )
@@ -5344,3 +5362,4 @@ def ObjectPrototype_valueOf(this_value):
 if __name__ == '__main__':
     InitializeHostDefinedRealm()
     realm = surrounding_agent.running_ec.realm
+    print('\n'.join('%s: %s' % (key, nc(ToString(nc(Get(realm.global_object, key))))) for key in nc(realm.global_object.OwnPropertyKeys())))
