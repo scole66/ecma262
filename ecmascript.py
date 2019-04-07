@@ -652,7 +652,7 @@ def OrdinarySetWithOwnDescriptor(obj, propkey, value, receiver, own_desc):
     if setter is None:
         return NormalCompletion(False)
     # 7. Perform ? Call(setter, Receiver, « V »).
-    result, ok = ec(Call(setter, receiver, [value]))
+    result, ok = ec(Call(setter, receiver, value))
     if not ok:
         return result
     # 8. Return true.

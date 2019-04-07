@@ -11,6 +11,10 @@ def realm():
     return surrounding_agent.running_ec.realm
 
 @pytest.fixture
+def obj(realm):
+    return ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
+
+@pytest.fixture
 def object_chain(realm):
     # An ancestor object
     ancestor = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
@@ -505,3 +509,154 @@ def test_object_Get_method_03(get_tree):
     parent.GetOwnProperty = types.MethodType(lambda _a, _b: ThrowCompletion('Thrown from Get_03'), 'GetOwnProperty')
     val = get_tree.Get('haystack', 345)
     assert val == Completion(THROW, 'Thrown from Get_03', None)
+
+def test_object_Set_method(obj):
+    # This method just shifts responsibility to the OrdinarySet function, so all we're really doing here is checking the code
+    # path.
+    val = obj.Set('testkey', 89, obj)
+    assert val == Completion(NORMAL, True, None)
+    assert nc(obj.Get('testkey', obj)) == 89
+
+def test_OrdinarySet_01(obj):
+    # This one just gets a property description and then passes control to OrdinarySetWithOwnDescriptor. So we're really just
+    # checking code paths (both successful, and when catching errors).
+    val = OrdinarySet(obj, 'testkey', 67, obj)
+    assert val == Completion(NORMAL, True, None)
+    assert nc(obj.Get('testkey', obj)) == 67
+
+def test_OrdinarySet_02(obj):
+    obj.GetOwnProperty = types.MethodType(lambda _a, _b: ThrowCompletion('Thrown from OrdinarySet_02'), 'GetOwnProperty')
+    val = OrdinarySet(obj, 'testkey', 68, obj)
+    assert val == Completion(THROW, 'Thrown from OrdinarySet_02', None)
+
+@pytest.fixture
+def child(obj):
+    # Makes a child object that has a parent whose prototype is %ObjectPrototype%
+    child = ObjectCreate(obj, ['slot'])
+    return child
+
+@pytest.fixture
+def setprops(child):
+    # Sets up properties for the "set" tests.
+    parent = nc(child.GetPrototypeOf())
+    parent.DefineOwnProperty('not_enumerable',
+        PropertyDescriptor(value=542, writable=True, enumerable=False, configurable=True))
+    parent.DefineOwnProperty('not_writable',
+        PropertyDescriptor(value=543, writable=False, enumerable=True, configurable=True))
+    child.DefineOwnProperty('child_nw',
+        PropertyDescriptor(value=546, writable=False, enumerable=True, configurable=True))
+    child.DefineOwnProperty('normal',
+        PropertyDescriptor(value='NORMAL', writable=True, enumerable=True, configurable=True))
+    def settest_get(self):
+        return NormalCompletion(self.slot)
+    def settest_set(self, value):
+        self.slot = value
+        return NormalCompletion(True)
+    get_fcn = CreateBuiltinFunction(settest_get, [], realm=surrounding_agent.running_ec.realm)
+    set_fcn = CreateBuiltinFunction(settest_set, [], realm=surrounding_agent.running_ec.realm)
+    child.DefineOwnProperty('codish',
+        PropertyDescriptor(Get=get_fcn, Set=set_fcn, enumerable=True, configurable=True))
+    return child
+
+def test_OrdinarySetWithOwnDescriptor_01(setprops):
+    # If the fourth arg is None (ownDesc), then the routine follows the prototype chain up to find a matching property and uses
+    # the property description there to decide whether the property is writable or not.
+    val = OrdinarySetWithOwnDescriptor(setprops, 'not_enumerable', 553, setprops, None) # Ok to write to this one
+    assert val == Completion(NORMAL, True, None)
+    # Though, when the property got added to the child, it became enumerable.
+    after = nc(setprops.GetOwnProperty('not_enumerable'))
+    assert (after.value, after.writable, after.enumerable, after.configurable) == (553, True, True, True)
+
+def test_OrdinarySetWithOwnDescriptor_02(setprops):
+    # If the fourth arg is None (ownDesc), then the routine follows the prototype chain up to find a matching property and uses
+    # the property description there to decide whether the property is writable or not.
+    val = OrdinarySetWithOwnDescriptor(setprops, 'not_writable', 562, setprops, None) # This should fail.
+    assert val == Completion(NORMAL, False, None)
+    # Make sure the property did not get added...
+    assert 'not_writable' not in nc(setprops.OwnPropertyKeys())
+
+def test_OrdinarySetWithOwnDescriptor_03(setprops):
+    # If the ownDesc is None, and we're setting a property that's not on the prototype chain, it should just work.
+    val = OrdinarySetWithOwnDescriptor(setprops, 'tiger', 9003, setprops, None)
+    assert val == Completion(NORMAL, True, None)
+    after = nc(setprops.GetOwnProperty('tiger'))
+    assert (after.value, after.writable, after.enumerable, after.configurable) == (9003, True, True, True)
+
+def test_OrdinarySetWithOwnDescriptor_04(setprops):
+    # If ownDesc says this prop is not writable, the write should fail.
+    desc = nc(setprops.GetOwnProperty('child_nw'))
+    val = OrdinarySetWithOwnDescriptor(setprops, 'child_nw', 577, setprops, desc)
+    assert val == Completion(NORMAL, False, None)
+    after = nc(setprops.GetOwnProperty('child_nw'))
+    assert (after.value, after.writable, after.enumerable, after.configurable) == (546, False, True, True)
+
+def test_OrdinarySetWithOwnDescriptor_05(setprops):
+    # If you've made a mistake and the receiver is not an object, bail.
+    desc = nc(setprops.GetOwnProperty('normal'))
+    val = OrdinarySetWithOwnDescriptor(setprops, 'normal', 'unusual', 89, desc)
+    assert val == Completion(NORMAL, False, None)
+    after = nc(setprops.GetOwnProperty('normal'))
+    assert (after.value, after.writable, after.enumerable, after.configurable) == ('NORMAL', True, True, True)
+
+def test_OrdinarySetWithOwnDescriptor_06(setprops):
+    # If you try to trick the engine by altering a writable, it should fail
+    desc = nc(setprops.GetOwnProperty('child_nw'))
+    desc.writable = True
+    val = OrdinarySetWithOwnDescriptor(setprops, 'child_nw', 'bwahaha', setprops, desc)
+    assert val == Completion(NORMAL, False, None)
+    after = nc(setprops.GetOwnProperty('child_nw'))
+    assert (after.value, after.writable, after.enumerable, after.configurable) == (546, False, True, True)
+
+def test_OrdinarySetWithOwnDescriptor_07(setprops):
+    # You can't actually change enumerable or configurable or writable with [[Set]]. (And for that matter, value doesn't matter
+    # either.)
+    desc = PropertyDescriptor(value='odyssey', writable=True, enumerable=False, configurable=False)
+    val = OrdinarySetWithOwnDescriptor(setprops, 'normal', 'purple', setprops, desc)
+    assert val == Completion(NORMAL, True, None)
+    after = nc(setprops.GetOwnProperty('normal'))
+    assert (after.value, after.writable, after.enumerable, after.configurable) == ('purple', True, True, True)
+
+def test_OrdinarySetWithOwnDescriptor_08(setprops):
+    # You can't change an accessor descriptor to a data descriptor.
+    before = nc(setprops.GetOwnProperty('codish'))
+    val = OrdinarySetWithOwnDescriptor(setprops, 'codish', 100, setprops,
+                                       PropertyDescriptor(value=1, writable=True, enumerable=True, configurable=True))
+    assert val == Completion(NORMAL, False, None)
+    after = nc(setprops.GetOwnProperty('codish'))
+    assert after.is_accessor_descriptor() and not after.is_data_descriptor()
+    assert (after.Get, after.Set, after.enumerable, after.configurable) == (before.Get, before.Set, True, True)
+
+def test_OrdinarySetWithOwnDescriptor_09(setprops):
+    # If you try to "Set" with an accessor descriptor that doesn't know how to set, fail.
+    before = nc(setprops.GetOwnProperty('codish'))
+    val = OrdinarySetWithOwnDescriptor(setprops, 'codish', 'testval', setprops, PropertyDescriptor(Set=None))
+    assert val == Completion(NORMAL, False, None)
+    after = nc(setprops.GetOwnProperty('codish'))
+    assert (after.Get, after.Set, after.enumerable, after.configurable) == (before.Get, before.Set, True, True)
+
+def test_OrdinarySetWithOwnDescriptor_10(setprops):
+    # Setting an accessor descriptor should work.
+    desc = nc(setprops.GetOwnProperty('codish'))
+    val = OrdinarySetWithOwnDescriptor(setprops, 'codish', 'testval', setprops, desc)
+    assert val == Completion(NORMAL, True, None)
+    assert nc(Get(setprops, 'codish')) == 'testval'
+
+def test_OrdinarySetWithOwnDescriptor_11(setprops):
+    # Now exception handling. First, if GetPrototypeOf throws.
+    setprops.GetPrototypeOf = types.MethodType(lambda _: ThrowCompletion('Thrown from OSWOD_11'), 'GetPrototypeOf')
+    val = OrdinarySetWithOwnDescriptor(setprops, 'elephant', 1, setprops, None)
+    assert val == Completion(THROW, 'Thrown from OSWOD_11', None)
+
+def test_OrdinarySetWithOwnDescriptor_12(setprops):
+    # If GetOwnProperty throws...
+    setprops.GetOwnProperty = types.MethodType(lambda _a, _b: ThrowCompletion('Thrown from OSWOD_12'), 'GetOwnProperty')
+    val = OrdinarySetWithOwnDescriptor(setprops, 'normal', 1, setprops, None)
+    assert val == Completion(THROW, 'Thrown from OSWOD_12', None)
+
+def test_OrdinarySetWithOwnDescriptor_13(setprops):
+    # If a custom setter throws
+    def custom_setter(self, value):
+        return ThrowCompletion('Thrown from custom_setter')
+    set_fcn = CreateBuiltinFunction(custom_setter, [], realm=surrounding_agent.running_ec.realm)
+    val = OrdinarySetWithOwnDescriptor(setprops, 'codish', -90, setprops, PropertyDescriptor(Set=set_fcn))
+    assert val == Completion(THROW, 'Thrown from custom_setter', None)
