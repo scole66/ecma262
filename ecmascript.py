@@ -3345,6 +3345,9 @@ def CreateIntrinsics(realm_rec):
     #     must be ordered to avoid any dependencies upon objects that have not yet been created.
     intrinsics['%Object%'] = CreateObjectConstructor(realm_rec)
     AddObjectPrototypeProps(realm_rec)
+    intrinsics['%Boolean%'] = CreateBooleanConstructor(realm_rec)
+    intrinsics['%BooleanPrototype%'] = CreateBooleanPrototype(realm_rec)
+    BooleanFixups(realm_rec)
 
     # 14. Return intrinsics.
     return intrinsics
@@ -3597,6 +3600,11 @@ def GetNewTarget():
     assert hasattr(env_rec, 'new_target')
     # 3. Return envRec.[[NewTarget]].
     return env_rec.new_target
+
+def GetActiveFunction():
+    # From the header of section 8.3:
+    # The value of the Function component of the running execution context is also called the active function object.
+    return surrounding_agent.running_ec.function
 
 # 8.3.6 GetGlobalObject ( )
 def GetGlobalObject():
@@ -4771,7 +4779,7 @@ def BindBuiltinFunctions(realm, obj, details):
 
 def CreateObjectConstructor(realm):
     intrinsics = realm.intrinsics
-    obj = ObjectCreate(intrinsics['%FunctionPrototype%'])
+    obj = CreateBuiltinFunction(ObjectFunction, [], realm=realm)
     for key, value in [('length', 1), ('name', 'Object')]:
         cr, ok = ec(DefinePropertyOrThrow(obj, key, PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)))
         if not ok:
@@ -4803,6 +4811,22 @@ def CreateObjectConstructor(realm):
     if not ok:
         return cr
     return obj
+
+# 19.1.1.1 Object ( [ value ] )
+def ObjectFunction(value=None):
+    # When the Object function is called with optional argument value, the following steps are taken:
+    #
+    # 1. If NewTarget is neither undefined nor the active function, then
+    new_target = GetNewTarget()
+    active_function = GetActiveFunction()
+    if new_target is not None and new_target != active_function:
+        # a. Return ? OrdinaryCreateFromConstructor(NewTarget, "%ObjectPrototype%").
+        return OrdinaryCreateFromConstructor(new_target, "%ObjectPrototype%")
+    # 2. If value is null, undefined or not supplied, return ObjectCreate(%ObjectPrototype%).
+    if value is None or isNull(value):
+        return ObjectCreate(surrounding_agent.realm.intrinsics['%ObjectPrototype%'])
+    # 3. Return ! ToObject(value).
+    return ToObject(value)
 
 # 19.1.2.1 Object.assign ( target, ...sources )
 def ObjectMethod_assign(target, *sources):
@@ -5381,6 +5405,112 @@ def ObjectPrototype_valueOf(this_value):
     # 1. Return ? ToObject(this value).
     return ToObject(this_value)
     # This function is the %ObjProto_valueOf% intrinsic object.
+
+# 19.3 Boolean Objects
+#
+# 19.3.1 The Boolean Constructor
+#
+# The Boolean constructor:
+#
+#   * is the intrinsic object %Boolean%.
+#   * is the initial value of the Boolean property of the global object.
+#   * creates and initializes a new Boolean object when called as a constructor.
+#   * performs a type conversion when called as a function rather than as a constructor.
+#   * is designed to be subclassable. It may be used as the value of an extends clause of a class definition. Subclass
+#     constructors that intend to inherit the specified Boolean behaviour must include a super call to the Boolean constructor
+#     to create and initialize the subclass instance with a [[BooleanData]] internal slot.
+def CreateBooleanConstructor(realm):
+    obj = CreateBuiltinFunction(BooleanFunction, [], realm=realm)
+    for key, value in [('length', 1), ('name', 'Boolean')]:
+        cr, ok = ec(DefinePropertyOrThrow(obj, key,
+                    PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)))
+        if not ok:
+            return cr
+    return obj
+
+# 19.3.1.1 Boolean ( value )
+def BooleanFunction(value):
+    # When Boolean is called with argument value, the following steps are taken:
+    #
+    # 1. Let b be ToBoolean(value).
+    b = ToBoolean(value)
+    # 2. If NewTarget is undefined, return b.
+    new_target = GetNewTarget()
+    if new_target is None:
+        return NormalCompletion(b)
+    # 3. Let O be ? OrdinaryCreateFromConstructor(NewTarget, "%BooleanPrototype%", « [[BooleanData]] »).
+    o, ok = ec(OrdinaryCreateFromConstructor(new_target, '%BooleanPrototype%', ['BooleanData']))
+    if not ok:
+        return o
+    # 4. Set O.[[BooleanData]] to b.
+    o.BooleanData = b
+    # 5. Return O.
+    return NormalCompletion(o)
+
+def BooleanFixups(realm):
+    boolean_constructor = realm.intrinsics['%Boolean%']
+    boolean_prototype = realm.intrinsics['%BooleanPrototype%']
+    cr, ok = ec(DefinePropertyOrThrow(boolean_constructor, 'prototype',
+                PropertyDescriptor(value=boolean_prototype, writable=False, enumerable=False, configurable=False)))
+    if not ok:
+        return cr
+    cr, ok = ec(DefinePropertyOrThrow(boolean_prototype, 'constructor', PropertyDescriptor(value=boolean_constructor)))
+    if not ok:
+        return cr
+
+# 19.3.3 Properties of the Boolean Prototype Object
+#
+# The Boolean prototype object:
+#
+#   * is the intrinsic object %BooleanPrototype%.
+#   * is an ordinary object.
+#   * is itself a Boolean object; it has a [[BooleanData]] internal slot with the value false.
+#   * has a [[Prototype]] internal slot whose value is the intrinsic object %ObjectPrototype%.
+def CreateBooleanPrototype(realm):
+    boolean_prototype = ObjectCreate(realm.intrinsics['%ObjectPrototype%'], ['BooleanData'])
+    boolean_prototype.BooleanData = False
+    cr, ok = ec(BindBuiltinFunctions(realm, boolean_prototype, [
+        ('toString', BooleanPrototype_toString, 0),
+        ('valueOf', BooleanPrototype_valueOf, 0)
+        ]))
+    if not ok:
+        return cr
+    return boolean_prototype
+
+def thisBooleanValue(value):
+    # The abstract operation thisBooleanValue(value) performs the following steps:
+    #
+    # 1. If Type(value) is Boolean, return value.
+    if isBoolean(value):
+        return value
+    # 2. If Type(value) is Object and value has a [[BooleanData]] internal slot, then
+    if isObject(value) and hasattr(value, 'BooleanData'):
+        # a. Let b be value.[[BooleanData]].
+        b = value.BooleanData
+        # b. Assert: Type(b) is Boolean.
+        assert isBoolean(b)
+        # c. Return b.
+        return b
+    # 3. Throw a TypeError exception.
+    return ThrowCompletion(CreateTypeError())
+
+# 19.3.3.2 Boolean.prototype.toString ( )
+def BooleanPrototype_toString(this_value):
+    # The following steps are taken:
+    #
+    # 1. Let b be ? thisBooleanValue(this value).
+    b, ok = ec(thisBooleanValue(this_value))
+    if not ok:
+        return b
+    # 2. If b is true, return "true"; else return "false".
+    return NormalCompletion('true' if b else 'false')
+
+# 19.3.3.3 Boolean.prototype.valueOf ( )
+def BooleanPrototype_valueOf(this_value):
+    # The following steps are taken:
+    #
+    # 1. Return ? thisBooleanValue(this value).
+    return thisBooleanValue(this_value)
 
 if __name__ == '__main__':
     InitializeHostDefinedRealm()
