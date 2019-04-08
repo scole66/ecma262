@@ -715,6 +715,29 @@ def OrdinaryOwnPropertyKeys(obj):
 
 # 9.1.12 ObjectCreate ( proto [ , internalSlotsList ] )
 def ObjectCreate(proto, internal_slots_list=[]):
+    """Creates a new ECMAScript object.
+
+    Arguments:
+       proto: This is the object's prototype, and is stored in the internal
+           [[Prototype]] slot.
+       internal_slots_list: This is a list of strings which are additional "slots"
+           to add to the object. They share the same namespace as the rest of the
+           object's internal members, so please tread lightly. (Adding "Prototype"
+           to the list, for instance, while not necessarily harmful, does **not**
+           mean that there are now two [[Prototype]] slots. There's still only one.)
+
+    Returns the created object.
+
+    The object is an "ordinary" object, in that it inherits all the standard
+    internal object methods.
+
+    The object is also marked as Extensible; that is: additional properties may be
+    added to it. If this is not desired, use the [[PreventExtensions]] method to
+    disable further changes. (A typical use case is to expand as you need during
+    initialization and then prevent further changes.)
+
+    This function is defined in section 9.1.12 of the ECMAScript specification.
+    """
     # The abstract operation ObjectCreate with argument proto (an object or null) is used to specify the runtime
     # creation of new ordinary objects. The optional argument internalSlotsList is a List of the names of additional
     # internal slots that must be defined as part of the object. If the list is not provided, a new empty List is used.
