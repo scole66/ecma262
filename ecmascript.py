@@ -16,6 +16,9 @@ def CreateReferenceError():
 def CreateTypeError():
     return TypeError() # This is a python object, not an ecmascript object. This will change when objects are turned on.
 
+class missing(Enum):
+    MISSING = auto()
+
 # 6.1 ECMAScript Language Types
 
 @unique
@@ -758,6 +761,34 @@ def ObjectCreate(proto, internal_slots_list=[]):
 
 # 9.1.13 OrdinaryCreateFromConstructor ( constructor, intrinsicDefaultProto [ , internalSlotsList ] )
 def OrdinaryCreateFromConstructor(constructor, intrinsic_default_proto, internal_slots_list=[]):
+    """Create a new ECMAScript object, using the constructor's prototype.
+
+    Arguments:
+       constructor: An object, hopefully with a "prototype" property.
+       intrinsic_default_proto: The string name of an intrinsic property, used to
+          supply a prototype if the constructor didn't have one.
+       internal_slots_list: This is a list of strings which are additional "slots"
+           to add to the object. They share the same namespace as the rest of the
+           object's internal members, so please tread lightly. (Adding "Prototype"
+           to the list, for instance, while not necessarily harmful, does **not**
+           mean that there are now two [[Prototype]] slots. There's still only one.)
+
+    Returns the created object.
+
+    The [[Prototype]] intenal slot of the new object is set to:
+       * The value of the constructor's "prototype" property, if it exists
+       * The value of the intrinsic object named by intrinsic_default_proto. (Note
+         that the realm used to find the intrinsic is the one associated with the
+         constructor, not the running execution context.)
+
+    The [[Extensible]] internal slot is set to True. (In other words, the object is
+    extensible.)
+
+    Beyond that, the object is completely normal. In particular, any function body
+    connected to the constructor is **not** run.
+
+    This function is defined in section 9.1.13 of the ECMAScript specificiation.
+    """
     # The abstract operation OrdinaryCreateFromConstructor creates an ordinary object whose [[Prototype]] value is
     # retrieved from a constructor's prototype property, if it exists. Otherwise the intrinsic named by
     # intrinsicDefaultProto is used for [[Prototype]]. The optional internalSlotsList is a List of the names of
@@ -1745,6 +1776,7 @@ def NumberToString(m):
 
 # 7.1.13 ToObject ( argument )
 def ToObject(argument):
+    intrinsics = surrounding_agent.running_ec.realm.intrinsics
     # The abstract operation ToObject converts argument to a value of type Object according to Table 12:
     #
     # Table 12: ToObject Conversions
@@ -1769,9 +1801,16 @@ def ToObject(argument):
     # +---------------+-------------------------------------------------------------------------------------------------
     # | Object        | Return argument.
     # +---------------+-------------------------------------------------------------------------------------------------
+    if isBoolean(argument):
+        return Construct(intrinsics['%Boolean%'], argument)
+    if isNumber(argument):
+        return Construct(intrinsics['%Number%'], argument)
+    if isString(argument):
+        return Construct(intrinsics['%String%'], argument)
+    if isSymbol(argument):
+        return Construct(intrinsics['%Symbol%'], argument)
     if isObject(argument):
         return NormalCompletion(argument)
-    # @@@ Add in basic types here as their object interfaces are added
     return ThrowCompletion(CreateTypeError())
 
 
@@ -2060,6 +2099,29 @@ def Call(func, value, *args):
         return ThrowCompletion(CreateTypeError())
     # 3. Return ? F.[[Call]](V, argumentsList).
     return func.Call(value, args)
+
+# 7.3.13 Construct ( F [ , argumentsList [ , newTarget ]] )
+def Construct(func, *args, newTarget=missing.MISSING):
+    # The abstract operation Construct is used to call the [[Construct]] internal method of a function object. The operation is
+    # called with arguments F, and optionally argumentsList, and newTarget where F is the function object. argumentsList and
+    # newTarget are the values to be passed as the corresponding arguments of the internal method. If argumentsList is not
+    # present, a new empty List is used as its value. If newTarget is not present, F is used as its value. This abstract
+    # operation performs the following steps:
+    #
+    # 1. If newTarget is not present, set newTarget to F.
+    if newTarget == missing.MISSING:
+        newTarget = func
+    # 2. If argumentsList is not present, set argumentsList to a new empty List.
+    # 3. Assert: IsConstructor(F) is true.
+    assert IsConstructor(func)
+    # 4. Assert: IsConstructor(newTarget) is true.
+    assert IsConstructor(newTarget)
+    # 5. Return ? F.[[Construct]](argumentsList, newTarget).
+    return func.Construct(args, newTarget)
+    # NOTE
+    # If newTarget is not present, this operation is equivalent to: new F(...argumentsList)
+
+
 
 # 7.3.15 TestIntegrityLevel ( O, level )
 def TestIntegrityLevel(o_value, level):
@@ -3909,7 +3971,7 @@ class BuiltinFunction(JSObject):
         # 10. Let result be the Completion Record that is the result of evaluating F in an implementation-defined
         #     manner that conforms to the specification of F. thisArgument is the this value, argumentsList provides
         #     the named parameters, and the NewTarget value is undefined.
-        result = self.steps(this_argument, *arguments_list)
+        result = self.steps(this_argument, None, *arguments_list)
         if not isinstance(result, Completion):
             result = NormalCompletion(result)
         # 11. Remove calleeContext from the execution context stack and restore callerContext as the running execution
@@ -3922,9 +3984,56 @@ class BuiltinFunction(JSObject):
         # When calleeContext is removed from the execution context stack it must not be destroyed if it has been
         # suspended and retained by an accessible generator object for later resumption.
 
+
+# 9.3.2[[Construct]] ( argumentsList, newTarget )
+def BuiltinFunction_Construct(self, arguments_list, new_target):
+    # The [[Construct]] internal method for built-in function object F is called with parameters argumentsList and newTarget.
+    # The steps performed are the same as [[Call]] (see 9.3.1) except that step 10 is replaced by:
+    #
+    # 10. Let result be the Completion Record that is the result of evaluating F in an implementation-defined manner that
+    #     conforms to the specification of F. The this value is uninitialized, argumentsList provides the named parameters, and
+    #     newTarget provides the NewTarget value.
+    #
+    # Implementation note: The [[Construct]] method is **not** present on all Builtin Functions --- it's only there for
+    # functions which are also constructors. So we don't put it in the class definition. Instead we leave it here and add it
+    # during the CreateBuiltinFunction call, if we detect a "Construct" sitting in the interal_slots_list.
+    #
+    # 1. Let callerContext be the running execution context.
+    caller_context = surrounding_agent.running_ec
+    # 2. If callerContext is not already suspended, suspend callerContext.
+    caller_context.suspend()
+    # 3. Let calleeContext be a new ECMAScript code execution context.
+    callee_context = ExecutionContext()
+    # 4. Set the Function of calleeContext to F.
+    callee_context.function = self
+    # 5. Let calleeRealm be F.[[Realm]].
+    callee_realm = self.realm
+    # 6. Set the Realm of calleeContext to calleeRealm.
+    callee_context.realm = callee_realm
+    # 7. Set the ScriptOrModule of calleeContext to F.[[ScriptOrModule]].
+    callee_context.script_or_module = self.script_or_module
+    # 8. Perform any necessary implementation-defined initialization of calleeContext.
+    # 9. Push calleeContext onto the execution context stack; calleeContext is now the running execution context.
+    surrounding_agent.ec_stack.append(callee_context)
+    surrounding_agent.running_ec = callee_context
+    # 10. Let result be the Completion Record that is the result of evaluating F in an implementation-defined manner that
+    #     conforms to the specification of F. The this value is uninitialized, argumentsList provides the named parameters, and
+    #     newTarget provides the NewTarget value.
+    result = self.steps(None, new_target, *arguments_list)
+    if not isinstance(result, Completion):
+        result = NormalCompletion(result)
+    # 11. Remove calleeContext from the execution context stack and restore callerContext as the running execution
+    #     context.
+    surrounding_agent.ec_stack.pop()
+    surrounding_agent.running_ec = caller_context
+    # 12. Return result.
+    return result
+    # NOTE
+    # When calleeContext is removed from the execution context stack it must not be destroyed if it has been
+    # suspended and retained by an accessible generator object for later resumption.
+
+
 # 9.3.3 CreateBuiltinFunction ( steps, internalSlotsList [ , realm [ , prototype ] ] )
-class missing(Enum):
-    MISSING = auto()
 def CreateBuiltinFunction(steps, internal_slots_list, realm=missing.MISSING, prototype=missing.MISSING):
     # The abstract operation CreateBuiltinFunction takes arguments steps, internalSlotsList, realm, and prototype. The
     # argument internalSlotsList is a List of the names of additional internal slots that must be defined as part of the
@@ -3944,6 +4053,8 @@ def CreateBuiltinFunction(steps, internal_slots_list, realm=missing.MISSING, pro
     #    function object has internal slots whose names are the elements of internalSlotsList. The initial value of each
     #    of those internal slots is undefined.
     func = BuiltinFunction(steps, realm, prototype, True, JSNull.NULL, internal_slots_list)
+    if 'Construct' in internal_slots_list:
+        func.Construct = types.MethodType(BuiltinFunction_Construct, func)
     # 6. Set func.[[Realm]] to realm.
     # 7. Set func.[[Prototype]] to prototype.
     # 8. Set func.[[Extensible]] to true.
@@ -4779,7 +4890,7 @@ def BindBuiltinFunctions(realm, obj, details):
 
 def CreateObjectConstructor(realm):
     intrinsics = realm.intrinsics
-    obj = CreateBuiltinFunction(ObjectFunction, [], realm=realm)
+    obj = CreateBuiltinFunction(ObjectFunction, ['Construct'], realm=realm)
     for key, value in [('length', 1), ('name', 'Object')]:
         cr, ok = ec(DefinePropertyOrThrow(obj, key, PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)))
         if not ok:
@@ -4813,11 +4924,10 @@ def CreateObjectConstructor(realm):
     return obj
 
 # 19.1.1.1 Object ( [ value ] )
-def ObjectFunction(value=None):
+def ObjectFunction(_, new_target, value=None):
     # When the Object function is called with optional argument value, the following steps are taken:
     #
     # 1. If NewTarget is neither undefined nor the active function, then
-    new_target = GetNewTarget()
     active_function = GetActiveFunction()
     if new_target is not None and new_target != active_function:
         # a. Return ? OrdinaryCreateFromConstructor(NewTarget, "%ObjectPrototype%").
@@ -4829,7 +4939,7 @@ def ObjectFunction(value=None):
     return ToObject(value)
 
 # 19.1.2.1 Object.assign ( target, ...sources )
-def ObjectMethod_assign(target, *sources):
+def ObjectMethod_assign(_a, _b, target, *sources):
     # The assign function is used to copy the values of all of the enumerable own properties from one or more source
     # objects to a target object. When the assign function is called, the following steps are taken:
     #
@@ -4874,7 +4984,7 @@ def ObjectMethod_assign(target, *sources):
     return NormalCompletion(to_obj)
 
 # 19.1.2.2 Object.create ( O, Properties )
-def ObjectMethod_create(o_value, properties):
+def ObjectMethod_create(_a, _b, o_value, properties):
     # The create function creates a new object with a specified prototype. When the create function is called, the
     # following steps are taken:
     #
@@ -4891,7 +5001,7 @@ def ObjectMethod_create(o_value, properties):
     return NormalCompletion(obj)
 
 # 19.1.2.3 Object.defineProperties ( O, Properties )
-def ObjectMethod_defineProperties(o_value, properties):
+def ObjectMethod_defineProperties(_a, _b, o_value, properties):
     # The defineProperties function is used to add own properties and/or update the attributes of existing own
     # properties of an object. When the defineProperties function is called, the following steps are taken:
     #
@@ -4899,7 +5009,7 @@ def ObjectMethod_defineProperties(o_value, properties):
     return ObjectDefineProperties(o_value, properties)
 
 # 19.1.2.3.1 Runtime Semantics: ObjectDefineProperties ( O, Properties )
-def ObjectDefineProperties(o_value, properties):
+def ObjectDefineProperties(_a, _b, o_value, properties):
     # The abstract operation ObjectDefineProperties with arguments O and Properties performs the following steps:
     #
     # 1. If Type(O) is not Object, throw a TypeError exception.
@@ -4945,7 +5055,7 @@ def ObjectDefineProperties(o_value, properties):
     return NormalCompletion(o_value)
 
 # 19.1.2.4 Object.defineProperty ( O, P, Attributes )
-def ObjectMethod_defineProperty(o_value, prop, attributes):
+def ObjectMethod_defineProperty(_a, _b, o_value, prop, attributes):
     # The defineProperty function is used to add an own property and/or update the attributes of an existing own
     # property of an object. When the defineProperty function is called, the following steps are taken:
     #
@@ -4968,7 +5078,7 @@ def ObjectMethod_defineProperty(o_value, prop, attributes):
     return NormalCompletion(o_value)
 
 # 19.1.2.5 Object.entries ( O )
-def ObjectMethod_entries(o_value):
+def ObjectMethod_entries(_a, _b, o_value):
     # When the entries function is called with argument O, the following steps are taken:
     #
     # 1. Let obj be ? ToObject(O).
@@ -4983,7 +5093,7 @@ def ObjectMethod_entries(o_value):
     return NormalCompletion(CreateArrayFromList(name_list))
 
 # 19.1.2.6 Object.freeze ( O )
-def ObjectMethod_freeze(o_value):
+def ObjectMethod_freeze(_a, _b, o_value):
     # When the freeze function is called, the following steps are taken:
     #
     # 1. If Type(O) is not Object, return O.
@@ -5000,7 +5110,7 @@ def ObjectMethod_freeze(o_value):
     return NormalCompletion(o_value)
 
 # 19.1.2.7 Object.getOwnPropertyDescriptor ( O, P )
-def ObjectMethod_getOwnPropertyDescriptor(o_value, propkey):
+def ObjectMethod_getOwnPropertyDescriptor(_a, _b, o_value, propkey):
     # When the getOwnPropertyDescriptor function is called, the following steps are taken:
     #
     # 1. Let obj be ? ToObject(O).
@@ -5019,7 +5129,7 @@ def ObjectMethod_getOwnPropertyDescriptor(o_value, propkey):
     return NormalCompletion(FromPropertyDescriptor(desc))
 
 # 19.1.2.8 Object.getOwnPropertyDescriptors ( O )
-def ObjectMethod_getOwnPropertyDescriptors(o_value):
+def ObjectMethod_getOwnPropertyDescriptors(_a, _b, o_value):
     # When the getOwnPropertyDescriptors function is called, the following steps are taken:
     #
     # 1. Let obj be ? ToObject(O).
@@ -5047,21 +5157,21 @@ def ObjectMethod_getOwnPropertyDescriptors(o_value):
     return NormalCompletion(descriptors)
 
 # 19.1.2.9 Object.getOwnPropertyNames ( O )
-def ObjectMethod_getOwnPropertyNames(o_value):
+def ObjectMethod_getOwnPropertyNames(_a, _b, o_value):
     # When the getOwnPropertyNames function is called, the following steps are taken:
     #
     # 1. Return ? GetOwnPropertyKeys(O, String).
     return GetOwnPropertyKeys(o_value, isString)
 
 # 19.1.2.10 Object.getOwnPropertySymbols ( O )
-def ObjectMethod_getOwnPropertySymbols(o_value):
+def ObjectMethod_getOwnPropertySymbols(_a, _b, o_value):
     # When the getOwnPropertySymbols function is called with argument O, the following steps are taken:
     #
     # 1. Return ? GetOwnPropertyKeys(O, Symbol).
     return GetOwnPropertyKeys(o_value, isSymbol)
 
 # 19.1.2.10.1 Runtime Semantics: GetOwnPropertyKeys ( O, Type )
-def GetOwnPropertyKeys(o_value, type_checker):
+def GetOwnPropertyKeys(_a, _b, o_value, type_checker):
     # The abstract operation GetOwnPropertyKeys is called with arguments O and Type where O is an Object and Type is
     # one of the ECMAScript specification types String or Symbol. The following steps are taken:
     #
@@ -5082,7 +5192,7 @@ def GetOwnPropertyKeys(o_value, type_checker):
     return NormalCompletion(CreateArrayFromList(name_list))
 
 # 19.1.2.11 Object.getPrototypeOf ( O )
-def ObjectMethod_getPrototypeOf(o_value):
+def ObjectMethod_getPrototypeOf(_a, _b, o_value):
     # When the getPrototypeOf function is called with argument O, the following steps are taken:
     #
     # 1. Let obj be ? ToObject(O).
@@ -5093,14 +5203,14 @@ def ObjectMethod_getPrototypeOf(o_value):
     return obj.GetPrototypeOf()
 
 # 19.1.2.12 Object.is ( value1, value2 )
-def ObjectMethod_is(value1, value2):
+def ObjectMethod_is(_a, _b, value1, value2):
     # When the is function is called with arguments value1 and value2, the following steps are taken:
     #
     # 1. Return SameValue(value1, value2).
     return NormalCompletion(SameValue(value1, value2))
 
 # 19.1.2.13 Object.isExtensible ( O )
-def ObjectMethod_isExtensible(o_value):
+def ObjectMethod_isExtensible(_a, _b, o_value):
     # When the isExtensible function is called with argument O, the following steps are taken:
     #
     # 1. If Type(O) is not Object, return false.
@@ -5110,7 +5220,7 @@ def ObjectMethod_isExtensible(o_value):
     return IsExtensible(o_value)
 
 # 19.1.2.14 Object.isFrozen ( O )
-def ObjectMethod_isFrozen(o_value):
+def ObjectMethod_isFrozen(_a, _b, o_value):
     # When the isFrozen function is called with argument O, the following steps are taken:
     #
     # 1. If Type(O) is not Object, return true.
@@ -5120,7 +5230,7 @@ def ObjectMethod_isFrozen(o_value):
     return TestIntegrityLevel(o_value, 'frozen')
 
 # 19.1.2.15 Object.isSealed ( O )
-def ObjectMethod_isSealed(o_value):
+def ObjectMethod_isSealed(_a, _b, o_value):
     # When the isSealed function is called with argument O, the following steps are taken:
     #
     # 1. If Type(O) is not Object, return true.
@@ -5130,7 +5240,7 @@ def ObjectMethod_isSealed(o_value):
     return TestIntegrityLevel(o_value, 'sealed')
 
 # 19.1.2.16 Object.keys ( O )
-def ObjectMethod_keys(o_value):
+def ObjectMethod_keys(_a, _b, o_value):
     # When the keys function is called with argument O, the following steps are taken:
     #
     # 1. Let obj be ? ToObject(O).
@@ -5145,7 +5255,7 @@ def ObjectMethod_keys(o_value):
     return NormalCompletion(CreateArrayFromList(name_list))
 
 # 19.1.2.17 Object.preventExtensions ( O )
-def ObjectMethod_preventExtensions(o_value):
+def ObjectMethod_preventExtensions(_a, _b, o_value):
     # When the preventExtensions function is called, the following steps are taken:
     #
     # 1. If Type(O) is not Object, return O.
@@ -5162,7 +5272,7 @@ def ObjectMethod_preventExtensions(o_value):
     return NormalCompletion(o_value)
 
 # 19.1.2.19 Object.seal ( O )
-def ObjectMethod_seal(o_value):
+def ObjectMethod_seal(_a, _b, o_value):
     # When the seal function is called, the following steps are taken:
     #
     # 1. If Type(O) is not Object, return O.
@@ -5179,7 +5289,7 @@ def ObjectMethod_seal(o_value):
     return NormalCompletion(o_value)
 
 # 19.1.2.20 Object.setPrototypeOf ( O, proto )
-def ObjectMethod_setPrototypeOf(o_value, proto):
+def ObjectMethod_setPrototypeOf(_a, _b, o_value, proto):
     # When the setPrototypeOf function is called with arguments O and proto, the following steps are taken:
     #
     # 1. Let O be ? RequireObjectCoercible(O).
@@ -5203,7 +5313,7 @@ def ObjectMethod_setPrototypeOf(o_value, proto):
     return NormalCompletion(o_value)
 
 # 19.1.2.21 Object.values ( O )
-def ObjectMethod_values(o_value):
+def ObjectMethod_values(_a, _b, o_value):
     # When the values function is called with argument O, the following steps are taken:
     #
     # 1. Let obj be ? ToObject(O).
@@ -5245,7 +5355,7 @@ def AddObjectPrototypeProps(realm_rec):
     return NormalCompletion(None)
 
 # 19.1.3.2 Object.prototype.hasOwnProperty ( V )
-def ObjectPrototype_hasOwnProperty(this_value, key):
+def ObjectPrototype_hasOwnProperty(this_value, _, key):
     # When the hasOwnProperty method is called with argument V, the following steps are taken:
     #
     # 1. Let P be ? ToPropertyKey(V).
@@ -5263,7 +5373,7 @@ def ObjectPrototype_hasOwnProperty(this_value, key):
     # previous editions of this specification will continue to be thrown even if the this value is undefined or null.
 
 # 19.1.3.3 Object.prototype.isPrototypeOf ( V )
-def ObjectPrototype_isPrototypeOf(this_value, obj):
+def ObjectPrototype_isPrototypeOf(this_value, _, obj):
     # When the isPrototypeOf method is called with argument V, the following steps are taken:
     #
     # 1. If Type(V) is not Object, return false.
@@ -5290,7 +5400,7 @@ def ObjectPrototype_isPrototypeOf(this_value, obj):
     # the case where V is not an object and the this value is undefined or null.
 
 # 19.1.3.4 Object.prototype.propertyIsEnumerable ( V )
-def ObjectPrototype_propertyIsEnumerable(this_value, v):
+def ObjectPrototype_propertyIsEnumerable(this_value, _, v):
     # When the propertyIsEnumerable method is called with argument V, the following steps are taken:
     #
     # 1. Let P be ? ToPropertyKey(V).
@@ -5317,7 +5427,7 @@ def ObjectPrototype_propertyIsEnumerable(this_value, v):
     # previous editions of this specification will continue to be thrown even if the this value is undefined or null.
 
 # 19.1.3.5 Object.prototype.toLocaleString ( [ reserved1 [ , reserved2 ] ] )
-def ObjectPrototype_toLocaleString(this_value, reserved1=None, reserved2=None):
+def ObjectPrototype_toLocaleString(this_value, _, reserved1=None, reserved2=None):
     # When the toLocaleString method is called, the following steps are taken:
     #
     # 1. Let O be the this value.
@@ -5335,7 +5445,7 @@ def ObjectPrototype_toLocaleString(this_value, reserved1=None, reserved2=None):
     # ECMA-402 intentionally does not provide an alternative to this default implementation.
 
 # 19.1.3.6 Object.prototype.toString ( )
-def ObjectPrototype_toString(this_value):
+def ObjectPrototype_toString(this_value, _):
     # When the toString method is called, the following steps are taken:
     #
     # 1. If the this value is undefined, return "[object Undefined]".
@@ -5399,7 +5509,7 @@ def ObjectPrototype_toString(this_value):
     # of such legacy type tests.
 
 # 19.1.3.7 Object.prototype.valueOf ( )
-def ObjectPrototype_valueOf(this_value):
+def ObjectPrototype_valueOf(this_value, _):
     # When the valueOf method is called, the following steps are taken:
     #
     # 1. Return ? ToObject(this value).
@@ -5420,7 +5530,7 @@ def ObjectPrototype_valueOf(this_value):
 #     constructors that intend to inherit the specified Boolean behaviour must include a super call to the Boolean constructor
 #     to create and initialize the subclass instance with a [[BooleanData]] internal slot.
 def CreateBooleanConstructor(realm):
-    obj = CreateBuiltinFunction(BooleanFunction, [], realm=realm)
+    obj = CreateBuiltinFunction(BooleanFunction, ['Construct'], realm=realm)
     for key, value in [('length', 1), ('name', 'Boolean')]:
         cr, ok = ec(DefinePropertyOrThrow(obj, key,
                     PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)))
@@ -5429,13 +5539,12 @@ def CreateBooleanConstructor(realm):
     return obj
 
 # 19.3.1.1 Boolean ( value )
-def BooleanFunction(value):
+def BooleanFunction(_, new_target, value):
     # When Boolean is called with argument value, the following steps are taken:
     #
     # 1. Let b be ToBoolean(value).
     b = ToBoolean(value)
     # 2. If NewTarget is undefined, return b.
-    new_target = GetNewTarget()
     if new_target is None:
         return NormalCompletion(b)
     # 3. Let O be ? OrdinaryCreateFromConstructor(NewTarget, "%BooleanPrototype%", « [[BooleanData]] »).
@@ -5495,7 +5604,7 @@ def thisBooleanValue(value):
     return ThrowCompletion(CreateTypeError())
 
 # 19.3.3.2 Boolean.prototype.toString ( )
-def BooleanPrototype_toString(this_value):
+def BooleanPrototype_toString(this_value, _):
     # The following steps are taken:
     #
     # 1. Let b be ? thisBooleanValue(this value).
@@ -5506,7 +5615,7 @@ def BooleanPrototype_toString(this_value):
     return NormalCompletion('true' if b else 'false')
 
 # 19.3.3.3 Boolean.prototype.valueOf ( )
-def BooleanPrototype_valueOf(this_value):
+def BooleanPrototype_valueOf(this_value, _):
     # The following steps are taken:
     #
     # 1. Return ? thisBooleanValue(this value).
@@ -5516,3 +5625,5 @@ if __name__ == '__main__':
     InitializeHostDefinedRealm()
     realm = surrounding_agent.running_ec.realm
     print('\n'.join('%s: %s' % (key, nc(ToString(nc(Get(realm.global_object, key))))) for key in nc(realm.global_object.OwnPropertyKeys())))
+
+    print('True becomes %s' % nc(ToString(nc(ToObject(10)))))

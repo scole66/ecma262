@@ -21,21 +21,21 @@ def some_objects(realm):
     # An object with a "toString" method that throws an exception with the value 'I am evil tostring'
     evil_tostring = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
     CreateMethodPropertyOrThrow(evil_tostring, 'toString',
-                                CreateBuiltinFunction(lambda _: ThrowCompletion('I am evil tostring'),
+                                CreateBuiltinFunction(lambda _a, _b: ThrowCompletion('I am evil tostring'),
                                                       [], realm, JSNull.NULL))
     # An object whose "toString" and "toValue" methods both produce objects.
     bad_primitives = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
     objfunc = CreateBuiltinFunction(
-        lambda _: NormalCompletion(ObjectCreate(realm.intrinsics['%ObjectPrototype%'])),
+        lambda _a, _b: NormalCompletion(ObjectCreate(realm.intrinsics['%ObjectPrototype%'])),
         [], realm, JSNull.NULL)
     CreateMethodPropertyOrThrow(bad_primitives, 'toString', objfunc)
     CreateMethodPropertyOrThrow(bad_primitives, 'toValue', objfunc)
     # An object whose "toString" method returns 'You found the treasure', and whose 'valueOf' method returns 42
     treasure = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
-    objfunc = CreateBuiltinFunction(lambda _: NormalCompletion('You found the treasure'), [], realm,
+    objfunc = CreateBuiltinFunction(lambda _a, _b: NormalCompletion('You found the treasure'), [], realm,
                                     JSNull.NULL)
     CreateMethodPropertyOrThrow(treasure, 'toString', objfunc)
-    objfunc = CreateBuiltinFunction(lambda _: NormalCompletion(42), [], realm, JSNull.NULL)
+    objfunc = CreateBuiltinFunction(lambda _a, _b: NormalCompletion(42), [], realm, JSNull.NULL)
     CreateMethodPropertyOrThrow(treasure, 'valueOf', objfunc)
 
     return {
@@ -107,7 +107,7 @@ def test_ToPrimitive_GetMethodThrows(realm):
 def test_ToPrimitive_exotictoprim(realm, input, expected):
     # If an object has a @@toPrimitive method, ToPrimitive should use it.
     obj = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
-    def exotic_to_primitive(obj, hint):
+    def exotic_to_primitive(self, new_target, hint):
         return NormalCompletion('I was passed %s.' % hint)
     CreateMethodProperty(obj, wks_to_primitive, CreateBuiltinFunction(exotic_to_primitive, [], realm))
 
@@ -117,7 +117,7 @@ def test_ToPrimitive_exotictoprim(realm, input, expected):
 def test_ToPrimitive_exoticthrows(realm):
     # If an object's @@toPrimitive throws an error, it's not ignored.
     obj = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
-    def exotic_to_primitive(obj, hint):
+    def exotic_to_primitive(self, new_target, hint):
         return ThrowCompletion('I am evil.')
     CreateMethodProperty(obj, wks_to_primitive, CreateBuiltinFunction(exotic_to_primitive, [], realm))
 
@@ -127,7 +127,7 @@ def test_ToPrimitive_exoticthrows(realm):
 def test_ToPrimitive_exoticreturnsobj(realm):
     # If an object's @@toPrimitive returns an Object, ToPrimitive throws a TypeError
     obj = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
-    def exotic_to_primitive(obj, hint):
+    def exotic_to_primitive(self, new_target, hint):
         return NormalCompletion(obj)
     CreateMethodProperty(obj, wks_to_primitive, CreateBuiltinFunction(exotic_to_primitive, [], realm))
 
