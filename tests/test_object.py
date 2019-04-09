@@ -65,7 +65,8 @@ def test_object_SetPrototypeOf_method_04(object_chain):
 def test_object_SetPrototypeOf_method_05(object_chain):
     realm = object_chain['realm']
     # If an object in the prototype chain has a nonstandard GetPrototypeOf, we abort the loop detector and just set it.
-    object_chain['parent'].GetPrototypeOf = types.MethodType(lambda _: realm.intrinsics['%FunctionPrototype%'], 'GetPrototypeOf')
+    object_chain['parent'].GetPrototypeOf = types.MethodType(lambda _: realm.intrinsics['%FunctionPrototype%'],
+                                                             object_chain['parent'])
 
     assert object_chain['ancestor'].SetPrototypeOf(object_chain['child']) == Completion(NORMAL, True, None)
     assert object_chain['ancestor'].GetPrototypeOf().value == object_chain['child']
@@ -102,9 +103,9 @@ def test_object_GetOwnProperty_method_02(realm):
 
 def test_object_GetOwnProperty_method_03(realm):
     obj = ObjectCreate(realm.intrinsics['%ObjectPrototype%'], ['test_slot'])
-    def test_get(self):
+    def test_get(self, new_target):
         return NormalCompletion(self.test_slot)
-    def test_set(self, val):
+    def test_set(self, new_target, val):
         self.test_slot = val
         return NormalCompletion(None)
     get_func = CreateBuiltinFunction(test_get, [], realm)
@@ -234,9 +235,9 @@ def test_ValidateAndApplyPropertyDescriptor_11(realm):
     DefinePropertyOrThrow(obj, 'testkey', PropertyDescriptor(value=10, writable=True, enumerable=True, configurable=True))
     current = obj.GetOwnProperty('testkey').value
 
-    def test_get(self):
+    def test_get(self, new_target):
         return NormalCompletion('nonsense')
-    def test_set(self, val):
+    def test_set(self, new_target, val):
         return NormalCompletion(None)
     get_func = CreateBuiltinFunction(test_get, [], realm)
     set_func = CreateBuiltinFunction(test_set, [], realm)
@@ -251,9 +252,9 @@ def test_ValidateAndApplyPropertyDescriptor_11(realm):
 def test_ValidateAndApplyPropertyDescriptor_12(realm):
     # Switch from an accessor descriptor to a data descriptor
     obj = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
-    def test_get(self):
+    def test_get(self, new_target):
         return NormalCompletion('nonsense')
-    def test_set(self, val):
+    def test_set(self, new_target, val):
         return NormalCompletion(None)
     get_func = CreateBuiltinFunction(test_get, [], realm)
     set_func = CreateBuiltinFunction(test_set, [], realm)
@@ -327,9 +328,9 @@ def test_ValidateAndApplyPropertyDescriptor_16(realm):
 def test_ValidateAndApplyPropertyDescriptor_17(realm):
     # For Accessor descriptors, changing Get or Set is not allowed if the property is not configurable
     obj = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
-    def test_get(self):
+    def test_get(self, new_target):
         return NormalCompletion('nonsense')
-    def test_set(self, val):
+    def test_set(self, new_target, val):
         return NormalCompletion(None)
     get_func = CreateBuiltinFunction(test_get, [], realm)
     set_func = CreateBuiltinFunction(test_set, [], realm)
@@ -347,9 +348,9 @@ def test_ValidateAndApplyPropertyDescriptor_17(realm):
 def test_ValidateAndApplyPropertyDescriptor_18(realm):
     # For Accessor descriptors, changing Get or Set is not allowed if the property is not configurable
     obj = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
-    def test_get(self):
+    def test_get(self, new_target):
         return NormalCompletion('nonsense')
-    def test_set(self, val):
+    def test_set(self, new_target, val):
         return NormalCompletion(None)
     get_func = CreateBuiltinFunction(test_get, [], realm)
     set_func = CreateBuiltinFunction(test_set, [], realm)
@@ -367,9 +368,9 @@ def test_ValidateAndApplyPropertyDescriptor_18(realm):
 def test_ValidateAndApplyPropertyDescriptor_19(realm):
     # For non-configurable Accessor descriptors, setting Get or Set to their current values is fine.
     obj = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
-    def test_get(self):
+    def test_get(self, new_target):
         return NormalCompletion('nonsense')
-    def test_set(self, val):
+    def test_set(self, new_target, val):
         return NormalCompletion(None)
     get_func = CreateBuiltinFunction(test_get, [], realm)
     set_func = CreateBuiltinFunction(test_set, [], realm)
@@ -423,7 +424,7 @@ def test_object_DefineOwnProperty_method_04(realm):
     # If an exception happens in [[GetOwnProperty]], it bubbles up. The default implementaion of that method can't actually
     # fail, though, so we have to make one that throws deliberately.
     obj = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
-    obj.GetOwnProperty = types.MethodType(lambda _a, _b: ThrowCompletion('Thrown from 04'), 'GetOwnProperty')
+    obj.GetOwnProperty = types.MethodType(lambda _a, _b: ThrowCompletion('Thrown from 04'), obj)
 
     desc = PropertyDescriptor(value=120)
     cr = obj.DefineOwnProperty('testkey', desc)
@@ -454,7 +455,7 @@ def test_object_HasProperty_method_03(realm):
 def test_object_HasProperty_method_04(realm):
     # Exceptions from [[GetOwnProperty]] bubble up. (Step 2, in the algorithm.)
     obj = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
-    obj.GetOwnProperty = types.MethodType(lambda _a, _b: ThrowCompletion('Thrown from 04'), 'GetOwnProperty')
+    obj.GetOwnProperty = types.MethodType(lambda _a, _b: ThrowCompletion('Thrown from 04'), obj)
 
     cr = obj.HasProperty('toElephant')
     assert cr == Completion(THROW, 'Thrown from 04', None)
@@ -462,7 +463,7 @@ def test_object_HasProperty_method_04(realm):
 def test_object_HasProperty_method_05(realm):
     # Exceptions from [[GetPrototypeOf]] bubble up.
     obj = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
-    obj.GetPrototypeOf = types.MethodType(lambda _: ThrowCompletion('Thrown from 05'), 'GetPrototypeOf')
+    obj.GetPrototypeOf = types.MethodType(lambda _: ThrowCompletion('Thrown from 05'), obj)
 
     cr = obj.HasProperty('toElephant')
     assert cr == Completion(THROW, 'Thrown from 05', None)
@@ -473,7 +474,7 @@ def get_tree(realm):
     child = ObjectCreate(parent)
     CreateDataProperty(parent, 'onparent', 100)
     CreateDataProperty(child, 'onchild', -100)
-    def special_get(self):
+    def special_get(self, new_target):
         return NormalCompletion(self)
     get_fcn = nc(CreateBuiltinFunction(special_get, [], realm=realm))
     DefinePropertyOrThrow(child, 'accessor', PropertyDescriptor(Get=get_fcn, enumerable=True, configurable=True))
@@ -493,20 +494,20 @@ def test_object_Get_method(get_tree, input, expected):
 
 def test_object_Get_method_01(get_tree):
     # An exception in the [[GetOwnProperty]] code path...
-    get_tree.GetOwnProperty = types.MethodType(lambda _a, _b: ThrowCompletion('Thrown from Get_01'), 'GetOwnProperty')
+    get_tree.GetOwnProperty = types.MethodType(lambda _a, _b: ThrowCompletion('Thrown from Get_01'), get_tree)
     val = get_tree.Get('thimble', 345)
     assert val == Completion(THROW, 'Thrown from Get_01', None)
 
 def test_object_Get_method_02(get_tree):
     # An exception in the [[GetPrototypeOf]] code path...
-    get_tree.GetPrototypeOf = types.MethodType(lambda _: ThrowCompletion('Thrown from Get_02'), 'GetPrototypeOf')
+    get_tree.GetPrototypeOf = types.MethodType(lambda _: ThrowCompletion('Thrown from Get_02'), get_tree)
     val = get_tree.Get('needle', 345)
     assert val == Completion(THROW, 'Thrown from Get_02', None)
 
 def test_object_Get_method_03(get_tree):
     # Now try an exception from the parent's recursion.
     parent = nc(get_tree.GetPrototypeOf())
-    parent.GetOwnProperty = types.MethodType(lambda _a, _b: ThrowCompletion('Thrown from Get_03'), 'GetOwnProperty')
+    parent.GetOwnProperty = types.MethodType(lambda _a, _b: ThrowCompletion('Thrown from Get_03'), parent)
     val = get_tree.Get('haystack', 345)
     assert val == Completion(THROW, 'Thrown from Get_03', None)
 
@@ -525,7 +526,7 @@ def test_OrdinarySet_01(obj):
     assert nc(obj.Get('testkey', obj)) == 67
 
 def test_OrdinarySet_02(obj):
-    obj.GetOwnProperty = types.MethodType(lambda _a, _b: ThrowCompletion('Thrown from OrdinarySet_02'), 'GetOwnProperty')
+    obj.GetOwnProperty = types.MethodType(lambda _a, _b: ThrowCompletion('Thrown from OrdinarySet_02'), obj)
     val = OrdinarySet(obj, 'testkey', 68, obj)
     assert val == Completion(THROW, 'Thrown from OrdinarySet_02', None)
 
@@ -547,9 +548,9 @@ def setprops(child):
         PropertyDescriptor(value=546, writable=False, enumerable=True, configurable=True))
     child.DefineOwnProperty('normal',
         PropertyDescriptor(value='NORMAL', writable=True, enumerable=True, configurable=True))
-    def settest_get(self):
+    def settest_get(self, new_target):
         return NormalCompletion(self.slot)
-    def settest_set(self, value):
+    def settest_set(self, new_target, value):
         self.slot = value
         return NormalCompletion(True)
     get_fcn = CreateBuiltinFunction(settest_get, [], realm=surrounding_agent.running_ec.realm)
@@ -643,19 +644,19 @@ def test_OrdinarySetWithOwnDescriptor_10(setprops):
 
 def test_OrdinarySetWithOwnDescriptor_11(setprops):
     # Now exception handling. First, if GetPrototypeOf throws.
-    setprops.GetPrototypeOf = types.MethodType(lambda _: ThrowCompletion('Thrown from OSWOD_11'), 'GetPrototypeOf')
+    setprops.GetPrototypeOf = types.MethodType(lambda _: ThrowCompletion('Thrown from OSWOD_11'), setprops)
     val = OrdinarySetWithOwnDescriptor(setprops, 'elephant', 1, setprops, None)
     assert val == Completion(THROW, 'Thrown from OSWOD_11', None)
 
 def test_OrdinarySetWithOwnDescriptor_12(setprops):
     # If GetOwnProperty throws...
-    setprops.GetOwnProperty = types.MethodType(lambda _a, _b: ThrowCompletion('Thrown from OSWOD_12'), 'GetOwnProperty')
+    setprops.GetOwnProperty = types.MethodType(lambda _a, _b: ThrowCompletion('Thrown from OSWOD_12'), setprops)
     val = OrdinarySetWithOwnDescriptor(setprops, 'normal', 1, setprops, None)
     assert val == Completion(THROW, 'Thrown from OSWOD_12', None)
 
 def test_OrdinarySetWithOwnDescriptor_13(setprops):
     # If a custom setter throws
-    def custom_setter(self, value):
+    def custom_setter(self, new_target, value):
         return ThrowCompletion('Thrown from custom_setter')
     set_fcn = CreateBuiltinFunction(custom_setter, [], realm=surrounding_agent.running_ec.realm)
     val = OrdinarySetWithOwnDescriptor(setprops, 'codish', -90, setprops, PropertyDescriptor(Set=set_fcn))
@@ -692,7 +693,7 @@ def test_OrdinaryDelete_03(deletable):
 
 def test_OrdinaryDelete_04(deletable):
     deletable.GetOwnProperty = types.MethodType(lambda _a, _b: ThrowCompletion('Thrown from OrdinaryDelete_04'),
-                                                'GetOwnProperty')
+                                                deletable)
     val = OrdinaryDelete(deletable, 'normal')
     assert val == Completion(THROW, 'Thrown from OrdinaryDelete_04', None)
 
@@ -727,3 +728,11 @@ def test_OrdinaryOwnPropertyKeys_01(obj):
 ])
 def test_isIntegerIndex_(input, expected):
     assert isIntegerIndex(input) == expected
+
+def test_ObjectCreate_(realm):
+    obj = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
+    child = ObjectCreate(obj, ['testslot', '%crazy%'])
+
+    assert nc(child.GetPrototypeOf()) == obj # validiate prototype chain
+    assert hasattr(child, 'testslot')
+    assert hasattr(child, '%crazy%')
