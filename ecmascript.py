@@ -976,7 +976,7 @@ def UpdateEmpty(cr, value):
 # obj = someroutine()
 # if obj.ctype != CompletionType.NORMAL:
 #    return obj
-# obj = obh.value
+# obj = obj.value
 #
 # Which is a lot of lines. And I realize I'm not doing the isinstance check there, which I really should be.
 #

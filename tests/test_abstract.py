@@ -393,7 +393,7 @@ def test_to_string_symbol():
     assert cr.target is None
     assert isinstance(cr.value, TypeError)
 
-def test_ToObject():
+def test_ToObject(realm):
     # @@@ Needs more, when ready.
     obj = ObjectCreate(JSNull.NULL)
     cr = ToObject(obj)
