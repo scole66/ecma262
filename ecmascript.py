@@ -787,6 +787,9 @@ def OrdinaryCreateFromConstructor(constructor, intrinsic_default_proto, internal
     Beyond that, the object is completely normal. In particular, any function body
     connected to the constructor is **not** run.
 
+    (This function is typically used in the built-in constructors for objects as
+    the first step in the build process.)
+
     This function is defined in section 9.1.13 of the ECMAScript specificiation.
     """
     # The abstract operation OrdinaryCreateFromConstructor creates an ordinary object whose [[Prototype]] value is
@@ -3410,6 +3413,9 @@ def CreateIntrinsics(realm_rec):
     intrinsics['%Boolean%'] = CreateBooleanConstructor(realm_rec)
     intrinsics['%BooleanPrototype%'] = CreateBooleanPrototype(realm_rec)
     BooleanFixups(realm_rec)
+    intrinsics['%Number%'] = CreateNumberConstructor(realm_rec)
+    intrinsics['%NumberPrototype%'] = CreateNumberPrototype(realm_rec)
+    NumberFixups(realm_rec)
 
     # 14. Return intrinsics.
     return intrinsics
@@ -5532,8 +5538,8 @@ def ObjectPrototype_valueOf(this_value, _):
 def CreateBooleanConstructor(realm):
     obj = CreateBuiltinFunction(BooleanFunction, ['Construct'], realm=realm)
     for key, value in [('length', 1), ('name', 'Boolean')]:
-        cr, ok = ec(DefinePropertyOrThrow(obj, key,
-                    PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)))
+        desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)
+        cr, ok = ec(DefinePropertyOrThrow(obj, key, desc))
         if not ok:
             return cr
     return obj
@@ -5566,6 +5572,7 @@ def BooleanFixups(realm):
     cr, ok = ec(DefinePropertyOrThrow(boolean_prototype, 'constructor', PropertyDescriptor(value=boolean_constructor)))
     if not ok:
         return cr
+    return NormalCompletion(None)
 
 # 19.3.3 Properties of the Boolean Prototype Object
 #
@@ -5621,9 +5628,142 @@ def BooleanPrototype_valueOf(this_value, _):
     # 1. Return ? thisBooleanValue(this value).
     return thisBooleanValue(this_value)
 
+# 20.1.1 The Number Constructor
+# The Number constructor:
+#
+#   * is the intrinsic object %Number%.
+#   * is the initial value of the Number property of the global object.
+#   * creates and initializes a new Number object when called as a constructor.
+#   * performs a type conversion when called as a function rather than as a constructor.
+#   * is designed to be subclassable. It may be used as the value of an extends clause of a class definition. Subclass
+#     constructors that intend to inherit the specified Number behaviour must include a super call to the Number constructor
+#     to create and initialize the subclass instance with a [[NumberData]] internal slot.
+#
+def CreateNumberConstructor(realm):
+    obj = CreateBuiltinFunction(NumberFunction, ['Construct'], realm=realm)
+    for key, value in [('length', 1), ('name', 'Number')]:
+        desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)
+        cr, ok = ec(DefinePropertyOrThrow(obj, key, desc))
+        if not ok:
+            return cr
+    return obj
+
+# 20.1.1.1 Number ( value )
+def NumberFunction(_, new_target, value=missing.MISSING):
+    # When Number is called with argument value, the following steps are taken:
+    #
+    # 1. If no arguments were passed to this function invocation, let n be +0.
+    if value == missing.MISSING:
+        n = 0
+    # 2. Else, let n be ? ToNumber(value).
+    else:
+        n, ok = ec(ToNumber(value))
+        if not ok:
+            return n
+    # 3. If NewTarget is undefined, return n.
+    if new_target is None:
+        return NormalCompletion(n)
+    # 4. Let O be ? OrdinaryCreateFromConstructor(NewTarget, "%NumberPrototype%", « [[NumberData]] »).
+    o, ok = ec(OrdinaryCreateFromConstructor(new_target, '%NumberPrototype%', ['NumberData']))
+    if not ok:
+        return o
+    # 5. Set O.[[NumberData]] to n.
+    o.NumberData = n
+    # 6. Return O.
+    return NormalCompletion(o)
+
+# 20.1.3 Properties of the Number Prototype Object
+# The Number prototype object:
+#
+#   * is the intrinsic object %NumberPrototype%.
+#   * is an ordinary object.
+#   * is itself a Number object; it has a [[NumberData]] internal slot with the value +0.
+#   * has a [[Prototype]] internal slot whose value is the intrinsic object %ObjectPrototype%.
+#   * Unless explicitly stated otherwise, the methods of the Number prototype object defined below are not generic and the this
+#     value passed to them must be either a Number value or an object that has a [[NumberData]] internal slot that has been
+#     initialized to a Number value.
+def CreateNumberPrototype(realm):
+    number_prototype = ObjectCreate(realm.intrinsics['%ObjectPrototype%'], ['NumberData'])
+    number_prototype.NumberData = 0
+    cr, ok = ec(BindBuiltinFunctions(realm, number_prototype, [
+        ('toString', NumberPrototype_toString, 1),
+        ('valueOf', NumberPrototype_valueOf, 0)
+        ]))
+    if not ok:
+        return cr
+    return number_prototype
+
+def thisNumberValue(value):
+    # The abstract operation thisNumberValue(value) performs the following steps:
+    #
+    # 1. If Type(value) is Number, return value.
+    if isNumber(value):
+        return NormalCompletion(value)
+    # 2. If Type(value) is Object and value has a [[NumberData]] internal slot, then
+    if isObject(value) and hasattr(value, 'NumberData'):
+        # a. Let n be value.[[NumberData]].
+        n = value.NumberData
+        # b. Assert: Type(n) is Number.
+        assert(isNumber(n))
+        # c. Return n.
+        return NormalCompletion(n)
+    # 3. Throw a TypeError exception.
+    return ThrowCompletion(CreateTypeError())
+    # The phrase “this Number value” within the specification of a method refers to the result returned by calling the abstract
+    # operation thisNumberValue with the this value of the method invocation passed as the argument.
+
+# 20.1.3.6 Number.prototype.toString ( [ radix ] )
+def NumberPrototype_toString(this_value, _, radix=None):
+    # NOTE
+    # The optional radix should be an integer value in the inclusive range 2 to 36. If radix is not present or is undefined the
+    # Number 10 is used as the value of radix.
+    #
+    # The following steps are performed:
+    #
+    # 1. Let x be ? thisNumberValue(this value).
+    x, ok = ec(thisNumberValue(this_value))
+    # 2. If radix is not present, let radixNumber be 10.
+    # 3. Else if radix is undefined, let radixNumber be 10.
+    if radix is None:
+        radixNumber = 10
+    # 4. Else, let radixNumber be ? ToInteger(radix).
+    else:
+        radixNumber, ok = ec(ToInteger(radix))
+        if not ok:
+            return radixNumber
+    # 5. If radixNumber < 2 or radixNumber > 36, throw a RangeError exception.
+    if radixNumber < 2 or radixNumber > 36:
+        return ThrowCompletion(CreateRangeError())
+    # 6. If radixNumber = 10, return ! ToString(x).
+    if radixNumber == 10:
+        return NormalCompletion(nc(ToString(x)))
+    # 7. Return the String representation of this Number value using the radix specified by radixNumber. Letters a-z are used
+    #    for digits with values 10 through 35. The precise algorithm is implementation-dependent, however the algorithm should
+    #    be a generalization of that specified in 7.1.12.1.
+    raise NotImplementedError()
+    # The toString function is not generic; it throws a TypeError exception if its this value is not a Number or a Number
+    # object. Therefore, it cannot be transferred to other kinds of objects for use as a method.
+
+# 20.1.3.7 Number.prototype.valueOf ( )
+def NumberPrototype_valueOf(this_value, _):
+    # 1. Return ? thisNumberValue(this value).
+    return thisNumberValue(this_value)
+
+def NumberFixups(realm):
+    number_constructor = realm.intrinsics['%Number%']
+    number_prototype = realm.intrinsics['%NumberPrototype%']
+    proto_desc = PropertyDescriptor(value=number_prototype, writable=False, enumerable=False, configurable=False)
+    cr, ok = ec(DefinePropertyOrThrow(number_constructor, 'prototype', proto_desc))
+    if not ok:
+        return cr
+    cr, ok = ec(DefinePropertyOrThrow(number_prototype, 'constructor', PropertyDescriptor(value=number_constructor)))
+    if not ok:
+        return cr
+    return NormalCompletion(None)
+
 if __name__ == '__main__':
     InitializeHostDefinedRealm()
     realm = surrounding_agent.running_ec.realm
     print('\n'.join('%s: %s' % (key, nc(ToString(nc(Get(realm.global_object, key))))) for key in nc(realm.global_object.OwnPropertyKeys())))
 
-    print('True becomes %s' % nc(ToString(nc(ToObject(10)))))
+    print('inf becomes %s' % nc(ToString(nc(ToObject(math.inf)))))
