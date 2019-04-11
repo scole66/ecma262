@@ -2,5 +2,9 @@
   omit =
     tests/*
     venv/*
+    /Users/scole/Library/*
+    /Users/scole/.vscode/*
+    C:\Users\scole\Appdata\*
+    /usr/local/lib/*
 [report]
   show_missing = true
