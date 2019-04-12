@@ -736,3 +736,56 @@ def test_ObjectCreate_(realm):
     assert nc(child.GetPrototypeOf()) == obj # validiate prototype chain
     assert hasattr(child, 'testslot')
     assert hasattr(child, '%crazy%')
+
+def test_GetPrototypeFromConstructor_01(realm):
+    # For the "normal" case, our constructor object needs to be callable.
+    def fake_constructor(this_value, new_target):
+        return NormalCompletion(None)
+    constructor = CreateBuiltinFunction(fake_constructor, [])
+    proto = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
+    CreateDataProperty(constructor, 'prototype', proto)
+
+    val = GetPrototypeFromConstructor(constructor, '%BooleanPrototype%')
+    assert val == Completion(NORMAL, proto, None)
+
+def test_GetPrototypeFromConstructor_02(realm):
+    # Constructor is a callable object, but doesn't have a prototype
+    def fake_constructor(this_value, new_target):
+        return NormalCompletion(None)
+    constructor = CreateBuiltinFunction(fake_constructor, [])
+
+    val = GetPrototypeFromConstructor(constructor, '%BooleanPrototype%')
+    assert val == Completion(NORMAL, realm.intrinsics['%BooleanPrototype%'], None)
+
+def test_GetPrototypeFromConstructor_03(realm):
+    # Constructor is a callable object, but has a prototype with a non-object value
+    def fake_constructor(this_value, new_target):
+        return NormalCompletion(None)
+    constructor = CreateBuiltinFunction(fake_constructor, [])
+    CreateDataProperty(constructor, 'prototype', 5.6)
+
+    val = GetPrototypeFromConstructor(constructor, '%BooleanPrototype%')
+    assert val == Completion(NORMAL, realm.intrinsics['%BooleanPrototype%'], None)
+
+def test_GetPrototypeFromConstructor_04(realm):
+     # The [[Get]] call on the constructor throws.
+    def fake_constructor(this_value, new_target):
+        return NormalCompletion(None)
+    constructor = CreateBuiltinFunction(fake_constructor, [])
+    constructor.GetOwnProperty = types.MethodType(lambda _a, _b: ThrowCompletion('Thrown from GPFC_04'), constructor)
+
+    val = GetPrototypeFromConstructor(constructor, '%ObjectPrototype%')
+    assert val == Completion(THROW, 'Thrown from GPFC_04', None)
+
+def test_GetPrototypeFromConstructor_05(realm):
+    # GetFunctionRealm throws.
+    def fake_constructor(this_value, new_target):
+        return NormalCompletion(None)
+    constructor = CreateBuiltinFunction(fake_constructor, ['ProxyHandler'])
+    assert not hasattr(constructor, 'Realm') # This should be here, but isn't. I suspect I have a case mismatch problem. In any case, if this assert starts breaking, just 'del' the Realm attr here instead of asserting.
+    constructor.ProxyHandler = JSNull.NULL
+
+    val = GetPrototypeFromConstructor(constructor, '%ObjectPrototype%')
+    assert val.ctype == THROW
+    assert val.target is None
+    assert isinstance(val.value, TypeError)
