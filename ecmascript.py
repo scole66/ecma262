@@ -809,6 +809,26 @@ def OrdinaryCreateFromConstructor(constructor, intrinsic_default_proto, internal
 
 # 9.1.14 GetPrototypeFromConstructor ( constructor, intrinsicDefaultProto )
 def GetPrototypeFromConstructor(constructor, intrinsic_default_proto):
+    """Determine the [[Prototype]] to create an object from a constructor.
+
+    This operation determines the [[Prototype]] value that should be used to create
+    an object corresponding to a specific constructor. The value is retrieved from
+    the constructor's "prototype" property, if it exists. Otherwise the intricsic
+    named by the intrinsic_default_proto argument is used.
+
+    Arguments:
+       constructor: The constructor to create an object from
+       intrinsic_default_proto: The string name of the intrinsic prototype to use if
+          the constructor itself is unable to provide one.
+
+    Returns the prototype object.
+
+    Note: If "constructor" does not supply a [[Prototype]] value, the default value
+    that is used is obtained from the realm of the constructor function rather than
+    from the running execution context.
+
+    This process is described in section 9.1.14 of the ECMAScript specification.
+    """
     # The abstract operation GetPrototypeFromConstructor determines the [[Prototype]] value that should be used to
     # create an object corresponding to a specific constructor. The value is retrieved from the constructor's prototype
     # property, if it exists. Otherwise the intrinsic named by intrinsicDefaultProto is used for [[Prototype]]. This
