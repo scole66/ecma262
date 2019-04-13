@@ -2108,6 +2108,37 @@ def GetMethod(value, propkey):
     # 5. Return func.
     return NormalCompletion(func)
 
+# 7.3.10 HasProperty ( O, P )
+def HasProperty(O, P):
+    # The abstract operation HasProperty is used to determine whether an object has a property with the specified property key.
+    # The property may be either an own or inherited. A Boolean value is returned. The operation is called with arguments O and
+    # P where O is the object and P is the property key. This abstract operation performs the following steps:
+    #
+    # 1. Assert: Type(O) is Object.
+    assert isObject(O)
+    # 2. Assert: IsPropertyKey(P) is true.
+    assert IsPropertyKey(P)
+    # 3. Return ? O.[[HasProperty]](P).
+    return O.HasProperty(P)
+
+# 7.3.11 HasOwnProperty ( O, P )
+def HasOwnProperty(O, P):
+    # The abstract operation HasOwnProperty is used to determine whether an object has an own property with the specified
+    # property key. A Boolean value is returned. The operation is called with arguments O and P where O is the object and P is
+    # the property key. This abstract operation performs the following steps:
+    #
+    # 1. Assert: Type(O) is Object.
+    assert isObject(O)
+    # 2. Assert: IsPropertyKey(P) is true.
+    assert IsPropertyKey(P)
+    # 3. Let desc be ? O.[[GetOwnProperty]](P).
+    desc, ok = O.GetOwnProperty(P)
+    if not ok:
+        return desc
+    # 4. If desc is undefined, return false.
+    # 5. Return true.
+    return NormalCompletion(desc is not None)
+
 # 7.3.12 Call ( F, V [ , argumentsList ] )
 def Call(func, value, *args):
     # The abstract operation Call is used to call the [[Call]] internal method of a function object. The operation is
@@ -2526,7 +2557,7 @@ class DeclarativeEnvironmentRecord:
 
 class ObjectEnvironmentRecord:
     def __init__(self, binding_object, with_environment):
-        self.binding_object = ToObject(binding_object)
+        self.binding_object = nc(ToObject(binding_object))
         self.with_environment = ToBoolean(with_environment)
 
     # 8.1.1.2.1 HasBinding ( N )
@@ -2543,7 +2574,7 @@ class ObjectEnvironmentRecord:
         if not found_binding:
             return NormalCompletion(False)
         # 5. If the withEnvironment flag of envRec is false, return true.
-        if not with_environment:
+        if not self.with_environment:
             return NormalCompletion(True)
         # 6. Let unscopables be ? Get(bindings, @@unscopables).
         unscopables, ok = ec(Get(self.binding_object, wks_unscopables))
@@ -3634,7 +3665,7 @@ def ResolveBinding(name, env=None):
     assert isinstance(env, LexicalEnvironment)
     # 3. If the code matching the syntactic production that is being evaluated is contained in strict mode code, let
     #    strict be true, else let strict be false.
-    strict = FigureOutWhatTheHeckThisIs()  # See 10.2.1.
+    strict = True #FigureOutWhatTheHeckThisIs()  # See 10.2.1.
     # 4. Return ? GetIdentifierReference(env, name, strict).
     return GetIdentifierReference(env, name, strict)
     # NOTE
@@ -3873,7 +3904,7 @@ def RunJobs(scripts=[], modules=[]):
         # e. Let newContext be a new execution context.
         new_context = ExecutionContext()
         # f. Set newContext's Function to null.
-        new_context.ecma_function = None
+        new_context.ecma_function = JSNull.NULL
         # g. Set newContext's Realm to nextPending.[[Realm]].
         new_context.realm = next_pending.realm
         # h. Set newContext's ScriptOrModule to nextPending.[[ScriptOrModule]].
@@ -3889,6 +3920,7 @@ def RunJobs(scripts=[], modules=[]):
         # l. If result is an abrupt completion, perform HostReportErrors(« result.[[Value]] »).
         if not ok:
             HostReportErrors([result])
+    return NormalCompletion(result)
 
 # 8.7 Agents
 
@@ -4192,6 +4224,13 @@ class LexerError(Exception):
         super().__init__()
         self.message = message
 
+class Token:
+    '''
+    Representation of a single token.
+    '''
+    __slots__ = ('type', 'value', 'lineno', 'index')
+    def __repr__(self):
+        return f'Token(type={self.type!r}, value={self.value!r}, lineno={self.lineno}, index={self.index})'
 
 class Lexer():
 
@@ -4202,21 +4241,74 @@ class Lexer():
         InputElementRegExpOrTemplateTail = auto()
         InputElementTemplateTail = auto()
 
-    @unique
-    class Type(Enum):
-        Token = auto()
-        Whitespace = auto()
-        Comment = auto()
-        LineTerminator = auto()
+    tokens = {
+        'NUMERIC',
+        'IDENTIFIER',
+        'STRING',
+        'EQUALS',
+        'BANG',
+        'BANGEQ',
+        'BANGEQEQ',
+        'PLUS',
+        'MINUS',
+        'PERCENT',
+        'PERCENTEQ',
+        'PERIOD',
+        'DOTDOTDOT',
+        'XOR',
+        'XOREQ',
+        'PIPE',
+        'PIPEPIPE',
+        'PIPEEQ',
+        'AMP',
+        'AMPAMP',
+        'AMPEQ',
+        'LPAREN',
+        'RPAREN',
+        'LBRACKET',
+        'RBRACKET',
+        'LCURLY',
+        'RCURLY',
+        'STAR',
+        'STARSTAR',
+        'STAREQ',
+        'STARSTAREQ',
+        'PLUSPLUS',
+        'MINUSMINUS',
+        'PLUSEQ',
+        'MINUSEQ',
+        'COMMA',
+        'SEMICOLON',
+        'COLON',
+        'LT',
+        'LE',
+        'LTLT',
+        'LTLE',
+        'EQEQ',
+        'EQEQEQ',
+        'EQGT',
+        'GT',
+        'GE',
+        'GTGT',
+        'GTGE',
+        'GTGTGT',
+        'GTGTGE',
+        'QUESTION',
+        'DIV',
+        'DIVEQ',
+        'TILDE',
+        'AWAIT', 'BREAK', 'CASE', 'CATCH', 'CLASS', 'CONST', 'CONTINUE',
+        'DEBUGGER', 'DEFAULT', 'DELETE', 'DO', 'ELSE', 'EXPORT', 'EXTENDS',
+        'FINALLY', 'FOR', 'FUNCTION', 'IF', 'IMPORT', 'IN', 'INSTANCEOF',
+        'NEW', 'RETURN', 'SUPER', 'SWITCH', 'THIS', 'THROW', 'TRY', 'TYPEOF',
+        'VAR', 'VOID', 'WHILE', 'WITH', 'YIELD', 'ENUM', 'NULL', 'TRUE',
+        'FALSE'
+         }
 
-    class Token():
-        def __init__(self, lexer, type, start, length):
-            self.lexer = lexer
-            self.type = type
-            self.start = start
-            self.length = length
-        def value(self):
-            return self.lexer.source[self.start:self.start+self.length]
+    class TokenValue:
+        __slots__ = ('value', 'lt_follows')
+        def __repr__(self):
+            return f'TokenValue(value={self.value!r}, lt_follows={self.lt_follows})'
 
     whitespace = (
         '\u0009'  # <TAB> CHARACTER TABULATION
@@ -4240,14 +4332,37 @@ class Lexer():
         self.start = 0
         self.pos = 0
 
-    def _make_token(self, type, end_prior):
-        where = self.pos
-        length = where - self.start
+    def _swallow(self, end_prior):
+        self.start = self.pos
         if end_prior:
-            length -= 1
-        tok = self.Token(self, type, self.start, length)
-        self.start += length
+            self.start -= 1
+
+    def _make_token(self, type, value, end_prior):
+        assert type in self.tokens
+        tok = Token()
+        val = self.TokenValue()
+        val.value = value
+        val.lt_follows = False
+        tok.value = val
+        tok.type = type
+        tok.index = self.start
+        tok.lineno = self.linenum
+        self._swallow(end_prior)
         return tok
+
+    one_char_punctuators = {
+        '(': 'LPAREN',
+        ')': 'RPAREN',
+        ',': 'COMMA',
+        ':': 'COLON',
+        ';': 'SEMICOLON',
+        '?': 'QUESTION',
+        '[': 'LBRACKET',
+        ']': 'RBRACKET',
+        '{': 'LCURLY',
+        '}': 'RCURLY',
+        '~': 'TILDE'
+    }
 
     def _initial(self, ch, lookahead):
         # Empty string means we're done
@@ -4263,19 +4378,21 @@ class Lexer():
         #    DivPunctuator
         #    RightBracePunctuator
         if ch in self.whitespace or unicodedata.category(ch) == 'Zs':
-            # WhiteSpace
-            return (self._initial, [self._make_token(self.Type.Whitespace, False)])
+            # WhiteSpace --- we ignore this
+            self._swallow(False)
+            return (self._initial, [])
         elif ch in self.line_terminators:
             # LineTerminator
             if ch != '\u000d' or lookahead != '\u000a':
                 self.linenum += 1
-            return (self._initial, [self._make_token(self.Type.LineTerminator, False)])
+            self._swallow(False)
+            return (self._initial, [])
         elif ch == '/':
             # Might be Comment::SingleLineComment, Comment::MultiLineComment, DivPunctuator::/, or DivPunctuator::/=
             return (self._comment_or_div, [])
         elif ch in '(),:;?[]{}~':
             # These are CommonToken::Punctuator or RightBracePunctuator that are uniquely one character in size
-            return (self._initial, [self._make_token(self.Type.Token, False)])
+            return (self._initial, [self._make_token(self.one_char_punctuators[ch], ch, False)])
         elif ch == '!':
             return (self._bang, [])
         elif ch == '%':
@@ -4327,65 +4444,71 @@ class Lexer():
         # We already have !. Might be !, !=, or !==.
         if ch == '=':
             return (self._bang_equals, [])
-        tok = self._make_token(self.Type.Token, True)
+        tok = self._make_token('BANG', '!', True)
         state, results = self._initial(ch, lookahead)
         return (state, chain([tok], results))
 
     def _bang_equals(self, ch, lookahead):
         # We already have !=. Might also be !==.
         if ch == '=':
-            return (self._initial, [self._make_token(self.Type.Token, False)])
-        tok = self._make_token(self.Type.Token, True)
+            return (self._initial, [self._make_token('BANGEQEQ', '!==', False)])
+        tok = self._make_token('BANGEQ', '!=', True)
         state, results = self._initial(ch, lookahead)
         return (state, chain([tok], results))
 
     def _percent(self, ch, lookahead):
         # We already have %. Might also be %=.
         if ch == '=':
-            return (self._initial, [self._make_token(self.Type.Token, False)])
-        tok = self._make_token(self.Type.Token, True)
+            return (self._initial, [self._make_token('PERCENTEQ', '%=', False)])
+        tok = self._make_token('PERCENT', '%', True)
         state, results = self._initial(ch, lookahead)
         return (state, chain([tok], results))
 
     def _ampersand(self, ch, lookahead):
         # We already have &. Might also be && or &=.
-        if ch == '&' or ch == '=':
-            return (self._initial, [self._make_token(self.Type.Token, False)])
-        tok = self._make_token(self.Type.Token, True)
+        if ch == '&':
+            return (self._initial, [self._make_token('AMPAMP', '&&', False)])
+        if ch == '=':
+            return (self._initial, [self._make_token('AMPEQ', '&=', False)])
+        tok = self._make_token('AMP', '&', True)
         state, results = self._initial(ch, lookahead)
         return (state, chain([tok], results))
 
     def _asterisk(self, ch, lookahead):
         # We already have *. Might also be **, **=, or *=
         if ch == '=':
-            return (self._initial, [self._make_token(self.Type.Token, False)])
+            return (self._initial, [self._make_token('STAREQ', '*=', False)])
         if ch == '*':
             return (self._star_star, [])
-        tok = self._make_token(self.Type.Token, True)
+        tok = self._make_token('STAR', '*', True)
         state, results = self._initial(ch, lookahead)
         return (state, chain([tok], results))
 
     def _star_star(self, ch, lookahead):
         # We already have **. Might also be **=.
         if ch == '=':
-            return (self._initial, [self._make_token(self.Type.Token, False)])
-        tok = self._make_token(self.Type.Token, True)
+            return (self._initial, [self._make_token('STARSTAREQ', '**=', False)])
+        tok = self._make_token('STARSTAR', '**', True)
         state, results = self._initial(ch, lookahead)
         return (state, chain([tok], results))
 
     def _plus(self, ch, lookahead):
         # We already have +. Might also be ++ or +=.
-        if ch == '+' or ch == '=':
-            return (self._initial, [self._make_token(self.Type.Token, False)])
-        tok = self._make_token(self.Type.Token, True)
+        if ch == '+':
+            return (self._initial, [self._make_token('PLUSPLUS', '++', False)])
+        if ch == '=':
+            return (self._initial, [self._make_token('PLUSEQ', '+=', False)])
+        tok = self._make_token('PLUS', '+', True)
         state, results = self._initial(ch, lookahead)
         return (state, chain([tok], results))
 
     def _minus(self, ch, lookahead):
         # We already have -. Might also be -- or -=.
-        if ch == '-' or ch == '=':
-            return (self._initial, [self._make_token(self.Type.Token, False)])
-        tok = self._make_token(self.Type.Token, True)
+        if ch == '-':
+            return (self._initial, [self._make_token('MINUSMINUS', '--', False)])
+        if ch == '=':
+            return (self._initial, [self._make_token('MINUSEQ', '-=', False)])
+        tok = self._make_token('MINUS', '-', True)
         state, results = self._initial(ch, lookahead)
         return (state, chain([tok], results))
 
@@ -4396,130 +4519,134 @@ class Lexer():
         if ch and ch in '0123456789':
             # Hey, look, it's a number.
             return (self._after_decimal, [])
-        tok = self._make_token(self.Type.Token, True)
+        tok = self._make_token('PERIOD', '.', True)
         state, results = self._initial(ch, lookahead)
         return (state, chain([tok], results))
 
     def _dot_dot(self, ch, lookahead):
         # We already have '..'. Might also be '...'.
         if ch == '.':
-            return (self._initial, [self._make_token(self.Type.Token, False)])
+            return (self._initial, [self._make_token('DOTDOTDOT', '...', False)])
         # (But there's no '..', so that tokenizes into two individual dots.)
-        tok = self._make_token(self.Type.Token, True) # This is a '..' token...
-        tok.length -= 1 # Convert it to '.' (the first dot)
+        tok = self._make_token('PERIOD', '.', True)
         self.start -= 1 # back up start to point to the 2nd dot
-        tok2 = self._make_token(self.Type.Token, True) # This just got the 2nd dot
+        tok2 = self._make_token('PERIOD', '.', True) # This just got the 2nd dot
         state, results = self._initial(ch, lookahead)
         return (state, chain([tok, tok2], results))
 
     def _less_than(self, ch, lookahead):
         # We already have '<'. Might also be '<<', '<<=', or '<='.
         if ch == '=':
-            return (self._initial, [self._make_token(self.Type.Token, False)])
+            return (self._initial, [self._make_token('LE', '<=', False)])
         if ch == '<':
             return (self._less_less, [])
-        tok = self._make_token(self.Type.Token, True)
+        tok = self._make_token('LT', '<', True)
         state, results = self._initial(ch, lookahead)
         return (state, chain([tok], results))
 
     def _less_less(self, ch, lookahead):
         # We have <<. Might also be <<=.
         if ch == '=':
-            return (self._initial, [self._make_token(self.Type.Token, False)])
-        tok = self._make_token(self.Type.Token, True)
+            return (self._initial, [self._make_token('LTLE', '<<=', False)])
+        tok = self._make_token('LTLT', '<<', True)
         state, results = self._initial(ch, lookahead)
         return (state, chain([tok], results))
 
     def _equals(self, ch, lookahead):
         # We have =. Might also be ==, ===, or =>.
         if ch == '>':
-            return (self._initial, [self._make_token(self.Type.Token, False)])
+            return (self._initial, [self._make_token('EQGT', '=>', False)])
         if ch == '=':
             return (self._equal_equal, [])
-        tok = self._make_token(self.Type.Token, True)
+        tok = self._make_token('EQUALS', '=', True)
         state, results = self._initial(ch, lookahead)
         return (state, chain([tok], results))
 
     def _equal_equal(self, ch, lookahead):
         # We have ==. Might also be ===.
         if ch == '=':
-            return (self._initial, [self._make_token(self.Type.Token, False)])
-        tok = self._make_token(self.Type.Token, True)
+            return (self._initial, [self._make_token('EQEQEQ', '===', False)])
+        tok = self._make_token('EQEQ', '==', True)
         state, results = self._initial(ch, lookahead)
         return (state, chain([tok], results))
 
     def _greater_than(self, ch, lookahead):
         # We have >. Might also be >=, >>, >>=, >>>, or >>>=.
         if ch == '=':
-            return (self._initial, [self._make_token(self.Type.Token, False)])
+            return (self._initial, [self._make_token('GE', '>=', False)])
         if ch == '>':
             return (self._greater_greater, [])
-        tok = self._make_token(self.Type.Token, True)
+        tok = self._make_token('GT', '>', True)
         state, results = self._initial(ch, lookahead)
         return (state, chain([tok], results))
 
     def _greater_greater(self, ch, lookahead):
         # We have >>. Might also be >>=, >>>, or >>>=.
         if ch == '=':
-            return (self._initial, [self._make_token(self.Type.Token, False)])
+            return (self._initial, [self._make_token('GTGE', '>>=', False)])
         if ch == '>':
             return (self._greater_x3, [])
-        tok = self._make_token(self.Type.Token, True)
+        tok = self._make_token('GTGT', '>>', True)
         state, results = self._initial(ch, lookahead)
         return (state, chain([tok], results))
 
     def _greater_x3(self, ch, lookahead):
         # We have >>>. Might also be >>>=.
         if ch == '=':
-            return (self._initial, [self._make_token(self.Type.Token, False)])
-        tok = self._make_token(self.Type.Token, True)
+            return (self._initial, [self._make_token('GTGTGE', '>>>=', False)])
+        tok = self._make_token('GTGTGT', '>>>', True)
         state, results = self._initial(ch, lookahead)
         return (state, chain([tok], results))
 
     def _caret(self, ch, lookahead):
         # We have ^. Might also be ^=.
         if ch == '=':
-            return (self._initial, [self._make_token(self.Type.Token, False)])
-        tok = self._make_token(self.Type.Token, True)
+            return (self._initial, [self._make_token('XOREQ', '^=', False)])
+        tok = self._make_token('XOR', '^', True)
         state, results = self._initial(ch, lookahead)
         return (state, chain([tok], results))
 
     def _pipe(self, ch, lookahead):
         # We have |. Might also be |= or ||.
-        if ch and ch in '=|':
-            return (self._initial, [self._make_token(self.Type.Token, False)])
-        tok = self._make_token(self.Type.Token, True)
+        if ch == '=':
+            return (self._initial, [self._make_token('PIPEEQ', '|=', False)])
+        if ch == '|':
+            return (self._initial, [self._make_token('PIPEPIPE', '||', False)])
+        tok = self._make_token('PIPE', '|', True)
         state, results = self._initial(ch, lookahead)
         return (state, chain([tok], results))
 
     def _comment_or_div(self, ch, lookahead):
         # We have one slash. All kinds of things this might be.
         if ch == '=':
-            return (self._initial, [self._make_token(self.Type.Token, False)])
+            return (self._initial, [self._make_token('DIVEQ', '/=', False)])
         if ch == '/':
             # A SingleLineComment
             return (self._single_line_comment, [])
         if ch == '*':
             # A MultiLineComment
             return (self._multi_line_comment, [])
-        tok = self._make_token(self.Type.Token, True)
+        tok = self._make_token('DIV', '/', True)
         state, results = self._initial(ch, lookahead)
         return (state, chain([tok], results))
 
     def _single_line_comment(self, ch, lookahead):
         if ch and ch not in self.line_terminators:
             return (self._single_line_comment, [])
-        tok = self._make_token(self.Type.Comment, True)
-        state, results = self._initial(ch, lookahead)
-        return (state, chain([tok], results))
+        self._swallow(True)
+        return self._initial(ch, lookahead)
 
     def _multi_line_comment(self, ch, lookahead):
         if ch == '':
             # Hit EOF! That's an unterminated comment error.
             raise LexerError('Unterminated multi-line comment')
+        if ch in self.line_terminators:
+            if ch != '\u000d' or lookahead != '\u000a':
+                self.linenum += 1
         pos = self.pos
         if ch == '/' and (pos - self.start) >= 4 and self.source[pos-2] == '*':
-            return (self._initial, [self._make_token(self.Type.Comment, False)])
+            self._swallow(False)
+            return (self._initial, [])
         return (self._multi_line_comment, [])
 
     def _numeric_start(self, ch, lookahead):
@@ -4546,7 +4673,7 @@ class Lexer():
         if ch and (ch in '0123456789' or self.is_identifier_start(ch)):
             raise LexerError('Invalid chars after Numeric Literal')
 
-        tok = self._make_token(self.Type.Token, True)
+        tok = self._make_token('NUMERIC', float(self.source[self.start:self.pos-1]), True)
         state, results = self._initial(ch, lookahead)
         return (state, chain([tok], results))
 
@@ -4557,7 +4684,7 @@ class Lexer():
             raise LexerError('Invalid chars after Numeric Literal')
         if self.source[self.pos-2] not in '01':
             raise LexerError('Invalid numeric literal')
-        tok = self._make_token(self.Type.Token, True)
+        tok = self._make_token('NUMERIC', float(int(self.source[self.start:self.pos-1], 2)), True)
         state, results = self._initial(ch, lookahead)
         return (state, chain([tok], results))
 
@@ -4568,7 +4695,7 @@ class Lexer():
             raise LexerError('Invalid chars after Numeric Literal')
         if self.source[self.pos-2] not in '01234567':
             raise LexerError('Invalid numeric literal')
-        tok = self._make_token(self.Type.Token, True)
+        tok = self._make_token('NUMERIC', float(int(self.source[self.start:self.pos-1], 8)), True)
         state, results = self._initial(ch, lookahead)
         return (state, chain([tok], results))
 
@@ -4579,7 +4706,7 @@ class Lexer():
             raise LexerError('Invalid chars after Numeric Literal')
         if self.source[self.pos-2] not in '0123456789abcdefABCDEF':
             raise LexerError('Invalid numeric literal')
-        tok = self._make_token(self.Type.Token, True)
+        tok = self._make_token('NUMERIC', float(int(self.source[self.start:self.pos-1], 16)), True)
         state, results = self._initial(ch, lookahead)
         return (state, chain([tok], results))
 
@@ -4593,7 +4720,7 @@ class Lexer():
 
         if ch and self.is_identifier_start(ch):
             raise LexerError('Invalid chars after Numeric Literal')
-        tok = self._make_token(self.Type.Token, True)
+        tok = self._make_token('NUMERIC', float(self.source[self.start:self.pos-1]), True)
         state, results = self._initial(ch, lookahead)
         return (state, chain([tok], results))
 
@@ -4605,7 +4732,7 @@ class Lexer():
 
         if ch and self.is_identifier_start(ch):
             raise LexerError('Invalid chars after Numeric Literal')
-        tok = self._make_token(self.Type.Token, True)
+        tok = self._make_token('NUMERIC', float(self.source[self.start:self.pos-1]), True)
         state, results = self._initial(ch, lookahead)
         return (state, chain([tok], results))
 
@@ -4626,7 +4753,7 @@ class Lexer():
             return (self._exponent_digits, [])
         if ch and self.is_identifier_start(ch):
             raise LexerError('Invalid chars after Numeric Literal')
-        tok = self._make_token(self.Type.Token, True)
+        tok = self._make_token('NUMERIC', float(self.source[self.start:self.pos-1]), True)
         state, results = self._initial(ch, lookahead)
         return (state, chain([tok], results))
 
@@ -4675,12 +4802,43 @@ class Lexer():
     def is_identifier_start(cls, ch):
         return cls.is_unicode_id_start(ch) or ch in '$_\\'
 
+    @staticmethod
+    def _detect_reserved_word(word):
+        reserved_word_tokens = [
+            'await', 'break', 'case', 'catch', 'class', 'const', 'continue',
+            'debugger', 'default', 'delete', 'do', 'else', 'export', 'extends',
+            'finally', 'for', 'function', 'if', 'import', 'in', 'instanceof',
+            'new', 'return', 'super', 'switch', 'this', 'throw', 'try', 'typeof',
+            'var', 'void', 'while', 'with', 'yield', 'enum', 'null', 'true',
+            'false' ]
+        return word.upper() if word in reserved_word_tokens else None
+
+    @staticmethod
+    def _identifier_string_value(word):
+        escape_matcher = re.compile(r'\\u(?:([0-9A-Fa-f]{4})|(?:\{([0-9a-fA-F]+)\}))')
+        while 1:
+            # You might think this "replace again" method is fraught with errors, since an encoded slash would illegally be
+            # decoded multiple times. It turns out that's not a problem because the slash is not a valid identifier character
+            # and was rejected before we ever got here. At this point, we're guaranteed that all escaped characters are
+            # valid identifier characters, and none of those will get decoded any more than one time.
+            match = escape_matcher.search(word)
+            if match is None:
+                return word
+            word = word.replace(match.group(0), chr(int(match.group(1) or match.group(2), 16)))
+
+    def _tok_rw_or_id(self):
+        word = self.source[self.start:self.pos-1]
+        token_type = self._detect_reserved_word(word)
+        if token_type:
+            return self._make_token(token_type, word, True)
+        return self._make_token('IDENTIFIER', self._identifier_string_value(word), True)
+
     def _ident_capture(self, ch, lookahead):
         if ch and (self.is_unicode_id_continue(ch) or ch in '$\u200c\u200d'):
             return (self._ident_capture, [])
         if ch == '\\':
             return (self._identpart_escape_1, [])
-        tok = self._make_token(self.Type.Token, True)
+        tok = self._tok_rw_or_id()
         state, results = self._initial(ch, lookahead)
         return (state, chain([tok], results))
 
@@ -4778,9 +4936,69 @@ class Lexer():
                     return (self._ident_capture, [])
         raise LexerError('Invalid IdentifierName escape sequence')
 
+    @classmethod
+    def _single_string_value(cls, chars):
+        assert chars[0] == "'" and chars[-1] == "'"
+        # Remove the quotes
+        chars = chars[1:len(chars)-1]
+        # Translate any escape sequences
+        if chars.find('\\') < 0:
+            # No escapes. We're done
+            return chars
+        decoded = ''
+        index = 0
+        while index < len(chars):
+            slash = chars.find('\\', index)
+            if slash < 0: # No more!
+                decoded += chars[index:]
+                break
+            decoded += chars[index:slash]
+            index = slash
+            if chars[index+1] == 'x':
+                decoded += chr(int(chars[index+2:index+4], 16))
+                index += 4
+            elif chars[index+1] == 'u':
+                if chars[index+2] != '{':
+                    decoded += chr(int(chars[index+2:index+6], 16))
+                    index += 6
+                else:
+                    closing = chars.find('}', index+3)
+                    decoded += chr(int(chars[index+3:closing], 16))
+                    index = closing + 1
+            elif chars[index+1] == '0':
+                decoded += '\u0000'
+                index += 2
+            elif chars[index+1] == 'b':
+                decoded += '\u0008'
+                index += 2
+            elif chars[index+1] == 't':
+                decoded += '\u0009'
+                index += 2
+            elif chars[index+1] == 'n':
+                decoded += '\u000a'
+                index += 2
+            elif chars[index+1] == 'v':
+                decoded += '\u000b'
+                index += 2
+            elif chars[index+1] == 'f':
+                decoded += '\u000c'
+                index += 2
+            elif chars[index+1] == 'r':
+                decoded += '\u000d'
+                index += 2
+            elif chars[index+1] in cls.line_terminators:
+                if chars[index+1] == '\r' and chars[index+2] == '\n':
+                    index += 3
+                else:
+                    index += 2
+            else:
+                decoded += chars[index+1]
+                index += 2
+        return decoded
+
     def _single_string_capture(self, ch, lookahead):
         if ch == "'":
-            return (self._initial, [self._make_token(self.Type.Token, False)])
+            return (self._initial, [self._make_token('STRING', self._single_string_value(self.source[self.start:self.pos]), False)])
         if ch == '\\':
             return (self._string_escape, [])
         if ch == '' or ch in self.line_terminators:
@@ -4796,6 +5014,7 @@ class Lexer():
         if ch in self.line_terminators:
             # This is the LineContinuation bit
             if ch != '\r' or lookahead != '\n':
+                self.linenum += 1
                 return (self._single_string_capture, [])
             return (self._single_string_lfonly, [])
         if ch == '0' and (lookahead == '' or lookahead not in '0123456789'):
@@ -4850,8 +5069,12 @@ class Lexer():
 
     def lex(self, goal=Goal.InputElementDiv):
         state = self._initial
+        token_buffer = deque([])
 
-        ch = self.source[self.pos]
+        try:
+            ch = self.source[self.pos]
+        except IndexError:
+            ch = ''
         try:
             lookahead = self.source[self.pos+1]
         except IndexError:
@@ -4860,14 +5083,709 @@ class Lexer():
 
         while state != self._done:
             state, results = state(ch, lookahead)
-            for rval in results:
-                yield rval
+            token_buffer.extend(results)
+
+            while len(token_buffer) > 1:
+                if token_buffer[0].lineno < token_buffer[1].lineno:
+                    token_buffer[0].value.lt_follows = True
+                yield token_buffer.popleft()
             ch = lookahead
             try:
                 lookahead = self.source[self.pos+1]
             except IndexError:
                 lookahead = ''
             self.pos += 1
+        while len(token_buffer) > 0:
+            yield token_buffer.popleft()
+
+class ParseNode:
+    def __init__(self, name, p):
+        self.name = name
+        self.children = [p[z] for z in range(len(p))]
+    def Contains(self, symbol):
+        return (any(child.name == symbol for child in self.children) or
+                any(child.Contains(symbol) for child in self.children if isinstance(child, ParseNode)))
+    def __repr__(self):
+        return f'{self.name}[{",".join(repr(child) for child in self.children)}]'
+    def IsFunctionDefinition(self):
+        return self.children[0].IsFunctionDefinition()
+    def IsValidSimpleAssignmentTarget(self):
+        return self.children[0].IsValidSimpleAssignmentTarget()
+    def LexicallyDeclaredNames(self):
+        return self.children[0].LexicallyDeclaredNames()
+    def TopLevelLexicallyDeclaredNames(self):
+        return self.children[0].TopLevelLexicallyDeclaredNames()
+    def VarDeclaredNames(self):
+        return self.children[0].VarDeclaredNames()
+    def TopLevelVarDeclaredNames(self):
+        return self.children[0].TopLevelVarDeclaredNames()
+    def VarScopedDeclarations(self):
+        return self.children[0].VarScopedDeclarations()
+    def TopLevelVarScopedDeclarations(self):
+        return self.children[0].TopLevelVarScopedDeclarations()
+    def LexicallyScopedDeclarations(self):
+        return self.children[0].LexicallyScopedDeclarations()
+    def TopLevelLexicallyScopedDeclarations(self):
+        return self.children[0].TopLevelLexicallyScopedDeclarations()
+    def evaluate(self):
+        # Subclasses need to override this, or we'll throw an AttributeError when we hit a terminal.
+        return self.children[0].evaluate()
+class PN_IdentifierReference_Identifier(ParseNode):
+    def __init__(self, ctx, p, yield_=False, await_=False):
+        super().__init__('IdentifierReference', p)
+        self.yield_ = yield_
+        self.await_ = await_
+        # Early Errors
+        if self.yield_ and self.children[0].StringValue() == 'yield':
+            raise SyntaxError()
+        if self.await_ and self.children[0].StringValue() == 'await':
+            raise SyntaxError()
+    def IsValidSimpleAssignmentTarget(self, ctx):
+        return not (ctx.strict and self.children[0].StringValue() in ['eval', 'arguments'])
+    def StringValue(self):
+        return self.children[0].StringValue()
+    def evaluate(self):
+        return ResolveBinding(self.children[0].StringValue())
+class PN_IdentifierReference_AWAIT(ParseNode):
+    def __init__(self, ctx, p, yield_=False, await_=False):
+        super().__init__('IdentifierReference', p)
+        self.yield_ = yield_
+        self.await_ = await_
+        # Early Errors
+        if ctx.goal == 'Module':
+            raise SyntaxError()
+    def IsValidSimpleAssignmentTarget(self, ctx):
+        return True
+    def StringValue(self):
+        return 'await'
+    def evaluate(self):
+        return ResolveBinding('await')
+class PN_IdentifierReference_YIELD(ParseNode):
+    def __init__(self, ctx, p, yield_=False, await_=False):
+        super().__init__('IdentifierReference', p)
+        self.yield_ = yield_
+        self.await_ = await_
+        # Early Errors
+        if ctx.strict:
+            raise SyntaxError()
+    def IsValidSimpleAssignmentTarget(self, ctx):
+        return True
+    def StringValue(self):
+        return 'yield'
+    def evaluate(self):
+        return ResolveBinding('yield')
+class PN_Identifier(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('Identifier', p)
+        identifier_name = self.children[0].value
+        # Early Errors
+        if ctx.strict:
+            if identifier_name in ['implements', 'interface', 'let', 'package', 'private', 'protected', 'public', 'static', 'yield']:
+                raise SyntaxError()
+        if ctx.goal == 'Module':
+            if identifier_name == 'await':
+                raise SyntaxError()
+        if identifier_name in ['break', 'case', 'catch', 'class', 'const', 'continue',
+            'debugger', 'default', 'delete', 'do', 'else', 'export', 'extends',
+            'finally', 'for', 'function', 'if', 'import', 'in', 'instanceof',
+            'new', 'return', 'super', 'switch', 'this', 'throw', 'try', 'typeof',
+            'var', 'void', 'while', 'with', 'enum', 'null', 'true',
+            'false']:
+            raise SyntaxError()
+    def StringValue(self):
+        return self.children[0].value
+class PN_PrimaryExpression_THIS(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('PrimaryExpression', p)
+    def evaluate(self):
+        return ResolveThisBinding()
+class PN_PrimaryExpression_IdentifierReference(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('PrimaryExpression', p)
+class PN_PrimaryExpression_Literal(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('PrimaryExpression', p)
+class PN_Literal_NULL(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('Literal', p)
+    def evaluate(self):
+        return NormalCompletion(JSNull.NULL)
+class PN_Literal_BOOLEAN(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('Literal', p)
+    def evaluate(self):
+        return NormalCompletion(self.children[0].value == 'true')
+class PN_Literal_NUMERIC(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('Literal', p)
+    def evaluate(self):
+        return NormalCompletion(self.children[0].value)
+class PN_Literal_STRING(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('Literal', p)
+    def evaluate(self):
+        return NormalCompletion(self.children[0].value)
+class PN_MemberExpression_PrimaryExpression(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('MemberExpression', p)
+class PN_NewExpression_MemberExpression(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('NewExpression', p)
+class PN_LeftHandSideExpression_NewExpression(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('LeftHandSideExpression', p)
+class PN_UpdateExpression_LeftHandSideExpression(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('UpdateExpression', p)
+class PN_UnaryExpression_UpdateExpression(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('UnaryExpression', p)
+class PN_ExponentiationExpression_UnaryExpression(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('ExponentiationExpression', p)
+class PN_MultiplicativeExpression_ExponentiationExpression(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('MultiplicativeExpression', p)
+class PN_AdditiveExpression_MultiplicativeExpression(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('AdditiveExpression', p)
+class PN_ShiftExpression_AdditiveExpression(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('ShiftExpression', p)
+class PN_RelationalExpression_ShiftExpression(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('RelationalExpression', p)
+class PN_EqualityExpression_RelationalExpression(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('EqualityExpression', p)
+class PN_BitwiseANDExpression_EqualityExpression(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('BitwiseANDExpression', p)
+class PN_BitwiseXORExpression_BitwiseANDExpression(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('BitwiseXORExpression', p)
+class PN_BitwiseORExpression_BitwiseXORExpression(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('BitwiseORExpression', p)
+class PN_LogicalANDExpression_BitwiseORExpression(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('LogicalANDExpression', p)
+class PN_LogicalORExpression_LogicalANDExpression(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('LogicalORExpression', p)
+class PN_ConditionalExpression_LogicalORExpression(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('ConditionalExpression', p)
+class PN_AssignmentExpression_ConditionalExpression(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('AssignmentExpression', p)
+class PN_Expression_AssignmentExpression(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('Expression', p)
+class PN_Expression_Expression_COMMA_AssignmentExpression(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('Expression', p)
+    def IsFunctionDefinition(self):
+        return NormalCompletion(False)
+    def IsValidSimpleAssignmentTarget(self):
+        return NormalCompletion(False)
+    def evaluate(self):
+        lref = self.children[0].evaluate()
+        cr, ok = ec(GetValue(lref)) # Have to run, thanks to side effects
+        if not ok:
+            return cr
+        rref = self.children[2].evaluate()
+        return GetValue(rref)
+class PN_ExpressionStatement_Expression(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('ExpressionStatement', p)
+    def evaluate(self):
+        exprRef = self.children[0].evaluate()
+        return GetValue(exprRef)
+class PN_EmptyStatement_SEMICOLON(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('EmptyStatement', p)
+    def evaluate(self):
+        return NormalCompletion(Empty.EMPTY)
+class PN_Statement_ExpressionStatement(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('Statement', p)
+    def VarDeclaredNames(self):
+        return []
+    def VarScopedDeclarations(self):
+        return []
+class PN_Statement_EmptyStatement(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('Statement', p)
+    def VarDeclaredNames(self):
+        return []
+    def VarScopedDeclarations(self):
+        return []
+class PN_Statement_COLON_LabelledStatement(ParseNode):
+    def __init__(self, ctx, p):
+        super()._init__('Statement', p)
+class PN_StatementListItem_Statement(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('StatementListItem', p)
+    def TopLevelLexicallyDeclaredNames(self):
+        return []
+    def TopLevelVarDeclaredNames(self):
+        if isinstance(self.children[0], PN_Statement_COLON_LabelledStatement):
+            return self.children[0].TopLevelVarDeclaredNames()
+        return self.children[0].VarDeclaredNames()
+    def TopLevelVarScopedDeclarations(self):
+        if isinstance(self.children[0], PN_Statement_COLON_LabelledStatement):
+            return self.children[0].TopLevelVarScopedDeclarations()
+        return self.children[0].VarScopedDeclarations()
+    def LexicallyScopedDeclarations(self):
+        if isinstance(self.children[0], PN_Statement_COLON_LabelledStatement):
+            return self.children[2].LexicallyScopedDeclarations()
+        return []
+    def TopLevelLexicallyScopedDeclarations(self):
+        return []
+class PN_StatementList_StatementListItem(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('StatementList', p)
+class PN_StatementList_StatementList_StatementListItem(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('StatementList', p)
+    def evaluate(self):
+        sl, ok = ec(self.children[0].evaluate())
+        if not ok:
+            return sl
+        s = self.children[1].evaluate()
+        return UpdateEmpty(s, sl)
+    def TopLevelLexicallyDeclaredNames(self):
+        names = self.children[0].TopLevelLexicallyDeclaredNames()
+        names.extend(self.children[1].TopLevelLexicallyDeclaredNames())
+        return names
+    def VarDeclaredNames(self):
+        names = self.children[0].VarDeclaredNames()
+        names.extend(self.children[1].VarDeclaredNames())
+        return names
+    def TopLevelVarDeclaredNames(self):
+        names = self.children[0].TopLevelVarDeclaredNames()
+        names.extend(self.children[1].TopLevelVarDeclaredNames())
+        return names
+    def VarScopedDeclarations(self):
+        declarations = self.children[0].VarScopedDeclarations()
+        declarations.extend(self.children[1].VarScopedDeclarations())
+        return declarations
+    def TopLevelVarScopedDeclarations(self):
+        declarations = self.children[0].TopLevelVarScopedDeclarations()
+        declarations.extend(self.children[1].TopLevelVarScopedDeclarations())
+        return declarations
+    def LexicallyScopedDeclarations(self):
+        declarations = self.children[0].LexicallyScopedDeclarations()
+        declarations.extend(self.children[1].LexicallyScopedDeclarations())
+        return declarations
+    def TopLevelLexicallyScopedDeclarations(self):
+        declarations = self.children[0].TopLevelLexicallyScopedDeclarations()
+        declarations.extend(self.children[1].TopLevelLexicallyScopedDeclarations())
+        return declarations
+
+
+class PN_ScriptBody_StatementList(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('ScriptBody', p)
+    def LexicallyDeclaredNames(self):
+        return self.children[0].TopLevelLexicallyDeclaredNames()
+    def VarDeclaredNames(self):
+        return self.children[0].TopLevelVarDeclaredNames()
+    def VarScopedDeclarations(self):
+        return self.children[0].TopLevelVarScopedDeclarations()
+    def LexicallyScopedDeclarations(self):
+        return self.children[0].TopLevelLexicallyScopedDeclarations()
+class PN_Script_ScriptBody(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('Script', p)
+class PN_Script_empty(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('Script', p)
+    def evaluate(self):
+        return NormalCompletion(None)
+
+from sly import Parser
+class Ecma262Parser(Parser):
+    tokens = Lexer.tokens
+    start = 'Script'
+    debugfile = 'parser.out'
+
+    class ParseContext:
+        __slots__ = ['goal', 'strict']
+        def __init__(self, goal, strict):
+            self.goal = goal
+            self.strict = strict
+        def __repr__(self):
+            return f'ParseContext(goal={self.goal}, strict={self.strict})'
+
+    def __init__(self, strict=False, start=None):
+        if start:
+            self.start = start
+        super().__init__()
+        self.context = self.ParseContext(self.start, strict)
+
+    @_('ScriptBody')
+    def Script(self, p):
+        return PN_Script_ScriptBody(self.context, p)
+    @_('empty')
+    def Script(self, p):
+        return PN_Script_empty(self.context, p)
+    @_('')
+    def empty(self, p):
+        pass
+    @_('StatementList')
+    def ScriptBody(self, p):
+        return PN_ScriptBody_StatementList(self.context, p)
+    @_('StatementListItem')
+    def StatementList(self, p):
+        return PN_StatementList_StatementListItem(self.context, p)
+    @_('StatementList StatementListItem')
+    def StatementList(self, p):
+        return PN_StatementList_StatementList_StatementListItem(self.context, p)
+    @_('Statement')
+    def StatementListItem(self, p):
+        return PN_StatementListItem_Statement(self.context, p)
+    @_('ExpressionStatement')
+    def Statement(self, p):
+        return PN_Statement_ExpressionStatement(self.context, p)
+    @_('EmptyStatement')
+    def Statement(self, p):
+        return PN_Statement_EmptyStatement(self.context, p)
+    @_('SEMICOLON')
+    def EmptyStatement(self, p):
+        return PN_EmptyStatement_SEMICOLON(self.context, p)
+    @_('Expression SEMICOLON')
+    def ExpressionStatement(self, p):
+        return PN_ExpressionStatement_Expression(self.context, p)
+    @_('AssignmentExpression')
+    def Expression(self, p):
+        return PN_Expression_AssignmentExpression(self.context, p)
+    @_('Expression COMMA AssignmentExpression')
+    def Expression(self, p):
+        return PN_Expression_Expression_COMMA_AssignmentExpression(self.context, p)
+    @_('ConditionalExpression')
+    def AssignmentExpression(self, p):
+        return PN_AssignmentExpression_ConditionalExpression(self.context, p)
+    @_('LogicalORExpression')
+    def ConditionalExpression(self, p):
+        return PN_ConditionalExpression_LogicalORExpression(self.context, p)
+    @_('LogicalANDExpression')
+    def LogicalORExpression(self, p):
+        return PN_LogicalORExpression_LogicalANDExpression(self.context, p)
+    @_('BitwiseORExpression')
+    def LogicalANDExpression(self, p):
+        return PN_LogicalANDExpression_BitwiseORExpression(self.context, p)
+    @_('BitwiseXORExpression')
+    def BitwiseORExpression(self, p):
+        return PN_BitwiseORExpression_BitwiseXORExpression(self.context, p)
+    @_('BitwiseANDExpression')
+    def BitwiseXORExpression(self, p):
+        return PN_BitwiseXORExpression_BitwiseANDExpression(self.context, p)
+    @_('EqualityExpression')
+    def BitwiseANDExpression(self, p):
+        return PN_BitwiseANDExpression_EqualityExpression(self.context, p)
+    @_('RelationalExpression')
+    def EqualityExpression(self, p):
+        return PN_EqualityExpression_RelationalExpression(self.context, p)
+    @_('ShiftExpression')
+    def RelationalExpression(self, p):
+        return PN_RelationalExpression_ShiftExpression(self.context, p)
+    @_('AdditiveExpression')
+    def ShiftExpression(self, p):
+        return PN_ShiftExpression_AdditiveExpression(self.context, p)
+    @_('MultiplicativeExpression')
+    def AdditiveExpression(self, p):
+        return PN_AdditiveExpression_MultiplicativeExpression(self.context, p)
+    @_('ExponentiationExpression')
+    def MultiplicativeExpression(self, p):
+        return PN_MultiplicativeExpression_ExponentiationExpression(self.context, p)
+    @_('UnaryExpression')
+    def ExponentiationExpression(self, p):
+        return PN_ExponentiationExpression_UnaryExpression(self.context, p)
+    @_('UpdateExpression')
+    def UnaryExpression(self, p):
+        return PN_UnaryExpression_UpdateExpression(self.context, p)
+    @_('LeftHandSideExpression')
+    def UpdateExpression(self, p):
+        return PN_UpdateExpression_LeftHandSideExpression(self.context, p)
+    @_('NewExpression')
+    def LeftHandSideExpression(self, p):
+        return PN_LeftHandSideExpression_NewExpression(self.context, p)
+    @_('MemberExpression')
+    def NewExpression(self, p):
+        return PN_NewExpression_MemberExpression(self.context, p)
+    @_('PrimaryExpression')
+    def MemberExpression(self, p):
+        return PN_MemberExpression_PrimaryExpression(self.context, p)
+
+    @_('THIS')
+    def PrimaryExpression(self, p):
+        return PN_PrimaryExpression_THIS(self.context, p)
+    @_('IdentifierReference')
+    def PrimaryExpression(self, p):
+        return PN_PrimaryExpression_IdentifierReference(self.context, p)
+    @_('Literal')
+    def PrimaryExpression(self, p):
+        return PN_PrimaryExpression_Literal(self.context, p)
+
+
+    @_('Identifier')
+    def IdentifierReference(self, p):
+        return PN_IdentifierReference_Identifier(self.context, p)
+    @_('AWAIT')
+    def IdentifierReference(self, p):
+        return PN_IdentifierReference_AWAIT(self.context, p)
+    @_('YIELD')
+    def IdentifierReference(self, p):
+        return PN_IdentifierReference_YIELD(self.context, p)
+
+    @_('Identifier')
+    def IdentifierReference_Yield(self, p):
+        return PN_IdentifierReference_Identifier(self.context, p, yield_=True)
+    @_('AWAIT')
+    def IdentifierReference_Yield(self, p):
+        return PN_IdentifierReference_AWAIT(self.context, p, yield_=True)
+
+    @_('Identifier')
+    def IdentifierReference_Await(self, p):
+        return PN_IdentifierReference_Identifier(self.context, p, await_=True)
+    @_('YIELD')
+    def IdentifierReference_Await(self, p):
+        return PN_IdentifierReference_YIELD(self.context, p, await_=True)
+
+    @_('Identifier')
+    def IdentifierReference_Yield_Await(self, p):
+        return PN_IdentifierReference_Identifier(self.context, p, yield_=True, await_=True)
+
+    @_('IDENTIFIER')
+    def Identifier(self, p):
+        return PN_Identifier(self.context, p)
+
+    @_('NULL')
+    def Literal(self, p):
+        return PN_Literal_NULL(self.context, p)
+    @_('TRUE', 'FALSE')
+    def Literal(self, p):
+        return PN_Literal_BOOLEAN(self.context, p)
+    @_('NUMERIC')
+    def Literal(self, p):
+        return PN_Literal_NUMERIC(self.context, p)
+    @_('STRING')
+    def Literal(self, p):
+        return PN_Literal_STRING(self.context, p)
+
+# 5.1.8 Script Records
+class ScriptRecord(Record):
+    __slots__ = ['Realm', 'Environment', 'ECMAScriptCode', 'HostDefined']
+
+# 15.1.9 ParseScript ( sourceText, realm, hostDefined )
+def ParseScript(sourceText, realm, hostDefined):
+    # The abstract operation ParseScript with arguments sourceText, realm, and hostDefined creates a Script Record based upon
+    # the result of parsing sourceText as a Script. ParseScript performs the following steps:
+    #
+    # 1. Assert: sourceText is an ECMAScript source text (see clause 10).
+    # 2. Parse sourceText using Script as the goal symbol and analyse the parse result for any Early Error conditions. If the
+    #    parse was successful and no early errors were found, let body be the resulting parse tree. Otherwise, let body be a
+    #    List of one or more SyntaxError or ReferenceError objects representing the parsing errors and/or early errors. Parsing
+    #    and early error detection may be interweaved in an implementation-dependent manner. If more than one parsing error or
+    #    early error is present, the number and ordering of error objects in the list is implementation-dependent, but at least
+    #    one must be present.
+    psr = Ecma262Parser()
+    lex = Lexer(sourceText)
+    body = psr.parse(lex.lex())
+    # 3. If body is a List of errors, return body.
+    if isinstance(body, list):
+        return body
+    # 4. Return Script Record { [[Realm]]: realm, [[Environment]]: undefined, [[ECMAScriptCode]]: body,
+    #                           [[HostDefined]]: hostDefined }.
+    return NormalCompletion(ScriptRecord(Realm=realm, Environment=None, ECMAScriptCode=body, HostDefined=hostDefined))
+    # NOTE
+    # An implementation may parse script source text and analyse it for Early Error conditions prior to evaluation of
+    # ParseScript for that script source text. However, the reporting of any errors must be deferred until the point where this
+    # specification actually performs ParseScript upon that source text.
+
+# 15.1.10 ScriptEvaluation ( scriptRecord )
+def ScriptEvaluation(scriptRecord):
+    # 1. Let globalEnv be scriptRecord.[[Realm]].[[GlobalEnv]].
+    globalEnv = scriptRecord.Realm.global_env
+    # 2. Let scriptCxt be a new ECMAScript code execution context.
+    scriptCtx = ExecutionContext()
+    # 3. Set the Function of scriptCxt to null.
+    scriptCtx.function = JSNull.NULL
+    # 4. Set the Realm of scriptCxt to scriptRecord.[[Realm]].
+    scriptCtx.realm = scriptRecord.Realm
+    # 5. Set the ScriptOrModule of scriptCxt to scriptRecord.
+    scriptCtx.script_or_module = scriptRecord
+    # 6. Set the VariableEnvironment of scriptCxt to globalEnv.
+    scriptCtx.variable_environment = globalEnv
+    # 7. Set the LexicalEnvironment of scriptCxt to globalEnv.
+    scriptCtx.lexical_environment = globalEnv
+    # 8. Suspend the currently running execution context.
+    surrounding_agent.running_ec.suspend()
+    # 9. Push scriptCxt on to the execution context stack; scriptCxt is now the running execution context.
+    surrounding_agent.ec_stack.append(scriptCtx)
+    surrounding_agent.running_ec = scriptCtx
+    # 10. Let scriptBody be scriptRecord.[[ECMAScriptCode]].
+    scriptBody = scriptRecord.ECMAScriptCode
+    # 11. Let result be GlobalDeclarationInstantiation(scriptBody, globalEnv).
+    result = GlobalDeclarationInstantiation(scriptBody, globalEnv)
+    # 12. If result.[[Type]] is normal, then
+    if result.ctype == CompletionType.NORMAL:
+        # a. Set result to the result of evaluating scriptBody.
+        result = scriptBody.evaluate()
+    # 13. If result.[[Type]] is normal and result.[[Value]] is empty, then
+    if result.ctype == CompletionType.NORMAL and result.value == Empty.EMPTY:
+        # a. Set result to NormalCompletion(undefined).
+        result = NormalCompletion(None)
+    # 14. Suspend scriptCxt and remove it from the execution context stack.
+    scriptCtx.suspend()
+    surrounding_agent.ec_stack.pop()
+    # 15. Assert: The execution context stack is not empty.
+    assert len(surrounding_agent.ec_stack) > 0
+    # 16. Resume the context that is now on the top of the execution context stack as the running execution context.
+    surrounding_agent.running_ec = surrounding_agent.ec_stack[-1]
+    # 17. Return Completion(result).
+    return result
+
+# 15.1.11 Runtime Semantics: GlobalDeclarationInstantiation ( script, env )
+def GlobalDeclarationInstantiation(script, env):
+    # NOTE 1
+    # When an execution context is established for evaluating scripts, declarations are instantiated in the current global
+    # environment. Each global binding declared in the code is instantiated.
+    #
+    # GlobalDeclarationInstantiation is performed as follows using arguments script and env. script is the ScriptBody for
+    # which the execution context is being established. env is the global lexical environment in which bindings are to be
+    # created.
+    #
+    # 1. Let envRec be env's EnvironmentRecord.
+    envRec = env.environment_record
+    # 2. Assert: envRec is a global Environment Record.
+    assert hasattr(envRec, 'global_this_value')
+    # 3. Let lexNames be the LexicallyDeclaredNames of script.
+    lexNames = script.LexicallyDeclaredNames()
+    # 4. Let varNames be the VarDeclaredNames of script.
+    varNames = script.VarDeclaredNames()
+    # 5. For each name in lexNames, do
+    for name in lexNames:
+        # a. If envRec.HasVarDeclaration(name) is true, throw a SyntaxError exception.
+        if envRec.HasVarDeclaration(name):
+            return ThrowCompletion(CreateSyntaxError())
+        # b. If envRec.HasLexicalDeclaration(name) is true, throw a SyntaxError exception.
+        if envRec.HasLexicalDeclaration(name):
+            return ThrowCompletion(CreateSyntaxError())
+        # c. Let hasRestrictedGlobal be ? envRec.HasRestrictedGlobalProperty(name).
+        hasRestrictedGlobal, ok = ec(envRec.HasRestrictedGlobalProperty(name))
+        if not ok:
+            return hasRestrictedGlobal
+        # d. If hasRestrictedGlobal is true, throw a SyntaxError exception.
+        if hasRestrictedGlobal:
+            return ThrowCompletion(CreateSyntaxError())
+    # 6. For each name in varNames, do
+    for name in varNames:
+        # a. If envRec.HasLexicalDeclaration(name) is true, throw a SyntaxError exception.
+        if envRed.HasLexicalDeclaration(name):
+            return ThrowCompletion(CreateSyntaxError())
+    # 7. Let varDeclarations be the VarScopedDeclarations of script.
+    varDeclarations = script.VarScopedDeclarations()
+    # 8. Let functionsToInitialize be a new empty List.
+    functionsToInitialize = deque()
+    # 9. Let declaredFunctionNames be a new empty List.
+    declaredFunctionNames = []
+    # 10. For each d in varDeclarations, in reverse list order, do
+    for d in (varDeclarations[-x-1] for x in range(len(varDeclarations))):
+        # --- each of these 'd' is a ParseNode.
+        # a. If d is neither a VariableDeclaration nor a ForBinding nor a BindingIdentifier, then
+        if d.name not in ['VariableDeclaration', 'ForBinding', 'BindingIdentifier']:
+            # i. Assert: d is either a FunctionDeclaration, a GeneratorDeclaration, an AsyncFunctionDeclaration, or an
+            #    AsyncGeneratorDeclaration.
+            assert d.name in ['FunctionDeclaration', 'GeneratorDeclaration', 'AsyncFunctionDeclaration',
+                              'AsyncGeneratorDeclaration']
+            # ii. NOTE: If there are multiple function declarations for the same name, the last declaration is used.
+            # iii. Let fn be the sole element of the BoundNames of d.
+            fn = d.BoundNames()[0]
+            # iv. If fn is not an element of declaredFunctionNames, then
+            if fn not in declaredFunctionNames:
+                # 1. Let fnDefinable be ? envRec.CanDeclareGlobalFunction(fn).
+                fnDefinable, ok = ec(envRec.CanDeclareGlobalFunction(fn))
+                if not ok:
+                    return fnDefinable
+                # 2. If fnDefinable is false, throw a TypeError exception.
+                if not fnDefinable:
+                    return ThrowCompletion(CreateTypeError())
+                # 3. Append fn to declaredFunctionNames.
+                declaredFunctionNames.append(fn)
+                # 4. Insert d as the first element of functionsToInitialize.
+                functionsToInitialize.appendleft(d)
+    # 11. Let declaredVarNames be a new empty List.
+    declaredVarNames = []
+    # 12. For each d in varDeclarations, do
+    for d in varDeclarations:
+        # a. If d is a VariableDeclaration, a ForBinding, or a BindingIdentifier, then
+        if d.name in ['VaraibleDeclaration', 'ForBinding', 'BindingIdentifier']:
+            # i. For each String vn in the BoundNames of d, do
+            for vn in d.BoundNames():
+                # 1. If vn is not an element of declaredFunctionNames, then
+                if vn not in declaredFunctionNames:
+                    # a. Let vnDefinable be ? envRec.CanDeclareGlobalVar(vn).
+                    vnDefinable, ok = ec(envRec.CanDeclareGlobalVar(vn))
+                    if not ok:
+                        return vnDefinable
+                    # b. If vnDefinable is false, throw a TypeError exception.
+                    if not vnDefinable:
+                        return ThrowCompletion(CreateTypeError())
+                    # c. If vn is not an element of declaredVarNames, then
+                    if vn not in declaredVarNames:
+                        # i. Append vn to declaredVarNames.
+                        declaredVarNames.append(vn)
+    # 13. NOTE: No abnormal terminations occur after this algorithm step if the global object is an ordinary object. However,
+    #     if the global object is a Proxy exotic object it may exhibit behaviours that cause abnormal terminations in some of
+    #     the following steps.
+    # 14. NOTE: Annex B.3.3.2 adds additional steps at this point.
+    # 15. Let lexDeclarations be the LexicallyScopedDeclarations of script.
+    lexDeclarations = script.LexicallyScopedDeclarations()
+    # 16. For each element d in lexDeclarations, do
+    for d in lexDeclarations:
+        # a. NOTE: Lexically declared names are only instantiated here but not initialized.
+        # b. For each element dn of the BoundNames of d, do
+        for dn in d.BoundNames():
+            # i. If IsConstantDeclaration of d is true, then
+            if d.IsConstantDeclaration():
+                # 1. Perform ? envRec.CreateImmutableBinding(dn, true).
+                cr, ok = ec(envRec.CreateImmutableBinding(dn, True))
+                if not ok:
+                    return cr
+            # ii. Else,
+            else:
+                # 1. Perform ? envRec.CreateMutableBinding(dn, false).
+                cr, ok = ec(envRec.CreateMutableBinding(dn, False))
+    # 17. For each Parse Node f in functionsToInitialize, do
+    for f in functionsToInitialize:
+        # a. Let fn be the sole element of the BoundNames of f.
+        fn = f.BoundNames()[0]
+        # b. Let fo be the result of performing InstantiateFunctionObject for f with argument env.
+        fo = f.InstantiateFunctionObject(env)
+        # c. Perform ? envRec.CreateGlobalFunctionBinding(fn, fo, false).
+        cr, ok = ec(envRec.CreateGlobalFunctionBinding(fn, fo, False))
+        if not ok:
+            return cr
+    # 18.For each String vn in declaredVarNames, in list order, do
+    for vn in declaredVarNames:
+        # a. Perform ? envRec.CreateGlobalVarBinding(vn, false).
+        cr, ok = ec(envRec.CreateGlobalVarBinding(vn, False))
+    # 19. Return NormalCompletion(empty).
+    return NormalCompletion(Empty.EMPTY)
+    # NOTE 2
+    # Early errors specified in 15.1.1 prevent name conflicts between function/var declarations and let/const/class
+    # declarations as well as redeclaration of let/const/class bindings for declaration contained within a single Script.
+    # However, such conflicts and redeclarations that span more than one Script are detected as runtime errors during
+    # GlobalDeclarationInstantiation. If any such errors are detected, no bindings are instantiated for the script. However, if
+    # the global object is defined using Proxy exotic objects then the runtime tests for conflicting declarations may be
+    # unreliable resulting in an abrupt completion and some global declarations not being instantiated. If this occurs, the
+    # code for the Script is not evaluated.
+    #
+    # Unlike explicit var or function declarations, properties that are directly created on the global object result in global
+    # bindings that may be shadowed by let/const/class declarations.
 
 # 15.1.12 Runtime Semantics: ScriptEvaluationJob ( sourceText, hostDefined )
 def ScriptEvaluationJob(source_text, host_defined):
@@ -4887,7 +5805,7 @@ def ScriptEvaluationJob(source_text, host_defined):
         # b. Return NormalCompletion(undefined).
         return NormalCompletion(None)
     # 5. Return ? ScriptEvaluation(s).
-    return ScriptEvaluation(script_nodes)
+    return ScriptEvaluation(nc(script_nodes))
 
 # 19.1.1 The Object Constructor
 #
@@ -5782,8 +6700,7 @@ def NumberFixups(realm):
     return NormalCompletion(None)
 
 if __name__ == '__main__':
-    InitializeHostDefinedRealm()
-    realm = surrounding_agent.running_ec.realm
-    print('\n'.join('%s: %s' % (key, nc(ToString(nc(Get(realm.global_object, key))))) for key in nc(realm.global_object.OwnPropertyKeys())))
+    rv, ok = ec(RunJobs(scripts=['-Infinity;']))
 
-    print('inf becomes %s' % nc(ToString(nc(ToObject(math.inf)))))
+    if ok:
+        print('Script returned %s' % nc(ToString(rv)))
