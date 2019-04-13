@@ -1142,9 +1142,9 @@ def PutValue(ref, value):
     if not ok:
         return ref
     # 2. ReturnIfAbrupt(W).
-    value, ok = ec(ref)
+    value, ok = ec(value)
     if not ok:
-        return ref
+        return value
     # 3. If Type(V) is not Reference, throw a ReferenceError exception.
     if not isinstance(ref, Reference):
         return ThrowCompletion(CreateReferenceError())
@@ -2013,6 +2013,27 @@ def GetV(value, propkey):
         return obj
     # 3. Return ? O.[[Get]](P, V).
     return obj.Get(propkey, value)
+
+# 7.3.3 Set ( O, P, V, Throw )
+def Set(O, P, V, Throw):
+    # The abstract operation Set is used to set the value of a specific property of an object. The operation is called with
+    # arguments O, P, V, and Throw where O is the object, P is the property key, V is the new value for the property and Throw
+    # is a Boolean flag. This abstract operation performs the following steps:
+    #
+    # 1. Assert: Type(O) is Object.
+    assert isObject(O)
+    # 2. Assert: IsPropertyKey(P) is true.
+    assert IsPropertyKey(P)
+    # 3. Assert: Type(Throw) is Boolean.
+    assert isBoolean(Throw)
+    # 4. Let success be ? O.[[Set]](P, V, O).
+    success, ok = ec(O.Set(P, V, O))
+    if not ok:
+        return success
+    # 5. If success is false and Throw is true, throw a TypeError exception.
+    if not success and Throw:
+        return ThrowCompletion(CreateTypeError())
+    # 6. Return success.
 
 # 7.3.4 CreateDataProperty ( O, P, V )
 def CreateDataProperty(obj, propkey, value):
@@ -2901,7 +2922,7 @@ class FunctionEnvironmentRecord(DeclarativeEnvironmentRecord):
 class GlobalEnvironmentRecord:
     def __init__(self, binding_object, global_this_value):
         self.object_record = ObjectEnvironmentRecord(binding_object, False)
-        self.global_this_value = ToObject(global_this_value)
+        self.global_this_value = nc(ToObject(global_this_value))
         self.declarative_record = DeclarativeEnvironmentRecord()
         self.var_names = []
 
@@ -3665,7 +3686,7 @@ def ResolveBinding(name, env=None):
     assert isinstance(env, LexicalEnvironment)
     # 3. If the code matching the syntactic production that is being evaluated is contained in strict mode code, let
     #    strict be true, else let strict be false.
-    strict = True #FigureOutWhatTheHeckThisIs()  # See 10.2.1.
+    strict = False #FigureOutWhatTheHeckThisIs()  # See 10.2.1.
     # 4. Return ? GetIdentifierReference(env, name, strict).
     return GetIdentifierReference(env, name, strict)
     # NOTE
@@ -5107,6 +5128,16 @@ class ParseNode:
                 any(child.Contains(symbol) for child in self.children if isinstance(child, ParseNode)))
     def __repr__(self):
         return f'{self.name}[{",".join(repr(child) for child in self.children)}]'
+    def EarlyErrorsScan(self):
+        errs = []
+        # Check the children first
+        for child in (child for child in self.children is isinstance(child, ParseNode)):
+            errs.extend(child.EarlyErrorsScan())
+        # Now myself.
+        errs.append(self.EarlyErrors())
+        return errs
+    def EarlyErrors(self):
+        return []
     def IsFunctionDefinition(self):
         return self.children[0].IsFunctionDefinition()
     def IsValidSimpleAssignmentTarget(self):
@@ -5135,13 +5166,16 @@ class PN_IdentifierReference_Identifier(ParseNode):
         super().__init__('IdentifierReference', p)
         self.yield_ = yield_
         self.await_ = await_
+        self.strict = ctx.strict
+    def EarlyErrors(self):
         # Early Errors
         if self.yield_ and self.children[0].StringValue() == 'yield':
-            raise SyntaxError()
+            return [CreateSyntaxError('\'yield\' not allowed in this context')]
         if self.await_ and self.children[0].StringValue() == 'await':
-            raise SyntaxError()
-    def IsValidSimpleAssignmentTarget(self, ctx):
-        return not (ctx.strict and self.children[0].StringValue() in ['eval', 'arguments'])
+            return [CreateSyntaxError('\'await\' not allowed in this context')]
+        return []
+    def IsValidSimpleAssignmentTarget(self):
+        return not (self.strict and self.children[0].StringValue() in ['eval', 'arguments'])
     def StringValue(self):
         return self.children[0].StringValue()
     def evaluate(self):
@@ -5151,10 +5185,13 @@ class PN_IdentifierReference_AWAIT(ParseNode):
         super().__init__('IdentifierReference', p)
         self.yield_ = yield_
         self.await_ = await_
+        self.goal = ctx.goal
+    def EarlyErrors(self):
         # Early Errors
-        if ctx.goal == 'Module':
-            raise SyntaxError()
-    def IsValidSimpleAssignmentTarget(self, ctx):
+        if self.goal == 'Module':
+            return [CreateSyntaxError('\'await\' not allowed in modules')]
+        return []
+    def IsValidSimpleAssignmentTarget(self):
         return True
     def StringValue(self):
         return 'await'
@@ -5165,10 +5202,13 @@ class PN_IdentifierReference_YIELD(ParseNode):
         super().__init__('IdentifierReference', p)
         self.yield_ = yield_
         self.await_ = await_
+        self.strict = ctx.strict
+    def EarlyErrors(self):
         # Early Errors
-        if ctx.strict:
-            raise SyntaxError()
-    def IsValidSimpleAssignmentTarget(self, ctx):
+        if self.strict:
+            return [CreateSyntaxError('\'yield\' not allowed in this context')]
+        return []
+    def IsValidSimpleAssignmentTarget(self):
         return True
     def StringValue(self):
         return 'yield'
@@ -5177,21 +5217,25 @@ class PN_IdentifierReference_YIELD(ParseNode):
 class PN_Identifier(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('Identifier', p)
+        self.strict = ctx.strict
+        self.goal = ctx.goal
+    def EarlyErrors(self):
         identifier_name = self.children[0].value
         # Early Errors
-        if ctx.strict:
+        if self.strict:
             if identifier_name in ['implements', 'interface', 'let', 'package', 'private', 'protected', 'public', 'static', 'yield']:
-                raise SyntaxError()
-        if ctx.goal == 'Module':
+                return [CreateSyntaxError(f'\'{identifier_name}\' is a reserved word in strict mode')]
+        if self.goal == 'Module':
             if identifier_name == 'await':
-                raise SyntaxError()
+                return [CreateSyntaxError('\'await\' is a reserved word for modules')]
         if identifier_name in ['break', 'case', 'catch', 'class', 'const', 'continue',
             'debugger', 'default', 'delete', 'do', 'else', 'export', 'extends',
             'finally', 'for', 'function', 'if', 'import', 'in', 'instanceof',
             'new', 'return', 'super', 'switch', 'this', 'throw', 'try', 'typeof',
             'var', 'void', 'while', 'with', 'enum', 'null', 'true',
             'false']:
-            raise SyntaxError()
+            return [CreateSyntaxError(f'\'{identifier_name}\' is a reserved word')]
+        return []
     def StringValue(self):
         return self.children[0].value
 class PN_PrimaryExpression_THIS(ParseNode):
@@ -5199,12 +5243,18 @@ class PN_PrimaryExpression_THIS(ParseNode):
         super().__init__('PrimaryExpression', p)
     def evaluate(self):
         return ResolveThisBinding()
+    def IsFunctionDefinition(self):
+        return False
 class PN_PrimaryExpression_IdentifierReference(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('PrimaryExpression', p)
+    def IsFunctionDefinition(self):
+        return False
 class PN_PrimaryExpression_Literal(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('PrimaryExpression', p)
+    def IsFunctionDefinition(self):
+        return False
 class PN_Literal_NULL(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('Literal', p)
@@ -5279,6 +5329,234 @@ class PN_ConditionalExpression_LogicalORExpression(ParseNode):
 class PN_AssignmentExpression_ConditionalExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('AssignmentExpression', p)
+class PN_AssignmentExpression_LeftHandSideExpression_EQUALS_AssignmentExpression(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('AssignmentExpression', p)
+    def EarlyErrors(self):
+        if not IsValidSimpleAssignmentTarget(self.children[0]):
+            return [CreateReferenceError('Not a valid target for an assignment statement')]
+        return []
+    def IsFunctionDefinition(self):
+        return False
+    def IsValidSimpleAssignmentTarget(self):
+        return False
+    def evaluate(self):
+        # This is missing the ArrayLiteral and ObjectLiteral steps @@@
+        lref, ok = ec(self.children[0].evaluate())
+        if not ok:
+            return lref
+        rref = self.children[2].evaluate()
+        rval, ok = ec(GetValue(rref))
+        if not ok:
+            return rval
+        if IsAnonymousFunctionDefinition(self.children[0]) and self.children[0].IsIdentifierRef():
+            hasNameProperty, ok = ec(HasOwnProperty(rval, 'name'))
+            if not ok:
+                return hasNameProperty
+            if not hasNameProperty:
+                SetFunctionName(rval, GetReferencedName(lref))
+        cr, ok = ec(PutValue(lref, rval))
+        if not ok:
+            return cr
+        return NormalCompletion(rval)
+def prep_for_bitwise(lval, rval):
+    lnum, ok = ec(ToInt32(lval))  # 1. Let lnum be ? ToInt32(lval).
+    if not ok:
+        return lnum
+    rnum, ok = ec(ToInt32(rval))  # 2. Let rnum be ? ToInt32(rval).
+    if not ok:
+        return rnum
+    return NormalCompletion((lnum, rnum))  # Return (lnum, rnum)
+def BitwiseANDOperation(lval, rval):
+    # Do integer conversion on the operands, forming lnum and rnum
+    operands, ok = ec(prep_for_bitwise(lval, rval))
+    if not ok:
+        return operands
+    lnum, rnum = operands
+    # Return the result of applying the bitwise operator & to lnum and rnum. The result is a signed 32-bit integer.
+    return NormalCompletion(lnum & rnum)
+def BitwiseXOROperation(lval, rval):
+    # Do integer conversion on the operands, forming lnum and rnum
+    operands, ok = ec(prep_for_bitwise(lval, rval))
+    if not ok:
+        return operands
+    lnum, rnum = operands
+    # Return the result of applying the bitwise operator ^ to lnum and rnum. The result is a signed 32-bit integer.
+    return NormalCompletion(lnum ^ rnum)
+def BitwiseOROperation(lval, rval):
+    # Do integer conversion on the operands, forming lnum and rnum
+    operands, ok = ec(prep_for_bitwise(lval, rval))
+    if not ok:
+        return operands
+    lnum, rnum = operands
+    # Return the result of applying the bitwise operator | to lnum and rnum. The result is a signed 32-bit integer.
+    return NormalCompletion(lnum | rnum)
+def prep_for_math(lval, rval):
+    # Converts args to Number values, in preparation for math.
+    lnum, ok = ec(ToNumber(lval))  # 1. Let lnum be ? ToNumber(lval)
+    if not ok:
+        return lnum
+    rnum, ok = ec(ToNumber(rval))  # 2. Let rnum be ? ToNumber(rval)
+    if not ok:
+        return rnum
+    return NormalCompletion((lnum, rnum))  # 3. Return (lnum, rnum)
+def MultiplyOperation(lval, rval):
+    # Do number conversion on the operands, forming lnum and rnum
+    operands, ok = ec(prep_for_math(lval, rval))
+    if not ok:
+        return operands
+    lnum, rnum = operands
+    # Return the result of multiplying lnum and rnum.
+    return NormalCompletion(lnum * rnum)
+def DivideOperation(lval, rval):
+    # Do number conversion on the operands, forming lnum and rnum
+    operands, ok = ec(prep_for_math(lval, rval))
+    if not ok:
+        return operands
+    lnum, rnum = operands
+    # Return the result of dividing lnum and rnum.
+    return NormalCompletion(lnum / rnum)
+def ModuloOperation(lval, rval):
+    # Do number conversion on the operands, forming lnum and rnum
+    operands, ok = ec(prep_for_math(lval, rval))
+    if not ok:
+        return operands
+    lnum, rnum = operands
+    # Return the result of applying the modulo operator to lnum and rnum.
+    return NormalCompletion(lnum % rnum)
+def AdditionOperation(lval, rval):
+    # Do number conversion on the operands, forming lnum and rnum
+    operands, ok = ec(prep_for_math(lval, rval))
+    if not ok:
+        return operands
+    lnum, rnum = operands
+    # Return the result of applying the modulo operator to lnum and rnum.
+    return NormalCompletion(lnum + rnum)
+def SubtractionOperation(lval, rval):
+    # Do number conversion on the operands, forming lnum and rnum
+    operands, ok = ec(prep_for_math(lval, rval))
+    if not ok:
+        return operands
+    lnum, rnum = operands
+    # Return the result of applying the modulo operator to lnum and rnum.
+    return NormalCompletion(lnum - rnum)
+def prep_for_signed_shift(lval, rval):
+    # Converts args to integer values, in preparation for signed shifting.
+    lnum, ok = ec(ToInt32(lval))  # 1. Let lnum be ? ToInt32(lval)
+    if not ok:
+        return lnum
+    rnum, ok = ec(ToUint32(rval))  # 2. Let rnum be ? ToUnit32(rval)
+    if not ok:
+        return rnum
+    return NormalCompletion((int(lnum), int(rnum)))  # 3. Return (lnum, rnum)
+def LeftShiftOperation(lval, rval):
+    # Do number conversion on the operands, forming lnum and rnum
+    operands, ok = ec(prep_for_signed_shift(lval, rval))
+    if not ok:
+        return operands
+    lnum, rnum = operands
+    # Strip the right operand to 5 bits and shift the left. Then put it back into a 32-bit int.
+    shiftCount = rnum & 0x1f
+    return ToInt32(lnum << shiftCount)
+def RightShiftOperation(lval, rval):
+    # Do number conversion on the operands, forming lnum and rnum
+    operands, ok = ec(prep_for_signed_shift(lval, rval))
+    if not ok:
+        return operands
+    lnum, rnum = operands
+    shiftCount = rnum & 0x1f
+    return NormalCompletion(lnum >> shiftCount)
+def prep_for_unsigned_shift(lval, rval):
+    # Converts args to integer values, in preparation for unsigned shifting.
+    lnum, ok = ec(ToUint32(lval))  # 1. Let lnum be ? ToUint32(lval)
+    if not ok:
+        return lnum
+    rnum, ok = ec(ToUint32(rval))  # 2. Let rnum be ? ToUnit32(rval)
+    if not ok:
+        return rnum
+    return NormalCompletion((int(lnum), int(rnum)))  # 3. Return (lnum, rnum)
+def UnsignedRightShiftOperation(lval, rval):
+    # Do number conversion on the operands, forming lnum and rnum
+    operands, ok = ec(prep_for_unsigned_shift(lval, rval))
+    if not ok:
+        return operands
+    lnum, rnum = operands
+    shiftCount = rnum & 0x1f
+    return NormalCompletion(lnum >> shiftCount)
+def ExponentiationOperation(lval, rval):
+    operands, ok = ec(prep_for_math(lval, rval))
+    if not ok:
+        return operands
+    lnum, rnum = operands
+    if abs(lnum) == 1.0 and abs(rnum) == math.inf:
+        return NormalCompletion(math.nan)
+    if lnum < 0.0 and math.isfinite(lnum) and math.isfinite(rnum) and math.floor(rnum) != rnum:
+        return NormalCompletion(math.nan)
+    return NormalCompletion(lnum ** rnum)
+
+class PN_AssignmentOperator(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('AssignmentOperator', p)
+    def op_function(self):
+        xlat = {
+            '*=': MultiplyOperation,
+            '/=': DivideOperation,
+            '%=': ModuloOperation,
+            '+=': AdditionOperation,
+            '-=': SubtractionOperation,
+            '<<=': LeftShiftOperation,
+            '>>=': RightShiftOperation,
+            '>>>=': UnsignedRightShiftOperation,
+            '&=': BitwiseANDOperation,
+            '|=': BitwiseOROperation,
+            '^=': BitwiseXOROperation,
+            '**=': ExponentiationOperation
+        }
+        return xlat[self.children[0].value]
+class PN_AssignmentExpression_LeftHandSideExpression_AssignmentOperator_AssignmentExpression(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('AssignmentExpression', p)
+    def EarlyErrors(self):
+        if not IsValidSimpleAssignmentTarget(self.children[0]):
+            return [CreateReferenceError('Not a valid target for an assignment statement')]
+        return []
+    def IsFunctionDefinition(self):
+        return False
+    def IsValidSimpleAssignmentTarget(self):
+        return False
+    def evaluate(self):
+        # 1. Let lref be the result of evaluating LeftHandSideExpression.
+        lref = self.children[0].evaluate()
+        # 2. Let lval be ? GetValue(lref).
+        lval, ok = ec(GetValue(lref))
+        if not ok:
+            return lval
+        # 3. Let rref be the result of evaluating AssignmentExpression.
+        rref = self.children[2].evaluate()
+        # 4. Let rval be ? GetValue(rref).
+        rval, ok = ec(GetValue(rref))
+        if not ok:
+            return rval
+        # 5. Let op be the @ where AssignmentOperator is @=.
+        op = self.children[1].op_function()
+        # 6. Let r be the result of applying op to lval and rval as if evaluating the expression lval op rval.
+        r, ok = ec(op(lval, rval))
+        if not ok:
+            return r
+        # 7. Perform ? PutValue(lref, r).
+        cr, ok = ec(PutValue(lref, r))
+        if not ok:
+            return cr
+        # 8. Return r.
+        return NormalCompletion(r)
+        # NOTE
+        # When an assignment occurs within strict mode code, it is a runtime error if lref in step 1.f of the first algorithm
+        # or step 7 of the second algorithm it is an unresolvable reference. If it is, a ReferenceError exception is thrown.
+        # The LeftHandSideExpression also may not be a reference to a data property with the attribute value
+        # { [[Writable]]: false }, to an accessor property with the attribute value { [[Set]]: undefined }, nor to a
+        # non-existent property of an object for which the IsExtensible predicate returns the value false. In these cases a
+        # TypeError exception is thrown.
+
 class PN_Expression_AssignmentExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('Expression', p)
@@ -5467,6 +5745,15 @@ class Ecma262Parser(Parser):
     @_('ConditionalExpression')
     def AssignmentExpression(self, p):
         return PN_AssignmentExpression_ConditionalExpression(self.context, p)
+    @_('LeftHandSideExpression EQUALS AssignmentExpression')
+    def AssignmentExpression(self, p):
+        return PN_AssignmentExpression_LeftHandSideExpression_EQUALS_AssignmentExpression(self.context, p)
+    @_('LeftHandSideExpression AssignmentOperator AssignmentExpression')
+    def AssignmentExpression(self, p):
+        return PN_AssignmentExpression_LeftHandSideExpression_AssignmentOperator_AssignmentExpression(self.context, p)
+    @_('STAREQ', 'DIVEQ', 'PERCENTEQ', 'PLUSEQ', 'MINUSEQ', 'LTLE', 'GTGE', 'GTGTGE', 'AMPEQ', 'XOREQ', 'PIPEEQ', 'STARSTAREQ')
+    def AssignmentOperator(self, p):
+        return PN_AssignmentOperator(self.context, p)
     @_('LogicalORExpression')
     def ConditionalExpression(self, p):
         return PN_ConditionalExpression_LogicalORExpression(self.context, p)
@@ -5575,7 +5862,21 @@ class Ecma262Parser(Parser):
     def Literal(self, p):
         return PN_Literal_STRING(self.context, p)
 
-# 5.1.8 Script Records
+# 14.1.10 Static Semantics: IsAnonymousFunctionDefinition ( expr )
+def IsAnonymousFunctionDefinition(expr):
+    # The abstract operation IsAnonymousFunctionDefinition determines if its argument is a function definition that does not
+    # bind a name. The argument expr is the result of parsing an AssignmentExpression or Initializer. The following steps are
+    # taken:
+    #
+    # 1. If IsFunctionDefinition of expr is false, return false.
+    if not expr.IsFunctionDefinition():
+        return False
+    # 2. Let hasName be the result of HasName of expr.
+    # 3. If hasName is true, return false.
+    # 4. Return true.
+    return not expr.HasName()
+
+# 15.1.8 Script Records
 class ScriptRecord(Record):
     __slots__ = ['Realm', 'Environment', 'ECMAScriptCode', 'HostDefined']
 
@@ -6700,7 +7001,7 @@ def NumberFixups(realm):
     return NormalCompletion(None)
 
 if __name__ == '__main__':
-    rv, ok = ec(RunJobs(scripts=['-Infinity;']))
+    rv, ok = ec(RunJobs(scripts=['bob=3; bob <<= 16.7;']))
 
     if ok:
         print('Script returned %s' % nc(ToString(rv)))

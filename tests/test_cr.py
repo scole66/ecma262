@@ -2,12 +2,18 @@ import pytest
 
 from ecmascript import *
 
-def test_NormalCompletion():
+def test_NormalCompletion_01():
     z = NormalCompletion('test_string')
 
     assert z.ctype == CompletionType.NORMAL
     assert z.value == 'test_string'
     assert z.target is None
+
+def test_NormalCompletion_02():
+    z = NormalCompletion('abc')
+    r = NormalCompletion(z)
+
+    assert r == Completion(CompletionType.NORMAL, 'abc', None)
 
 def test_ThrowCompletion():
     z = ThrowCompletion('test_string')

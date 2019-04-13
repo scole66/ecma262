@@ -768,7 +768,7 @@ def test_GetPrototypeFromConstructor_03(realm):
     assert val == Completion(NORMAL, realm.intrinsics['%BooleanPrototype%'], None)
 
 def test_GetPrototypeFromConstructor_04(realm):
-     # The [[Get]] call on the constructor throws.
+    # The [[Get]] call on the constructor throws.
     def fake_constructor(this_value, new_target):
         return NormalCompletion(None)
     constructor = CreateBuiltinFunction(fake_constructor, [])
@@ -789,3 +789,31 @@ def test_GetPrototypeFromConstructor_05(realm):
     assert val.ctype == THROW
     assert val.target is None
     assert isinstance(val.value, TypeError)
+
+def test_OrdinaryCreateFromConstructor_01(realm):
+    # Test the successful path. (Most of the work happens in GetPrototypeFromConstructor, so we really don't need to check much
+    # here.)
+    def fake_constructor(this_value, new_target):
+        return NormalCompletion(None)
+    constructor = CreateBuiltinFunction(fake_constructor, [])
+    proto = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
+    CreateDataProperty(constructor, 'prototype', proto)
+
+    val = OrdinaryCreateFromConstructor(constructor, '%ObjectPrototype%', ['slotify', 'Lucious'])
+    assert (val.ctype, val.target) == (NORMAL, None)
+    assert isObject(val.value)
+    obj = val.value
+    assert hasattr(obj, 'slotify')
+    assert hasattr(obj, 'Lucious')
+    assert IsExtensible(obj)
+    assert obj.Prototype == proto
+
+def test_OrdinaryCreateFromConstructor_02(realm):
+    # The [[Get]] call on the constructor throws.
+    def fake_constructor(this_value, new_target):
+        return NormalCompletion(None)
+    constructor = CreateBuiltinFunction(fake_constructor, [])
+    constructor.GetOwnProperty = types.MethodType(lambda _a, _b: ThrowCompletion('Thrown from OCFC_02'), constructor)
+
+    val = OrdinaryCreateFromConstructor(constructor, '%ObjectPrototype%')
+    assert val == Completion(THROW, 'Thrown from OCFC_02', None)
