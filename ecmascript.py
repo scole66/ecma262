@@ -1052,6 +1052,8 @@ class Reference:
         self.base = base
         self.name = name
         self.strict = strict
+    def __repr__(self):
+        return f'Reference({"S " if self.strict else ""}{self.name!r}, base={self.base!r})'
 
 # 6.2.4.1 GetBase ( V )
 def GetBase(value):
