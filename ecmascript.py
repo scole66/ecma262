@@ -5310,15 +5310,130 @@ class PN_RelationalExpression_ShiftExpression(ParseNode):
 class PN_EqualityExpression_RelationalExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('EqualityExpression', p)
+########################################################################################################################
+# 12.12 Binary Bitwise Operators (&)
 class PN_BitwiseANDExpression_EqualityExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('BitwiseANDExpression', p)
+class PN_BitwiseANDExpression_BitwiseANDExpression_AMP_EqualityExpression(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('BitwiseANDExpression', p)
+    # 12.12.1 Static Semantics: IsFunctionDefinition
+    def IsFunctionDefinition(self):
+        # 1. Return false.
+        return False
+    # 12.12.2 Static Semantics: IsValidSimpleAssignmentTarget
+    def IsValidSimpleAssignmentTarget(self):
+        # 1. Return false.
+        return False
+    # 12.12.3 Runtime Semantics: Evaluation
+    def evaluate(self):
+        # The production A:A@B , where @ is one of the bitwise operators in the productions above, is evaluated as follows:
+        # 1. Let lref be the result of evaluating A.
+        lref = self.children[0].evaluate()
+        # 2. Let lval be ? GetValue(lref).
+        lval, ok = ec(GetValue(lref))
+        if not ok:
+            return lval
+        # 3. Let rref be the result of evaluating B.
+        rref = self.children[2].evaluate()
+        # 4. Let rval be ? GetValue(rref).
+        rval, ok = ec(GetValue(rref))
+        if not ok:
+            return rval
+        # 5. Let lnum be ? ToInt32(lval).
+        lnum, ok = ec(ToInt32(lval))
+        if not ok:
+            return lnum
+        # 6. Let rnum be ? ToInt32(rval).
+        rnum, ok = ec(ToInt32(rval))
+        if not ok:
+            return rnum
+        # 7. Return the result of applying the bitwise operator @ to lnum and rnum. The result is a signed 32-bit integer.
+        return NormalCompletion(lnum & rnum)
+########################################################################################################################
+# 12.12 Binary Bitwise Operators (^)
 class PN_BitwiseXORExpression_BitwiseANDExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('BitwiseXORExpression', p)
+class PN_BitwiseXORExpression_BitwiseXORExpression_XOR_BitwiseANDExpression(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('BitwiseXORExpression', p)
+    # 12.12.1 Static Semantics: IsFunctionDefinition
+    def IsFunctionDefinition(self):
+        # 1. Return false.
+        return False
+    # 12.12.2 Static Semantics: IsValidSimpleAssignmentTarget
+    def IsValidSimpleAssignmentTarget(self):
+        # 1. Return false.
+        return False
+    # 12.12.3 Runtime Semantics: Evaluation
+    def evaluate(self):
+        # The production A:A@B , where @ is one of the bitwise operators in the productions above, is evaluated as follows:
+        # 1. Let lref be the result of evaluating A.
+        lref = self.children[0].evaluate()
+        # 2. Let lval be ? GetValue(lref).
+        lval, ok = ec(GetValue(lref))
+        if not ok:
+            return lval
+        # 3. Let rref be the result of evaluating B.
+        rref = self.children[2].evaluate()
+        # 4. Let rval be ? GetValue(rref).
+        rval, ok = ec(GetValue(rref))
+        if not ok:
+            return rval
+        # 5. Let lnum be ? ToInt32(lval).
+        lnum, ok = ec(ToInt32(lval))
+        if not ok:
+            return lnum
+        # 6. Let rnum be ? ToInt32(rval).
+        rnum, ok = ec(ToInt32(rval))
+        if not ok:
+            return rnum
+        # 7. Return the result of applying the bitwise operator @ to lnum and rnum. The result is a signed 32-bit integer.
+        return NormalCompletion(lnum ^ rnum)
+########################################################################################################################
+# 12.12 Binary Bitwise Operators (|)
 class PN_BitwiseORExpression_BitwiseXORExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('BitwiseORExpression', p)
+class PN_BitwiseORExpression_BitwiseORExpression_PIPE_BitwiseXORExpression(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('BitwiseORExpression', p)
+    # 12.12.1 Static Semantics: IsFunctionDefinition
+    def IsFunctionDefinition(self):
+        # 1. Return false.
+        return False
+    # 12.12.2 Static Semantics: IsValidSimpleAssignmentTarget
+    def IsValidSimpleAssignmentTarget(self):
+        # 1. Return false.
+        return False
+    # 12.12.3 Runtime Semantics: Evaluation
+    def evaluate(self):
+        # The production A:A@B , where @ is one of the bitwise operators in the productions above, is evaluated as follows:
+        # 1. Let lref be the result of evaluating A.
+        lref = self.children[0].evaluate()
+        # 2. Let lval be ? GetValue(lref).
+        lval, ok = ec(GetValue(lref))
+        if not ok:
+            return lval
+        # 3. Let rref be the result of evaluating B.
+        rref = self.children[2].evaluate()
+        # 4. Let rval be ? GetValue(rref).
+        rval, ok = ec(GetValue(rref))
+        if not ok:
+            return rval
+        # 5. Let lnum be ? ToInt32(lval).
+        lnum, ok = ec(ToInt32(lval))
+        if not ok:
+            return lnum
+        # 6. Let rnum be ? ToInt32(rval).
+        rnum, ok = ec(ToInt32(rval))
+        if not ok:
+            return rnum
+        # 7. Return the result of applying the bitwise operator @ to lnum and rnum. The result is a signed 32-bit integer.
+        return NormalCompletion(lnum | rnum)
+########################################################################################################################
 # 12.13 Binary Logical Operators (&&)
 class PN_LogicalANDExpression_BitwiseORExpression(ParseNode):
     def __init__(self, ctx, p):
@@ -5351,6 +5466,7 @@ class PN_LogicalANDExpression_LogicalANDExpression_AMPAMP_BitwiseORExpression(Pa
         rref = self.children[2].evaluate()
         # 6. Return ? GetValue(rref).
         return GetValue(rref)
+########################################################################################################################
 # 12.13 Binary Logical Operators (||)
 class PN_LogicalORExpression_LogicalANDExpression(ParseNode):
     def __init__(self, ctx, p):
@@ -5383,6 +5499,7 @@ class PN_LogicalORExpression_LogicalORExpression_PIPEPIPE_LogicalANDExpression(P
         rref = self.children[2].evaluate()
         # 6. Return ? GetValue(rref).
         return GetValue(rref)
+########################################################################################################################
 class PN_ConditionalExpression_LogicalORExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('ConditionalExpression', p)
@@ -5849,39 +5966,67 @@ class Ecma262Parser(Parser):
     def ConditionalExpression(self, p):
         return PN_ConditionalExpression_QUESTION_AssignmentExpression_COLON_AssignmentExpression(self.context, p)
 
+    ########################################################################################################################
     # 12.13 Binary Logical Operators
     # Syntax
     # LogicalANDExpression[In, Yield, Await]:
     #                 BitwiseORExpression[?In, ?Yield, ?Await]
     #                 LogicalANDExpression[?In, ?Yield, ?Await] && BitwiseORExpression[?In, ?Yield, ?Await]
-    # LogicalORExpression[In, Yield, Await]:
-    #                 LogicalANDExpression[?In, ?Yield, ?Await]
-    #                 LogicalORExpression[?In, ?Yield, ?Await] || LogicalANDExpression[?In, ?Yield, ?Await]
-    # NOTE
-    # The value produced by a && or || operator is not necessarily of type Boolean. The value produced will always be the value
-    # of one of the two operand expressions.
     @_('BitwiseORExpression')
     def LogicalANDExpression(self, p):
         return PN_LogicalANDExpression_BitwiseORExpression(self.context, p)
     @_('LogicalANDExpression AMPAMP BitwiseORExpression')
     def LogicalANDExpression(self, p):
         return PN_LogicalANDExpression_LogicalANDExpression_AMPAMP_BitwiseORExpression(self.context, p)
+    #
+    # LogicalORExpression[In, Yield, Await]:
+    #                 LogicalANDExpression[?In, ?Yield, ?Await]
+    #                 LogicalORExpression[?In, ?Yield, ?Await] || LogicalANDExpression[?In, ?Yield, ?Await]
     @_('LogicalANDExpression')
     def LogicalORExpression(self, p):
         return PN_LogicalORExpression_LogicalANDExpression(self.context, p)
     @_('LogicalORExpression PIPEPIPE LogicalANDExpression')
     def LogicalORExpression(self, p):
         return PN_LogicalORExpression_LogicalORExpression_PIPEPIPE_LogicalANDExpression(self.context, p)
+    # NOTE
+    # The value produced by a && or || operator is not necessarily of type Boolean. The value produced will always be the value
+    # of one of the two operand expressions.
+    ########################################################################################################################
 
-    @_('BitwiseXORExpression')
-    def BitwiseORExpression(self, p):
-        return PN_BitwiseORExpression_BitwiseXORExpression(self.context, p)
-    @_('BitwiseANDExpression')
-    def BitwiseXORExpression(self, p):
-        return PN_BitwiseXORExpression_BitwiseANDExpression(self.context, p)
+    ########################################################################################################################
+    # 12.12 Binary Bitwise Operators
+    # Syntax
+    # BitwiseANDExpression[In, Yield, Await]:
+    #                 EqualityExpression[?In, ?Yield, ?Await]
+    #                 BitwiseANDExpression[?In, ?Yield, ?Await] & EqualityExpression[?In, ?Yield, ?Await]
     @_('EqualityExpression')
     def BitwiseANDExpression(self, p):
         return PN_BitwiseANDExpression_EqualityExpression(self.context, p)
+    @_('BitwiseANDExpression AMP EqualityExpression')
+    def BitwiseANDExpression(self, p):
+        return PN_BitwiseANDExpression_BitwiseANDExpression_AMP_EqualityExpression(self.context, p)
+    #
+    # BitwiseXORExpression[In, Yield, Await]:
+    #                 BitwiseANDExpression[?In, ?Yield, ?Await]
+    #                 BitwiseXORExpression[?In, ?Yield, ?Await] ^ BitwiseANDExpression[?In, ?Yield, ?Await]
+    @_('BitwiseANDExpression')
+    def BitwiseXORExpression(self, p):
+        return PN_BitwiseXORExpression_BitwiseANDExpression(self.context, p)
+    @_('BitwiseXORExpression XOR BitwiseANDExpression')
+    def BitwiseXORExpression(self, p):
+        return PN_BitwiseXORExpression_BitwiseXORExpression_XOR_BitwiseANDExpression(self.context, p)
+    #
+    # BitwiseORExpression[In, Yield, Await]:
+    #                 BitwiseXORExpression[?In, ?Yield, ?Await]
+    #                 BitwiseORExpression[?In, ?Yield, ?Await] | BitwiseXORExpression[?In, ?Yield, ?Await]
+    @_('BitwiseXORExpression')
+    def BitwiseORExpression(self, p):
+        return PN_BitwiseORExpression_BitwiseXORExpression(self.context, p)
+    @_('BitwiseORExpression PIPE BitwiseXORExpression')
+    def BitwiseORExpression(self, p):
+        return PN_BitwiseORExpression_BitwiseORExpression_PIPE_BitwiseXORExpression(self.context, p)
+    ########################################################################################################################
+
     @_('RelationalExpression')
     def EqualityExpression(self, p):
         return PN_EqualityExpression_RelationalExpression(self.context, p)
