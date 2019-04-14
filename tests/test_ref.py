@@ -9,7 +9,9 @@ NORMAL = CompletionType.NORMAL
 @pytest.fixture
 def realm():
     InitializeHostDefinedRealm()
-    return surrounding_agent.running_ec.realm
+    yield surrounding_agent.running_ec.realm
+    surrounding_agent.ec_stack.pop()
+    surrounding_agent.running_ec = None
 
 @pytest.fixture
 def obj(realm):
@@ -98,7 +100,7 @@ def test_GetValue_04():
     rval = GetValue(Reference('short', 'length', False))
     assert rval == Completion(NORMAL, 5, None)
 
-def test_GetValue_05():
+def test_GetValue_05(realm):
     # But we can still try to dereference a value from a primitive type object; we should just get None back.
     rval = GetValue(Reference(45, 'digits', False))
     assert rval == Completion(NORMAL, None, None)
