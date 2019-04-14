@@ -22,7 +22,11 @@ NORMAL = CompletionType.NORMAL
     false ? 'truth value' : 'falsehood value';
     ''',
     'falsehood value'
-    )
+    ),
+    ('67 || 99;', 67),
+    ('67 && 99;', 99),
+    ('false || 102;', 102),
+    ('null && \'thing\';', JSNull.NULL),
 ])
 def test_scripts_01(script, result):
     rv = RunJobs(scripts=[script])
