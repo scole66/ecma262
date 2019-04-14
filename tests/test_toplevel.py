@@ -27,6 +27,9 @@ NORMAL = CompletionType.NORMAL
     ('67 && 99;', 99),
     ('false || 102;', 102),
     ('null && \'thing\';', JSNull.NULL),
+    ('0x80 | 0x34;', 0b10110100),
+    ('0x73 & 0x29;', 0x21),
+    ('0xff ^ 0x156;', 0x1a9)
 ])
 def test_scripts_01(script, result):
     rv = RunJobs(scripts=[script])
