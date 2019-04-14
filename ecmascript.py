@@ -5724,13 +5724,24 @@ class PN_EqualityExpression_EqualityExpression_BANGEQEQ_RelationalExpression(PN_
         # 6. If r is true, return false. Otherwise, return true.
         return NormalCompletion(not StrictEqualityComparison(rval, lval))
 ########################################################################################################################
-# 12.12 Binary Bitwise Operators (&)
-class PN_BitwiseANDExpression_EqualityExpression(ParseNode):
-    def __init__(self, ctx, p):
-        super().__init__('BitwiseANDExpression', p)
-class PN_BitwiseANDExpression_BitwiseANDExpression_AMP_EqualityExpression(ParseNode):
-    def __init__(self, ctx, p):
-        super().__init__('BitwiseANDExpression', p)
+
+###################################################################################################################################################################################################################################################
+#
+#  d888    .d8888b.       d888    .d8888b.      888888b.   d8b                                        888888b.   d8b 888                  d8b                        .d88888b.                                     888
+# d8888   d88P  Y88b     d8888   d88P  Y88b     888  "88b  Y8P                                        888  "88b  Y8P 888                  Y8P                       d88P" "Y88b                                    888
+#   888          888       888          888     888  .88P                                             888  .88P      888                                            888     888                                    888
+#   888        .d88P       888        .d88P     8888888K.  888 88888b.   8888b.  888d888 888  888     8888888K.  888 888888 888  888  888 888 .d8888b   .d88b.      888     888 88888b.   .d88b.  888d888  8888b.  888888  .d88b.  888d888 .d8888b
+#   888    .od888P"        888    .od888P"      888  "Y88b 888 888 "88b     "88b 888P"   888  888     888  "Y88b 888 888    888  888  888 888 88K      d8P  Y8b     888     888 888 "88b d8P  Y8b 888P"       "88b 888    d88""88b 888P"   88K
+#   888   d88P"            888   d88P"          888    888 888 888  888 .d888888 888     888  888     888    888 888 888    888  888  888 888 "Y8888b. 88888888     888     888 888  888 88888888 888     .d888888 888    888  888 888     "Y8888b.
+#   888   888"       d8b   888   888"           888   d88P 888 888  888 888  888 888     Y88b 888     888   d88P 888 Y88b.  Y88b 888 d88P 888      X88 Y8b.         Y88b. .d88P 888 d88P Y8b.     888     888  888 Y88b.  Y88..88P 888          X88
+# 8888888 888888888  Y8P 8888888 888888888      8888888P"  888 888  888 "Y888888 888      "Y88888     8888888P"  888  "Y888  "Y8888888P"  888  88888P'  "Y8888       "Y88888P"  88888P"   "Y8888  888     "Y888888  "Y888  "Y88P"  888      88888P'
+#                                                                                             888                                                                               888
+#                                                                                        Y8b d88P                                                                               888
+#                                                                                         "Y88P"                                                                                888
+#
+###################################################################################################################################################################################################################################################
+# 12.12 Binary Bitwise Operators
+class PN_BitwiseExpression(ParseNode):
     # 12.12.1 Static Semantics: IsFunctionDefinition
     def IsFunctionDefinition(self):
         # 1. Return false.
@@ -5762,88 +5773,38 @@ class PN_BitwiseANDExpression_BitwiseANDExpression_AMP_EqualityExpression(ParseN
         rnum, ok = ec(ToInt32(rval))
         if not ok:
             return rnum
+        # 7+. Defer to subclasses
+        return self.operate(lnum, rnum)
+# '&' Productions
+class PN_BitwiseANDExpression(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('BitwiseANDExpression', p)
+class PN_BitwiseANDExpression_EqualityExpression(PN_BitwiseANDExpression):
+    pass # nothing more for the pass-thru production
+class PN_BitwiseANDExpression_BitwiseANDExpression_AMP_EqualityExpression(PN_BitwiseANDExpression, PN_BitwiseExpression):
+    def operate(self, lnum, rnum):
         # 7. Return the result of applying the bitwise operator @ to lnum and rnum. The result is a signed 32-bit integer.
         return NormalCompletion(lnum & rnum)
-########################################################################################################################
-# 12.12 Binary Bitwise Operators (^)
-class PN_BitwiseXORExpression_BitwiseANDExpression(ParseNode):
+# '^' Productions
+class PN_BitwiseXORExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('BitwiseXORExpression', p)
-class PN_BitwiseXORExpression_BitwiseXORExpression_XOR_BitwiseANDExpression(ParseNode):
-    def __init__(self, ctx, p):
-        super().__init__('BitwiseXORExpression', p)
-    # 12.12.1 Static Semantics: IsFunctionDefinition
-    def IsFunctionDefinition(self):
-        # 1. Return false.
-        return False
-    # 12.12.2 Static Semantics: IsValidSimpleAssignmentTarget
-    def IsValidSimpleAssignmentTarget(self):
-        # 1. Return false.
-        return False
+class PN_BitwiseXORExpression_BitwiseANDExpression(PN_BitwiseXORExpression):
+    pass # Nothing more for pass-thru production
+class PN_BitwiseXORExpression_BitwiseXORExpression_XOR_BitwiseANDExpression(PN_BitwiseXORExpression, PN_BitwiseExpression):
     # 12.12.3 Runtime Semantics: Evaluation
-    def evaluate(self):
-        # The production A:A@B , where @ is one of the bitwise operators in the productions above, is evaluated as follows:
-        # 1. Let lref be the result of evaluating A.
-        lref = self.children[0].evaluate()
-        # 2. Let lval be ? GetValue(lref).
-        lval, ok = ec(GetValue(lref))
-        if not ok:
-            return lval
-        # 3. Let rref be the result of evaluating B.
-        rref = self.children[2].evaluate()
-        # 4. Let rval be ? GetValue(rref).
-        rval, ok = ec(GetValue(rref))
-        if not ok:
-            return rval
-        # 5. Let lnum be ? ToInt32(lval).
-        lnum, ok = ec(ToInt32(lval))
-        if not ok:
-            return lnum
-        # 6. Let rnum be ? ToInt32(rval).
-        rnum, ok = ec(ToInt32(rval))
-        if not ok:
-            return rnum
+    def operate(self, lnum, rnum):
         # 7. Return the result of applying the bitwise operator @ to lnum and rnum. The result is a signed 32-bit integer.
         return NormalCompletion(lnum ^ rnum)
-########################################################################################################################
-# 12.12 Binary Bitwise Operators (|)
-class PN_BitwiseORExpression_BitwiseXORExpression(ParseNode):
+# '|' Productions
+class PN_BitwiseORExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('BitwiseORExpression', p)
-class PN_BitwiseORExpression_BitwiseORExpression_PIPE_BitwiseXORExpression(ParseNode):
-    def __init__(self, ctx, p):
-        super().__init__('BitwiseORExpression', p)
-    # 12.12.1 Static Semantics: IsFunctionDefinition
-    def IsFunctionDefinition(self):
-        # 1. Return false.
-        return False
-    # 12.12.2 Static Semantics: IsValidSimpleAssignmentTarget
-    def IsValidSimpleAssignmentTarget(self):
-        # 1. Return false.
-        return False
+class PN_BitwiseORExpression_BitwiseXORExpression(PN_BitwiseORExpression):
+    pass # nothing more needed for pass-thru productions
+class PN_BitwiseORExpression_BitwiseORExpression_PIPE_BitwiseXORExpression(PN_BitwiseORExpression, PN_BitwiseExpression):
     # 12.12.3 Runtime Semantics: Evaluation
-    def evaluate(self):
-        # The production A:A@B , where @ is one of the bitwise operators in the productions above, is evaluated as follows:
-        # 1. Let lref be the result of evaluating A.
-        lref = self.children[0].evaluate()
-        # 2. Let lval be ? GetValue(lref).
-        lval, ok = ec(GetValue(lref))
-        if not ok:
-            return lval
-        # 3. Let rref be the result of evaluating B.
-        rref = self.children[2].evaluate()
-        # 4. Let rval be ? GetValue(rref).
-        rval, ok = ec(GetValue(rref))
-        if not ok:
-            return rval
-        # 5. Let lnum be ? ToInt32(lval).
-        lnum, ok = ec(ToInt32(lval))
-        if not ok:
-            return lnum
-        # 6. Let rnum be ? ToInt32(rval).
-        rnum, ok = ec(ToInt32(rval))
-        if not ok:
-            return rnum
+    def operate(self, lnum, rnum):
         # 7. Return the result of applying the bitwise operator @ to lnum and rnum. The result is a signed 32-bit integer.
         return NormalCompletion(lnum | rnum)
 ########################################################################################################################
@@ -7737,7 +7698,7 @@ def NumberFixups(realm):
     return NormalCompletion(None)
 
 if __name__ == '__main__':
-    rv, ok = ec(RunJobs(scripts=['Number instanceof Object;']))
+    rv, ok = ec(RunJobs(scripts=['0x80 | 0x34;']))
 
     if ok:
         print('Script returned %s' % nc(ToString(rv)))
