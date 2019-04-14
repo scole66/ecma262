@@ -1860,7 +1860,22 @@ def CanonicalNumericIndexString(arg):
     # A canonical numeric string is any String value for which the CanonicalNumericIndexString abstract operation does
     # not return undefined.
 
-# 7.2.1 IsArray ( argument )
+#################################################################################################################################################################################################################################################################################################################
+#
+# 8888888888      .d8888b.      88888888888                   888    d8b                                              888      .d8888b.                                                   d8b                                 .d88888b.                                     888    d8b
+#       d88P     d88P  Y88b         888                       888    Y8P                                              888     d88P  Y88b                                                  Y8P                                d88P" "Y88b                                    888    Y8P
+#      d88P             888         888                       888                                                     888     888    888                                                                                     888     888                                    888
+#     d88P            .d88P         888      .d88b.  .d8888b  888888 888 88888b.   .d88b.       8888b.  88888b.   .d88888     888         .d88b.  88888b.d88b.  88888b.   8888b.  888d888 888 .d8888b   .d88b.  88888b.      888     888 88888b.   .d88b.  888d888  8888b.  888888 888  .d88b.  88888b.  .d8888b
+#  88888888       .od888P"          888     d8P  Y8b 88K      888    888 888 "88b d88P"88b         "88b 888 "88b d88" 888     888        d88""88b 888 "888 "88b 888 "88b     "88b 888P"   888 88K      d88""88b 888 "88b     888     888 888 "88b d8P  Y8b 888P"       "88b 888    888 d88""88b 888 "88b 88K
+#   d88P         d88P"              888     88888888 "Y8888b. 888    888 888  888 888  888     .d888888 888  888 888  888     888    888 888  888 888  888  888 888  888 .d888888 888     888 "Y8888b. 888  888 888  888     888     888 888  888 88888888 888     .d888888 888    888 888  888 888  888 "Y8888b.
+#  d88P      d8b 888"               888     Y8b.          X88 Y88b.  888 888  888 Y88b 888     888  888 888  888 Y88b 888     Y88b  d88P Y88..88P 888  888  888 888 d88P 888  888 888     888      X88 Y88..88P 888  888     Y88b. .d88P 888 d88P Y8b.     888     888  888 Y88b.  888 Y88..88P 888  888      X88
+# d88P       Y8P 888888888          888      "Y8888   88888P'  "Y888 888 888  888  "Y88888     "Y888888 888  888  "Y88888      "Y8888P"   "Y88P"  888  888  888 88888P"  "Y888888 888     888  88888P'  "Y88P"  888  888      "Y88888P"  88888P"   "Y8888  888     "Y888888  "Y888 888  "Y88P"  888  888  88888P'
+#                                                                                      888                                                                      888                                                                      888
+#                                                                                 Y8b d88P                                                                      888                                                                      888
+#                                                                                  "Y88P"                                                                       888                                                                      888
+#
+#################################################################################################################################################################################################################################################################################################################
+# 7.2.2 IsArray ( argument )
 def IsArray(arg):
     # The abstract operation IsArray takes one argument argument, and performs the following steps:
     #
@@ -1987,6 +2002,85 @@ def SameValueNonNumber(x, y):
     # 8. If x and y are the same Object value, return true. Otherwise, return false.
     return x == y
 
+# 7.2.13 Abstract Relational Comparison
+def AbstractRelationalComparison(x, y, LeftFirst):
+    # The comparison x < y, where x and y are values, produces true, false, or undefined (which indicates that at least one
+    # operand is NaN). In addition to x and y the algorithm takes a Boolean flag named LeftFirst as a parameter. The flag is
+    # used to control the order in which operations with potentially visible side-effects are performed upon x and y. It is
+    # necessary because ECMAScript specifies left to right evaluation of expressions. The default value of LeftFirst is true
+    # and indicates that the x parameter corresponds to an expression that occurs to the left of the y parameter's
+    # corresponding expression. If LeftFirst is false, the reverse is the case and operations must be performed upon y before
+    # x. Such a comparison is performed as follows:
+    #
+    # 1. If the LeftFirst flag is true, then
+    if LeftFirst:
+        # a. Let px be ? ToPrimitive(x, hint Number).
+        px, ok = ec(ToPrimitive(x, 'number'))
+        if not ok:
+            return px
+        # b. Let py be ? ToPrimitive(y, hint Number).
+        py, ok = ec(ToPrimitive(y, 'number'))
+        if not ok:
+            return py
+    # 2. Else the order of evaluation needs to be reversed to preserve left to right evaluation,
+    else:
+        # a. Let py be ? ToPrimitive(y, hint Number).
+        py, ok = ec(ToPrimitive(y, 'number'))
+        if not ok:
+            return py
+        # b. Let px be ? ToPrimitive(x, hint Number).
+        px, ok = ec(ToPrimitive(x, 'number'))
+        if not ok:
+            return px
+    # 3. If Type(px) is String and Type(py) is String, then
+    if isString(px) and isString(py):
+        # a. If IsStringPrefix(py, px) is true, return false.
+        # b. If IsStringPrefix(px, py) is true, return true.
+        # c. Let k be the smallest nonnegative integer such that the code unit at index k within px is different from the code
+        #    unit at index k within py. (There must be such a k, for neither String is a prefix of the other.)
+        # d. Let m be the integer that is the numeric value of the code unit at index k within px.
+        # e. Let n be the integer that is the numeric value of the code unit at index k within py.
+        # f. If m < n, return true. Otherwise, return false.
+        # -- Steps a-f are what python already does. So this is easy.
+        return px < py
+    # 4. Else,
+    # a. NOTE: Because px and py are primitive values evaluation order is not important.
+    # b. Let nx be ? ToNumber(px).
+    nx, ok = ec(ToNumber(px))
+    if not ok:
+        return nx
+    # c. Let ny be ? ToNumber(py).
+    ny, ok = ec(ToNumber(py))
+    if not ok:
+        return ny
+    # d. If nx is NaN, return undefined.
+    # e. If ny is NaN, return undefined.
+    if math.isnan(nx) or math.isnan(ny):
+        return NormalCompletion(None)
+    # f. If nx and ny are the same Number value, return false.
+    # g. If nx is +0 and ny is -0, return false.
+    # h. If nx is -0 and ny is +0, return false.
+    # i. If nx is +∞, return false.
+    # j. If ny is +∞, return true.
+    # k. If ny is -∞, return false.
+    # l. If nx is -∞, return true.
+    # m. If the mathematical value of nx is less than the mathematical value of ny—note that these mathematical values are both
+    #    finite and not both zero—return true. Otherwise, return false.
+    # --- Rules f-m are followed by python, so we let it do the work.
+    return NormalCompletion(nx < ny)
+    #
+    # NOTE 1
+    # Step 3 differs from step 7 in the algorithm for the addition operator + (12.8.3) by using the logical-and operation
+    # instead of the logical-or operation.
+    #
+    # NOTE 2
+    # The comparison of Strings uses a simple lexicographic ordering on sequences of code unit values. There is no attempt to
+    # use the more complex, semantically oriented definitions of character or string equality and collating order defined in
+    # the Unicode specification. Therefore String values that are canonically equal according to the Unicode standard could
+    # test as unequal. In effect this algorithm assumes that both Strings are already in normalized form. Also, note that for
+    # strings containing supplementary characters, lexicographic ordering on sequences of UTF-16 code unit values differs from
+    # that on sequences of code point values.
+
 # 7.2.14 Abstract Equality Comparison
 def AbstractEqualityComparison(x, y):
     # The comparison x == y, where x and y are values, produces true or false. Such a comparison is performed as follows:
@@ -2043,7 +2137,21 @@ def StrictEqualityComparison(x, y):
     return SameValueNonNumber(x, y)
     # NOTE
     # This algorithm differs from the SameValue Algorithm in its treatment of signed zeroes and NaNs.
-
+#################################################################################################################################################################################################################
+#
+# 8888888888      .d8888b.       .d88888b.                                     888    d8b                                                       .d88888b.  888         d8b                   888
+#       d88P     d88P  Y88b     d88P" "Y88b                                    888    Y8P                                                      d88P" "Y88b 888         Y8P                   888
+#      d88P           .d88P     888     888                                    888                                                             888     888 888                               888
+#     d88P           8888"      888     888 88888b.   .d88b.  888d888  8888b.  888888 888  .d88b.  88888b.  .d8888b       .d88b.  88888b.      888     888 88888b.    8888  .d88b.   .d8888b 888888 .d8888b
+#  88888888           "Y8b.     888     888 888 "88b d8P  Y8b 888P"       "88b 888    888 d88""88b 888 "88b 88K          d88""88b 888 "88b     888     888 888 "88b   "888 d8P  Y8b d88P"    888    88K
+#   d88P         888    888     888     888 888  888 88888888 888     .d888888 888    888 888  888 888  888 "Y8888b.     888  888 888  888     888     888 888  888    888 88888888 888      888    "Y8888b.
+#  d88P      d8b Y88b  d88P     Y88b. .d88P 888 d88P Y8b.     888     888  888 Y88b.  888 Y88..88P 888  888      X88     Y88..88P 888  888     Y88b. .d88P 888 d88P    888 Y8b.     Y88b.    Y88b.       X88
+# d88P       Y8P  "Y8888P"       "Y88888P"  88888P"   "Y8888  888     "Y888888  "Y888 888  "Y88P"  888  888  88888P'      "Y88P"  888  888      "Y88888P"  88888P"     888  "Y8888   "Y8888P  "Y888  88888P'
+#                                           888                                                                                                                        888
+#                                           888                                                                                                                       d88P
+#                                           888                                                                                                                     888P"
+#
+#################################################################################################################################################################################################################
 # 7.3.1 Get ( O, P )
 def Get(obj, propkey):
     # The abstract operation Get is used to retrieve the value of a specific property of an object. The operation is
@@ -2255,8 +2363,6 @@ def Construct(func, *args, newTarget=missing.MISSING):
     # NOTE
     # If newTarget is not present, this operation is equivalent to: new F(...argumentsList)
 
-
-
 # 7.3.15 TestIntegrityLevel ( O, level )
 def TestIntegrityLevel(o_value, level):
     # The abstract operation TestIntegrityLevel is used to determine if the set of own properties of an object are
@@ -2315,6 +2421,42 @@ def Invoke(v, p, arguments_list=[]):
     # 4. Return ? Call(func, V, argumentsList).
     return Call(func, v, arguments_list)
 
+# 7.3.19 OrdinaryHasInstance ( C, O )
+def OrdinaryHasInstance(C, O):
+    # The abstract operation OrdinaryHasInstance implements the default algorithm for determining if an object O inherits from
+    # the instance object inheritance path provided by constructor C. This abstract operation performs the following steps:
+    #
+    # 1. If IsCallable(C) is false, return false.
+    if not IsCallable(C):
+        return NormalCompletion(False)
+    # 2. If C has a [[BoundTargetFunction]] internal slot, then
+    if hasattr(C, 'BoundTargetFunction'):
+        # a. Let BC be C.[[BoundTargetFunction]].
+        BC = C.BoundTargetFunction
+        # b. Return ? InstanceofOperator(O, BC).
+        return InstanceofOperator(O, BC)
+    # 3. If Type(O) is not Object, return false.
+    if not isObject(O):
+        return NormalCompletion(False)
+    # 4. Let P be ? Get(C, "prototype").
+    P, ok = ec(Get(C, 'prototype'))
+    if not ok:
+        return P
+    # 5. If Type(P) is not Object, throw a TypeError exception.
+    if not isObject(P):
+        return ThrowCompletion(CreateTypeError())
+    # 6. Repeat,
+    while 1:
+        # a. Set O to ? O.[[GetPrototypeOf]]().
+        O, ok = ec(O.GetPrototypeOf())
+        if not ok:
+            return O
+        # b. If O is null, return false.
+        if isNull(O):
+            return NormalCompletion(False)
+        # c. If SameValue(P, O) is true, return true.
+        if SameValue(P, O):
+            return NormalCompletion(True)
 
 # 7.3.22 GetFunctionRealm ( obj )
 def GetFunctionRealm(obj):
@@ -2347,9 +2489,35 @@ def GetFunctionRealm(obj):
     # Step 5 will only be reached if obj is a non-standard function exotic object that does not have a [[Realm]]
     # internal slot.
 
-
+###############################################################################################################################################
+#
+#  .d8888b.  888                        888                          .d8888b.
+# d88P  Y88b 888                        888                         d88P  Y88b
+# 888    888 888                        888                         Y88b. d88P
+# 888        88888b.   8888b.  88888b.  888888  .d88b.  888d888      "Y88888"
+# 888        888 "88b     "88b 888 "88b 888    d8P  Y8b 888P"       .d8P""Y8b.
+# 888    888 888  888 .d888888 888  888 888    88888888 888         888    888
+# Y88b  d88P 888  888 888  888 888 d88P Y88b.  Y8b.     888         Y88b  d88P
+#  "Y8888P"  888  888 "Y888888 88888P"   "Y888  "Y8888  888          "Y8888P"
+#                              888
+#                              888
+#                              888
+#
+###############################################################################################################################################
 # Chapter 8: Executable Code and Execution Contexts
 
+###############################################################################################################################################
+#
+#  .d8888b.       d888       888                        d8b                   888     8888888888                   d8b                                                           888
+# d88P  Y88b     d8888       888                        Y8P                   888     888                          Y8P                                                           888
+# Y88b. d88P       888       888                                              888     888                                                                                        888
+#  "Y88888"        888       888       .d88b.  888  888 888  .d8888b  8888b.  888     8888888    88888b.  888  888 888 888d888  .d88b.  88888b.  88888b.d88b.   .d88b.  88888b.  888888 .d8888b
+# .d8P""Y8b.       888       888      d8P  Y8b `Y8bd8P' 888 d88P"        "88b 888     888        888 "88b 888  888 888 888P"   d88""88b 888 "88b 888 "888 "88b d8P  Y8b 888 "88b 888    88K
+# 888    888       888       888      88888888   X88K   888 888      .d888888 888     888        888  888 Y88  88P 888 888     888  888 888  888 888  888  888 88888888 888  888 888    "Y8888b.
+# Y88b  d88P d8b   888       888      Y8b.     .d8""8b. 888 Y88b.    888  888 888     888        888  888  Y8bd8P  888 888     Y88..88P 888  888 888  888  888 Y8b.     888  888 Y88b.       X88
+#  "Y8888P"  Y8P 8888888     88888888  "Y8888  888  888 888  "Y8888P "Y888888 888     8888888888 888  888   Y88P   888 888      "Y88P"  888  888 888  888  888  "Y8888  888  888  "Y888  88888P'
+#
+###############################################################################################################################################
 # 8.1 Lexical Environments
 #
 # A Lexical Environment is a specification type used to define the association of Identifiers to specific variables and
@@ -5361,9 +5529,141 @@ class PN_AdditiveExpression_MultiplicativeExpression(ParseNode):
 class PN_ShiftExpression_AdditiveExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('ShiftExpression', p)
-class PN_RelationalExpression_ShiftExpression(ParseNode):
+########################################################################################################################
+#
+#  d888    .d8888b.       d888    .d8888b.      8888888b.           888          888    d8b                            888      .d88888b.                                     888
+# d8888   d88P  Y88b     d8888   d88P  Y88b     888   Y88b          888          888    Y8P                            888     d88P" "Y88b                                    888
+#   888          888       888   888    888     888    888          888          888                                   888     888     888                                    888
+#   888        .d88P       888   888    888     888   d88P  .d88b.  888  8888b.  888888 888  .d88b.  88888b.   8888b.  888     888     888 88888b.   .d88b.  888d888  8888b.  888888  .d88b.  888d888 .d8888b
+#   888    .od888P"        888   888    888     8888888P"  d8P  Y8b 888     "88b 888    888 d88""88b 888 "88b     "88b 888     888     888 888 "88b d8P  Y8b 888P"       "88b 888    d88""88b 888P"   88K
+#   888   d88P"            888   888    888     888 T88b   88888888 888 .d888888 888    888 888  888 888  888 .d888888 888     888     888 888  888 88888888 888     .d888888 888    888  888 888     "Y8888b.
+#   888   888"       d8b   888   Y88b  d88P     888  T88b  Y8b.     888 888  888 Y88b.  888 Y88..88P 888  888 888  888 888     Y88b. .d88P 888 d88P Y8b.     888     888  888 Y88b.  Y88..88P 888          X88
+# 8888888 888888888  Y8P 8888888  "Y8888P"      888   T88b  "Y8888  888 "Y888888  "Y888 888  "Y88P"  888  888 "Y888888 888      "Y88888P"  88888P"   "Y8888  888     "Y888888  "Y888  "Y88P"  888      88888P'
+#                                                                                                                                          888
+#                                                                                                                                          888
+#                                                                                                                                          888
+########################################################################################################################
+# 12.10 Relational Operators
+class PN_RelationalExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('RelationalExpression', p)
+class PN_RelationalExpression_ShiftExpression(PN_RelationalExpression):
+    pass # Nothing more for the pass-thru production
+class PN_RelationalExpression_R_op_S(PN_RelationalExpression):
+    # 12.10.1 Static Semantics: IsFunctionDefinition
+    def IsFunctionDefinition(self):
+        # 1. Return false.
+        return False
+    # 12.10.2 Static Semantics: IsValidSimpleAssignmentTarget
+    def IsValidSimpleAssignmentTarget(self):
+        # 1. Return false.
+        return False
+    # 12.10.3 Runtime Semantics: Evaluation
+    #    -- The first 4 steps are the same for each production
+    def evaluate(self):
+        # 1. Let lref be the result of evaluating RelationalExpression.
+        lref = self.children[0].evaluate()
+        # 2. Let lval be ? GetValue(lref).
+        lval, ok = ec(GetValue(lref))
+        if not ok:
+            return lval
+        # 3. Let rref be the result of evaluating ShiftExpression.
+        rref = self.children[2].evaluate()
+        # 4. Let rval be ? GetValue(rref).
+        rval, ok = ec(GetValue(rref))
+        if not ok:
+            return rval
+        # 5+: defer to subclass
+        return self.operate(lval, rval)
+class PN_RelationalExpression_RelationalExpression_LT_ShiftExpression(PN_RelationalExpression_R_op_S):
+    # 12.10.3 Runtime Semantics: Evaluation
+    def operate(self, lval, rval):
+        # 5. Let r be the result of performing Abstract Relational Comparison lval < rval.
+        # 6. ReturnIfAbrupt(r).
+        r, ok = ec(AbstractRelationalComparison(lval, rval, True))
+        if not ok:
+            return r
+        # 7. If r is undefined, return false. Otherwise, return r.
+        return NormalCompletion(r or False)
+class PN_RelationalExpression_RelationalExpression_GT_ShiftExpression(PN_RelationalExpression_R_op_S):
+    # 12.10.3 Runtime Semantics: Evaluation
+    def operate(self, lval, rval):
+        # 5. Let r be the result of performing Abstract Relational Comparison rval < lval with LeftFirst equal to false.
+        # 6. ReturnIfAbrupt(r).
+        r, ok = ec(AbstractRelationalComparison(rval, lval, False))
+        if not ok:
+            return r
+        # 7. If r is undefined, return false. Otherwise, return r.
+        return NormalCompletion(r or False)
+class PN_RelationalExpression_RelationalExpression_LE_ShiftExpression(PN_RelationalExpression_R_op_S):
+    # 12.10.3 Runtime Semantics: Evaluation
+    def operate(self, lval, rval):
+        # 5. Let r be the result of performing Abstract Relational Comparison rval < lval with LeftFirst equal to false.
+        # 6. ReturnIfAbrupt(r).
+        r, ok = ec(AbstractRelationalComparison(rval, lval, False))
+        if not ok:
+            return r
+        # 7. If r is true or undefined, return false. Otherwise, return true.
+        return NormalCompletion(not (r is None or r))
+class PN_RelationalExpression_RelationalExpression_GE_ShiftExpression(PN_RelationalExpression_R_op_S):
+    # 12.10.3 Runtime Semantics: Evaluation
+    def operate(self, lval, rval):
+        # 5. Let r be the result of performing Abstract Relational Comparison lval < rval.
+        # 6. ReturnIfAbrupt(r).
+        r, ok = ec(AbstractRelationalComparison(lval, rval, True))
+        if not ok:
+            return r
+        # 7. If r is true or undefined, return false. Otherwise, return true.
+        return NormalCompletion(not (r is None or r))
+class PN_RelationalExpression_RelationalExpression_INSTANCEOF_ShiftExpression(PN_RelationalExpression_R_op_S):
+    # 12.10.3 Runtime Semantics: Evaluation
+    def operate(self, lval, rval):
+        # 5. Return ? InstanceofOperator(lval, rval).
+        return InstanceofOperator(lval, rval)
+# 12.10.4 Runtime Semantics: InstanceofOperator ( V, target )
+def InstanceofOperator(V, target):
+    # The abstract operation InstanceofOperator(V, target) implements the generic algorithm for determining if ECMAScript value
+    # V is an instance of object target either by consulting target's @@hasinstance method or, if absent, determining whether
+    # the value of target's prototype property is present in V's prototype chain. This abstract operation performs the
+    # following steps:
+    #
+    # 1. If Type(target) is not Object, throw a TypeError exception.
+    if not isObject(target):
+        return ThrowCompletion(CreateTypeError())
+    # 2. Let instOfHandler be ? GetMethod(target, @@hasInstance).
+    instOfHandler, ok = ec(GetMethod(target, wks_has_instance))
+    if not ok:
+        return instOfHandler
+    # 3. If instOfHandler is not undefined, then
+    if instOfHandler is not None:
+        # a. Return ToBoolean(? Call(instOfHandler, target, « V »)).
+        val, ok = ec(Call(instOfHandler, target, V))
+        if not ok:
+            return val
+        return NormalCompletion(ToBoolean(val))
+    # 4. If IsCallable(target) is false, throw a TypeError exception.
+    if not IsCallable(target):
+        return ThrowCompletion(CreateTypeError())
+    # 5. Return ? OrdinaryHasInstance(target, V).
+    return OrdinaryHasInstance(target, V)
+    # NOTE
+    # Steps 4 and 5 provide compatibility with previous editions of ECMAScript that did not use a @@hasInstance method to
+    # define the instanceof operator semantics. If an object does not define or inherit @@hasInstance it uses the default
+    # instanceof semantics.
+########################################################################################################################
+#
+#  d888    .d8888b.       d888    d888       8888888888                            888 d8b 888                  .d88888b.                                     888
+# d8888   d88P  Y88b     d8888   d8888       888                                   888 Y8P 888                 d88P" "Y88b                                    888
+#   888          888       888     888       888                                   888     888                 888     888                                    888
+#   888        .d88P       888     888       8888888     .d88888 888  888  8888b.  888 888 888888 888  888     888     888 88888b.   .d88b.  888d888  8888b.  888888  .d88b.  888d888 .d8888b
+#   888    .od888P"        888     888       888        d88" 888 888  888     "88b 888 888 888    888  888     888     888 888 "88b d8P  Y8b 888P"       "88b 888    d88""88b 888P"   88K
+#   888   d88P"            888     888       888        888  888 888  888 .d888888 888 888 888    888  888     888     888 888  888 88888888 888     .d888888 888    888  888 888     "Y8888b.
+#   888   888"       d8b   888     888       888        Y88b 888 Y88b 888 888  888 888 888 Y88b.  Y88b 888     Y88b. .d88P 888 d88P Y8b.     888     888  888 Y88b.  Y88..88P 888          X88
+# 8888888 888888888  Y8P 8888888 8888888     8888888888  "Y88888  "Y88888 "Y888888 888 888  "Y888  "Y88888      "Y88888P"  88888P"   "Y8888  888     "Y888888  "Y888  "Y88P"  888      88888P'
+#                                                            888                                       888                 888
+#                                                            888                                  Y8b d88P                 888
+#                                                            888                                   "Y88P"                  888
+#
 ########################################################################################################################
 # 12.11 Equality Operators
 class PN_EqualityExpression(ParseNode):
@@ -6007,6 +6307,9 @@ class Ecma262Parser(Parser):
     start = 'Script'
     debugfile = 'parser.out'
 
+    def error(self, p):
+        raise SyntaxError(f'Syntax Error in script. Offending token: {p!r}')
+
     class ParseContext:
         __slots__ = ['goal', 'strict']
         def __init__(self, goal, strict):
@@ -6170,9 +6473,47 @@ class Ecma262Parser(Parser):
         return PN_EqualityExpression_EqualityExpression_BANGEQEQ_RelationalExpression(self.context, p)
     ########################################################################################################################
 
+    ########################################################################################################################
+    # 12.10 Relational Operators
+    # NOTE 1
+    # The result of evaluating a relational operator is always of type Boolean, reflecting whether the relationship named by
+    # the operator holds between its two operands.
+    #
+    # Syntax
+    #
+    # RelationalExpression[In, Yield, Await]:
+    #             ShiftExpression[?Yield, ?Await]
+    #             RelationalExpression[?In, ?Yield, ?Await] < ShiftExpression[?Yield, ?Await]
+    #             RelationalExpression[?In, ?Yield, ?Await] > ShiftExpression[?Yield, ?Await]
+    #             RelationalExpression[?In, ?Yield, ?Await] <= ShiftExpression[?Yield, ?Await]
+    #             RelationalExpression[?In, ?Yield, ?Await] >= ShiftExpression[?Yield, ?Await]
+    #             RelationalExpression[?In, ?Yield, ?Await] instanceof ShiftExpression[?Yield, ?Await]
+    #             [+In]RelationalExpression[+In, ?Yield, ?Await] in ShiftExpression[?Yield, ?Await]
+    #
+    # NOTE 2
+    # The [In] grammar parameter is needed to avoid confusing the in operator in a relational expression with the in operator
+    # in a for statement.
+    #
     @_('ShiftExpression')
     def RelationalExpression(self, p):
         return PN_RelationalExpression_ShiftExpression(self.context, p)
+    @_('RelationalExpression LT ShiftExpression')
+    def RelationalExpression(self, p):
+        return PN_RelationalExpression_RelationalExpression_LT_ShiftExpression(self.context, p)
+    @_('RelationalExpression GT ShiftExpression')
+    def RelationalExpression(self, p):
+        return PN_RelationalExpression_RelationalExpression_GT_ShiftExpression(self.context, p)
+    @_('RelationalExpression LE ShiftExpression')
+    def RelationalExpression(self, p):
+        return PN_RelationalExpression_RelationalExpression_LE_ShiftExpression(self.context, p)
+    @_('RelationalExpression GE ShiftExpression')
+    def RelationalExpression(self, p):
+        return PN_RelationalExpression_RelationalExpression_GE_ShiftExpression(self.context, p)
+    @_('RelationalExpression INSTANCEOF ShiftExpression')
+    def RelationalExpression(self, p):
+        return PN_RelationalExpression_RelationalExpression_INSTANCEOF_ShiftExpression(self.context, p)
+    ########################################################################################################################
+
     @_('AdditiveExpression')
     def ShiftExpression(self, p):
         return PN_ShiftExpression_AdditiveExpression(self.context, p)
@@ -7396,7 +7737,7 @@ def NumberFixups(realm):
     return NormalCompletion(None)
 
 if __name__ == '__main__':
-    rv, ok = ec(RunJobs(scripts=["'3' == 3;"]))
+    rv, ok = ec(RunJobs(scripts=['Number instanceof Object;']))
 
     if ok:
         print('Script returned %s' % nc(ToString(rv)))
