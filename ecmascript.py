@@ -5319,12 +5319,70 @@ class PN_BitwiseXORExpression_BitwiseANDExpression(ParseNode):
 class PN_BitwiseORExpression_BitwiseXORExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('BitwiseORExpression', p)
+# 12.13 Binary Logical Operators (&&)
 class PN_LogicalANDExpression_BitwiseORExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('LogicalANDExpression', p)
+class PN_LogicalANDExpression_LogicalANDExpression_AMPAMP_BitwiseORExpression(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('LogicalANDExpression', p)
+    # 12.13.1 Static Semantics: IsFunctionDefinition
+    def IsFunctionDefinition(self):
+        # 1. Return false.
+        return False
+    # 12.13.2 Static Semantics: IsValidSimpleAssignmentTarget
+    def IsValidSimpleAssignmentTarget(self):
+        # 1. Return false.
+        return False
+    # 12.13.3 Runtime Semantics: Evaluation
+    def evaluate(self):
+        # 1. Let lref be the result of evaluating LogicalANDExpression.
+        lref = self.children[0].evaluate()
+        # 2. Let lval be ? GetValue(lref).
+        lval, ok = ec(GetValue(lref))
+        if not ok:
+            return lval
+        # 3. Let lbool be ToBoolean(lval).
+        lbool = ToBoolean(lval)
+        # 4. If lbool is false, return lval.
+        if not lbool:
+            return NormalCompletion(lval)
+        # 5. Let rref be the result of evaluating BitwiseORExpression.
+        rref = self.children[2].evaluate()
+        # 6. Return ? GetValue(rref).
+        return GetValue(rref)
+# 12.13 Binary Logical Operators (||)
 class PN_LogicalORExpression_LogicalANDExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('LogicalORExpression', p)
+class PN_LogicalORExpression_LogicalORExpression_PIPEPIPE_LogicalANDExpression(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('LogicalORExpression', p)
+    # 12.13.1 Static Semantics: IsFunctionDefinition
+    def IsFunctionDefinition(self):
+        # 1. Return false.
+        return False
+    # 12.13.2 Static Semantics: IsValidSimpleAssignmentTarget
+    def IsValidSimpleAssignmentTarget(self):
+        # 1. Return false.
+        return False
+    # 12.13.3 Runtime Semantics: Evaluation
+    def evaluate(self):
+        # 1. Let lref be the result of evaluating LogicalORExpression.
+        lref = self.children[0].evaluate()
+        # 2. Let lval be ? GetValue(lref).
+        lval, ok = ec(GetValue(lref))
+        if not ok:
+            return lval
+        # 3. Let lbool be ToBoolean(lval).
+        lbool = ToBoolean(lval)
+        # 4. If lbool is true, return lval.
+        if lbool:
+            return NormalCompletion(lval)
+        # 5. Let rref be the result of evaluating LogicalANDExpression.
+        rref = self.children[2].evaluate()
+        # 6. Return ? GetValue(rref).
+        return GetValue(rref)
 class PN_ConditionalExpression_LogicalORExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('ConditionalExpression', p)
@@ -5790,12 +5848,31 @@ class Ecma262Parser(Parser):
     @_('LogicalORExpression QUESTION AssignmentExpression COLON AssignmentExpression')
     def ConditionalExpression(self, p):
         return PN_ConditionalExpression_QUESTION_AssignmentExpression_COLON_AssignmentExpression(self.context, p)
-    @_('LogicalANDExpression')
-    def LogicalORExpression(self, p):
-        return PN_LogicalORExpression_LogicalANDExpression(self.context, p)
+
+    # 12.13 Binary Logical Operators
+    # Syntax
+    # LogicalANDExpression[In, Yield, Await]:
+    #                 BitwiseORExpression[?In, ?Yield, ?Await]
+    #                 LogicalANDExpression[?In, ?Yield, ?Await] && BitwiseORExpression[?In, ?Yield, ?Await]
+    # LogicalORExpression[In, Yield, Await]:
+    #                 LogicalANDExpression[?In, ?Yield, ?Await]
+    #                 LogicalORExpression[?In, ?Yield, ?Await] || LogicalANDExpression[?In, ?Yield, ?Await]
+    # NOTE
+    # The value produced by a && or || operator is not necessarily of type Boolean. The value produced will always be the value
+    # of one of the two operand expressions.
     @_('BitwiseORExpression')
     def LogicalANDExpression(self, p):
         return PN_LogicalANDExpression_BitwiseORExpression(self.context, p)
+    @_('LogicalANDExpression AMPAMP BitwiseORExpression')
+    def LogicalANDExpression(self, p):
+        return PN_LogicalANDExpression_LogicalANDExpression_AMPAMP_BitwiseORExpression(self.context, p)
+    @_('LogicalANDExpression')
+    def LogicalORExpression(self, p):
+        return PN_LogicalORExpression_LogicalANDExpression(self.context, p)
+    @_('LogicalORExpression PIPEPIPE LogicalANDExpression')
+    def LogicalORExpression(self, p):
+        return PN_LogicalORExpression_LogicalORExpression_PIPEPIPE_LogicalANDExpression(self.context, p)
+
     @_('BitwiseXORExpression')
     def BitwiseORExpression(self, p):
         return PN_BitwiseORExpression_BitwiseXORExpression(self.context, p)
