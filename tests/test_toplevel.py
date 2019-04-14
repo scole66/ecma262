@@ -42,6 +42,12 @@ NORMAL = CompletionType.NORMAL
     ("3 === 3;", True),
     ("'3' !== 3;", True),
     ("3 !== 3;", False),
+    ('3 < 4;', True),
+    ('3 <= 4;', True),
+    ('3 > 4;', False),
+    ('3 >= 3;', True),
+    ("'green' instanceof Number;", False),
+    ('Number instanceof Object;', True),
 ])
 def test_scripts_01(script, result):
     rv = RunJobs(scripts=[script])
