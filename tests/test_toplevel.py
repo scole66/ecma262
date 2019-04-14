@@ -29,7 +29,19 @@ NORMAL = CompletionType.NORMAL
     ('null && \'thing\';', JSNull.NULL),
     ('0x80 | 0x34;', 0b10110100),
     ('0x73 & 0x29;', 0x21),
-    ('0xff ^ 0x156;', 0x1a9)
+    ('0xff ^ 0x156;', 0x1a9),
+    ("'3' == 3;", True),
+    ("'-0' == 0;", True),
+    ('67 == 89;', False),
+    ("'t1' == 't1';", True),
+    ("'3' != 3;", False),
+    ("'-0' != 0;", False),
+    ('67 != 89;', True),
+    ("'t1' != 't1';", False),
+    ("'3' === 3;", False),
+    ("3 === 3;", True),
+    ("'3' !== 3;", True),
+    ("3 !== 3;", False),
 ])
 def test_scripts_01(script, result):
     rv = RunJobs(scripts=[script])

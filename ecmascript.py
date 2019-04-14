@@ -1987,6 +1987,63 @@ def SameValueNonNumber(x, y):
     # 8. If x and y are the same Object value, return true. Otherwise, return false.
     return x == y
 
+# 7.2.14 Abstract Equality Comparison
+def AbstractEqualityComparison(x, y):
+    # The comparison x == y, where x and y are values, produces true or false. Such a comparison is performed as follows:
+    #
+    # 1. If Type(x) is the same as Type(y), then
+    if TypeOf(x) == TypeOf(y):
+        # a. Return the result of performing Strict Equality Comparison x === y.
+        return StrictEqualityComparison(x, y)
+    # 2. If x is null and y is undefined, return true.
+    if isNull(x) and isUndefined(y):
+        return True
+    # 3. If x is undefined and y is null, return true.
+    if isUndefined(x) and isNull(y):
+        return True
+    # 4. If Type(x) is Number and Type(y) is String, return the result of the comparison x == ! ToNumber(y).
+    if isNumber(x) and isString(y):
+        return AbstractEqualityComparison(x, nc(ToNumber(y)))
+    # 5. If Type(x) is String and Type(y) is Number, return the result of the comparison ! ToNumber(x) == y.
+    if isString(x) and isNumber(y):
+        return AbstractEqualityComparison(nc(ToNumber(x)), y)
+    # 6. If Type(x) is Boolean, return the result of the comparison ! ToNumber(x) == y.
+    if isBoolean(x):
+        return AbstractEqualityComparison(nc(ToNumber(x)), y)
+    # 7. If Type(y) is Boolean, return the result of the comparison x == ! ToNumber(y).
+    if isBoolean(y):
+        return AbstractEqualityComparison(x, nc(ToNumber(y)))
+    # 8. If Type(x) is either String, Number, or Symbol and Type(y) is Object, return the result of the comparison x == ToPrimitive(y).
+    if (isString(x) or isNumber(x) or isSymbol(x)) and isObject(y):
+        return AbstractEqualityComparison(x, ToPrimitive(y))
+    # 9. If Type(x) is Object and Type(y) is either String, Number, or Symbol, return the result of the comparison ToPrimitive(x) == y.
+    if isObject(x) and (isString(y) or isNumber(y) or isSymbol(y)):
+        return AbstractEqualityComparison(ToPrimitive(x), y)
+    # 10. Return false.
+    return False
+
+# 7.2.15 Strict Equality Comparison
+def StrictEqualityComparison(x, y):
+    # The comparison x === y, where x and y are values, produces true or false. Such a comparison is performed as follows:
+    #
+    # 1. If Type(x) is different from Type(y), return false.
+    if TypeOf(x) != TypeOf(y):
+        return False
+    # 2. If Type(x) is Number, then
+    if isNumber(x):
+        # a. If x is NaN, return false.
+        # b. If y is NaN, return false.
+        # c. If x is the same Number value as y, return true.
+        # d. If x is +0 and y is -0, return true.
+        # e. If x is -0 and y is +0, return true.
+        # f. Return false.
+        # Implementation note: This is exactly how the Python == works, so we're good.
+        return x == y
+    # 3. Return SameValueNonNumber(x, y).
+    return SameValueNonNumber(x, y)
+    # NOTE
+    # This algorithm differs from the SameValue Algorithm in its treatment of signed zeroes and NaNs.
+
 # 7.3.1 Get ( O, P )
 def Get(obj, propkey):
     # The abstract operation Get is used to retrieve the value of a specific property of an object. The operation is
@@ -5307,9 +5364,65 @@ class PN_ShiftExpression_AdditiveExpression(ParseNode):
 class PN_RelationalExpression_ShiftExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('RelationalExpression', p)
-class PN_EqualityExpression_RelationalExpression(ParseNode):
+########################################################################################################################
+# 12.11 Equality Operators
+class PN_EqualityExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('EqualityExpression', p)
+class PN_EqualityExpression_RelationalExpression(PN_EqualityExpression):
+    pass # Nothing extra for the pass-thru case
+class PN_EqualityExpression_E_op_R(PN_EqualityExpression):
+    # 12.11.1 Static Semantics: IsFunctionDefinition
+    def IsFunctionDefinition(self):
+        # 1. Return false.
+        return False
+    # 12.11.2 Static Semantics: IsValidSimpleAssignmentTarget
+    def IsValidSimpleAssignmentTarget(self):
+        # 1. Return false.
+        return False
+    # 12.11.3 Runtime Semantics: Evaluation
+    #    The first four steps are the same for each production
+    def evaluate(self):
+        # 1. Let lref be the result of evaluating EqualityExpression.
+        lref = self.children[0].evaluate()
+        # 2. Let lval be ? GetValue(lref).
+        lval, ok = ec(GetValue(lref))
+        if not ok:
+            return lval
+        # 3. Let rref be the result of evaluating RelationalExpression.
+        rref = self.children[2].evaluate()
+        # 4. Let rval be ? GetValue(rref).
+        rval, ok = ec(GetValue(rref))
+        if not ok:
+            return rval
+        # 5-6. Defer to subclasses
+        return self.operation(lval, rval)
+class PN_EqualityExpression_EqualityExpression_EQEQ_RelationalExpression(PN_EqualityExpression_E_op_R):
+    # 12.11.3 Runtime Semantics: Evaluation
+    #   For EqualityExpression:EqualityExpression == RelationalExpression
+    def operation(self, lval, rval):
+        # 5. Return the result of performing Abstract Equality Comparison rval == lval.
+        return NormalCompletion(AbstractEqualityComparison(rval, lval))
+class PN_EqualityExpression_EqualityExpression_BANGEQ_RelationalExpression(PN_EqualityExpression_E_op_R):
+    # 12.11.3 Runtime Semantics: Evaluation
+    #   For EqualityExpression : EqualityExpression != RelationalExpression
+    def operation(self, lval, rval):
+        # 5. Let r be the result of performing Abstract Equality Comparison rval == lval.
+        # 6. If r is true, return false. Otherwise, return true.
+        return NormalCompletion(not AbstractEqualityComparison(rval, lval))
+class PN_EqualityExpression_EqualityExpression_EQEQEQ_RelationalExpression(PN_EqualityExpression_E_op_R):
+    # 12.11.3 Runtime Semantics: Evaluation
+    #   For EqualityExpression : EqualityExpression === RelationalExpression
+    def operation(self, lval, rval):
+        # 5. Return the result of performing Strict Equality Comparison rval === lval.
+        return NormalCompletion(StrictEqualityComparison(rval, lval))
+class PN_EqualityExpression_EqualityExpression_BANGEQEQ_RelationalExpression(PN_EqualityExpression_E_op_R):
+    # 12.11.3 Runtime Semantics: Evaluation
+    #   For EqualityExpression : EqualityExpression !== RelationalExpression
+    def operation(self, lval, rval):
+        # 5. Let r be the result of performing Strict Equality Comparison rval === lval.
+        # 6. If r is true, return false. Otherwise, return true.
+        return NormalCompletion(not StrictEqualityComparison(rval, lval))
 ########################################################################################################################
 # 12.12 Binary Bitwise Operators (&)
 class PN_BitwiseANDExpression_EqualityExpression(ParseNode):
@@ -6027,9 +6140,36 @@ class Ecma262Parser(Parser):
         return PN_BitwiseORExpression_BitwiseORExpression_PIPE_BitwiseXORExpression(self.context, p)
     ########################################################################################################################
 
+    ########################################################################################################################
+    # 12.11 Equality Operators
+    # NOTE
+    # The result of evaluating an equality operator is always of type Boolean, reflecting whether the relationship named by the
+    # operator holds between its two operands.
+    #
+    # Syntax
+    # EqualityExpression[In, Yield, Await]:
+    #                 RelationalExpression[?In, ?Yield, ?Await]
+    #                 EqualityExpression[?In, ?Yield, ?Await] == RelationalExpression[?In, ?Yield, ?Await]
+    #                 EqualityExpression[?In, ?Yield, ?Await] != RelationalExpression[?In, ?Yield, ?Await]
+    #                 EqualityExpression[?In, ?Yield, ?Await] === RelationalExpression[?In, ?Yield, ?Await]
+    #                 EqualityExpression[?In, ?Yield, ?Await] !== RelationalExpression[?In, ?Yield, ?Await]
     @_('RelationalExpression')
     def EqualityExpression(self, p):
         return PN_EqualityExpression_RelationalExpression(self.context, p)
+    @_('EqualityExpression EQEQ RelationalExpression')
+    def EqualityExpression(self, p):
+        return PN_EqualityExpression_EqualityExpression_EQEQ_RelationalExpression(self.context, p)
+    @_('EqualityExpression BANGEQ RelationalExpression')
+    def EqualityExpression(self, p):
+        return PN_EqualityExpression_EqualityExpression_BANGEQ_RelationalExpression(self.context, p)
+    @_('EqualityExpression EQEQEQ RelationalExpression')
+    def EqualityExpression(self, p):
+        return PN_EqualityExpression_EqualityExpression_EQEQEQ_RelationalExpression(self.context, p)
+    @_('EqualityExpression BANGEQEQ RelationalExpression')
+    def EqualityExpression(self, p):
+        return PN_EqualityExpression_EqualityExpression_BANGEQEQ_RelationalExpression(self.context, p)
+    ########################################################################################################################
+
     @_('ShiftExpression')
     def RelationalExpression(self, p):
         return PN_RelationalExpression_ShiftExpression(self.context, p)
@@ -7256,7 +7396,7 @@ def NumberFixups(realm):
     return NormalCompletion(None)
 
 if __name__ == '__main__':
-    rv, ok = ec(RunJobs(scripts=['bob=3; bob <<= 16.7;']))
+    rv, ok = ec(RunJobs(scripts=["'3' == 3;"]))
 
     if ok:
         print('Script returned %s' % nc(ToString(rv)))
