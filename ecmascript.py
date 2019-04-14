@@ -5807,14 +5807,23 @@ class PN_BitwiseORExpression_BitwiseORExpression_PIPE_BitwiseXORExpression(PN_Bi
     def operate(self, lnum, rnum):
         # 7. Return the result of applying the bitwise operator @ to lnum and rnum. The result is a signed 32-bit integer.
         return NormalCompletion(lnum | rnum)
-########################################################################################################################
-# 12.13 Binary Logical Operators (&&)
-class PN_LogicalANDExpression_BitwiseORExpression(ParseNode):
-    def __init__(self, ctx, p):
-        super().__init__('LogicalANDExpression', p)
-class PN_LogicalANDExpression_LogicalANDExpression_AMPAMP_BitwiseORExpression(ParseNode):
-    def __init__(self, ctx, p):
-        super().__init__('LogicalANDExpression', p)
+##############################################################################################################################################################################################################################################
+#
+#  d888    .d8888b.       d888    .d8888b.      888888b.   d8b                                        888                        d8b                   888      .d88888b.                                     888
+# d8888   d88P  Y88b     d8888   d88P  Y88b     888  "88b  Y8P                                        888                        Y8P                   888     d88P" "Y88b                                    888
+#   888          888       888        .d88P     888  .88P                                             888                                              888     888     888                                    888
+#   888        .d88P       888       8888"      8888888K.  888 88888b.   8888b.  888d888 888  888     888       .d88b.   .d88b.  888  .d8888b  8888b.  888     888     888 88888b.   .d88b.  888d888  8888b.  888888  .d88b.  888d888 .d8888b
+#   888    .od888P"        888        "Y8b.     888  "Y88b 888 888 "88b     "88b 888P"   888  888     888      d88""88b d88P"88b 888 d88P"        "88b 888     888     888 888 "88b d8P  Y8b 888P"       "88b 888    d88""88b 888P"   88K
+#   888   d88P"            888   888    888     888    888 888 888  888 .d888888 888     888  888     888      888  888 888  888 888 888      .d888888 888     888     888 888  888 88888888 888     .d888888 888    888  888 888     "Y8888b.
+#   888   888"       d8b   888   Y88b  d88P     888   d88P 888 888  888 888  888 888     Y88b 888     888      Y88..88P Y88b 888 888 Y88b.    888  888 888     Y88b. .d88P 888 d88P Y8b.     888     888  888 Y88b.  Y88..88P 888          X88
+# 8888888 888888888  Y8P 8888888  "Y8888P"      8888888P"  888 888  888 "Y888888 888      "Y88888     88888888  "Y88P"   "Y88888 888  "Y8888P "Y888888 888      "Y88888P"  88888P"   "Y8888  888     "Y888888  "Y888  "Y88P"  888      88888P'
+#                                                                                             888                            888                                           888
+#                                                                                        Y8b d88P                       Y8b d88P                                           888
+#                                                                                         "Y88P"                         "Y88P"                                            888
+#
+##############################################################################################################################################################################################################################################
+# 12.13 Binary Logical Operators
+class PN_LogicalExpression(ParseNode):
     # 12.13.1 Static Semantics: IsFunctionDefinition
     def IsFunctionDefinition(self):
         # 1. Return false.
@@ -5823,6 +5832,13 @@ class PN_LogicalANDExpression_LogicalANDExpression_AMPAMP_BitwiseORExpression(Pa
     def IsValidSimpleAssignmentTarget(self):
         # 1. Return false.
         return False
+# '&&' Productions
+class PN_LogicalANDExpression(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('LogicalANDExpression', p)
+class PN_LogicalANDExpression_BitwiseORExpression(PN_LogicalANDExpression):
+    pass # Nothing more for pass-thru productions
+class PN_LogicalANDExpression_LogicalANDExpression_AMPAMP_BitwiseORExpression(PN_LogicalANDExpression, PN_LogicalExpression):
     # 12.13.3 Runtime Semantics: Evaluation
     def evaluate(self):
         # 1. Let lref be the result of evaluating LogicalANDExpression.
@@ -5840,22 +5856,13 @@ class PN_LogicalANDExpression_LogicalANDExpression_AMPAMP_BitwiseORExpression(Pa
         rref = self.children[2].evaluate()
         # 6. Return ? GetValue(rref).
         return GetValue(rref)
-########################################################################################################################
-# 12.13 Binary Logical Operators (||)
-class PN_LogicalORExpression_LogicalANDExpression(ParseNode):
+# '||' Productions
+class PN_LogicalORExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('LogicalORExpression', p)
-class PN_LogicalORExpression_LogicalORExpression_PIPEPIPE_LogicalANDExpression(ParseNode):
-    def __init__(self, ctx, p):
-        super().__init__('LogicalORExpression', p)
-    # 12.13.1 Static Semantics: IsFunctionDefinition
-    def IsFunctionDefinition(self):
-        # 1. Return false.
-        return False
-    # 12.13.2 Static Semantics: IsValidSimpleAssignmentTarget
-    def IsValidSimpleAssignmentTarget(self):
-        # 1. Return false.
-        return False
+class PN_LogicalORExpression_LogicalANDExpression(PN_LogicalORExpression):
+    pass # Nothing more for pass-thru productions
+class PN_LogicalORExpression_LogicalORExpression_PIPEPIPE_LogicalANDExpression(PN_LogicalORExpression, PN_LogicalExpression):
     # 12.13.3 Runtime Semantics: Evaluation
     def evaluate(self):
         # 1. Let lref be the result of evaluating LogicalORExpression.
