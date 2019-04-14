@@ -9,7 +9,9 @@ THROW = CompletionType.THROW
 @pytest.fixture
 def realm():
     InitializeHostDefinedRealm()
-    return surrounding_agent.running_ec.realm
+    yield surrounding_agent.running_ec.realm
+    surrounding_agent.ec_stack.pop()
+    surrounding_agent.running_ec = None
 
 @pytest.fixture
 def some_objects(realm):

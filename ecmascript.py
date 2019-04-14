@@ -5328,6 +5328,34 @@ class PN_LogicalORExpression_LogicalANDExpression(ParseNode):
 class PN_ConditionalExpression_LogicalORExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('ConditionalExpression', p)
+class PN_ConditionalExpression_QUESTION_AssignmentExpression_COLON_AssignmentExpression(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('ConditionalExpression', p)
+    def IsFunctionDefinition(self):
+        return False
+    def IsValidSimpleAssignmentTarget(self):
+        return False
+    # 12.14.3 Runtime Semantics: Evaluation
+    # ConditionalExpression : LogicalORExpression ? AssignmentExpression : AssignmentExpression
+    def evaluate(self):
+        # 1. Let lref be the result of evaluating LogicalORExpression.
+        lref = self.children[0].evaluate()
+        # 2. Let lval be ToBoolean(? GetValue(lref)).
+        lval, ok = ec(GetValue(lref))
+        if not ok:
+            return lval
+        lval = ToBoolean(lval)
+        # 3. If lval is true, then
+        if lval:
+            # a. Let trueRef be the result of evaluating the first AssignmentExpression.
+            trueRef = self.children[2].evaluate()
+            # b. Return ? GetValue(trueRef).
+            return GetValue(trueRef)
+        # 4. Else,
+        # a. Let falseRef be the result of evaluating the second AssignmentExpression.
+        falseRef = self.children[4].evaluate()
+        # b. Return ? GetValue(falseRef).
+        return GetValue(falseRef)
 class PN_AssignmentExpression_ConditionalExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('AssignmentExpression', p)
@@ -5759,6 +5787,9 @@ class Ecma262Parser(Parser):
     @_('LogicalORExpression')
     def ConditionalExpression(self, p):
         return PN_ConditionalExpression_LogicalORExpression(self.context, p)
+    @_('LogicalORExpression QUESTION AssignmentExpression COLON AssignmentExpression')
+    def ConditionalExpression(self, p):
+        return PN_ConditionalExpression_QUESTION_AssignmentExpression_COLON_AssignmentExpression(self.context, p)
     @_('LogicalANDExpression')
     def LogicalORExpression(self, p):
         return PN_LogicalORExpression_LogicalANDExpression(self.context, p)
