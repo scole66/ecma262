@@ -2201,6 +2201,7 @@ def Set(O, P, V, Throw):
     if not success and Throw:
         return ThrowCompletion(CreateTypeError())
     # 6. Return success.
+    return NormalCompletion(success)
 
 # 7.3.4 CreateDataProperty ( O, P, V )
 def CreateDataProperty(obj, propkey, value):
