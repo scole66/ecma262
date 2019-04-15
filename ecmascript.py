@@ -6806,7 +6806,7 @@ def GlobalDeclarationInstantiation(script, env):
     # 6. For each name in varNames, do
     for name in varNames:
         # a. If envRec.HasLexicalDeclaration(name) is true, throw a SyntaxError exception.
-        if envRed.HasLexicalDeclaration(name):
+        if envRec.HasLexicalDeclaration(name):
             return ThrowCompletion(CreateSyntaxError())
     # 7. Let varDeclarations be the VarScopedDeclarations of script.
     varDeclarations = script.VarScopedDeclarations()
