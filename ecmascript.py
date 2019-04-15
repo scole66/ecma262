@@ -335,47 +335,14 @@ class JSObject:
     def GetOwnProperty(self, propkey):
         """Return a Property Descriptor for the own property of this object whose key is propertyKey, or undefined if no such
            property exists."""
-        # 1. Assert: IsPropertyKey(P) is true.
-        assert IsPropertyKey(propkey)
-        # 2. If O does not have an own property with key P, return undefined.
-        if propkey not in self.properties:
-            return NormalCompletion(None)
-        # 3. Let D be a newly created Property Descriptor with no fields.
-        desc = PropertyDescriptor()
-        # 4. Let X be O's own property whose key is P.
-        own = self.properties[propkey]
-        # 5. If X is a data property, then
-        if hasattr(own, 'value'):
-            # a. Set D.[[Value]] to the value of X's [[Value]] attribute.
-            desc.value = own.value
-            # b. Set D.[[Writable]] to the value of X's [[Writable]] attribute.
-            desc.writable = own.writable
-        # 6. Else X is an accessor property,
-        else:
-            # a. Set D.[[Get]] to the value of X's [[Get]] attribute.
-            desc.Get = own.Get
-            # b. Set D.[[Set]] to the value of X's [[Set]] attribute.
-            desc.Set = own.Set
-        # 7. Set D.[[Enumerable]] to the value of X's [[Enumerable]] attribute.
-        desc.enumerable = own.enumerable
-        # 8. Set D.[[Configurable]] to the value of X's [[Configurable]] attribute.
-        desc.configurable = own.configurable
-        # 9. Return D.
-        return NormalCompletion(desc)
+        return NormalCompletion(OrdinaryGetOwnProperty(self, propkey))
 
     # 9.1.6 [[DefineOwnProperty]] ( P, Desc )
     def DefineOwnProperty(self, propkey, desc):
         """Create or alter the own property, whose key is propertyKey, to have the state described by PropertyDescriptor.
            Return true if that property was successfully created/updated or false if the property could not be created or
            updated."""
-        # 1. Let current be ? O.[[GetOwnProperty]](P).
-        current, ok = ec(self.GetOwnProperty(propkey))
-        if not ok:
-            return current
-        # 2. Let extensible be O.[[Extensible]].
-        extensible = self.Extensible
-        # 3. Return ValidateAndApplyPropertyDescriptor(O, P, extensible, Desc, current).
-        return ValidateAndApplyPropertyDescriptor(self, propkey, extensible, desc, current)
+        return OrdinaryDefineOwnProperty(self, propkey, desc)
 
     # 9.1.7 [[HasProperty]] ( P )
     def HasProperty(self, propkey):
@@ -3511,12 +3478,6 @@ class GlobalEnvironmentRecord:
 class LexicalEnvironment:
     pass
 
-@unique
-class ThisMode(Enum):
-    LEXICAL = auto()
-    STRICT = auto()
-    GLOBAL = auto()
-
 # 8.1.2.1 GetIdentifierReference ( lex, name, strict )
 def GetIdentifierReference(lex, name, strict):
     # The abstract operation GetIdentifierReference is called with a Lexical Environment lex, a String name, and a
@@ -3591,13 +3552,13 @@ def NewFunctionEnvironment(func, new_target):
     # 5. Set envRec.[[FunctionObject]] to F.
     env_rec.function_object = func
     # 6. If F.[[ThisMode]] is lexical, set envRec.[[ThisBindingStatus]] to "lexical".
-    if func.this_mode == ThisMode.LEXICAL:
+    if func.ThisMode == TM.LEXICAL:
         env_rec.this_binding_status = 'lexical'
     # 7. Else, set envRec.[[ThisBindingStatus]] to "uninitialized".
     else:
         env_rec.this_binding_status = 'uninitialized'
     # 8. Let home be F.[[HomeObject]].
-    home = func.home_object
+    home = func.HomeObject
     # 9. Set envRec.[[HomeObject]] to home.
     env_rec.home_object = home
     # 10. Set envRec.[[NewTarget]] to newTarget.
@@ -3605,7 +3566,7 @@ def NewFunctionEnvironment(func, new_target):
     # 11. Set env's EnvironmentRecord to envRec.
     env.environment_record = env_rec
     # 12. Set the outer lexical environment reference of env to F.[[Environment]].
-    env.outer = func.environment
+    env.outer = func.Environment
     # 13. Return env.
     return env
 
@@ -4270,6 +4231,53 @@ def AgentCanSuspend():
     # web browser environment, it may be reasonable to disallow suspending a document's main event
     # handling thread, while still allowing workers' event handling threads to suspend.
 
+# 9.1.5.1 OrdinaryGetOwnProperty ( O, P )
+def OrdinaryGetOwnProperty(obj, propkey):
+    # When the abstract operation OrdinaryGetOwnProperty is called with Object O and with property key P, the following steps
+    # are taken:
+    #
+    # 1. Assert: IsPropertyKey(P) is true.
+    assert IsPropertyKey(propkey)
+    # 2. If O does not have an own property with key P, return undefined.
+    if propkey not in obj.properties:
+        return None
+    # 3. Let D be a newly created Property Descriptor with no fields.
+    desc = PropertyDescriptor()
+    # 4. Let X be O's own property whose key is P.
+    own = obj.properties[propkey]
+    # 5. If X is a data property, then
+    if hasattr(own, 'value'):
+        # a. Set D.[[Value]] to the value of X's [[Value]] attribute.
+        desc.value = own.value
+        # b. Set D.[[Writable]] to the value of X's [[Writable]] attribute.
+        desc.writable = own.writable
+    # 6. Else X is an accessor property,
+    else:
+        # a. Set D.[[Get]] to the value of X's [[Get]] attribute.
+        desc.Get = own.Get
+        # b. Set D.[[Set]] to the value of X's [[Set]] attribute.
+        desc.Set = own.Set
+    # 7. Set D.[[Enumerable]] to the value of X's [[Enumerable]] attribute.
+    desc.enumerable = own.enumerable
+    # 8. Set D.[[Configurable]] to the value of X's [[Configurable]] attribute.
+    desc.configurable = own.configurable
+    # 9. Return D.
+    return desc
+
+# 9.1.6.1 OrdinaryDefineOwnProperty ( O, P, Desc )
+def OrdinaryDefineOwnProperty(obj, propkey, desc):
+    # When the abstract operation OrdinaryDefineOwnProperty is called with Object O, property key P, and Property Descriptor
+    # Desc, the following steps are taken:
+    #
+    # 1. Let current be ? O.[[GetOwnProperty]](P).
+    current, ok = ec(obj.GetOwnProperty(propkey))
+    if not ok:
+        return current
+    # 2. Let extensible be O.[[Extensible]].
+    extensible = obj.Extensible
+    # 3. Return ValidateAndApplyPropertyDescriptor(O, P, extensible, Desc, current).
+    return ValidateAndApplyPropertyDescriptor(obj, propkey, extensible, desc, current)
+
 #######################################################################################################################################
 #
 #  .d8888b.       .d8888b.      8888888888  .d8888b.  888b     d888        d8888  .d8888b.                   d8b          888
@@ -4420,13 +4428,13 @@ def OrdinaryCallBindThis(F, calleeContext, thisArgument):
     else:                                                         # 6. Else,
         if thisArgument is None or isNull(thisArgument):          #    a. If thisArgument is undefined or null, then
             globalEnv = calleeRealm.global_env                    #       i. Let globalEnv be calleeRealm.[[GlobalEnv]].
-            globalEnvRec = globalEnv                              #      ii. Let globalEnvRec be globalEnv's EnvironmentRecord.
+            globalEnvRec = globalEnv.environment_record           #      ii. Let globalEnvRec be globalEnv's EnvironmentRecord.
             assert isinstance(globalEnvRec, GlobalEnvironmentRecord) #  iii. Assert: globalEnvRec is a global Environment Record.
             thisValue = globalEnvRec.global_this_value            #      iv. Let thisValue be globalEnvRec.[[GlobalThisValue]].
         else:                                                     #    b. Else,
             thisValue = nc(ToObject(thisArgument))                #       i. Let thisValue be ! ToObject(thisArgument).
             # ii. NOTE: ToObject produces wrapper objects using calleeRealm.
-    envRec = localEnv                                             # 7. Let envRec be localEnv's EnvironmentRecord.
+    envRec = localEnv.environment_record                          # 7. Let envRec be localEnv's EnvironmentRecord.
     assert isinstance(envRec, FunctionEnvironmentRecord)          # 8. Assert: envRec is a function Environment Record.
     # 9. Assert: The next step never returns an abrupt completion because envRec.[[ThisBindingStatus]] is not "initialized".
     assert envRec.this_binding_status != 'initialized'
@@ -4470,7 +4478,7 @@ def JSFunction_Construct(self, argumentsList, newTarget):
     # 9. Let constructorEnv be the LexicalEnvironment of calleeContext.
     constructorEnv = calleeContext.lexical_environment
     # 10. Let envRec be constructorEnv's EnvironmentRecord.
-    envRec = constructorEnv
+    envRec = constructorEnv.environment_record
     # 11. Let result be OrdinaryCallEvaluateBody(F, argumentsList).
     result = OrdinaryCallEvaluateBody(F, argumentsList)
     # 12. Remove calleeContext from the execution context stack and restore callerContext as the running execution context.
@@ -4647,6 +4655,57 @@ def AddRestrictedFunctionProperties(func, realm):
     #    [[Enumerable]]: false, [[Configurable]]: true }).
     return nc(DefinePropertyOrThrow(func, 'arguments', PropertyDescriptor(Get=thrower, Set=thrower, enumerable=False, configurable=True)))
 
+# 9.2.10 MakeConstructor ( F [ , writablePrototype [ , prototype ] ] )
+def MakeConstructor(F, writeablePrototype=True, prototype=missing.MISSING):
+    # The abstract operation MakeConstructor requires a Function argument F and optionally, a Boolean writablePrototype and an
+    # object prototype. If prototype is provided it is assumed to already contain, if needed, a "constructor" property whose
+    # value is F. This operation converts F into a constructor by performing the following steps:
+    #
+    # 1. Assert: F is an ECMAScript function object.
+    assert isinstance(F, JSFunction)
+    # 2. Assert: IsConstructor(F) is true.
+    assert IsConstructor(F)
+    # 3. Assert: F is an extensible object that does not have a prototype own property.
+    assert IsExtensible(F) and not HasOwnProperty(F, 'prototype')
+    # 4. If writablePrototype is not present, set writablePrototype to true.
+    # 5. If prototype is not present, then
+    if prototype == missing.MISSING:
+        # a. Set prototype to ObjectCreate(%ObjectPrototype%).
+        prototype = nc(ObjectCreate(surrounding_agent.realm.intrinsics['%ObjectPrototype%']))
+        # b. Perform ! DefinePropertyOrThrow(prototype, "constructor", PropertyDescriptor { [[Value]]: F, [[Writable]]: writablePrototype, [[Enumerable]]: false, [[Configurable]]: true }).
+        DefinePropertyOrThrow(prototype, 'constructor', PropertyDescriptor(value=F, writable=writeablePrototype, enumerable=False, configurable=True))
+    # 6. Perform ! DefinePropertyOrThrow(F, "prototype", PropertyDescriptor { [[Value]]: prototype, [[Writable]]: writablePrototype, [[Enumerable]]: false, [[Configurable]]: false }).
+    DefinePropertyOrThrow(F, 'prototype', PropertyDescriptor(value=prototype, writable=writeablePrototype, enumerable=False, configurable=False))
+    # 7. Return NormalCompletion(undefined).
+    return NormalCompletion(None)
+
+# 9.2.11 MakeClassConstructor ( F )
+def MakeClassConstructor(F):
+    # The abstract operation MakeClassConstructor with argument F performs the following steps:
+    #
+    # 1. Assert: F is an ECMAScript function object.
+    assert isinstance(F, JSFunction)
+    # 2. Assert: F.[[FunctionKind]] is "normal".
+    assert F.FunctionKind == 'normal'
+    # 3. Set F.[[FunctionKind]] to "classConstructor".
+    F.FunctionKind = 'classConstructor'
+    # 4. Return NormalCompletion(undefined).
+    return NormalCompletion(None)
+
+# 9.2.12 MakeMethod ( F, homeObject )
+def MakeMethod(F, homeObject):
+    # The abstract operation MakeMethod with arguments F and homeObject configures F as a method by performing the following
+    # steps:
+    #
+    # 1. Assert: F is an ECMAScript function object.
+    assert isinstance(F, JSFunction)
+    # 2. Assert: Type(homeObject) is Object.
+    assert isObject(homeObject)
+    # 3. Set F.[[HomeObject]] to homeObject.
+    F.HomeObject = homeObject
+    # 4. Return NormalCompletion(undefined).
+    return NormalCompletion(None)
+
 # 9.2.13 SetFunctionName ( F, name [ , prefix ] )
 def SetFunctionName(F, name, prefix=missing.MISSING):
     # The abstract operation SetFunctionName requires a Function argument F, a String or Symbol argument name and optionally a
@@ -4675,7 +4734,244 @@ def SetFunctionName(F, name, prefix=missing.MISSING):
     # 6. Return ! DefinePropertyOrThrow(F, "name", PropertyDescriptor { [[Value]]: name, [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true }).
     return nc(DefinePropertyOrThrow(F, 'name', PropertyDescriptor(value=name, writable=False, enumerable=False, configurable=True)))
 
+# 9.2.14 SetFunctionLength ( F, length )
+def SetFunctionLength(F, length):
+    # The abstract operation SetFunctionLength requires a Function argument F and a Number argument length. This operation adds
+    # a length property to F by performing the following steps:
+    #
+    # 1. Assert: F is an extensible object that does not have a length own property.
+    assert IsExtensible(F) and not HasOwnProperty(F, 'length')
+    # 2. Assert: Type(length) is Number.
+    assert isNumber(length)
+    # 3. Assert: length ≥ 0 and ! ToInteger(length) is equal to length.
+    assert length >= 0 and nc(ToInteger(length)) == length
+    # 4. Return ! DefinePropertyOrThrow(F, "length",
+    #        PropertyDescriptor { [[Value]]: length, [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true }).
+    desc = PropertyDescriptor(value=length, writable=False, enumerable=False, configurable=True)
+    return DefinePropertyOrThrow(F, 'length', desc)
 
+# 9.2.15 FunctionDeclarationInstantiation ( func, argumentsList )
+# NOTE 1
+# When an execution context is established for evaluating an ECMAScript function a new function Environment Record is created
+# and bindings for each formal parameter are instantiated in that Environment Record. Each declaration in the function body is
+# also instantiated. If the function's formal parameters do not include any default value initializers then the body
+# declarations are instantiated in the same Environment Record as the parameters. If default value parameter initializers
+# exist, a second Environment Record is created for the body declarations. Formal parameters and functions are initialized as
+# part of FunctionDeclarationInstantiation. All other bindings are initialized during evaluation of the function body.
+def FunctionDeclarationInstantiation(func, argumentsList):
+    # FunctionDeclarationInstantiation is performed as follows using arguments func and argumentsList. func is the function
+    # object for which the execution context is being established.
+    #
+    # 1. Let calleeContext be the running execution context.
+    calleeContext = surrounding_agent.running_ec
+    # 2. Let env be the LexicalEnvironment of calleeContext.
+    env = calleeContext.lexical_environment
+    # 3. Let envRec be env's EnvironmentRecord.
+    envRec = env.environment_record
+    # 4. Let code be func.[[ECMAScriptCode]].
+    code = func.ECMAScriptCode
+    # 5. Let strict be func.[[Strict]].
+    strict = func.Strict
+    # 6. Let formals be func.[[FormalParameters]].
+    formals = func.FormalParameters
+    # 7. Let parameterNames be the BoundNames of formals.
+    parameterNames = formals.BoundNames()
+    # 8. If parameterNames has any duplicate entries, let hasDuplicates be true. Otherwise, let hasDuplicates be false.
+    hasDuplicates = len(parameterNames) != len(set(parameterNames))
+    # 9. Let simpleParameterList be IsSimpleParameterList of formals.
+    simpleParameterList = formals.IsSimpleParameterList()
+    # 10. Let hasParameterExpressions be ContainsExpression of formals.
+    hasParameterExpressions = formals.ContainsExpression()
+    # 11. Let varNames be the VarDeclaredNames of code.
+    varNames = code.VarDeclaredNames()
+    # 12. Let varDeclarations be the VarScopedDeclarations of code.
+    varDeclarations = code.VarScopedDeclarations()
+    # 13. Let lexicalNames be the LexicallyDeclaredNames of code.
+    lexicalNames = code.LexicallyDeclaredNames()
+    # 14. Let functionNames be a new empty List.
+    functionNames = deque([])
+    # 15. Let functionsToInitialize be a new empty List.
+    functionsToInitialize = deque([])
+    # 16. For each d in varDeclarations, in reverse list order, do
+    for d in (varDeclarations[x] for x in range(len(varDeclarations)-1, -1, -1)):
+        # a. If d is neither a VariableDeclaration nor a ForBinding nor a BindingIdentifier, then
+        if d.name not in ['VariableDeclaration', 'ForBinding', 'BindingIdentifier']:
+            # i. Assert: d is either a FunctionDeclaration, a GeneratorDeclaration, an AsyncFunctionDeclaration, or an
+            #    AsyncGeneratorDeclaration.
+            assert d.name in ['FunctionDeclaration', 'GeneratorDeclaration', 'AsyncFunctionDeclaration', 'AsyncGeneratorDeclaration']
+            # ii. Let fn be the sole element of the BoundNames of d.
+            fn = d.BoundNames()[0]
+            # iii. If fn is not an element of functionNames, then
+            if fn not in functionNames:
+                # 1. Insert fn as the first element of functionNames.
+                functionNames.appendleft(fn)
+                # 2. NOTE: If there are multiple function declarations for the same name, the last declaration is used.
+                # 3. Insert d as the first element of functionsToInitialize.
+                functionsToInitialize.appendleft(d)
+    # 17. Let argumentsObjectNeeded be true.
+    argumentsObjectNeeded = True
+    # 18. If func.[[ThisMode]] is lexical, then
+    if func.ThisMode == TM.LEXICAL:
+        # a. NOTE: Arrow functions never have an arguments objects.
+        # b. Set argumentsObjectNeeded to false.
+        argumentsObjectNeeded = False
+    # 19. Else if "arguments" is an element of parameterNames, then
+    elif 'arguments' in parameterNames:
+        # a. Set argumentsObjectNeeded to false.
+        argumentsObjectNeeded = False
+    # 20. Else if hasParameterExpressions is false, then
+    elif not hasParameterExpressions:
+        # a. If "arguments" is an element of functionNames or if "arguments" is an element of lexicalNames, then
+        if 'arguments' in functionNames or 'arguments' in lexicalNames:
+            # i. Set argumentsObjectNeeded to false.
+            argumentsObjectNeeded = False
+    # 21. For each String paramName in parameterNames, do
+    for paramName in parameterNames:
+        # a. Let alreadyDeclared be envRec.HasBinding(paramName).
+        alreadyDeclared = envRec.HasBinding(paramName)
+        # b. NOTE: Early errors ensure that duplicate parameter names can only occur in non-strict functions that do not have
+        #          parameter default values or rest parameters.
+        # c. If alreadyDeclared is false, then
+        if not alreadyDeclared:
+            # i. Perform ! envRec.CreateMutableBinding(paramName, false).
+            nc(envRec.CreateMutableBinding(paramName, False))
+            # ii. If hasDuplicates is true, then
+            if hasDuplicates:
+                # 1. Perform ! envRec.InitializeBinding(paramName, undefined).
+                nc(envRec.InitializeBinding(paramName, None))
+    # 22. If argumentsObjectNeeded is true, then
+    if argumentsObjectNeeded:
+        # a. If strict is true or if simpleParameterList is false, then
+        if strict or not simpleParameterList:
+            # i. Let ao be CreateUnmappedArgumentsObject(argumentsList).
+            ao = CreateUnmappedArgumentsObject(argumentsList)
+        # b. Else,
+            # i. NOTE: mapped argument object is only provided for non-strict functions that don't have a rest parameter, any
+            #    parameter default value initializers, or any destructured parameters.
+            # ii. Let ao be CreateMappedArgumentsObject(func, formals, argumentsList, envRec).
+            ao = CreateMappedArgumentsObject(func, formals, argumentsList, envRec)
+        # c. If strict is true, then
+        if strict:
+            # i. Perform ! envRec.CreateImmutableBinding("arguments", false).
+            nc(envRec.CreateImmutableBinding('arguments', False))
+        # d. Else,
+            # i. Perform ! envRec.CreateMutableBinding("arguments", false).
+            nc(envRec.CreateMutableBinding('arguments', False))
+        # e. Call envRec.InitializeBinding("arguments", ao).
+        envRec.InitializeBinding('arguments', ao)
+        # f. Let parameterBindings be a new List of parameterNames with "arguments" appended.
+        parameterBindings = parameterNames + ['arguments']
+    # 23. Else,
+        # a. Let parameterBindings be parameterNames.
+        parameterBindings = parameterNames
+    # 24. Let iteratorRecord be CreateListIteratorRecord(argumentsList).
+    iteratorRecord = CreateListIteratorRecord(argumentsList)
+    # 25. If hasDuplicates is true, then
+    if hasDuplicates:
+        # a. Perform ? IteratorBindingInitialization for formals with iteratorRecord and undefined as arguments.
+        cr, ok = ec(formals.IteratorBindingInitialization(iteratorRecord, None))
+        if not ok:
+            return cr
+    # 26. Else,
+        # a. Perform ? IteratorBindingInitialization for formals with iteratorRecord and env as arguments.
+        cr, ok = ed(formals.IteratorBindingInitialization(iteratorRecord, env))
+    # 27. If hasParameterExpressions is false, then
+    if not hasParameterExpressions:
+        # a. NOTE: Only a single lexical environment is needed for the parameters and top-level vars.
+        # b. Let instantiatedVarNames be a copy of the List parameterBindings.
+        instantiatedVarNames = list(parameterBindings)
+        # c. For each n in varNames, do
+        for n in varNames:
+            # i. If n is not an element of instantiatedVarNames, then
+            if n not in instantiatedVarNames:
+                # 1. Append n to instantiatedVarNames.
+                instantiatedVarNames.append(n)
+                # 2. Perform ! envRec.CreateMutableBinding(n, false).
+                nc(envRec.CreateMutableBinding(n, False))
+                # 3. Call envRec.InitializeBinding(n, undefined).
+                envRec.InitializeBinding(n, None)
+        # d. Let varEnv be env.
+        varEnv = env
+        # e. Let varEnvRec be envRec.
+        varEnvRec = envRec
+    # 28. Else,
+        # a. NOTE: A separate Environment Record is needed to ensure that closures created by expressions in the formal
+        #    parameter list do not have visibility of declarations in the function body.
+        # b. Let varEnv be NewDeclarativeEnvironment(env).
+        varEnv = NewDeclarativeEnvironment(env)
+        # c. Let varEnvRec be varEnv's EnvironmentRecord.
+        varEnvRec = varEnv.environment_record
+        # d. Set the VariableEnvironment of calleeContext to varEnv.
+        calleeContext.variable_environment = varEnv
+        # e. Let instantiatedVarNames be a new empty List.
+        instantiatedVarNames = []
+        # f. For each n in varNames, do
+        for n in varNames:
+            # i. If n is not an element of instantiatedVarNames, then
+            if n not in instantiatedVarNames:
+                # 1. Append n to instantiatedVarNames.
+                instantiatedVarNames.append(n)
+                # 2. Perform ! varEnvRec.CreateMutableBinding(n, false).
+                nc(varEnvRec.CreateMutableBinding(n, False))
+                # 3. If n is not an element of parameterBindings or if n is an element of functionNames, let initialValue be undefined.
+                if n not in parameterBindings or n in functionNames:
+                    initialValue = None
+                # 4. Else,
+                    # a. Let initialValue be ! envRec.GetBindingValue(n, false).
+                    initialValue = nc(envRec.GetBindingValue(n, False))
+                # 5. Call varEnvRec.InitializeBinding(n, initialValue).
+                varEnvRec.InitializeBinding(n, initialValue)
+                # 6. NOTE: vars whose names are the same as a formal parameter, initially have the same value as the
+                #    corresponding initialized parameter.
+    # 29. NOTE: Annex B.3.3.1 adds additional steps at this point.
+    # 30. If strict is false, then
+    if not strict:
+        # a. Let lexEnv be NewDeclarativeEnvironment(varEnv).
+        lexEnv = NewDeclarativeEnvironment(varEnv)
+        # b. NOTE: Non-strict functions use a separate lexical Environment Record for top-level lexical declarations so that a
+        #          direct eval can determine whether any var scoped declarations introduced by the eval code conflict with
+        #          pre-existing top-level lexically scoped declarations. This is not needed for strict functions because a
+        #          strict direct eval always places all declarations into a new Environment Record.
+    # 31. Else, let lexEnv be varEnv.
+    else:
+        lexEnv = varEnv
+    # 32. Let lexEnvRec be lexEnv's EnvironmentRecord.
+    lexEnvRec = lexEnv.environment_record
+    # 33. Set the LexicalEnvironment of calleeContext to lexEnv.
+    calleeContext.lexical_environment = lexEnv
+    # 34. Let lexDeclarations be the LexicallyScopedDeclarations of code.
+    lexDeclarations = code.LexicallyScopedDeclarations()
+    # 35. For each element d in lexDeclarations, do
+    for d in lexDeclarations:
+        # a. NOTE: A lexically declared name cannot be the same as a function/generator declaration, formal parameter, or a var
+        #          name. Lexically declared names are only instantiated here but not initialized.
+        # b. For each element dn of the BoundNames of d, do
+        for dn in BoundNames:
+            # i. If IsConstantDeclaration of d is true, then
+            if d.IsConstantDeclaration():
+                # 1. Perform ! lexEnvRec.CreateImmutableBinding(dn, true).
+                nc(lexEnvRec.CreateImmutableBinding(dn, True))
+            # ii. Else,
+            else:
+                # 1. Perform ! lexEnvRec.CreateMutableBinding(dn, false).
+                nc(lexEnvRec.CreateMutableBinding(dn, False))
+    # 36. For each Parse Node f in functionsToInitialize, do
+    for f in functionsToInitialize:
+        # a. Let fn be the sole element of the BoundNames of f.
+        fn = f.BoundNames()[0]
+        # b. Let fo be the result of performing InstantiateFunctionObject for f with argument lexEnv.
+        fo = f.InstantiateFunctionObject(lexEnv)
+        # c. Perform ! varEnvRec.SetMutableBinding(fn, fo, false).
+        nc(varEnvRec.SetMutableBinding(fn, fo, False))
+    # 37. Return NormalCompletion(empty).
+    return NormalCompletion(Empty.EMPTY)
+    # NOTE 2
+    # B.3.3 provides an extension to the above algorithm that is necessary for backwards compatibility with web browser
+    # implementations of ECMAScript that predate ECMAScript 2015.
+    # NOTE 3
+    # Parameter Initializers may contain direct eval expressions. Any top level declarations of such evals are only visible
+    # to the eval code (10.2). The creation of the environment for such declarations is described in 14.1.19.
+#region 9.3 Built-in Function Objects
 ################################################################################################################################################################################################################################
 #
 #  .d8888b.       .d8888b.      888888b.            d8b 888 888           d8b              8888888888                            888    d8b                        .d88888b.  888         d8b                   888
@@ -4821,12 +5117,137 @@ def CreateBuiltinFunction(steps, internal_slots_list, realm=missing.MISSING, pro
     return func
     # Each built-in function defined in this specification is created by calling the CreateBuiltinFunction abstract
     # operation.
+#endregion
+#region 9.4 Built-in Exotic Object Internal Methods and Slots
+#################################################################################################################################################################################################################
+#
+#  .d8888b.          d8888      888888b.            d8b 888 888           d8b              8888888888                   888    d8b               .d88888b.  888         d8b                   888
+# d88P  Y88b        d8P888      888  "88b           Y8P 888 888           Y8P              888                          888    Y8P              d88P" "Y88b 888         Y8P                   888
+# 888    888       d8P 888      888  .88P               888 888                            888                          888                     888     888 888                               888
+# Y88b. d888      d8P  888      8888888K.  888  888 888 888 888888        888 88888b.      8888888    888  888  .d88b.  888888 888  .d8888b     888     888 88888b.    8888  .d88b.   .d8888b 888888
+#  "Y888P888     d88   888      888  "Y88b 888  888 888 888 888           888 888 "88b     888        `Y8bd8P' d88""88b 888    888 d88P"        888     888 888 "88b   "888 d8P  Y8b d88P"    888
+#        888     8888888888     888    888 888  888 888 888 888    888888 888 888  888     888          X88K   888  888 888    888 888          888     888 888  888    888 88888888 888      888
+# Y88b  d88P d8b       888      888   d88P Y88b 888 888 888 Y88b.         888 888  888     888        .d8""8b. Y88..88P Y88b.  888 Y88b.        Y88b. .d88P 888 d88P    888 Y8b.     Y88b.    Y88b.
+#  "Y8888P"  Y8P       888      8888888P"   "Y88888 888 888  "Y888        888 888  888     8888888888 888  888  "Y88P"   "Y888 888  "Y8888P      "Y88888P"  88888P"     888  "Y8888   "Y8888P  "Y888
+#                                                                                                                                                                       888
+#                                                                                                                                                                      d88P
+#                                                                                                                                                                    888P"
+#
+# 8888888          888                                       888     888b     d888          888    888                    888                                     888      .d8888b.  888          888
+#   888            888                                       888     8888b   d8888          888    888                    888                                     888     d88P  Y88b 888          888
+#   888            888                                       888     88888b.d88888          888    888                    888                                     888     Y88b.      888          888
+#   888   88888b.  888888  .d88b.  888d888 88888b.   8888b.  888     888Y88888P888  .d88b.  888888 88888b.   .d88b.   .d88888 .d8888b       8888b.  88888b.   .d88888      "Y888b.   888  .d88b.  888888 .d8888b
+#   888   888 "88b 888    d8P  Y8b 888P"   888 "88b     "88b 888     888 Y888P 888 d8P  Y8b 888    888 "88b d88""88b d88" 888 88K              "88b 888 "88b d88" 888         "Y88b. 888 d88""88b 888    88K
+#   888   888  888 888    88888888 888     888  888 .d888888 888     888  Y8P  888 88888888 888    888  888 888  888 888  888 "Y8888b.     .d888888 888  888 888  888           "888 888 888  888 888    "Y8888b.
+#   888   888  888 Y88b.  Y8b.     888     888  888 888  888 888     888   "   888 Y8b.     Y88b.  888  888 Y88..88P Y88b 888      X88     888  888 888  888 Y88b 888     Y88b  d88P 888 Y88..88P Y88b.       X88
+# 8888888 888  888  "Y888  "Y8888  888     888  888 "Y888888 888     888       888  "Y8888   "Y888 888  888  "Y88P"   "Y88888  88888P'     "Y888888 888  888  "Y88888      "Y8888P"  888  "Y88P"   "Y888  88888P'
+#
+#################################################################################################################################################################################################################
+# 9.4 Built-in Exotic Object Internal Methods and Slots
+#
+# This specification defines several kinds of built-in exotic objects. These objects generally behave similar to ordinary
+# objects except for a few specific situations. The following exotic objects use the ordinary object internal methods except
+# where it is explicitly specified otherwise below:
+#
+# 9.4.1 Bound Function Exotic Objects
+#
+# A bound function is an exotic object that wraps another function object. A bound function is callable (it has a [[Call]]
+# internal method and may have a [[Construct]] internal method). Calling a bound function generally results in a call of its
+# wrapped function.
+#
+# Bound function objects do not have the internal slots of ECMAScript function objects defined in Table 27. Instead they have
+# the internal slots defined in Table 28.
+#
+# Table 28: Internal Slots of Bound Function Exotic Objects
+# +-------------------------+-----------------+--------------------------------------------------------------------------------
+# | Internal Slot           | Type            | Description
+# +-------------------------+-----------------+--------------------------------------------------------------------------------
+# | [[BoundTargetFunction]] | Callable Object | The wrapped function object.
+# +-------------------------+-----------------+--------------------------------------------------------------------------------
+# | [[BoundThis]]           | Any             | The value that is always passed as the this value when calling the wrapped
+# |                         |                 | function.
+# +-------------------------+-----------------+--------------------------------------------------------------------------------
+# | [[BoundArguments]]      | List of Any     | A list of values whose elements are used as the first arguments to any call to
+# |                         |                 | the wrapped function.
+# +-------------------------+-----------------+--------------------------------------------------------------------------------
+# Bound function objects provide all of the essential internal methods as specified in 9.1. However, they use the following
+# definitions for the essential internal methods of function objects.
+class BoundFunctionObject(JSObject):
+    # 9.4.1.1 [[Call]] ( thisArgument, argumentsList )
+    def Call(self, thisArgument, argumentsList):
+        # When the [[Call]] internal method of a bound function exotic object, F, which was created using the bind function is
+        # called with parameters thisArgument and argumentsList, a List of ECMAScript language values, the following steps are
+        # taken:
+        #
+        # 1. Let target be F.[[BoundTargetFunction]].
+        target = self.BoundTargetFunction
+        # 2. Let boundThis be F.[[BoundThis]].
+        boundThis = self.BoundThis
+        # 3. Let boundArgs be F.[[BoundArguments]].
+        boundArgs = self.BoundArguments
+        # 4. Let args be a new list containing the same values as the list boundArgs in the same order followed by the same
+        #    values as the list argumentsList in the same order.
+        args = boundArgs + argumentsList
+        # 5. Return ? Call(target, boundThis, args).
+        return Call(target, boundThis, *args)
+
+# 9.4.1.2 [[Construct]] ( argumentsList, newTarget )
+def BoundFunction_Construct(self, argumentsList, newTarget):
+    # When the [[Construct]] internal method of a bound function exotic object, F that was created using the bind function is
+    # called with a list of arguments argumentsList and newTarget, the following steps are taken:
+    #
+    # 1. Let target be F.[[BoundTargetFunction]].
+    target = self.BoundTargetFunction
+    # 2. Assert: IsConstructor(target) is true.
+    assert IsConstructor(target)
+    # 3. Let boundArgs be F.[[BoundArguments]].
+    boundArgs = self.BoundArguments
+    # 4. Let args be a new list containing the same values as the list boundArgs in the same order followed by the same values
+    #    as the list argumentsList in the same order.
+    args = boundArgs + argumentsList
+    # 5. If SameValue(F, newTarget) is true, set newTarget to target.
+    if SameValue(self, newTarget):
+        newTarget = target
+    # 6. Return ? Construct(target, args, newTarget).
+    return Construct(target, args, newTarget)
+
+# 9.4.1.3 BoundFunctionCreate ( targetFunction, boundThis, boundArgs )
+def BoundFunctionCreate(targetFunction, boundThis, boundArgs):
+    # The abstract operation BoundFunctionCreate with arguments targetFunction, boundThis and boundArgs is used to specify the
+    # creation of new Bound Function exotic objects. It performs the following steps:
+    #
+    # 1. Assert: Type(targetFunction) is Object.
+    assert isObject(targetFunction)
+    # 2. Let proto be ? targetFunction.[[GetPrototypeOf]]().
+    proto, ok = ec(targetFunction.GetPrototypeOf())
+    if not ok:
+        return proto
+    # 3. Let obj be a newly created object.
+    # 4. Set obj's essential internal methods to the default ordinary object definitions specified in 9.1.
+    # 5. Set obj.[[Call]] as described in 9.4.1.1.
+    obj = BoundFunctionObject()
+    # 6. If IsConstructor(targetFunction) is true, then
+    if IsConstructor(targetFunction):
+        # a. Set obj.[[Construct]] as described in 9.4.1.2.
+        obj.Construct = types.MethodType(BoundFunction_Construct, obj)
+    # 7. Set obj.[[Prototype]] to proto.
+    obj.Prototype = proto
+    # 8. Set obj.[[Extensible]] to true.
+    obj.Extensible = True
+    # 9. Set obj.[[BoundTargetFunction]] to targetFunction.
+    obj.BoundTargetFunction = targetFunction
+    # 10. Set obj.[[BoundThis]] to boundThis.
+    obj.BoundThis = boundThis
+    # 11. Set obj.[[BoundArguments]] to boundArgs.
+    obj.BoundArguments = boundArgs
+    # 12. Return obj.
+    return NormalCompletion(obj)
 
 # 9.4.2 Array Exotic Objects
 #
 # An Array object is an exotic object that gives special treatment to array index property keys (see 6.1.7). A property
 # whose property name is an array index is also called an element. Every Array object has a length property whose value
-# is always a nonnegative integer less than 232. The value of the length property is numerically greater than the name
+# is always a nonnegative integer less than 2^32. The value of the length property is numerically greater than the name
 # of every own property whose name is an array index; whenever an own property of an Array object is created or changed,
 # other properties are adjusted as necessary to maintain this invariant. Specifically, whenever an own property is
 # added whose name is an array index, the value of the length property is changed, if necessary, to be one more than the
@@ -4843,8 +5264,140 @@ def CreateBuiltinFunction(steps, internal_slots_list, realm=missing.MISSING, pro
 #
 # Array exotic objects provide an alternative definition for the [[DefineOwnProperty]] internal method. Except for that
 # internal method, Array exotic objects provide all of the other essential internal methods as specified in 9.1.
+#
 class ArrayObject(JSObject):
-    pass
+    # 9.4.2.1 [[DefineOwnProperty]] ( P, Desc )
+    def DefineOwnProperty(self, P, Desc):
+        # When the [[DefineOwnProperty]] internal method of an Array exotic object A is called with property key P, and
+        # Property Descriptor Desc, the following steps are taken:
+        #
+        # 1. Assert: IsPropertyKey(P) is true.
+        assert IsPropertyKey(P)
+        # 2. If P is "length", then
+        if P == 'length':
+            # a. Return ? ArraySetLength(A, Desc).
+            return ArraySetLength(self, Desc)
+        # 3. Else if P is an array index, then
+        if isString(P):
+            index = nc(ToUint32(P))
+            if nc(ToString(index)) == P and index != 0xffffffff:
+                # a. Let oldLenDesc be OrdinaryGetOwnProperty(A, "length").
+                oldLenDesc = OrdinaryGetOwnProperty(self, 'length')
+                # b. Assert: oldLenDesc will never be undefined or an accessor descriptor because Array objects are created
+                #    with a length data property that cannot be deleted or reconfigured.
+                assert oldLenDesc is not None and IsDataDescriptor(oldLenDesc)
+                # c. Let oldLen be oldLenDesc.[[Value]].
+                oldLen = oldLenDesc.value
+                # d. Let index be ! ToUint32(P).
+                # e. If index ≥ oldLen and oldLenDesc.[[Writable]] is false, return false.
+                if index >= oldLen and not oldLenDesc.writable:
+                    return NormalCompletion(False)
+                # f. Let succeeded be ! OrdinaryDefineOwnProperty(A, P, Desc).
+                succeeded = nc(OrdinaryDefineOwnProperty(self, P, Desc))
+                # g. If succeeded is false, return false.
+                if not succeeded:
+                    return NormalCompletion(False)
+                # h. If index ≥ oldLen, then
+                if index >= oldLen:
+                    # i. Set oldLenDesc.[[Value]] to index + 1.
+                    oldLenDesc.value = index + 1
+                    # ii. Let succeeded be OrdinaryDefineOwnProperty(A, "length", oldLenDesc).
+                    succeeded = nc(OrdinaryDefineOwnProperty(self, 'length', oldLenDesc))
+                    # iii. Assert: succeeded is true.
+                    assert succeeded
+                # i. Return true.
+                return NormalCompletion(True)
+        # 4. Return OrdinaryDefineOwnProperty(A, P, Desc).
+        return OrdinaryDefineOwnProperty(self, P, Desc)
+
+# 9.4.2.2 ArrayCreate ( length [ , proto ] )
+def ArrayCreate(length, proto=None):
+    # The abstract operation ArrayCreate with argument length (either 0 or a positive integer) and optional argument proto is
+    # used to specify the creation of new Array exotic objects. It performs the following steps:
+    #
+    # 1. Assert: length is an integer Number ≥ 0.
+    assert isNumber(length) and length >= 0 and math.floor(length) == length
+    # 2. If length is -0, set length to +0.
+    if math.copysign(1.0, length) < 0:
+        length = 0
+    # 3. If length > 2^32-1, throw a RangeError exception.
+    if length > 0xffffffff:
+        return ThrowCompletion(CreateRangeError())
+    # 4. If proto is not present, set proto to the intrinsic object %ArrayPrototype%.
+    if proto is None:
+        proto = surrounding_agent.running_ec.realm.intrinsics['%ArrayPrototype%']
+    # 5. Let A be a newly created Array exotic object.
+    # 6. Set A's essential internal methods except for [[DefineOwnProperty]] to the default ordinary object definitions
+    #    specified in 9.1.
+    # 7. Set A.[[DefineOwnProperty]] as specified in 9.4.2.1.
+    A = ArrayObject()
+    # 8. Set A.[[Prototype]] to proto.
+    A.Prototype = proto
+    # 9. Set A.[[Extensible]] to true.
+    A.Extensible = True
+    # 10. Perform ! OrdinaryDefineOwnProperty(A, "length",
+    #           PropertyDescriptor { [[Value]]: length, [[Writable]]: true, [[Enumerable]]: false, [[Configurable]]: false }).
+    nc(OrdinaryDefineOwnProperty(A, 'length',
+                                 PropertyDescriptor(value=length, writable=True, enumerable=False, configurable=False)))
+    # 11. Return A.
+    return NormalCompletion(A)
+
+# 9.4.2.3 ArraySpeciesCreate ( originalArray, length )
+def ArraySpeciescreate(originalArray, length):
+    # The abstract operation ArraySpeciesCreate with arguments originalArray and length is used to specify the creation of a
+    # new Array object using a constructor function that is derived from originalArray. It performs the following steps:
+    #
+    # 1. Assert: length is an integer Number ≥ 0.
+    assert isNumber(length) and length >= 0 and math.floor(length) == length
+    # 2. If length is -0, set length to +0.
+    if math.copysign(1.0, length) < 0:
+        length = 0
+    # 3. Let isArray be ? IsArray(originalArray).
+    isArray, ok = ec(IsArray(originalArray))
+    if not ok:
+        return isArray
+    # 4. If isArray is false, return ? ArrayCreate(length).
+    if not isArray:
+        return ArrayCreate(length)
+    # 5. Let C be ? Get(originalArray, "constructor").
+    C, ok = ec(Get(originalArray, 'constructor'))
+    if not ok:
+        return C
+    # 6. If IsConstructor(C) is true, then
+    if IsConstructor(C):
+        # a. Let thisRealm be the current Realm Record.
+        thisRealm = surrounding_agent.running_ec.realm
+        # b. Let realmC be ? GetFunctionRealm(C).
+        realmC, ok = ec(GetFunctionRealm(C))
+        if not ok:
+            return realmC
+        # c. If thisRealm and realmC are not the same Realm Record, then
+        if thisRealm != realmC:
+            # i. If SameValue(C, realmC.[[Intrinsics]].[[%Array%]]) is true, set C to undefined.
+            if SameValue(C, realmC.intrinsics['%Array%']):
+                C = None
+    # 7. If Type(C) is Object, then
+    if isObject(C):
+        # a. Set C to ? Get(C, @@species).
+        C, ok = ec(Get(C, wks_species))
+        if not ok:
+            return C
+        # b. If C is null, set C to undefined.
+        if isNull(C):
+            C = None
+    # 8. If C is undefined, return ? ArrayCreate(length).
+    if C is None:
+        return ArrayCreate(length)
+    # 9. If IsConstructor(C) is false, throw a TypeError exception.
+    if not IsConstructor(C):
+        return ThrowCompletion(CreateTypeError())
+    # 10. Return ? Construct(C, « length »).
+    return Construct(C, length)
+    # NOTE
+    # If originalArray was created using the standard built-in Array constructor for a realm that is not the realm of the
+    # running execution context, then a new Array is created using the realm of the running execution context. This maintains
+    # compatibility with Web browsers that have historically had that behaviour for the Array.prototype methods that now are
+    # defined using ArraySpeciesCreate.
 
 # 9.4.3 String Exotic Objects
 class StringObject(JSObject):
@@ -4879,6 +5432,7 @@ def SetImmutablePrototype(obj, value):
     # 3. If SameValue(V, current) is true, return true.
     # 4. Return false.
     return NormalCompletion(SameValue(value, current))
+#endregion
 
 # 9.5 ProxyObjects
 class ProxyObject(JSObject):
@@ -8743,7 +9297,7 @@ def ObjectFunction(_, new_target, value=None):
         return OrdinaryCreateFromConstructor(new_target, "%ObjectPrototype%")
     # 2. If value is null, undefined or not supplied, return ObjectCreate(%ObjectPrototype%).
     if value is None or isNull(value):
-        return ObjectCreate(surrounding_agent.realm.intrinsics['%ObjectPrototype%'])
+        return ObjectCreate(surrounding_agent.running_ec.realm.intrinsics['%ObjectPrototype%'])
     # 3. Return ! ToObject(value).
     return ToObject(value)
 
@@ -8950,7 +9504,7 @@ def ObjectMethod_getOwnPropertyDescriptors(_a, _b, o_value):
     if not ok:
         return own_keys
     # 3. Let descriptors be ! ObjectCreate(%ObjectPrototype%).
-    descriptors = nc(ObjectCreate(surrounding_agent.realm.intrinsics['%ObjectPrototype%']))
+    descriptors = nc(ObjectCreate(surrounding_agent.running_ec.realm.intrinsics['%ObjectPrototype%']))
     # 4. For each element key of ownKeys in List order, do
     for key in own_keys:
         # a. Let desc be ? obj.[[GetOwnProperty]](key).
