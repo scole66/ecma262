@@ -115,3 +115,12 @@ def test_isecmavalue():
     assert isEcmaValue(JSObject())
     assert not isEcmaValue([])
     assert not isEcmaValue({})
+
+def test_TypeOf_01():
+    assert TypeOf(None) == JSType.UNDEFINED
+    assert TypeOf(True) == JSType.BOOLEAN
+    assert TypeOf(10) == JSType.NUMBER
+    assert TypeOf(JSNull.NULL) == JSType.NULL
+    assert TypeOf('test') == JSType.STRING
+    assert TypeOf(wks_match) == JSType.SYMBOL
+    assert TypeOf(JSObject()) == JSType.OBJECT
