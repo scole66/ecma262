@@ -5526,10 +5526,81 @@ class PN_MultiplicativeExpression_ExponentiationExpression(ParseNode):
 class PN_AdditiveExpression_MultiplicativeExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('AdditiveExpression', p)
-class PN_ShiftExpression_AdditiveExpression(ParseNode):
+##############################################################################################################################################################################################################
+#
+#  d888    .d8888b.       .d8888b.      888888b.   d8b 888                  d8b                        .d8888b.  888      d8b  .d888 888         .d88888b.                                     888
+# d8888   d88P  Y88b     d88P  Y88b     888  "88b  Y8P 888                  Y8P                       d88P  Y88b 888      Y8P d88P"  888        d88P" "Y88b                                    888
+#   888          888     888    888     888  .88P      888                                            Y88b.      888          888    888        888     888                                    888
+#   888        .d88P     Y88b. d888     8888888K.  888 888888 888  888  888 888 .d8888b   .d88b.       "Y888b.   88888b.  888 888888 888888     888     888 88888b.   .d88b.  888d888  8888b.  888888  .d88b.  888d888 .d8888b
+#   888    .od888P"       "Y888P888     888  "Y88b 888 888    888  888  888 888 88K      d8P  Y8b         "Y88b. 888 "88b 888 888    888        888     888 888 "88b d8P  Y8b 888P"       "88b 888    d88""88b 888P"   88K
+#   888   d88P"                 888     888    888 888 888    888  888  888 888 "Y8888b. 88888888           "888 888  888 888 888    888        888     888 888  888 88888888 888     .d888888 888    888  888 888     "Y8888b.
+#   888   888"       d8b Y88b  d88P     888   d88P 888 Y88b.  Y88b 888 d88P 888      X88 Y8b.         Y88b  d88P 888  888 888 888    Y88b.      Y88b. .d88P 888 d88P Y8b.     888     888  888 Y88b.  Y88..88P 888          X88
+# 8888888 888888888  Y8P  "Y8888P"      8888888P"  888  "Y888  "Y8888888P"  888  88888P'  "Y8888       "Y8888P"  888  888 888 888     "Y888      "Y88888P"  88888P"   "Y8888  888     "Y888888  "Y888  "Y88P"  888      88888P'
+#                                                                                                                                                           888
+#                                                                                                                                                           888
+#                                                                                                                                                           888
+#
+##############################################################################################################################################################################################################
+# 12.9 Bitwise Shift Operators
+class PN_ShiftExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('ShiftExpression', p)
-########################################################################################################################
+class PN_ShiftExpression_S_op_A(PN_ShiftExpression):
+    # 12.9.1 Static Semantics: IsFunctionDefinition
+    def IsFunctionDefinition(self):
+        # 1. Return false.
+        return False
+    # 12.9.2 Static Semantics: IsValidSimpleAssignmentTarget
+    def IsValidSimpleAssignmentTarget(self):
+        # 1. Return false.
+        return False
+    # 12.9.3.1 Runtime Semantics: Evaluation
+    # --- The first 7 steps are (nearly) common for all 3 productions.
+    def evaluate(self):
+        # 1. Let lref be the result of evaluating ShiftExpression.
+        lref = self.children[0].evaluate()
+        # 2. Let lval be ? GetValue(lref).
+        lval, ok = ec(GetValue(lref))
+        if not ok:
+            return lval
+        # 3. Let rref be the result of evaluating AdditiveExpression.
+        rref = self.children[2].evaluate()
+        # 4. Let rval be ? GetValue(rref).
+        rval, ok = ec(GetValue(rref))
+        if not ok:
+            return rval
+        # 5. Let lnum be ? ToInt32(lval), or ? ToUint32(lval), depending.
+        lnum, ok = ec(ToInt32(lval) if self.lval_is_signed else ToUint32(lval))
+        if not ok:
+            return lnum
+        # 6. Let rnum be ? ToUint32(rval).
+        rnum, ok = ec(ToUint32(rval))
+        if not ok:
+            return rnum
+        # 7. Let shiftCount be the result of masking out all but the least significant 5 bits of rnum, that is, compute
+        #    rnum & 0x1F.
+        shiftCount = rnum & 0x1f
+        return self.operate(lnum, shiftCount)
+class PN_ShiftExpression_AdditiveExpression(PN_ShiftExpression):
+    pass # Nothing more for pass-thru productions.
+class PN_ShiftExpression_LTLT_AdditiveExpression(PN_ShiftExpression_S_op_A):
+    lval_is_signed = True
+    def operate(self, lnum, shiftCount):
+        # 8. Return the result of left shifting lnum by shiftCount bits. The result is a signed 32-bit integer.
+        return ToInt32(lnum << shiftCount)
+class PN_ShiftExpression_GTGT_AdditiveExpression(PN_ShiftExpression_S_op_A):
+    lval_is_signed = True
+    def operate(self, lnum, shiftCount):
+        # 8. Return the result of performing a sign-extending right shift of lnum by shiftCount bits. The most significant bit
+        #    is propagated. The result is a signed 32-bit integer.
+        return NormalCompletion(lnum >> shiftCount)
+class PN_ShiftExpression_GTGTGT_AdditiveExpression(PN_ShiftExpression_S_op_A):
+    lval_is_signed = False
+    def operate(self, lnum, shiftCount):
+        # 8. Return the result of performing a zero-filling right shift of lnum by shiftCount bits. Vacated bits are filled
+        #    with zero. The result is an unsigned 32-bit integer.
+        return NormalCompletion(lnum >> shiftCount)
+##############################################################################################################################################################################################################
 #
 #  d888    .d8888b.       d888    .d8888b.      8888888b.           888          888    d8b                            888      .d88888b.                                     888
 # d8888   d88P  Y88b     d8888   d88P  Y88b     888   Y88b          888          888    Y8P                            888     d88P" "Y88b                                    888
@@ -5542,7 +5613,8 @@ class PN_ShiftExpression_AdditiveExpression(ParseNode):
 #                                                                                                                                          888
 #                                                                                                                                          888
 #                                                                                                                                          888
-########################################################################################################################
+#
+##############################################################################################################################################################################################################
 # 12.10 Relational Operators
 class PN_RelationalExpression(ParseNode):
     def __init__(self, ctx, p):
@@ -6482,9 +6554,30 @@ class Ecma262Parser(Parser):
         return PN_RelationalExpression_RelationalExpression_INSTANCEOF_ShiftExpression(self.context, p)
     ########################################################################################################################
 
+    ########################################################################################################################
+    # 12.9 Bitwise Shift Operators
+    #
+    # Syntax
+    #
+    # ShiftExpression[Yield, Await]:
+    #              AdditiveExpression[?Yield, ?Await]
+    #              ShiftExpression[?Yield, ?Await] << AdditiveExpression[?Yield, ?Await]
+    #              ShiftExpression[?Yield, ?Await] >> AdditiveExpression[?Yield, ?Await]
+    #              ShiftExpression[?Yield, ?Await] >>> AdditiveExpression[?Yield, ?Await]
+    #
     @_('AdditiveExpression')
     def ShiftExpression(self, p):
         return PN_ShiftExpression_AdditiveExpression(self.context, p)
+    @_('ShiftExpression LTLT AdditiveExpression')
+    def ShiftExpression(self, p):
+        return PN_ShiftExpression_LTLT_AdditiveExpression(self.context, p)
+    @_('ShiftExpression GTGT AdditiveExpression')
+    def ShiftExpression(self, p):
+        return PN_ShiftExpression_GTGT_AdditiveExpression(self.context, p)
+    @_('ShiftExpression GTGTGT AdditiveExpression')
+    def ShiftExpression(self, p):
+        return PN_ShiftExpression_GTGTGT_AdditiveExpression(self.context, p)
+    ########################################################################################################################
     @_('MultiplicativeExpression')
     def AdditiveExpression(self, p):
         return PN_AdditiveExpression_MultiplicativeExpression(self.context, p)
