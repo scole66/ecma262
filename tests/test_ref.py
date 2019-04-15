@@ -109,3 +109,62 @@ def test_GetValue_06(realm):
     # Finally, there's the Environment Record form.
     rval = GetValue(Reference(realm.global_env.environment_record, 'NaN', False))
     assert rval == Completion(NORMAL, math.nan, None)
+
+def test_PutValue_01():
+    # If the first arg is an abrupt completion, abort.
+    rval = PutValue(Completion(THROW, 'throws', None), 67)
+    assert rval == Completion(THROW, 'throws', None)
+
+def test_PutValue_02():
+    # If the second arg is an abrupt completion, abort.
+    rval = PutValue(None, Completion(THROW, 'throws', None))
+    assert rval == Completion(THROW, 'throws', None)
+
+def test_PutValue_03():
+    # If the first arg is not a reference, throws a reference error.
+    rval = PutValue(Completion(NORMAL, 'monkey', None), 'tigger')
+    assert rval.ctype == THROW
+    assert isinstance(rval.value, ReferenceError)
+    assert rval.target is None
+
+def test_PutValue_04(realm):
+    # If the reference is unresolvable but not strict, then the value goes onto the global object.
+    rval = PutValue(Reference(None, 'new_info', False), 'Amazing Test!')
+    assert rval == Completion(NORMAL, True, None)
+    global_obj = GetGlobalObject()
+    rval2 = nc(Get(global_obj, 'new_info'))
+    assert rval2 == 'Amazing Test!'
+
+def test_PutValue_05(realm):
+    # If the reference is unresolvable and strict, then we get a reference error.
+    rval = PutValue(Reference(None, 'strict_field', True), 'blocked!')
+    assert rval.ctype == THROW
+    assert isinstance(rval.value, ReferenceError)
+    assert rval.target is None
+
+def test_PutValue_06(realm):
+    # Setting a value on a primitive type should ususally succeed, but the temp object those values were placed on doesn't
+    # persist, so it's not especially visible.
+    rval = PutValue(Reference(True, 'odd_field', False), 'adding...')
+    assert rval == Completion(NORMAL, None, None)
+
+def test_PutValue_07(realm):
+    # Doing that but with the strict flag means that if the Put fails, we should throw a TypeError. Turns out, when you
+    # try to Put a value on a primitive time, the Put always fails, so... that's easy to arrange...
+    rval = PutValue(Reference(True, 'odd_field', True), 'add')
+    assert rval.ctype == THROW
+    assert isinstance(rval.value, TypeError)
+    assert rval.target is None
+
+def test_PutValue_08(realm):
+    # Finally, environment records:
+    rval = PutValue(Reference(realm.global_env.environment_record, 'testfield', False), 'testval')
+    assert rval == Completion(NORMAL, True, None)
+    rval2 = nc(GetValue(Reference(realm.global_env.environment_record, 'testfield', False)))
+    assert rval2 == 'testval'
+
+def test_PutValue_09(obj):
+    # And when the 'Set' method on the base object throws, it aborts with that exception.
+    obj.Set = types.MethodType(lambda _a, _b, _c, _d: ThrowCompletion('error from set'), obj)
+    rval = PutValue(Reference(obj, 'prop', False), 33)
+    assert rval == Completion(THROW, 'error from set', None)
