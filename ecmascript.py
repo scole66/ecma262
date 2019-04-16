@@ -11,10 +11,10 @@ import uuid
 import random
 import types
 
-def CreateReferenceError():
-    return ReferenceError() # This is a python object, not an ecmascript object. This will change when objects are turned on.
-def CreateTypeError():
-    return TypeError() # This is a python object, not an ecmascript object. This will change when objects are turned on.
+def CreateReferenceError(msg=''):
+    return ReferenceError(msg) # This is a python object, not an ecmascript object. This will change when objects are turned on.
+def CreateTypeError(msg=''):
+    return TypeError(msg) # This is a python object, not an ecmascript object. This will change when objects are turned on.
 
 class missing(Enum):
     MISSING = auto()
@@ -4244,6 +4244,367 @@ def AgentCanSuspend():
     # web browser environment, it may be reasonable to disallow suspending a document's main event
     # handling thread, while still allowing workers' event handling threads to suspend.
 
+#######################################################################################################################################
+#
+#  .d8888b.       .d8888b.      8888888888  .d8888b.  888b     d888        d8888  .d8888b.                   d8b          888
+# d88P  Y88b     d88P  Y88b     888        d88P  Y88b 8888b   d8888       d88888 d88P  Y88b                  Y8P          888
+# 888    888            888     888        888    888 88888b.d88888      d88P888 Y88b.                                    888
+# Y88b. d888          .d88P     8888888    888        888Y88888P888     d88P 888  "Y888b.    .d8888b 888d888 888 88888b.  888888
+#  "Y888P888      .od888P"      888        888        888 Y888P 888    d88P  888     "Y88b. d88P"    888P"   888 888 "88b 888
+#        888     d88P"          888        888    888 888  Y8P  888   d88P   888       "888 888      888     888 888  888 888
+# Y88b  d88P d8b 888"           888        Y88b  d88P 888   "   888  d8888888888 Y88b  d88P Y88b.    888     888 888 d88P Y88b.
+#  "Y8888P"  Y8P 888888888      8888888888  "Y8888P"  888       888 d88P     888  "Y8888P"   "Y8888P 888     888 88888P"   "Y888
+#                                                                                                                888
+# 8888888888                            888    d8b                        .d88888b.  888         d8b             888   888
+# 888                                   888    Y8P                       d88P" "Y88b 888         Y8P             888   888
+# 888                                   888                              888     888 888                               888
+# 8888888    888  888 88888b.   .d8888b 888888 888  .d88b.  88888b.      888     888 88888b.    8888  .d88b.   .d8888b 888888 .d8888b
+# 888        888  888 888 "88b d88P"    888    888 d88""88b 888 "88b     888     888 888 "88b   "888 d8P  Y8b d88P"    888    88K
+# 888        888  888 888  888 888      888    888 888  888 888  888     888     888 888  888    888 88888888 888      888    "Y8888b.
+# 888        Y88b 888 888  888 Y88b.    Y88b.  888 Y88..88P 888  888     Y88b. .d88P 888 d88P    888 Y8b.     Y88b.    Y88b.       X88
+# 888         "Y88888 888  888  "Y8888P  "Y888 888  "Y88P"  888  888      "Y88888P"  88888P"     888  "Y8888   "Y8888P  "Y888  88888P'
+#                                                                                                888
+#                                                                                               d88P
+#                                                                                             888P"
+#
+#######################################################################################################################################
+# 9.2 ECMAScript Function Objects
+#
+# ECMAScript function objects encapsulate parameterized ECMAScript code closed over a lexical environment and support the
+# dynamic evaluation of that code. An ECMAScript function object is an ordinary object and has the same internal slots and the
+# same internal methods as other ordinary objects. The code of an ECMAScript function object may be either strict mode code
+# (10.2.1) or non-strict code. An ECMAScript function object whose code is strict mode code is called a strict function. One
+# whose code is not strict mode code is called a non-strict function.
+#
+# ECMAScript function objects have the additional internal slots listed in Table 27.
+#
+# Table 27: Internal Slots of ECMAScript Function Objects
+# +----------------------+---------------------+-------------------------------------------------------------------------------
+# | Internal Slot        | Type                | Description
+# +----------------------+---------------------+-------------------------------------------------------------------------------
+# | [[Environment]]      | Lexical Environment | The Lexical Environment that the function was closed over. Used as the outer
+# |                      |                     | environment when evaluating the code of the function.
+# +----------------------+---------------------+-------------------------------------------------------------------------------
+# | [[FormalParameters]] | Parse Node          | The root parse node of the source text that defines the function's formal
+# |                      |                     | parameter list.
+# +----------------------+---------------------+-------------------------------------------------------------------------------
+# | [[FunctionKind]]     | String              | Either "normal", "classConstructor", "generator", or "async".
+# +----------------------+---------------------+-------------------------------------------------------------------------------
+# | [[ECMAScriptCode]]   | Parse Node          | The root parse node of the source text that defines the function's body.
+# +----------------------+---------------------+-------------------------------------------------------------------------------
+# | [[ConstructorKind]]  | String              | Either "base" or "derived".
+# +----------------------+---------------------+-------------------------------------------------------------------------------
+# | [[Realm]]            | Realm Record        | The realm in which the function was created and which provides any intrinsic
+# |                      |                     | objects that are accessed when evaluating the function.
+# +----------------------+---------------------+-------------------------------------------------------------------------------
+# | [[ScriptOrModule]]   | Script Record or    | The script or module in which the function was created.
+# |                      | Module Record       |
+# +----------------------+---------------------+-------------------------------------------------------------------------------
+# | [[ThisMode]]         | (lexical, strict,   | Defines how this references are interpreted within the formal parameters and
+# |                      | global)             | code body of the function. lexical means that this refers to the this value of
+# |                      |                     | a lexically enclosing function. strict means that the this value is used
+# |                      |                     | exactly as provided by an invocation of the function. global means that a this
+# |                      |                     | value of undefined is interpreted as a reference to the global object.
+# +----------------------+---------------------+-------------------------------------------------------------------------------
+# | [[Strict]]           | Boolean             | true if this is a strict function, false if this is a non-strict function.
+# +----------------------+---------------------+-------------------------------------------------------------------------------
+# | [[HomeObject]]       | Object              | If the function uses super, this is the object whose [[GetPrototypeOf]]
+# |                      |                     | provides the object where  super property lookups begin.
+# +----------------------+---------------------+-------------------------------------------------------------------------------
+#
+# All ECMAScript function objects have the [[Call]] internal method defined here. ECMAScript functions that are also
+# constructors in addition have the [[Construct]] internal method.
+@unique
+class TM(Enum):
+    LEXICAL = auto()
+    STRICT = auto()
+    GLOBAL = auto()
+class JSFunction(JSObject):
+    def __init__(self):
+        super().__init__()
+        self.Environment = None
+        self.FormalParameters = None
+        self.FunctionKind = None
+        self.ECMAScriptCode = None
+        self.ConstructorKind = None
+        self.Realm = None
+        self.ScriptOrModule = None
+        self.ThisMode = None
+        self.Strict = None
+        self.HomeObject = None
+
+    # 9.2.1 [[Call]] ( thisArgument, argumentsList )
+    def Call(thisArgument, argumentsList):
+        # The [[Call]] internal method for an ECMAScript function object F is called with parameters thisArgument and
+        # argumentsList, a List of ECMAScript language values. The following steps are taken:
+        pass                                                      # 1. Assert: F is an ECMAScript function object.
+        if self.FunctionKind == 'classConstructor':               # 2. If F.[[FunctionKind]] is "classConstructor",
+            return ThrowCompletion(CreateTypeError())             #    throw a TypeError exception.
+        callerContext = surrounding_agent.running_ec              # 3. Let callerContext be the running execution context.
+        calleeContext = PrepareForOrdinaryCall(self, None)        # 4. Let calleeContext be PrepareForOrdinaryCall(F, undefined).
+        assert calleeContext == surrounding_agent.running_ec      # 5. Assert: calleeContext is now the running execution context.
+        OrdinaryCallBindThis(self, calleeContext, thisArgument)   # 6. Perform OrdinaryCallBindThis(F, calleeContext, thisArgument).
+        result = OrdinaryCallEvaluateBody(self, argumentsList)    # 7. Let result be OrdinaryCallEvaluateBody(F, argumentsList).
+        surrounding_agent.ec_stack.pop()                          # 8. Remove calleeContext from the execution context stack and
+        surrounding_agent.running_ec = surrounding_agent.ec_stack[-1]   # restore callerContext as the running execution context.
+        assert surrounding_agent.running_ec == callerContext
+        if result.ctype == CompletionType.RETURN:                 # 9. If result.[[Type]] is return, return
+            return NormalCompletion(result.value)                 #    NormalCompletion(result.[[Value]]).
+        _, ok = ec(result)                                        # 10. ReturnIfAbrupt(result).
+        if not ok:
+            return result
+        return NormalCompletion(None)                             # 11. Return NormalCompletion(undefined).
+        # NOTE
+        # When calleeContext is removed from the execution context stack in step 8 it must not be destroyed if it is suspended
+        # and retained for later resumption by an accessible generator object.
+
+# 9.2.1.1 PrepareForOrdinaryCall ( F, newTarget )
+def PrepareForOrdinaryCall(F, newTarget):
+    # When the abstract operation PrepareForOrdinaryCall is called with function object F and ECMAScript language value
+    # newTarget, the following steps are taken:
+    #
+    assert newTarget is None or isObject(newTarget)               # 1. Assert: Type(newTarget) is Undefined or Object.
+    callerContext = surrounding_agent.running_ec                  # 2. Let callerContext be the running execution context.
+    calleeContext = ExecutionContext()                            # 3. Let calleeContext be a new ECMAScript code execution context.
+    calleeContext.function = F                                    # 4. Set the Function of calleeContext to F.
+    calleeRealm = F.Realm                                         # 5. Let calleeRealm be F.[[Realm]].
+    calleeContext.realm = calleeRealm                             # 6. Set the Realm of calleeContext to calleeRealm.
+    calleeContext.script_or_module = F.ScriptOrModule             # 7. Set the ScriptOrModule of calleeContext to F.[[ScriptOrModule]].
+    localEnv = NewFunctionEnvironment(F, newTarget)               # 8. Let localEnv be NewFunctionEnvironment(F, newTarget).
+    calleeContext.lexical_environment = localEnv                  # 9. Set the LexicalEnvironment of calleeContext to localEnv.
+    calleeContext.variable_environment = localEnv                 # 10. Set the VariableEnvironment of calleeContext to localEnv.
+    callerContext.suspend()                                       # 11. If callerContext is not already suspended, suspend callerContext.
+    surrounding_agent.ec_stack.append(calleeContext)              # 12. Push calleeContext onto the execution context stack; calleeContext
+    surrounding_agent.running_ec = calleeContext                  #     is now the running execution context.
+    # 13. NOTE: Any exception objects produced after this point are associated with calleeRealm.
+    return calleeContext                                          # 14. Return calleeContext.
+
+# 9.2.1.2 OrdinaryCallBindThis ( F, calleeContext, thisArgument )
+def OrdinaryCallBindThis(F, calleeContext, thisArgument):
+    # When the abstract operation OrdinaryCallBindThis is called with function object F, execution context calleeContext, and
+    # ECMAScript value thisArgument, the following steps are taken:
+    #
+    thisMode = F.ThisMode                                         # 1. Let thisMode be F.[[ThisMode]].
+    if thisMode == TM.LEXICAL:                                    # 2. If thisMode is lexical, return NormalCompletion(undefined).
+        return NormalCompletion(None)
+    calleeRealm = F.Realm                                         # 3. Let calleeRealm be F.[[Realm]].
+    localEnv = calleeContext.lexical_environment                  # 4. Let localEnv be the LexicalEnvironment of calleeContext.
+    if thisMode == TM.STRICT:                                     # 5. If thisMode is strict, let thisValue be thisArgument.
+        thisValue = thisArgument
+    else:                                                         # 6. Else,
+        if thisArgument is None or isNull(thisArgument):          #    a. If thisArgument is undefined or null, then
+            globalEnv = calleeRealm.global_env                    #       i. Let globalEnv be calleeRealm.[[GlobalEnv]].
+            globalEnvRec = globalEnv                              #      ii. Let globalEnvRec be globalEnv's EnvironmentRecord.
+            assert isinstance(globalEnvRec, GlobalEnvironmentRecord) #  iii. Assert: globalEnvRec is a global Environment Record.
+            thisValue = globalEnvRec.global_this_value            #      iv. Let thisValue be globalEnvRec.[[GlobalThisValue]].
+        else:                                                     #    b. Else,
+            thisValue = nc(ToObject(thisArgument))                #       i. Let thisValue be ! ToObject(thisArgument).
+            # ii. NOTE: ToObject produces wrapper objects using calleeRealm.
+    envRec = localEnv                                             # 7. Let envRec be localEnv's EnvironmentRecord.
+    assert isinstance(envRec, FunctionEnvironmentRecord)          # 8. Assert: envRec is a function Environment Record.
+    # 9. Assert: The next step never returns an abrupt completion because envRec.[[ThisBindingStatus]] is not "initialized".
+    assert envRec.this_binding_status != 'initialized'
+    return envRec.BindThisValue(thisValue)                        # 10. Return envRec.BindThisValue(thisValue).
+
+# 9.2.1.3 OrdinaryCallEvaluateBody ( F, argumentsList )
+def OrdinaryCallEvaluateBody(F, argumentsList):
+    # When the abstract operation OrdinaryCallEvaluateBody is called with function object F and List argumentsList, the
+    # following steps are taken:
+    #
+    # 1. Return the result of EvaluateBody of the parsed code that is F.[[ECMAScriptCode]] passing F and argumentsList as the
+    #    arguments.
+    return F.ECMAScriptCode.EvaluateBody(F, argumentsList)
+
+# 9.2.2 [[Construct]] ( argumentsList, newTarget )
+def JSFunction_Construct(self, argumentsList, newTarget):
+    # The [[Construct]] internal method for an ECMAScript function object F is called with parameters argumentsList and
+    # newTarget. argumentsList is a possibly empty List of ECMAScript language values. The following steps are taken:
+    #
+    # 1. Assert: F is an ECMAScript function object.
+    assert isinstance(F, JSFunction)
+    # 2. Assert: Type(newTarget) is Object.
+    assert isObject(newTarget)
+    # 3. Let callerContext be the running execution context.
+    callerContext = surrounding_agent.running_ec
+    # 4. Let kind be F.[[ConstructorKind]].
+    kind = F.ConstructorKind
+    # 5. If kind is "base", then
+    if kind == 'base':
+        # a. Let thisArgument be ? OrdinaryCreateFromConstructor(newTarget, "%ObjectPrototype%").
+        thisArgument, ok = ec(OrdinaryCreateFromConstructor(newTarget, '%ObjectPrototype%'))
+        if not ok:
+            return thisArgument
+    # 6. Let calleeContext be PrepareForOrdinaryCall(F, newTarget).
+    calleeContext = PrepareForOrdinaryCall(F, newTarget)
+    # 7. Assert: calleeContext is now the running execution context.
+    assert surrounding_agent.running_ec == calleeContext
+    # 8. If kind is "base", perform OrdinaryCallBindThis(F, calleeContext, thisArgument).
+    if kind == 'base':
+        OrdinaryCallBindThis(F, calleeContext, thisArgument)
+    # 9. Let constructorEnv be the LexicalEnvironment of calleeContext.
+    constructorEnv = calleeContext.lexical_environment
+    # 10. Let envRec be constructorEnv's EnvironmentRecord.
+    envRec = constructorEnv
+    # 11. Let result be OrdinaryCallEvaluateBody(F, argumentsList).
+    result = OrdinaryCallEvaluateBody(F, argumentsList)
+    # 12. Remove calleeContext from the execution context stack and restore callerContext as the running execution context.
+    surrounding_agent.ec_stack.pop()
+    surrounding_agent.running_ec = surrounding_agent.ec_stack[-1]
+    # 13. If result.[[Type]] is return, then
+    if result.ctype == CompletionType.RETURN:
+        # a. If Type(result.[[Value]]) is Object, return NormalCompletion(result.[[Value]]).
+        if isObject(result.value):
+            return NormalCompletion(result.value)
+        # b. If kind is "base", return NormalCompletion(thisArgument).
+        if kind == 'base':
+            return NormalCompletion(thisArgument)
+        # c. If result.[[Value]] is not undefined, throw a TypeError exception.
+        if result.value is not None:
+            return ThrowCompletion(CreateTypeError('Constructor failed to create an object'))
+    # 14. Else, ReturnIfAbrupt(result).
+    else:
+        result, ok = ec(result)
+        if not ok:
+            return result
+    # 15. Return ? envRec.GetThisBinding().
+    return envRec.GetThisBinding()
+
+# 9.2.3 FunctionAllocate ( functionPrototype, strict, functionKind )
+def FunctionAllocate(functionPrototype, strict, functionKind):
+    # The abstract operation FunctionAllocate requires the three arguments functionPrototype, strict and functionKind.
+    # FunctionAllocate performs the following steps:
+    #
+    # 1. Assert: Type(functionPrototype) is Object.
+    assert isObject(functionPrototype)
+    # 2. Assert: functionKind is either "normal", "non-constructor", "generator", "async", or "async generator".
+    assert functionKind in ['normal', 'non-constructor', 'generator', 'async', 'async generator']
+    # 3. If functionKind is "normal", let needsConstruct be true.
+    # 4. Else, let needsConstruct be false.
+    needsConstruct = functionKind == 'normal'
+    # 5. If functionKind is "non-constructor", set functionKind to "normal".
+    if functionKind == 'non-constructor':
+        functionKind = 'normal'
+    # 6. Let F be a newly created ECMAScript function object with the internal slots listed in Table 27. All of those internal
+    #    slots are initialized to undefined.
+    # 7. Set F's essential internal methods to the default ordinary object definitions specified in 9.1.
+    # 8. Set F.[[Call]] to the definition specified in 9.2.1.
+    F = JSFunction()
+    # 9. If needsConstruct is true, then
+    if needsConstruct:
+        # a. Set F.[[Construct]] to the definition specified in 9.2.2.
+        F.Construct = types.MethodType(JSFunction_Construct, F)
+        # b. Set F.[[ConstructorKind]] to "base".
+        F.ConstructorKind = 'base'
+    # 10. Set F.[[Strict]] to strict.
+    F.Strict = strict
+    # 11. Set F.[[FunctionKind]] to functionKind.
+    F.FunctionKind = functionKind
+    # 12. Set F.[[Prototype]] to functionPrototype.
+    F.Prototype = functionPrototype
+    # 13. Set F.[[Extensible]] to true.
+    F.Extensible = True
+    # 14. Set F.[[Realm]] to the current Realm Record.
+    F.Realm = surrounding_agent.realm
+    # 15. Return F.
+    return NormalCompletion(F)
+
+# 9.2.4 FunctionInitialize ( F, kind, ParameterList, Body, Scope )
+@unique
+class FNKind(Enum):
+    NORMAL = auto()
+    METHOD = auto()
+    ARROW = auto()
+def FunctionInitialize(F, kind, ParameterList, Body, Scope):
+    # The abstract operation FunctionInitialize requires the arguments: a function object F, kind which is one of (Normal,
+    # Method, Arrow), a parameter list Parse Node specified by ParameterList, a body Parse Node specified by Body, a Lexical
+    # Environment specified by Scope. FunctionInitialize performs the following steps:
+    #
+    # 1. Let len be the ExpectedArgumentCount of ParameterList.
+    len_ = ParameterList.ExpectedArgumentCount()
+    # 2. Perform ! SetFunctionLength(F, len).
+    nc(SetFunctionLength(F, len_))
+    # 3. Let Strict be F.[[Strict]].
+    Strict = F.Strict
+    # 4. Set F.[[Environment]] to Scope.
+    F.Environment = Scope
+    # 5. Set F.[[FormalParameters]] to ParameterList.
+    F.FormalParameters = ParameterList
+    # 6. Set F.[[ECMAScriptCode]] to Body.
+    F.ECMAScriptCode = Body
+    # 7. Set F.[[ScriptOrModule]] to GetActiveScriptOrModule().
+    F.ScriptOrModule = GetActiveScriptOrModule()
+    # 8. If kind is Arrow, set F.[[ThisMode]] to lexical.
+    if kind == FNKind.ARROW:
+        F.ThisMode = TM.LEXICAL
+    # 9. Else if Strict is true, set F.[[ThisMode]] to strict.
+    elif Strict:
+        F.ThisMode = TM.STRICT
+    # 10. Else, set F.[[ThisMode]] to global.
+    else:
+        F.ThisMode = TM.GLOBAL
+    # 11. Return F.
+    return NormalCompletion(F)
+
+# 9.2.5 FunctionCreate ( kind, ParameterList, Body, Scope, Strict [ , prototype ] )
+def FunctionCreate(kind, ParameterList, Body, Scope, Strict, prototype=missing.MISSING):
+    # The abstract operation FunctionCreate requires the arguments: kind which is one of (Normal, Method, Arrow), a parameter
+    # list Parse Node specified by ParameterList, a body Parse Node specified by Body, a Lexical Environment specified by
+    # Scope, a Boolean flag Strict, and optionally, an object prototype. FunctionCreate performs the following steps:
+    #
+    # 1. If prototype is not present, then
+    if prototype == missing.MISSING:
+        # a. Set prototype to the intrinsic object %FunctionPrototype%.
+        prototype = surrounding_agent.realm.intrinsics['%FunctionPrototype%']
+    # 2. If kind is not Normal, let allocKind be "non-constructor".
+    if kind != FNKind.NORMAL:
+        allocKind = 'non-constructor'
+    # 3. Else, let allocKind be "normal".
+    else:
+        allocKind = 'normal'
+    # 4. Let F be FunctionAllocate(prototype, Strict, allocKind).
+    F = nc(FunctionAllocate(prototype, Strict, allocKind))
+    # 5. Return FunctionInitialize(F, kind, ParameterList, Body, Scope).
+    return FunctionInitialize(F, kind, ParameterList, Body, Scope)
+
+# 9.2.6 GeneratorFunctionCreate ( kind, ParameterList, Body, Scope, Strict )
+def GeneratorFunctionCreate(kind, ParameterList, Body, Scope, Strict):
+    # The abstract operation GeneratorFunctionCreate requires the arguments: kind which is one of (Normal, Method), a parameter
+    # list Parse Node specified by ParameterList, a body Parse Node specified by Body, a Lexical Environment specified by
+    # Scope, and a Boolean flag Strict. GeneratorFunctionCreate performs the following steps:
+    #
+    # 1. Let functionPrototype be the intrinsic object %Generator%.
+    functionPrototype = surrounding_agent.realm.intrinsics['%Generator%']
+    # 2. Let F be FunctionAllocate(functionPrototype, Strict, "generator").
+    F = nc(FunctionAllocate(functionPrototype, Strict, 'generator'))
+    # 3. Return FunctionInitialize(F, kind, ParameterList, Body, Scope).
+    return FunctionInitialize(F, kind, ParameterList, Body, Scope)
+
+# 9.2.7 AsyncGeneratorFunctionCreate ( kind, ParameterList, Body, Scope, Strict )
+def AsyncGeneratorFunctionCreate(kind, ParameterList, Body, Scope, Strict):
+    # The abstract operation AsyncGeneratorFunctionCreate requires the arguments: kind which is one of (Normal, Method), a
+    # parameter list Parse Node specified by ParameterList, a body Parse Node specified by Body, a Lexical Environment
+    # specified by Scope, and a Boolean flag Strict. AsyncGeneratorFunctionCreate performs the following steps:
+    #
+    # 1. Let functionPrototype be the intrinsic object %AsyncGenerator%.
+    functionPrototype = surrounding_agent.realm.intrinsics['%AsyncGenerator%']
+    # 2. Let F be ! FunctionAllocate(functionPrototype, Strict, "generator").
+    F = nc(FunctionAllocate(functionPrototype, Strict, 'generator'))
+    # 3. Return ! FunctionInitialize(F, kind, ParameterList, Body, Scope).
+    return FunctionInitialize(F, kind, ParameterList, Body, Scope)
+
+# 9.2.8 AsyncFunctionCreate ( kind, parameters, body, Scope, Strict )
+def AsyncFunctionCreate(kind, parameters, body, Scope, Strict):
+    # The abstract operation AsyncFunctionCreate requires the arguments: kind which is one of (Normal, Method, Arrow), a
+    # parameter list Parse Node specified by parameters, a body Parse Node specified by body, a Lexical Environment specified
+    # by Scope, and a Boolean flag Strict. AsyncFunctionCreate performs the following steps:
+    #
+    # 1. Let functionPrototype be the intrinsic object %AsyncFunctionPrototype%.
+    functionPrototype = surrounding_agent.realm.intrinsics['%AsyncFunctionPrototype%']
+    # 2. Let F be ! FunctionAllocate(functionPrototype, Strict, "async").
+    F = nc(FunctionAllocate(functionPrototype, Strict, 'async'))
+    # 3. Return ! FunctionInitialize(F, kind, parameters, body, Scope).
+    return FunctionInitialize(F, kind, parameters, body, Scope)
+
 # 9.2.9 AddRestrictedFunctionProperties ( F, realm )
 def AddRestrictedFunctionProperties(func, realm):
     # The abstract operation AddRestrictedFunctionProperties is called with a function object F and Realm Record realm
@@ -4259,6 +4620,22 @@ def AddRestrictedFunctionProperties(func, realm):
     # 4. Return ! DefinePropertyOrThrow(F, "arguments", PropertyDescriptor { [[Get]]: thrower, [[Set]]: thrower,
     #    [[Enumerable]]: false, [[Configurable]]: true }).
     return nc(DefinePropertyOrThrow(func, 'arguments', PropertyDescriptor(Get=thrower, Set=thrower, enumerable=False, configurable=True)))
+
+################################################################################################################################################################################################################################
+#
+#  .d8888b.       .d8888b.      888888b.            d8b 888 888           d8b              8888888888                            888    d8b                        .d88888b.  888         d8b                   888
+# d88P  Y88b     d88P  Y88b     888  "88b           Y8P 888 888           Y8P              888                                   888    Y8P                       d88P" "Y88b 888         Y8P                   888
+# 888    888          .d88P     888  .88P               888 888                            888                                   888                              888     888 888                               888
+# Y88b. d888         8888"      8888888K.  888  888 888 888 888888        888 88888b.      8888888    888  888 88888b.   .d8888b 888888 888  .d88b.  88888b.      888     888 88888b.    8888  .d88b.   .d8888b 888888 .d8888b
+#  "Y888P888          "Y8b.     888  "Y88b 888  888 888 888 888           888 888 "88b     888        888  888 888 "88b d88P"    888    888 d88""88b 888 "88b     888     888 888 "88b   "888 d8P  Y8b d88P"    888    88K
+#        888     888    888     888    888 888  888 888 888 888    888888 888 888  888     888        888  888 888  888 888      888    888 888  888 888  888     888     888 888  888    888 88888888 888      888    "Y8888b.
+# Y88b  d88P d8b Y88b  d88P     888   d88P Y88b 888 888 888 Y88b.         888 888  888     888        Y88b 888 888  888 Y88b.    Y88b.  888 Y88..88P 888  888     Y88b. .d88P 888 d88P    888 Y8b.     Y88b.    Y88b.       X88
+#  "Y8888P"  Y8P  "Y8888P"      8888888P"   "Y88888 888 888  "Y888        888 888  888     888         "Y88888 888  888  "Y8888P  "Y888 888  "Y88P"  888  888      "Y88888P"  88888P"     888  "Y8888   "Y8888P  "Y888  88888P'
+#                                                                                                                                                                                         888
+#                                                                                                                                                                                        d88P
+#                                                                                                                                                                                      888P"
+#
+################################################################################################################################################################################################################################
 
 class BuiltinFunction(JSObject):
     def __init__(self, steps, realm, prototype, extensible, script_or_module, internal_slots_list):
