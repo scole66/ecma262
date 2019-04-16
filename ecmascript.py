@@ -666,23 +666,16 @@ def OrdinaryDelete(obj, propkey):
     # When the abstract operation OrdinaryDelete is called with Object O and property key P, the following steps are
     # taken:
     #
-    # 1. Assert: IsPropertyKey(P) is true.
-    assert IsPropertyKey(propkey)
-    # 2. Let desc be ? O.[[GetOwnProperty]](P).
-    desc, ok = ec(obj.GetOwnProperty(propkey))
-    if not ok:
-        return desc
-    # 3. If desc is undefined, return true.
-    if desc is None:
-        return NormalCompletion(True)
-    # 4. If desc.[[Configurable]] is true, then
-    if desc.configurable:
-        # a. Remove the own property with name P from O.
-        del obj.properties[propkey]
-        # b. Return true.
-        return NormalCompletion(True)
-    # 5. Return false.
-    return NormalCompletion(False)
+    assert IsPropertyKey(propkey)                           # 1. Assert: IsPropertyKey(P) is true.
+    desc, ok = ec(obj.GetOwnProperty(propkey))              # 2. Let desc be ? O.[[GetOwnProperty]](P).
+    if not ok:                                              #
+        return desc                                         #
+    if desc is None:                                        # 3. If desc is undefined, return true.
+        return NormalCompletion(True)                       #
+    if desc.configurable:                                   # 4. If desc.[[Configurable]] is true, then
+        del obj.properties[propkey]                         #    a. Remove the own property with name P from O.
+        return NormalCompletion(True)                       #    b. Return true.
+    return NormalCompletion(False)                          # 5. Return false.
 
 def isIntegerIndex(key):
     # An integer index is a String-valued property key that is a canonical numeric String (see 7.1.16) and whose
@@ -1053,6 +1046,8 @@ class Reference:
         self.name = name
         self.strict = strict
     def __repr__(self):
+        if hasattr(self, 'this_value'):
+            return f'SuperReference({"S " if self.strict else ""}{self.name!r}, base={self.base!r}, thisValue={self.this_value!r})'
         return f'Reference({"S " if self.strict else ""}{self.name!r}, base={self.base!r})'
 
 # 6.2.4.1 GetBase ( V )

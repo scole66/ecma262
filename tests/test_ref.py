@@ -29,6 +29,13 @@ def test_reference_repr_02():
     val = repr(ref)
     assert 'S' not in val
 
+def test_reference_repr_03():
+    ref = Reference('base', 'super', False)
+    ref.this_value = 67
+    val = repr(ref)
+    assert val.startswith('SuperReference(')
+    assert 'thisValue=67' in val
+
 def test_getbase():
     ref = Reference('base', 'name', False)
     assert GetBase(ref) == 'base'
@@ -168,3 +175,37 @@ def test_PutValue_09(obj):
     obj.Set = types.MethodType(lambda _a, _b, _c, _d: ThrowCompletion('error from set'), obj)
     rval = PutValue(Reference(obj, 'prop', False), 33)
     assert rval == Completion(THROW, 'error from set', None)
+
+def test_GetThisValue_01(realm):
+    obj1 = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
+    obj2 = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
+    ref = Reference(obj2, 'property', False)
+    ref.this_value = obj1
+
+    rval = GetThisValue(ref)
+    assert rval == obj1
+
+def test_GetThisValue_02(obj):
+    ref = Reference(obj, 'property', False)
+    rval = GetThisValue(ref)
+    assert rval == obj
+
+def test_InitializeReferencedBinding_01(realm):
+    # The "it works" scenario
+    er = realm.global_env.environment_record
+    er.CreateMutableBinding('silly', True)
+    ref = Reference(er, 'silly', False)
+    rval = InitializeReferencedBinding(ref, 89)
+    assert rval == Completion(NORMAL, Empty.EMPTY, None)
+    assert nc(GetValue(ref)) == 89
+
+def test_InitializeReferencedBinding_02():
+    # First arg is abrupt.
+    rval = InitializeReferencedBinding(Completion(THROW, 'test', None), 88)
+    assert rval == Completion(THROW, 'test', None)
+
+def test_InitializeReferencedBinding_03(realm):
+    # Second arg is abrupt.
+    ref = Reference(realm.global_env.environment_record, 'name', False)
+    rval = InitializeReferencedBinding(ref, Completion(THROW, 'test', None))
+    assert rval == Completion(THROW, 'test', None)
