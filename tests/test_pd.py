@@ -5,6 +5,13 @@ from ecmascript import *
 NORMAL = CompletionType.NORMAL
 THROW = CompletionType.THROW
 
+@pytest.fixture
+def realm():
+    InitializeHostDefinedRealm()
+    yield surrounding_agent.running_ec.realm
+    surrounding_agent.ec_stack.pop()
+    surrounding_agent.running_ec = None
+
 @pytest.mark.parametrize('get,set,value,writable,expected', [
     (False, False, False, False, False),
     (False, False, False, True, False),
@@ -248,3 +255,33 @@ def test_CompletePropertyDescriptor():
     assert not filled.writable
     assert not filled.enumerable
     assert not filled.configurable
+
+def test_FromPropertyDescriptor_01():
+    res = FromPropertyDescriptor(None)
+    assert res is None
+
+def test_FromPropertyDescriptor_02(realm):
+    res = FromPropertyDescriptor(PropertyDescriptor(value=777, writable=True, enumerable=False, configurable=True))
+    assert isObject(res)
+    assert nc(HasOwnProperty(res, 'value'))
+    assert nc(HasOwnProperty(res, 'writable'))
+    assert nc(HasOwnProperty(res, 'enumerable'))
+    assert nc(HasOwnProperty(res, 'configurable'))
+    assert not nc(HasOwnProperty(res, 'set'))
+    assert not nc(HasOwnProperty(res, 'get'))
+    assert nc(Get(res, 'value')) == 777
+    assert nc(Get(res, 'writable')) == True
+    assert nc(Get(res, 'enumerable')) == False
+    assert nc(Get(res, 'configurable')) == True
+
+def test_FromPropertyDescriptor_03(realm):
+    res = FromPropertyDescriptor(PropertyDescriptor(Set=None, Get=None))
+    assert isObject(res)
+    assert not nc(HasOwnProperty(res, 'value'))
+    assert not nc(HasOwnProperty(res, 'writable'))
+    assert not nc(HasOwnProperty(res, 'enumerable'))
+    assert not nc(HasOwnProperty(res, 'configurable'))
+    assert nc(HasOwnProperty(res, 'set'))
+    assert nc(HasOwnProperty(res, 'get'))
+    assert nc(Get(res, 'set')) is None
+    assert nc(Get(res, 'get')) is None
