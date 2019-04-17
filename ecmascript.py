@@ -2316,7 +2316,7 @@ def HasOwnProperty(O, P):
     # 2. Assert: IsPropertyKey(P) is true.
     assert IsPropertyKey(P)
     # 3. Let desc be ? O.[[GetOwnProperty]](P).
-    desc, ok = O.GetOwnProperty(P)
+    desc, ok = ec(O.GetOwnProperty(P))
     if not ok:
         return desc
     # 4. If desc is undefined, return false.

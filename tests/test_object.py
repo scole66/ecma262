@@ -819,3 +819,20 @@ def test_OrdinaryCreateFromConstructor_02(realm):
 
     val = OrdinaryCreateFromConstructor(constructor, '%ObjectPrototype%')
     assert val == Completion(THROW, 'Thrown from OCFC_02', None)
+
+def test_HasOwnProperty_01(obj):
+    # a property that's not there.
+    res = HasOwnProperty(obj, 'silly')
+    assert res == Completion(NORMAL, False, None)
+
+def test_HasOwnProperty_02(obj):
+    # a property that is there.
+    nc(Set(obj, 'getting_set', 'with_value', False))
+    res = HasOwnProperty(obj, 'getting_set')
+    assert res == Completion(NORMAL, True, None)
+
+def test_HasOwnProperty_03(obj):
+    # when an error is thrown
+    obj.GetOwnProperty = types.MethodType(lambda _a, _b: ThrowCompletion('thrown'), obj)
+    res = HasOwnProperty(obj, 'silly')
+    assert res == Completion(THROW, 'thrown', None)
