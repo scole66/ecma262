@@ -10,10 +10,13 @@ import unicodedata
 import uuid
 import random
 import types
+import traceback
 
 def CreateReferenceError(msg=''):
     return ReferenceError(msg) # This is a python object, not an ecmascript object. This will change when objects are turned on.
 def CreateTypeError(msg=''):
+    if not msg:
+        msg = ''.join(traceback.format_stack())
     return TypeError(msg) # This is a python object, not an ecmascript object. This will change when objects are turned on.
 
 class missing(Enum):
@@ -245,6 +248,8 @@ class JSObject:
         def __init__(self, **kwargs):
             for key, val in kwargs.items():
                 setattr(self, key, val)
+        def __repr__(self):
+            return 'Property(' + ', '.join(f'{name}={getattr(self,name)!r}' for name in ['Get', 'Set', 'value', 'writable', 'enumerable', 'configurable'] if hasattr(self, name)) + ')'
 
     def __init__(self):
         self.Prototype = JSNull.NULL
@@ -1231,6 +1236,9 @@ def InitializeReferencedBinding(ref, value):
 # Table 2 or Table 3.
 
 class PropertyDescriptor(Record):
+    def __repr__(self):
+        return 'Descriptor(' + ', '.join(f'{name}={getattr(self,name)!r}' for name in ['Get', 'Set', 'value', 'writable', 'enumerable', 'configurable'] if hasattr(self, name)) + ')'
+
     def is_accessor_descriptor(self):
         "Returns True if this descriptor is an accessor style descriptor."
         # 2. If both Desc.[[Get]] and Desc.[[Set]] are absent, return false.
@@ -1361,7 +1369,7 @@ def ToPropertyDescriptor(obj):
     #
     # 1. If Type(Obj) is not Object, throw a TypeError exception.
     if not isObject(obj):
-        return ThrowCompletion(CreateTypeError())
+        return ThrowCompletion(CreateTypeError('ToPropertyDescriptor called with non-object'))
     # 2. Let desc be a new Property Descriptor that initially has no fields.
     desc = PropertyDescriptor()
     # 3. Let hasEnumerable be ? HasProperty(Obj, "enumerable").
@@ -1375,7 +1383,7 @@ def ToPropertyDescriptor(obj):
         if not ok:
             return enumble
         # b. Set desc.[[Enumerable]] to enum.
-        desc.enumerable = ToBoolean(enumble.value)
+        desc.enumerable = ToBoolean(enumble)
     # 5. Let hasConfigurable be ? HasProperty(Obj, "configurable").
     has_configurable, ok = ec(HasProperty(obj, 'configurable'))
     if not ok:
@@ -1424,7 +1432,7 @@ def ToPropertyDescriptor(obj):
             return getter
         # b. If IsCallable(getter) is false and getter is not undefined, throw a TypeError exception.
         if not IsCallable(getter) and getter is not None:
-            return ThrowCompletion(CreateTypeError())
+            return ThrowCompletion(CreateTypeError('Getter Object not callable'))
         # c. Set desc.[[Get]] to getter.
         desc.Get = getter
     # 13. Let hasSet be ? HasProperty(Obj, "set").
@@ -1439,14 +1447,15 @@ def ToPropertyDescriptor(obj):
             return setter
         # b. If IsCallable(setter) is false and setter is not undefined, throw a TypeError exception.
         if not IsCallable(setter) and setter is not None:
-            return ThrowCompletion(CreateTypeError())
+            return ThrowCompletion(CreateTypeError('Setter object not callable'))
         # c. Set desc.[[Set]] to setter.
         desc.Set = setter
     # 15. If desc.[[Get]] is present or desc.[[Set]] is present, then
+    print(f'{desc!r}')
     if hasattr(desc, 'Get') or hasattr(desc, 'Set'):
         # a. If desc.[[Value]] is present or desc.[[Writable]] is present, throw a TypeError exception.
         if hasattr(desc, 'value') or hasattr(desc, 'writable'):
-            return ThrowCompletion(CreateTypeError())
+            return ThrowCompletion(CreateTypeError('ToPropertyDescriptor: Had a declarative vs accessor conflict'))
     # 16. Return desc.
     return NormalCompletion(desc)
 
