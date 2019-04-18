@@ -1,6 +1,7 @@
 import pytest
 import math
 
+import ecmascript # Need it this way for the mocker fixture
 from ecmascript import *
 
 NORMAL = CompletionType.NORMAL
@@ -12,6 +13,10 @@ def realm():
     yield surrounding_agent.running_ec.realm
     surrounding_agent.ec_stack.pop()
     surrounding_agent.running_ec = None
+
+@pytest.fixture
+def obj(realm):
+    return ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
 
 @pytest.fixture
 def some_objects(realm):
@@ -189,7 +194,7 @@ def test_to_boolean(input, expected):
     ('-5e4000', -math.inf),
     ('5e-4000', 0)
     ])
-def test_to_number(input, expected):
+def test_ToNumber_01(input, expected):
     cr = ToNumber(input)
     assert cr == Completion(ctype=NORMAL, value=expected, target=None)
 
@@ -197,16 +202,45 @@ def test_to_number(input, expected):
     ('-0', '-0.0'),
     ('-.0', '-0.0'),
     ('-0.0', '-0.0')])
-def test_to_number_negative_zero(input, expected):
+def test_ToNumber_negative_zero(input, expected):
     cr = ToNumber(input)
     cr2 = Completion(ctype=cr.ctype, value=str(cr.value), target=cr.target)
     assert cr2 == Completion(ctype=NORMAL, value=expected, target=None)
 
-def test_to_number_symbol():
+def test_ToNumber_symbol():
     cr = ToNumber(wks_to_primitive)
     assert cr.ctype == THROW
     assert cr.target is None
     assert isinstance(cr.value, TypeError)
+
+def test_ToNumber_04(obj):
+    # Success: Calls ToPrimitive on the object, then ToNumber on the primitive
+    def valueOf(self, new_target):
+        return NormalCompletion(76)
+    fcn = CreateBuiltinFunction(valueOf, [])
+    CreateMethodPropertyOrThrow(obj, 'valueOf', fcn)
+
+    res = ToNumber(obj)
+    assert res == Completion(NORMAL, 76, None)
+
+def test_ToNumber_05(obj, mocker):
+    # When ToPrimitive throws an error
+    mocker.patch('ecmascript.ToPrimitive', return_value=Completion(THROW, 'throw test', None))
+
+    res = ToNumber(obj)
+    assert res == Completion(THROW, 'throw test', None)
+
+def test_ToNumber_06(obj):
+    # When ToNumber throws an error in the recursive call when getting the value of an object.
+    def valueOf(self, new_target):
+        return NormalCompletion(wks_to_primitive)
+    fcn = CreateBuiltinFunction(valueOf, [])
+    CreateMethodPropertyOrThrow(obj, 'valueOf', fcn)
+
+    res = ToNumber(obj)
+    assert res.ctype == THROW
+    assert isinstance(res.value, TypeError)
+    assert res.target is None
 
 @pytest.mark.parametrize('input,expected', [
     ('goblin', 0),
