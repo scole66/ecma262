@@ -420,14 +420,25 @@ def test_to_uint8_clamp_symbol():
     (-1.0, '-1'),
     (10.5, '10.5')
 ])
-def test_to_string(input, expected):
+def test_ToString_01(input, expected):
     cr = ToString(input)
     assert cr == Completion(ctype=NORMAL, value=expected, target=None)
-def test_to_string_symbol():
+def test_ToString_symbol():
     cr = ToString(wks_to_primitive)
     assert cr.ctype == THROW
     assert cr.target is None
     assert isinstance(cr.value, TypeError)
+def test_ToString_03(mocker, obj):
+    # Input is an object, and ToPrimitive throws.
+    mocker.patch('ecmascript.ToPrimitive', side_effect=lambda a, b: ThrowCompletion('test throw'))
+    res = ToString(obj)
+    assert res == Completion(THROW, 'test throw', None)
+def test_ToString_04(obj):
+    # Input is an object, and it has a valid toString method.
+    fcn = CreateBuiltinFunction(lambda thisvalue, newtarget: 'test object string', [])
+    CreateMethodProperty(obj, 'toString', fcn)
+    res = ToString(obj)
+    assert res == Completion(NORMAL, 'test object string', None)
 
 def test_ToObject(realm):
     # @@@ Needs more, when ready.
