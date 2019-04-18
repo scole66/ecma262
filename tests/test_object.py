@@ -32,6 +32,13 @@ def object_chain(realm):
         'child': child
         }
 
+def test_Property_repr():
+    p = JSObject.Property(value=100, enumerable=True, polio_vaccine='useful')
+    s = repr(p)
+    assert 'value=100' in s
+    assert 'enumerable=True' in s
+    assert 'polio_vaccine' not in s
+
 def test_object_GetPrototypeOf_method(object_chain):
     assert object_chain['child'].GetPrototypeOf() == Completion(NORMAL, object_chain['parent'], None)
     assert object_chain['parent'].GetPrototypeOf() == Completion(NORMAL, object_chain['ancestor'], None)
