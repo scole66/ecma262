@@ -440,11 +440,62 @@ def test_ToString_04(obj):
     res = ToString(obj)
     assert res == Completion(NORMAL, 'test object string', None)
 
-def test_ToObject(realm):
-    # @@@ Needs more, when ready.
-    obj = ObjectCreate(JSNull.NULL)
+def test_ToObject_01(obj):
+    # Object -> Object
     cr = ToObject(obj)
     assert cr == Completion(ctype=NORMAL, value=obj, target=None)
+
+def test_ToObject_02(realm):
+    # Boolean -> Object
+    res = ToObject(True)
+    assert res.ctype == NORMAL
+    assert res.target is None
+    assert isObject(res.value)
+    assert hasattr(res.value, 'BooleanData')
+    assert res.value.BooleanData
+
+def test_ToObject_03(realm):
+    # Null -> Error
+    res = ToObject(JSNull.NULL)
+    assert res.ctype == THROW
+    assert res.target is None
+    assert isinstance(res.value, TypeError)
+
+def test_ToObject_04(realm):
+    # Undefined -> Error
+    res = ToObject(None)
+    assert res.ctype == THROW
+    assert res.target is None
+    assert isinstance(res.value, TypeError)
+
+def test_ToObject_05(realm):
+    # Number -> Object
+    res = ToObject(34000)
+    assert res.ctype == NORMAL
+    assert res.target is None
+    assert isObject(res.value)
+    assert hasattr(res.value, 'NumberData')
+    assert res.value.NumberData == 34000
+
+@pytest.mark.xfail(reason='Needs String Object Support')
+def test_ToObject_06(realm):
+    # String -> Object
+    res = ToObject('tricky')
+    assert res.ctype == NORMAL
+    assert res.target is None
+    assert isObject(res.value)
+    assert hasattr(res.value, 'StringData')
+    assert res.value.StringData == 'tricky'
+
+@pytest.mark.xfail(reason='Needs Symbol Object Support')
+def test_ToObject_07(realm):
+    # Symbol -> Object
+    res = ToObject(wks_to_primitive)
+    assert res.ctype == NORMAL
+    assert res.target is None
+    assert isObject(res.value)
+    assert hasattr(res.value, 'SymbolData')
+    assert res.value.SymbooData == wks_to_primitive
 
 @pytest.mark.parametrize('arg,expected', [
     ('1', 1),
