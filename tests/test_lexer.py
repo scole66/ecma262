@@ -200,7 +200,9 @@ def test_lex_tokenvalue_repr():
     tv = Lexer.TokenValue()
     tv.value = 100
     tv.lt_follows = True
+    tv.name='TOKEN'
 
     val = repr(tv)
     assert 'value=100' in val
     assert 'lt_follows=True' in val
+    assert 'name=TOKEN' in val
