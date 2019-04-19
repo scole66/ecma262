@@ -5772,36 +5772,42 @@ class ParseNode:
         return errs
     def EarlyErrors(self):
         return []
+    def defer_target(self):
+        # When a function defers by default to its children, it picks the sole nonterminal. The routine here figures out which
+        # parse node that actually is. (And asserts if there wasn't a sole nonterminal.)
+        child_nonterminals = [ch for ch in self.children if isinstance(ch, ParseNode)]
+        assert len(child_nonterminals) == 1
+        return child_nonterminals[0]
     def IsFunctionDefinition(self):
-        return self.children[0].IsFunctionDefinition()
+        return self.defer_target().IsFunctionDefinition()
     def IsValidSimpleAssignmentTarget(self):
-        return self.children[0].IsValidSimpleAssignmentTarget()
+        return self.defer_target().IsValidSimpleAssignmentTarget()
     def LexicallyDeclaredNames(self):
-        return self.children[0].LexicallyDeclaredNames()
+        return self.defer_target().LexicallyDeclaredNames()
     def TopLevelLexicallyDeclaredNames(self):
-        return self.children[0].TopLevelLexicallyDeclaredNames()
+        return self.defer_target().TopLevelLexicallyDeclaredNames()
     def VarDeclaredNames(self):
-        return self.children[0].VarDeclaredNames()
+        return self.defer_target().VarDeclaredNames()
     def TopLevelVarDeclaredNames(self):
-        return self.children[0].TopLevelVarDeclaredNames()
+        return self.defer_target().TopLevelVarDeclaredNames()
     def VarScopedDeclarations(self):
-        return self.children[0].VarScopedDeclarations()
+        return self.defer_target().VarScopedDeclarations()
     def TopLevelVarScopedDeclarations(self):
-        return self.children[0].TopLevelVarScopedDeclarations()
+        return self.defer_target().TopLevelVarScopedDeclarations()
     def LexicallyScopedDeclarations(self):
-        return self.children[0].LexicallyScopedDeclarations()
+        return self.defer_target().LexicallyScopedDeclarations()
     def TopLevelLexicallyScopedDeclarations(self):
-        return self.children[0].TopLevelLexicallyScopedDeclarations()
+        return self.defer_target().TopLevelLexicallyScopedDeclarations()
     def ContainsDuplicateLabels(self, lst):
-        return self.children[0].ContainsDuplicateLabels(lst)
+        return self.defer_target().ContainsDuplicateLabels(lst)
     def ContainsUndefinedBreakTarget(self, lst):
-        return self.children[0].ContainsUndefinedBreakTarget(lst)
+        return self.defer_target().ContainsUndefinedBreakTarget(lst)
     def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
-        return self.children[0].ContainsUndefinedContinueTarget(iterationSet, labelSet)
+        return self.defer_target().ContainsUndefinedContinueTarget(iterationSet, labelSet)
 
     def evaluate(self):
         # Subclasses need to override this, or we'll throw an AttributeError when we hit a terminal.
-        return self.children[0].evaluate()
+        return self.defer_target().evaluate()
 class PN_IdentifierReference_Identifier(ParseNode):
     def __init__(self, ctx, p, yield_=False, await_=False):
         super().__init__('IdentifierReference', p)
@@ -6869,14 +6875,52 @@ class PN_StatementList_StatementList_StatementListItem(ParseNode):
         declarations = self.children[0].TopLevelVarScopedDeclarations()
         declarations.extend(self.children[1].TopLevelVarScopedDeclarations())
         return declarations
-    def LexicallyScopedDeclarations(self):
-        declarations = self.children[0].LexicallyScopedDeclarations()
-        declarations.extend(self.children[1].LexicallyScopedDeclarations())
-        return declarations
     def TopLevelLexicallyScopedDeclarations(self):
         declarations = self.children[0].TopLevelLexicallyScopedDeclarations()
         declarations.extend(self.children[1].TopLevelLexicallyScopedDeclarations())
         return declarations
+    def ContainsDuplicateLabels(self, labelSet):
+        # 13.2.2 StatementList : StatementList StatementListItem
+        #    1. Let hasDuplicates be ContainsDuplicateLabels of StatementList with argument labelSet.
+        #    2. If hasDuplicates is true, return true.
+        #    3. Return ContainsDuplicateLabels of StatementListItem with argument labelSet.
+        StatementList = self.children[0]
+        StatementListItem = self.children[1]
+        return StatementList.ContainsDuplicateLabels(labelSet) or StatementListItem.ContainsDuplicateLabels(labelSet)
+    def ContainsUndefinedBreakTarget(self, labelSet):
+        # 13.2.3 StatementList : StatementList StatementListItem
+        #    1. Let hasUndefinedLabels be ContainsUndefinedBreakTarget of StatementList with argument labelSet.
+        #    2. If hasUndefinedLabels is true, return true.
+        #    3. Return ContainsUndefinedBreakTarget of StatementListItem with argument labelSet.
+        StatementList = self.children[0]
+        StatementListItem = self.children[1]
+        return  StatementList.ContainsUndefinedBreakTarget(labelSet) or StatementListItem.ContainsUndefinedBreakTarget(labelSet)
+    def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
+        # 13.2.4 StatementList : StatementList StatementListItem
+        #    1. Let hasUndefinedLabels be ContainsUndefinedContinueTarget of StatementList with arguments iterationSet and « ».
+        #    2. If hasUndefinedLabels is true, return true.
+        #    3. Return ContainsUndefinedContinueTarget of StatementListItem with arguments iterationSet and « ».
+        StatementList = self.children[0]
+        StatementListItem = self.children[1]
+        return (StatementList.ContainsUndefinedContinueTarget(iterationSet, []) or
+                StatementListItem.ContainsUndefinedContinueTarget(iterationSet, []))
+    def LexicallyDeclaredNames(self):
+        # 13.2.5 StatementList : StatementList StatementListItem
+        #    1. Let names be LexicallyDeclaredNames of StatementList.
+        #    2. Append to names the elements of the LexicallyDeclaredNames of StatementListItem.
+        #    3. Return names.
+        StatementList = self.children[0]
+        StatementListItem = self.children[1]
+        return StatementList.LexicallyDeclaredNames() + StatementListItem.LexicallyDeclaredNames()
+    def LexicallyScopedDeclarations(self):
+        # 13.2.6 StatementList : StatementList StatementListItem
+        #    1. Let declarations be LexicallyScopedDeclarations of StatementList.
+        #    2. Append to declarations the elements of the LexicallyScopedDeclarations of StatementListItem.
+        #    3. Return declarations.
+        StatementList = self.children[0]
+        StatementListItem = self.children[1]
+        return StatementList.LexicallyScopedDeclarations() + StatementListItem.LexicallyScopedDeclarations()
+
 
 ###############################################################################################################################
 #
@@ -8505,7 +8549,7 @@ def NumberFixups(realm):
     return NormalCompletion(None)
 
 if __name__ == '__main__':
-    rv, ok = ec(RunJobs(scripts=['']))
+    rv, ok = ec(RunJobs(scripts=['bob=3; bob*=2;']))
 
     if ok:
         print('Script returned %s' % nc(ToString(rv)))
