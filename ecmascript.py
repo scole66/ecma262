@@ -5937,9 +5937,141 @@ class PN_ExponentiationExpression_UnaryExpression(ParseNode):
 class PN_MultiplicativeExpression_ExponentiationExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('MultiplicativeExpression', p)
-class PN_AdditiveExpression_MultiplicativeExpression(ParseNode):
+################################################################################################################################################################################################
+#
+#  d888    .d8888b.       .d8888b.             d8888      888      888 d8b 888    d8b                        .d88888b.                                     888
+# d8888   d88P  Y88b     d88P  Y88b           d88888      888      888 Y8P 888    Y8P                       d88P" "Y88b                                    888
+#   888          888     Y88b. d88P          d88P888      888      888     888                              888     888                                    888
+#   888        .d88P      "Y88888"          d88P 888  .d88888  .d88888 888 888888 888 888  888  .d88b.      888     888 88888b.   .d88b.  888d888  8888b.  888888  .d88b.  888d888 .d8888b
+#   888    .od888P"      .d8P""Y8b.        d88P  888 d88" 888 d88" 888 888 888    888 888  888 d8P  Y8b     888     888 888 "88b d8P  Y8b 888P"       "88b 888    d88""88b 888P"   88K
+#   888   d88P"          888    888       d88P   888 888  888 888  888 888 888    888 Y88  88P 88888888     888     888 888  888 88888888 888     .d888888 888    888  888 888     "Y8888b.
+#   888   888"       d8b Y88b  d88P      d8888888888 Y88b 888 Y88b 888 888 Y88b.  888  Y8bd8P  Y8b.         Y88b. .d88P 888 d88P Y8b.     888     888  888 Y88b.  Y88..88P 888          X88
+# 8888888 888888888  Y8P  "Y8888P"      d88P     888  "Y88888  "Y88888 888  "Y888 888   Y88P    "Y8888       "Y88888P"  88888P"   "Y8888  888     "Y888888  "Y888  "Y88P"  888      88888P'
+#                                                                                                                       888
+#                                                                                                                       888
+#                                                                                                                       888
+#
+################################################################################################################################################################################################
+class PN_AdditiveExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('AdditiveExpression', p)
+class PN_AdditiveExpression_MultiplicativeExpression(PN_AdditiveExpression):
+    pass
+class PN_AdditiveExpression_A_op_M(PN_AdditiveExpression):
+    # 12.8.1 Static Semantics: IsFunctionDefinition
+    def IsFunctionDefinition(self):
+        # 1. Return false.
+        return False
+    # 12.8.2 Static Semantics: IsValidSimpleAssignmentTarget
+    def IsValidSimpleAssignmentTarget(self):
+        # 1. Return false.
+        return False
+class PN_AdditiveExpression_AdditiveExpression_PLUS_MultiplicativeExpression(PN_AdditiveExpression_A_op_M):
+    # 12.8.3 The Addition Operator ( + )
+    # NOTE
+    # The addition operator either performs string concatenation or numeric addition.
+
+    # 12.8.3.1 Runtime Semantics: Evaluation
+    def evaluate(self):
+        # 1. Let lref be the result of evaluating AdditiveExpression.
+        lref = self.children[0].evaluate()
+        # 2. Let lval be ? GetValue(lref).
+        lval, ok = ec(GetValue(lref))
+        if not ok:
+            return lval
+        # 3. Let rref be the result of evaluating MultiplicativeExpression.
+        rref = self.children[2].evaluate()
+        # 4. Let rval be ? GetValue(rref).
+        rval, ok = ec(GetValue(rref))
+        if not ok:
+            return rval
+        # 5. Let lprim be ? ToPrimitive(lval).
+        lprim, ok = ec(ToPrimitive(lval))
+        if not ok:
+            return lprim
+        # 6. Let rprim be ? ToPrimitive(rval).
+        rprim, ok = ec(ToPrimitive(rval))
+        if not ok:
+            return rprim
+        # 7. If Type(lprim) is String or Type(rprim) is String, then
+        if isString(lprim) or isString(rprim):
+            # a. Let lstr be ? ToString(lprim).
+            lstr, ok = ec(ToString(lprim))
+            if not ok:
+                return lstr
+            # b. Let rstr be ? ToString(rprim).
+            rstr, ok = ec(ToString(rprim))
+            if not ok:
+                return rstr
+            # c. Return the string-concatenation of lstr and rstr.
+            return NormalCompletion(lstr + rstr)
+        # 8. Let lnum be ? ToNumber(lprim).
+        lnum, ok = ec(ToNumber(lprim))
+        if not ok:
+            return lnum
+        # 9. Let rnum be ? ToNumber(rprim).
+        rnum, ok = ec(ToNumber(rprim))
+        if not ok:
+            return rnum
+        # 10. Return the result of applying the addition operation to lnum and rnum. See the Note below 12.8.5.
+        return NormalCompletion(lnum + rnum)
+        # NOTE 1
+        # No hint is provided in the calls to ToPrimitive in steps 5 and 6. All standard objects except Date objects handle the
+        # absence of a hint as if the hint Number were given; Date objects handle the absence of a hint as if the hint String
+        # were given. Exotic objects may handle the absence of a hint in some other manner.
+        # NOTE 2
+        # Step 7 differs from step 3 of the Abstract Relational Comparison algorithm, by using the logical-or operation instead
+        # of the logical-and operation.
+class PN_AdditiveExpression_AdditiveExpression_MINUS_MultiplicativeExpression(PN_AdditiveExpression_A_op_M):
+    # 12.8.4 The Subtraction Operator ( - )
+    # 12.8.4.1 Runtime Semantics: Evaluation
+    def evaluate(self):
+        # 1.Let lref be the result of evaluating AdditiveExpression.
+        lref = self.children[0].evaluate()
+        # 2. Let lval be ? GetValue(lref).
+        lval, ok = ec(GetValue(lref))
+        if not ok:
+            return lval
+        # 3. Let rref be the result of evaluating MultiplicativeExpression.
+        rref = self.children[2].evaluate()
+        # 4. Let rval be ? GetValue(rref).
+        rval, ok = ec(GetValue(rref))
+        if not ok:
+            return rval
+        # 5. Let lnum be ? ToNumber(lval).
+        lnum, ok = ec(ToNumber(lval))
+        if not ok:
+            return lnum
+        # 6. Let rnum be ? ToNumber(rval).
+        rnum, ok = ec(ToNumber(rval))
+        if not ok:
+            return rnum
+        # 7. Return the result of applying the subtraction operation to lnum and rnum. See the note below 12.8.5.
+        return NormalCompletion(lnum - rnum)
+# 12.8.5 Applying the Additive Operators to Numbers
+#
+# The + operator performs addition when applied to two operands of numeric type, producing the sum of the operands. The -
+# operator performs subtraction, producing the difference of two numeric operands.
+#
+# Addition is a commutative operation, but not always associative.
+#
+# The result of an addition is determined using the rules of IEEE 754-2008 binary double-precision arithmetic:
+#
+# * If either operand is NaN, the result is NaN.
+# * The sum of two infinities of opposite sign is NaN.
+# * The sum of two infinities of the same sign is the infinity of that sign.
+# * The sum of an infinity and a finite value is equal to the infinite operand.
+# * sum of two negative zeroes is -0. The sum of two positive zeroes, or of two zeroes of opposite sign, is +0.
+# * sum of a zero and a nonzero finite value is equal to the nonzero operand.
+# * The sum of two nonzero finite values of the same magnitude and opposite sign is +0.
+# * The remaining cases, where neither an infinity, nor a zero, nor NaN is involved, and the operands have the same sign or
+#   have different magnitudes, the sum is computed and rounded to the nearest representable value using IEEE 754-2008 round
+#   to nearest, ties to even mode. If the magnitude is too large to represent, the operation overflows and the result is then
+#   an infinity of appropriate sign. The ECMAScript language requires support of gradual underflow as defined by IEEE 754-2008.
+# NOTE
+# The - operator performs subtraction when applied to two operands of numeric type, producing the difference of its operands;
+# the left operand is the minuend and the right operand is the subtrahend. Given numeric operands a and b, it is always the
+# case that a-b produces the same result as a+(-b).
 ##############################################################################################################################################################################################################
 #
 #  d888    .d8888b.       .d8888b.      888888b.   d8b 888                  d8b                        .d8888b.  888      d8b  .d888 888         .d88888b.                                     888
@@ -7068,9 +7200,27 @@ class Ecma262Parser(Parser):
     def ShiftExpression(self, p):
         return PN_ShiftExpression_GTGTGT_AdditiveExpression(self.context, p)
     ########################################################################################################################
+
+    ########################################################################################################################
+    # 12.8Additive Operators
+    #
+    # Syntax
+    #
+    # AdditiveExpression[Yield, Await]:
+    #               MultiplicativeExpression[?Yield, ?Await]
+    #               AdditiveExpression[?Yield, ?Await] + MultiplicativeExpression[?Yield, ?Await]
+    #               AdditiveExpression[?Yield, ?Await] - MultiplicativeExpression[?Yield, ?Await]
+    #
     @_('MultiplicativeExpression')
     def AdditiveExpression(self, p):
         return PN_AdditiveExpression_MultiplicativeExpression(self.context, p)
+    @_('AdditiveExpression PLUS MultiplicativeExpression')
+    def AdditiveExpression(self, p):
+        return PN_AdditiveExpression_AdditiveExpression_PLUS_MultiplicativeExpression(self.context, p)
+    @_('AdditiveExpression MINUS MultiplicativeExpression')
+    def AdditiveExpression(self, p):
+        return PN_AdditiveExpression_AdditiveExpression_MINUS_MultiplicativeExpression(self.context, p)
+    ########################################################################################################################
     @_('ExponentiationExpression')
     def MultiplicativeExpression(self, p):
         return PN_MultiplicativeExpression_ExponentiationExpression(self.context, p)
