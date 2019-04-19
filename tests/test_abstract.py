@@ -603,3 +603,27 @@ def test_IsCallable_03(realm):
     fcn_obj = CreateBuiltinFunction(lambda self, new_target: NormalCompletion(None), [])
     res = IsCallable(fcn_obj)
     assert res
+
+
+# 7.2.4 IsConstructor ( argument )
+# The abstract operation IsConstructor determines if argument, which must be an ECMAScript language value, is a function object
+# with a [[Construct]] internal method.
+#
+# 1. If Type(argument) is not Object, return false.
+# 2. If argument has a [[Construct]] internal method, return true.
+# 3. Return false.
+
+def test_IsConstructor_01():
+    # The result from step 1: A non-object
+    res = IsConstructor(35)
+    assert not res
+
+def test_IsConstructor_02(obj):
+    # The result from step 3: an object with no [[Construct]] method
+    res = IsConstructor(obj)
+    assert not res
+
+def test_IsConstructor_03(realm):
+    # The result from step 2: an object with a [[Construct]] method
+    res = IsConstructor(realm.intrinsics['%Boolean%'])
+    assert res
