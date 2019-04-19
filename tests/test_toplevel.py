@@ -8,6 +8,12 @@ import math
 from ecmascript import *
 NORMAL = CompletionType.NORMAL
 
+@pytest.fixture
+def cleanup():
+    yield None
+    surrounding_agent.ec_stack = []
+    surrounding_agent.running_ec = None
+
 @pytest.mark.parametrize('script, result', [
     ('Infinity;', math.inf),
     ('bob = 3;', 3),
@@ -51,7 +57,26 @@ NORMAL = CompletionType.NORMAL
     ('0xffffffff >> 16;', -1),
     ('0xffffffff >>> 16;', 0x0000ffff),
     ('0xffffffff << 8;', -256),
+    ('3 + 7;', 10),
+    ('100 - 25;', 75),
+    ("'th' + 'ing';", 'thing'),
+    pytest.param('-Infinity + -Infinity;', -math.inf, marks=pytest.mark.xfail),
+    ('Infinity + Infinity;', math.inf),
+    ('Infinity + 88;', math.inf),
 ])
-def test_scripts_01(script, result):
+def test_scripts_01(cleanup, script, result):
     rv = RunJobs(scripts=[script])
     assert rv == Completion(NORMAL, result, None)
+
+@pytest.mark.parametrize('script', [
+    'NaN + 3;',
+    '78 + NaN;',
+    pytest.param('-Infinity + Infinity;', marks=pytest.mark.xfail),
+    pytest.param('Infinity + -Infinity;', marks=pytest.mark.xfail),
+])
+def test_scripts_02(cleanup, script):
+    # Check for those expressions that return NaN.
+    rv = RunJobs(scripts=[script])
+    assert rv.ctype == NORMAL
+    assert rv.target is None
+    assert math.isnan(rv.value)
