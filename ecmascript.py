@@ -4960,9 +4960,9 @@ class Lexer():
          }
 
     class TokenValue:
-        __slots__ = ('value', 'lt_follows')
+        __slots__ = ('name', 'value', 'lt_follows')
         def __repr__(self):
-            return f'TokenValue(value={self.value!r}, lt_follows={self.lt_follows})'
+            return f'TokenValue(value={self.value!r}, name={self.name}, lt_follows={self.lt_follows})'
 
     whitespace = (
         '\u0009'  # <TAB> CHARACTER TABULATION
@@ -4997,6 +4997,7 @@ class Lexer():
         val = self.TokenValue()
         val.value = value
         val.lt_follows = False
+        val.name = type
         tok.value = val
         tok.type = type
         tok.index = self.start
@@ -5764,10 +5765,10 @@ class ParseNode:
     def EarlyErrorsScan(self):
         errs = []
         # Check the children first
-        for child in (child for child in self.children is isinstance(child, ParseNode)):
-            errs.extend(child.EarlyErrorsScan())
+        for ch in (child for child in self.children if isinstance(child, ParseNode)):
+            errs.extend(ch.EarlyErrorsScan())
         # Now myself.
-        errs.append(self.EarlyErrors())
+        errs.extend(self.EarlyErrors())
         return errs
     def EarlyErrors(self):
         return []
@@ -5791,6 +5792,13 @@ class ParseNode:
         return self.children[0].LexicallyScopedDeclarations()
     def TopLevelLexicallyScopedDeclarations(self):
         return self.children[0].TopLevelLexicallyScopedDeclarations()
+    def ContainsDuplicateLabels(self, lst):
+        return self.children[0].ContainsDuplicateLabels(lst)
+    def ContainsUndefinedBreakTarget(self, lst):
+        return self.children[0].ContainsUndefinedBreakTarget(lst)
+    def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
+        return self.children[0].ContainsUndefinedContinueTarget(iterationSet, labelSet)
+
     def evaluate(self):
         # Subclasses need to override this, or we'll throw an AttributeError when we hit a terminal.
         return self.children[0].evaluate()
@@ -6397,7 +6405,7 @@ class PN_AssignmentExpression_LeftHandSideExpression_EQUALS_AssignmentExpression
     def __init__(self, ctx, p):
         super().__init__('AssignmentExpression', p)
     def EarlyErrors(self):
-        if not IsValidSimpleAssignmentTarget(self.children[0]):
+        if not self.children[0].IsValidSimpleAssignmentTarget():
             return [CreateReferenceError('Not a valid target for an assignment statement')]
         return []
     def IsFunctionDefinition(self):
@@ -6581,7 +6589,7 @@ class PN_AssignmentExpression_LeftHandSideExpression_AssignmentOperator_Assignme
     def __init__(self, ctx, p):
         super().__init__('AssignmentExpression', p)
     def EarlyErrors(self):
-        if not IsValidSimpleAssignmentTarget(self.children[0]):
+        if not self.children[0].IsValidSimpleAssignmentTarget():
             return [CreateReferenceError('Not a valid target for an assignment statement')]
         return []
     def IsFunctionDefinition(self):
@@ -6656,6 +6664,12 @@ class PN_Statement_ExpressionStatement(ParseNode):
         return []
     def VarScopedDeclarations(self):
         return []
+    def ContainsDuplicateLabels(self, labelSet):
+        return False
+    def ContainsUndefinedBreakTarget(self, labelSet):
+        return False
+    def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
+        return False
 class PN_Statement_EmptyStatement(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('Statement', p)
@@ -6663,6 +6677,12 @@ class PN_Statement_EmptyStatement(ParseNode):
         return []
     def VarScopedDeclarations(self):
         return []
+    def ContainsDuplicateLabels(self, labelSet):
+        return False
+    def ContainsUndefinedBreakTarget(self, labelSet):
+        return False
+    def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
+        return False
 class PN_Statement_COLON_LabelledStatement(ParseNode):
     def __init__(self, ctx, p):
         super()._init__('Statement', p)
@@ -6726,10 +6746,81 @@ class PN_StatementList_StatementList_StatementListItem(ParseNode):
         declarations.extend(self.children[1].TopLevelLexicallyScopedDeclarations())
         return declarations
 
-
+###############################################################################################################################
+#
+#  d888   888888888       d888        .d8888b.                   d8b          888
+# d8888   888            d8888       d88P  Y88b                  Y8P          888
+#   888   888              888       Y88b.                                    888
+#   888   8888888b.        888        "Y888b.    .d8888b 888d888 888 88888b.  888888 .d8888b
+#   888        "Y88b       888           "Y88b. d88P"    888P"   888 888 "88b 888    88K
+#   888          888       888             "888 888      888     888 888  888 888    "Y8888b.
+#   888   Y88b  d88P d8b   888       Y88b  d88P Y88b.    888     888 888 d88P Y88b.       X88
+# 8888888  "Y8888P"  Y8P 8888888      "Y8888P"   "Y8888P 888     888 88888P"   "Y888  88888P'
+#                                                                    888
+#                                                                    888
+#                                                                    888
+#
+###############################################################################################################################
+class PN_Script(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('Script', p)
+class PN_Script_ScriptBody(PN_Script):
+    def EarlyErrors(self):
+        # 15.1.1 Static Semantics: Early Errors
+        # Script : ScriptBody
+        #   * It is a Syntax Error if the LexicallyDeclaredNames of ScriptBody contains any duplicate entries.
+        #   * It is a Syntax Error if any element of the LexicallyDeclaredNames of ScriptBody also occurs in the VarDeclaredNames of ScriptBody.
+        ScriptBody = self.children[0]
+        errs = []
+        lexnames = ScriptBody.LexicallyDeclaredNames()
+        lexnameset = set(lexnames)
+        if len(lexnames) != len(lexnameset):
+            errs.append('Duplicate Lexical Declarations')
+        if not lexnameset.isdisjoint(set(ScriptBody.VarDeclaredNames())):
+            errs.append('Var declaration mirrors lexical declaration')
+        return [CreateSyntaxError(msg) for msg in errs]
+class PN_Script_empty(PN_Script):
+    def evaluate(self):
+        # 15.1.7 Runtime Semantics: Evaluation
+        # Script : [empty]
+        #      1. Return NormalCompletion(undefined).
+        return NormalCompletion(None)
 class PN_ScriptBody_StatementList(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('ScriptBody', p)
+        self.direct_eval = ctx.direct_eval
+    def EarlyErrors(self):
+        # 15.1.1 Static Semantics: Early Errors
+        # ScriptBody : StatementList
+        # * It is a Syntax Error if StatementList Contains super unless the source code containing super is eval code that is
+        #   being processed by a direct eval. Additional early error rules for super within direct eval are defined in
+        #   18.2.1.1.
+        # * It is a Syntax Error if StatementList Contains NewTarget unless the source code containing NewTarget is eval code
+        #   that is being processed by a direct eval. Additional early error rules for NewTarget in direct eval are defined in
+        #   18.2.1.1.
+        # * It is a Syntax Error if ContainsDuplicateLabels of StatementList with argument « » is true.
+        # * It is a Syntax Error if ContainsUndefinedBreakTarget of StatementList with argument « » is true.
+        # * It is a Syntax Error if ContainsUndefinedContinueTarget of StatementList with arguments « » and « » is true.
+        errs = []
+        StatementList = self.children[0]
+        if not self.direct_eval and StatementList.Contains('SUPER'):
+            errs.append("'super' not allowed in this context")
+        if not self.direct_eval and StatementList.Contains('NewTarget'):
+            errs.append("'new.target' not allowed in this context")
+        if StatementList.ContainsDuplicateLabels([]):
+            errs.append('Duplicate Labels Detected')
+        if StatementList.ContainsUndefinedBreakTarget([]):
+            errs.append('Undefined Break Target')
+        if StatementList.ContainsUndefinedContinueTarget([], []):
+            errs.append('Undefined Continue Target')
+        return [CreateSyntaxError(msg) for msg in errs]
+    def IsStrict(self):
+        # 15.1.2 Static Semantics: IsStrict
+        # ScriptBody : StatementList
+        #    1. If the Directive Prologue of StatementList contains a Use Strict Directive, return true; otherwise, return false.
+        StatementList = self.children[0]
+        dp = StatementList.DirectivePrologue()  # This is a list of strings, subsets of the source text
+        return "'use strict'" in dp or '"use strict"' in dp
     def LexicallyDeclaredNames(self):
         return self.children[0].TopLevelLexicallyDeclaredNames()
     def VarDeclaredNames(self):
@@ -6738,14 +6829,6 @@ class PN_ScriptBody_StatementList(ParseNode):
         return self.children[0].TopLevelVarScopedDeclarations()
     def LexicallyScopedDeclarations(self):
         return self.children[0].TopLevelLexicallyScopedDeclarations()
-class PN_Script_ScriptBody(ParseNode):
-    def __init__(self, ctx, p):
-        super().__init__('Script', p)
-class PN_Script_empty(ParseNode):
-    def __init__(self, ctx, p):
-        super().__init__('Script', p)
-    def evaluate(self):
-        return NormalCompletion(None)
 
 from sly import Parser
 class Ecma262Parser(Parser):
@@ -6757,10 +6840,11 @@ class Ecma262Parser(Parser):
         raise SyntaxError(f'Syntax Error in script. Offending token: {p!r}')
 
     class ParseContext:
-        __slots__ = ['goal', 'strict']
+        __slots__ = ['goal', 'strict', 'direct_eval']
         def __init__(self, goal, strict):
             self.goal = goal
             self.strict = strict
+            self.direct_eval = False
         def __repr__(self):
             return f'ParseContext(goal={self.goal}, strict={self.strict})'
 
@@ -7097,7 +7181,9 @@ def ParseScript(sourceText, realm, hostDefined):
     #    one must be present.
     psr = Ecma262Parser()
     lex = Lexer(sourceText)
-    body = psr.parse(lex.lex())
+    tree = psr.parse(lex.lex())
+    errs = tree.EarlyErrorsScan()
+    body = errs or tree
     # 3. If body is a List of errors, return body.
     if isinstance(body, list):
         return body
