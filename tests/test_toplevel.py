@@ -15,6 +15,7 @@ def cleanup():
     surrounding_agent.running_ec = None
 
 @pytest.mark.parametrize('script, result', [
+    ('', None),
     ('Infinity;', math.inf),
     ('bob = 3;', 3),
     ('bob = 3; bob *= 2;', 6),
