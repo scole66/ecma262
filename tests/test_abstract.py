@@ -440,6 +440,36 @@ def test_ToString_04(obj):
     res = ToString(obj)
     assert res == Completion(NORMAL, 'test object string', None)
 
+@pytest.mark.parametrize('arg,expected', [(math.nan, 'NaN'),
+    (0.0, '0'),
+    (-0.0, '0'),
+    (-3, '-3'),
+    (math.inf, 'Infinity'),
+    (21000, '21000'),
+    (500000000000000000000, '500000000000000000000'),
+    (5.25,'5.25'),
+    (0.00390625, '0.00390625'),
+    (5e21, '5e+21'),
+    pytest.param(2**-19, '0.0000019073486328125', marks=pytest.mark.xfail),
+    pytest.param(2**-20, '9.5367431640625e-7', marks=pytest.mark.xfail),
+    ])
+def test_NumberToString_01(arg, expected):
+   # Looking at the steps in the spec:
+   # 1. NaN --> 'NaN'
+   # 2a. +0 --> '0'
+   # 2b. -0 --> '0'
+   # 3. -3 --> result starts with exactly one '-'
+   # 4. Infinity --> 'Infinity'
+   # 5. Things start to get interesting. (No direct test for step 5.)
+   # 6a. m = 21000 ::: k=2; s=21; n=5  (k <= n <= 21)  ==> '21000'
+   # 6b. m = 500000000000000000000 ::: k=1; s=5; n=21 ==> '500000000000000000000'
+   # 7a. m = 5.25 ::: k=3; s=525; n=1 ==> '5.25'
+   # 8. m = 0.00390625 ::: k=6; s=390625; n=-2 ==> '0.00390625'
+   # 9. m = 5e21 ::: k=1, s=5, n=22 ==> '5e+21'
+
+   # we fail on 2**-19. Phooey. (The n==-5 case)
+   assert NumberToString(arg) == expected
+
 def test_ToObject_01(obj):
     # Object -> Object
     cr = ToObject(obj)
