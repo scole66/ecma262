@@ -627,3 +627,17 @@ def test_IsConstructor_03(realm):
     # The result from step 2: an object with a [[Construct]] method
     res = IsConstructor(realm.intrinsics['%Boolean%'])
     assert res
+
+# 7.2.5 IsExtensible ( O )
+#
+# The abstract operation IsExtensible is used to determine whether additional properties can be added to the object
+# that is O. A Boolean value is returned. This abstract operation performs the following steps:
+#
+# 1. Assert: Type(O) is Object.
+# 2. Return ? O.[[IsExtensible]]().
+def test_IsExtensible_01(obj, mocker):
+    # All this is doing is deferring to its object's method. So that's all we should confirm here.
+    ie = mocker.Mock(return_value=True)
+    obj.IsExtensible = ie
+    res = IsExtensible(obj)
+    ie.assert_called_once_with()
