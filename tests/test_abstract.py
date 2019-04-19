@@ -587,3 +587,19 @@ def test_IsPropertyKey(arg, expected):
 ])
 def test_IsInteger(arg, expected):
     assert IsInteger(arg) == expected
+
+def test_IsCallable_01():
+    # A non-object
+    res = IsCallable(67)
+    assert not res
+
+def test_IsCallable_02(obj):
+    # An object without a [[Call]] slot
+    res = IsCallable(obj)
+    assert not res
+
+def test_IsCallable_03(realm):
+    # An object with a [[Call]] slot
+    fcn_obj = CreateBuiltinFunction(lambda self, new_target: NormalCompletion(None), [])
+    res = IsCallable(fcn_obj)
+    assert res
