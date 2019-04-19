@@ -6912,6 +6912,14 @@ class PN_Script_ScriptBody(PN_Script):
             errs.append('Var declaration mirrors lexical declaration')
         return [CreateSyntaxError(msg) for msg in errs]
 class PN_Script_empty(PN_Script):
+    def LexicallyDeclaredNames(self):
+        return []
+    def VarDeclaredNames(self):
+        return []
+    def VarScopedDeclarations(self):
+        return []
+    def LexicallyScopedDeclarations(self):
+        return []
     def evaluate(self):
         # 15.1.7 Runtime Semantics: Evaluation
         # Script : [empty]
@@ -6986,6 +6994,15 @@ class Ecma262Parser(Parser):
         super().__init__()
         self.context = self.ParseContext(self.start, strict)
 
+    ########################################################################################################################
+    # 15.1 Scripts
+    # Syntax
+    # Script :
+    #       [empty]
+    #       ScriptBody
+    # ScriptBody :
+    #       StatementList[~Yield, ~Await, ~Return]
+    #
     @_('ScriptBody')
     def Script(self, p):
         return PN_Script_ScriptBody(self.context, p)
@@ -6998,6 +7015,7 @@ class Ecma262Parser(Parser):
     @_('StatementList')
     def ScriptBody(self, p):
         return PN_ScriptBody_StatementList(self.context, p)
+    ########################################################################################################################
     @_('StatementListItem')
     def StatementList(self, p):
         return PN_StatementList_StatementListItem(self.context, p)
@@ -8487,7 +8505,7 @@ def NumberFixups(realm):
     return NormalCompletion(None)
 
 if __name__ == '__main__':
-    rv, ok = ec(RunJobs(scripts=['0x80 | 0x34;']))
+    rv, ok = ec(RunJobs(scripts=['']))
 
     if ok:
         print('Script returned %s' % nc(ToString(rv)))
