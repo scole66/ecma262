@@ -6357,7 +6357,7 @@ class PN_RelationalExpression_RelationalExpression_IN_ShiftExpression(PN_Relatio
         # 5. If Type(rval) is not Object, throw a TypeError exception.
         # 6. Return ? HasProperty(rval, ToPropertyKey(lval)).
         if not isObject(rval):
-            return ThrowCompletion(CreateTypeError('Right-hand side of \'in\' must be of type Object'))
+            return ThrowCompletion(CreateTypeError(f"Cannot use 'in' operator to search for '{nc(ToString(lval))}' in {nc(ToString(rval))}"))
         key, ok = ec(ToPropertyKey(lval))
         if not ok:
             return key
@@ -9139,10 +9139,12 @@ def NumberFixups(realm):
     return NormalCompletion(None)
 
 if __name__ == '__main__':
-    rv, ok = ec(RunJobs(scripts=['var xyz=67+99; xyz;']))
+    rv, ok = ec(RunJobs(scripts=['67 in \'this is my string\';']))
 
     if ok:
         print('Script returned %s' % nc(ToString(rv)))
+    else:
+        print(repr(rv))
 
 
 # Banners produced using font "Colossal" on https://www.messletters.com/en/big-text/
