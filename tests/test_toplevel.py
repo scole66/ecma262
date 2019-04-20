@@ -73,6 +73,7 @@ def cleanup():
     ('1 * 1;', 1),
     ('121 / 11;', 11),
     ('67 % 16;', 3),
+    ('4**16;', 4**16),
 ])
 def test_scripts_01(cleanup, script, result):
     rv = RunJobs(scripts=[script])

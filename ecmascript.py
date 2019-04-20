@@ -5006,7 +5006,7 @@ class Lexer():
          }
 
     class TokenValue:
-        __slots__ = ('name', 'value', 'lt_follows')
+        __slots__ = ('name', 'value', 'lt_follows', 'index', 'length')
         def __repr__(self):
             return f'TokenValue(value={self.value!r}, name={self.name}, lt_follows={self.lt_follows})'
 
@@ -5044,6 +5044,8 @@ class Lexer():
         val.value = value
         val.lt_follows = False
         val.name = type
+        val.index = self.start
+        val.length = self.pos - self.start - (1 if end_prior else 0)
         tok.value = val
         tok.type = type
         tok.index = self.start
@@ -5803,11 +5805,37 @@ class ParseNode:
     def __init__(self, name, p):
         self.name = name
         self.children = [p[z] for z in range(len(p))]
+    def __repr__(self):
+        return f'{self.name}[{",".join(repr(child) for child in self.children)}]'
+    def first_terminal(self):
+        for child in self.children:
+            if isinstance(child, ParseNode):
+                t = child.first_terminal()
+                if t is not None:
+                    return t
+            else:
+                return child
+        return None
+    def last_terminal(self):
+        for child in (self.children[idx] for idx in range(len(self.children)-1,-1,-1)):
+            if isinstance(child, ParseNode):
+                l = child.last_terminal()
+                if l is not None:
+                    return l
+            else:
+                return child
+        return None
+    def source_range(self):
+        # Find the first terminal:
+        t = self.first_terminal()
+        start_idx = t.index
+        # Find the last terminal:
+        l = self.last_terminal()
+        end_idx = l.index + l.length
+        return (start_idx, end_idx - start_idx)
     def Contains(self, symbol):
         return (any(child.name == symbol for child in self.children) or
                 any(child.Contains(symbol) for child in self.children if isinstance(child, ParseNode)))
-    def __repr__(self):
-        return f'{self.name}[{",".join(repr(child) for child in self.children)}]'
     def EarlyErrorsScan(self):
         errs = []
         # Check the children first
@@ -6044,9 +6072,51 @@ class PN_UpdateExpression_LeftHandSideExpression(ParseNode):
 class PN_UnaryExpression_UpdateExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('UnaryExpression', p)
-class PN_ExponentiationExpression_UnaryExpression(ParseNode):
+
+################################################################################################################################################################################################
+#
+#  d888    .d8888b.       .d8888b.      8888888888                                                       888    d8b          888    d8b
+# d8888   d88P  Y88b     d88P  Y88b     888                                                              888    Y8P          888    Y8P
+#   888          888     888            888                                                              888                 888
+#   888        .d88P     888d888b.      8888888    888  888 88888b.   .d88b.  88888b.   .d88b.  88888b.  888888 888  8888b.  888888 888  .d88b.  88888b.
+#   888    .od888P"      888P "Y88b     888        `Y8bd8P' 888 "88b d88""88b 888 "88b d8P  Y8b 888 "88b 888    888     "88b 888    888 d88""88b 888 "88b
+#   888   d88P"          888    888     888          X88K   888  888 888  888 888  888 88888888 888  888 888    888 .d888888 888    888 888  888 888  888
+#   888   888"       d8b Y88b  d88P     888        .d8""8b. 888 d88P Y88..88P 888  888 Y8b.     888  888 Y88b.  888 888  888 Y88b.  888 Y88..88P 888  888
+# 8888888 888888888  Y8P  "Y8888P"      8888888888 888  888 88888P"   "Y88P"  888  888  "Y8888  888  888  "Y888 888 "Y888888  "Y888 888  "Y88P"  888  888
+#                                                           888
+#                                                           888
+#                                                           888
+#  .d88888b.                                     888
+# d88P" "Y88b                                    888
+# 888     888                                    888
+# 888     888 88888b.   .d88b.  888d888  8888b.  888888  .d88b.  888d888
+# 888     888 888 "88b d8P  Y8b 888P"       "88b 888    d88""88b 888P"
+# 888     888 888  888 88888888 888     .d888888 888    888  888 888
+# Y88b. .d88P 888 d88P Y8b.     888     888  888 Y88b.  Y88..88P 888
+#  "Y88888P"  88888P"   "Y8888  888     "Y888888  "Y888  "Y88P"  888
+#             888
+#             888
+#             888
+#
+################################################################################################################################################################################################
+class PN_ExponentiationExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('ExponentiationExpression', p)
+class PN_ExponentiationExpression_UnaryExpression(PN_ExponentiationExpression):
+    pass
+class PN_ExponentiationExpression_UpdateExpression_STARSTAR_ExponentiationExpression(PN_ExponentiationExpression):
+    def IsFunctionDefinition(self):
+        return False
+    def IsValidSimpleAssignmentTarget(self):
+        return False
+    def evaluate(self):
+        lval, ok = ec(GetValue(self.children[0].evaluate()))
+        if not ok:
+            return lval
+        rval, ok = ec(GetValue(self.children[2].evaluate()))
+        if not ok:
+            return rval
+        return ExponentiationOperation(lval, rval)
 ################################################################################################################################################################################################
 #
 #  d888    .d8888b.      8888888888     888b     d888          888 888    d8b          888 d8b                   888    d8b
@@ -7414,6 +7484,10 @@ class Ecma262Parser(Parser):
     start = 'Script'
     debugfile = 'parser.out'
 
+    def __init__(self, text):
+        super().__init__()
+        self.source_text = text
+
     def error(self, p):
         raise SyntaxError(f'Syntax Error in script. Offending token: {p!r}')
 
@@ -7914,12 +7988,45 @@ class Ecma262Parser(Parser):
     def MultiplicativeOperator(self, p):
         return PN_MultiplicativeOperator(self.context, p)
     ########################################################################################################################
+
+    ########################################################################################################################
+    # 12.6 Exponentiation Operator
+    #
+    # Syntax
+    #
+    # ExponentiationExpression[Yield, Await] :
+    #           UnaryExpression[?Yield, ?Await]
+    #           UpdateExpression[?Yield, ?Await] ** ExponentiationExpression[?Yield, ?Await]
+    #
     @_('UnaryExpression')
     def ExponentiationExpression(self, p):
         return PN_ExponentiationExpression_UnaryExpression(self.context, p)
+    @_('UpdateExpression STARSTAR ExponentiationExpression')
+    def ExponentiationExpression(self, p):
+        return PN_ExponentiationExpression_UpdateExpression_STARSTAR_ExponentiationExpression(self.context, p)
+    ########################################################################################################################
+
+    ########################################################################################################################
+    # 12.5 Unary Operators
+    #
+    # Syntax
+    #
+    # UnaryExpression[Yield, Await] :
+    #           UpdateExpression[?Yield, ?Await]
+    #           delete UnaryExpression[?Yield, ?Await]
+    #           void UnaryExpression[?Yield, ?Await]
+    #           typeof UnaryExpression[?Yield, ?Await]
+    #           + UnaryExpression[?Yield, ?Await]
+    #           - UnaryExpression[?Yield, ?Await]
+    #           ~ UnaryExpression[?Yield, ?Await]
+    #           ! UnaryExpression[?Yield, ?Await]
+    #           [+Await]AwaitExpression[?Yield]
     @_('UpdateExpression')
     def UnaryExpression(self, p):
         return PN_UnaryExpression_UpdateExpression(self.context, p)
+    ########################################################################################################################
+
+    ########################################################################################################################
     @_('LeftHandSideExpression')
     def UpdateExpression(self, p):
         return PN_UpdateExpression_LeftHandSideExpression(self.context, p)
@@ -8066,8 +8173,8 @@ def ParseScript(sourceText, realm, hostDefined):
     #    and early error detection may be interweaved in an implementation-dependent manner. If more than one parsing error or
     #    early error is present, the number and ordering of error objects in the list is implementation-dependent, but at least
     #    one must be present.
-    psr = Ecma262Parser()
     lex = Lexer(sourceText)
+    psr = Ecma262Parser(sourceText)
     tree = psr.parse(lex.lex())
     errs = tree.EarlyErrorsScan()
     body = errs or tree
