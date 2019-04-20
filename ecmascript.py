@@ -7069,16 +7069,65 @@ class Ecma262Parser(Parser):
     @_('Statement')
     def StatementListItem(self, p):
         return PN_StatementListItem_Statement(self.context, p)
+    ########################################################################################################################
+    # 13 ECMAScript Language: Statements and Declarations
+    #
+    # Syntax
+    #
+    # Statement[Yield, Await, Return] :
+    #       BlockStatement[?Yield, ?Await, ?Return]
+    #       VariableStatement[?Yield, ?Await]
+    #       EmptyStatement
+    #       ExpressionStatement[?Yield, ?Await]
+    #       IfStatement[?Yield, ?Await, ?Return]
+    #       BreakableStatement[?Yield, ?Await, ?Return]
+    #       ContinueStatement[?Yield, ?Await]
+    #       BreakStatement[?Yield, ?Await]
+    #       [+Return]ReturnStatement[?Yield, ?Await]
+    #       WithStatement[?Yield, ?Await, ?Return]
+    #       LabelledStatement[?Yield, ?Await, ?Return]
+    #       ThrowStatement[?Yield, ?Await]
+    #       TryStatement[?Yield, ?Await, ?Return]
+    #       DebuggerStatement
+    #
+    # Declaration[Yield, Await] :
+    #       HoistableDeclaration[?Yield, ?Await, ~Default]
+    #       ClassDeclaration[?Yield, ?Await, ~Default]
+    #       LexicalDeclaration[+In, ?Yield, ?Await]
+    #
+    # HoistableDeclaration[Yield, Await, Default] :
+    #       FunctionDeclaration[?Yield, ?Await, ?Default]
+    #       GeneratorDeclaration[?Yield, ?Await, ?Default]
+    #       AsyncFunctionDeclaration[?Yield, ?Await, ?Default]
+    #       AsyncGeneratorDeclaration[?Yield, ?Await, ?Default]
+    #
+    # BreakableStatement[Yield, Await, Return] :
+    #       IterationStatement[?Yield, ?Await, ?Return]
+    #       SwitchStatement[?Yield, ?Await, ?Return]
+    #
     @_('ExpressionStatement')
     def Statement(self, p):
         return PN_Statement_ExpressionStatement(self.context, p)
     @_('EmptyStatement')
     def Statement(self, p):
         return PN_Statement_EmptyStatement(self.context, p)
+    ########################################################################################################################
+
+    ########################################################################################################################
+    # 13.4 Empty Statement
+    #
+    # Syntax
+    #
+    # EmptyStatement :
+    #       ;
+    #
     @_('SEMICOLON')
     def EmptyStatement(self, p):
         return PN_EmptyStatement_SEMICOLON(self.context, p)
-    @_('Expression SEMICOLON')
+    ########################################################################################################################
+
+    ########################################################################################################################
+    @_('Expression_In SEMICOLON')
     def ExpressionStatement(self, p):
         return PN_ExpressionStatement_Expression(self.context, p)
     @_('AssignmentExpression')
@@ -7086,6 +7135,12 @@ class Ecma262Parser(Parser):
         return PN_Expression_AssignmentExpression(self.context, p)
     @_('Expression COMMA AssignmentExpression')
     def Expression(self, p):
+        return PN_Expression_Expression_COMMA_AssignmentExpression(self.context, p)
+    @_('AssignmentExpression_In')
+    def Expression_In(self, p):
+        return PN_Expression_AssignmentExpression(self.context, p)
+    @_('Expression_In COMMA AssignmentExpression_In')
+    def Expression_In(self, p):
         return PN_Expression_Expression_COMMA_AssignmentExpression(self.context, p)
     @_('ConditionalExpression')
     def AssignmentExpression(self, p):
@@ -7096,14 +7151,29 @@ class Ecma262Parser(Parser):
     @_('LeftHandSideExpression AssignmentOperator AssignmentExpression')
     def AssignmentExpression(self, p):
         return PN_AssignmentExpression_LeftHandSideExpression_AssignmentOperator_AssignmentExpression(self.context, p)
+    @_('ConditionalExpression_In')
+    def AssignmentExpression_In(self, p):
+        return PN_AssignmentExpression_ConditionalExpression(self.context, p)
+    @_('LeftHandSideExpression EQUALS AssignmentExpression_In')
+    def AssignmentExpression_In(self, p):
+        return PN_AssignmentExpression_LeftHandSideExpression_EQUALS_AssignmentExpression(self.context, p)
+    @_('LeftHandSideExpression AssignmentOperator AssignmentExpression_In')
+    def AssignmentExpression_In(self, p):
+        return PN_AssignmentExpression_LeftHandSideExpression_AssignmentOperator_AssignmentExpression(self.context, p)
     @_('STAREQ', 'DIVEQ', 'PERCENTEQ', 'PLUSEQ', 'MINUSEQ', 'LTLE', 'GTGE', 'GTGTGE', 'AMPEQ', 'XOREQ', 'PIPEEQ', 'STARSTAREQ')
     def AssignmentOperator(self, p):
         return PN_AssignmentOperator(self.context, p)
     @_('LogicalORExpression')
     def ConditionalExpression(self, p):
         return PN_ConditionalExpression_LogicalORExpression(self.context, p)
-    @_('LogicalORExpression QUESTION AssignmentExpression COLON AssignmentExpression')
+    @_('LogicalORExpression QUESTION AssignmentExpression_In COLON AssignmentExpression')
     def ConditionalExpression(self, p):
+        return PN_ConditionalExpression_QUESTION_AssignmentExpression_COLON_AssignmentExpression(self.context, p)
+    @_('LogicalORExpression_In')
+    def ConditionalExpression_In(self, p):
+        return PN_ConditionalExpression_LogicalORExpression(self.context, p)
+    @_('LogicalORExpression_In QUESTION AssignmentExpression_In COLON AssignmentExpression_In')
+    def ConditionalExpression_In(self, p):
         return PN_ConditionalExpression_QUESTION_AssignmentExpression_COLON_AssignmentExpression(self.context, p)
 
     ########################################################################################################################
@@ -7118,6 +7188,12 @@ class Ecma262Parser(Parser):
     @_('LogicalANDExpression AMPAMP BitwiseORExpression')
     def LogicalANDExpression(self, p):
         return PN_LogicalANDExpression_LogicalANDExpression_AMPAMP_BitwiseORExpression(self.context, p)
+    @_('BitwiseORExpression_In')
+    def LogicalANDExpression_In(self, p):
+        return PN_LogicalANDExpression_BitwiseORExpression(self.context, p)
+    @_('LogicalANDExpression_In AMPAMP BitwiseORExpression_In')
+    def LogicalANDExpression_In(self, p):
+        return PN_LogicalANDExpression_LogicalANDExpression_AMPAMP_BitwiseORExpression(self.context, p)
     #
     # LogicalORExpression[In, Yield, Await]:
     #                 LogicalANDExpression[?In, ?Yield, ?Await]
@@ -7127,6 +7203,12 @@ class Ecma262Parser(Parser):
         return PN_LogicalORExpression_LogicalANDExpression(self.context, p)
     @_('LogicalORExpression PIPEPIPE LogicalANDExpression')
     def LogicalORExpression(self, p):
+        return PN_LogicalORExpression_LogicalORExpression_PIPEPIPE_LogicalANDExpression(self.context, p)
+    @_('LogicalANDExpression_In')
+    def LogicalORExpression_In(self, p):
+        return PN_LogicalORExpression_LogicalANDExpression(self.context, p)
+    @_('LogicalORExpression_In PIPEPIPE LogicalANDExpression_In')
+    def LogicalORExpression_In(self, p):
         return PN_LogicalORExpression_LogicalORExpression_PIPEPIPE_LogicalANDExpression(self.context, p)
     # NOTE
     # The value produced by a && or || operator is not necessarily of type Boolean. The value produced will always be the value
@@ -7145,6 +7227,12 @@ class Ecma262Parser(Parser):
     @_('BitwiseANDExpression AMP EqualityExpression')
     def BitwiseANDExpression(self, p):
         return PN_BitwiseANDExpression_BitwiseANDExpression_AMP_EqualityExpression(self.context, p)
+    @_('EqualityExpression_In')
+    def BitwiseANDExpression_In(self, p):
+        return PN_BitwiseANDExpression_EqualityExpression(self.context, p)
+    @_('BitwiseANDExpression_In AMP EqualityExpression_In')
+    def BitwiseANDExpression_In(self, p):
+        return PN_BitwiseANDExpression_BitwiseANDExpression_AMP_EqualityExpression(self.context, p)
     #
     # BitwiseXORExpression[In, Yield, Await]:
     #                 BitwiseANDExpression[?In, ?Yield, ?Await]
@@ -7155,6 +7243,12 @@ class Ecma262Parser(Parser):
     @_('BitwiseXORExpression XOR BitwiseANDExpression')
     def BitwiseXORExpression(self, p):
         return PN_BitwiseXORExpression_BitwiseXORExpression_XOR_BitwiseANDExpression(self.context, p)
+    @_('BitwiseANDExpression_In')
+    def BitwiseXORExpression_In(self, p):
+        return PN_BitwiseXORExpression_BitwiseANDExpression(self.context, p)
+    @_('BitwiseXORExpression_In XOR BitwiseANDExpression_In')
+    def BitwiseXORExpression_In(self, p):
+        return PN_BitwiseXORExpression_BitwiseXORExpression_XOR_BitwiseANDExpression(self.context, p)
     #
     # BitwiseORExpression[In, Yield, Await]:
     #                 BitwiseXORExpression[?In, ?Yield, ?Await]
@@ -7164,6 +7258,12 @@ class Ecma262Parser(Parser):
         return PN_BitwiseORExpression_BitwiseXORExpression(self.context, p)
     @_('BitwiseORExpression PIPE BitwiseXORExpression')
     def BitwiseORExpression(self, p):
+        return PN_BitwiseORExpression_BitwiseORExpression_PIPE_BitwiseXORExpression(self.context, p)
+    @_('BitwiseXORExpression_In')
+    def BitwiseORExpression_In(self, p):
+        return PN_BitwiseORExpression_BitwiseXORExpression(self.context, p)
+    @_('BitwiseORExpression_In PIPE BitwiseXORExpression_In')
+    def BitwiseORExpression_In(self, p):
         return PN_BitwiseORExpression_BitwiseORExpression_PIPE_BitwiseXORExpression(self.context, p)
     ########################################################################################################################
 
@@ -7194,6 +7294,21 @@ class Ecma262Parser(Parser):
         return PN_EqualityExpression_EqualityExpression_EQEQEQ_RelationalExpression(self.context, p)
     @_('EqualityExpression BANGEQEQ RelationalExpression')
     def EqualityExpression(self, p):
+        return PN_EqualityExpression_EqualityExpression_BANGEQEQ_RelationalExpression(self.context, p)
+    @_('RelationalExpression_In')
+    def EqualityExpression_In(self, p):
+        return PN_EqualityExpression_RelationalExpression(self.context, p)
+    @_('EqualityExpression_In EQEQ RelationalExpression_In')
+    def EqualityExpression_In(self, p):
+        return PN_EqualityExpression_EqualityExpression_EQEQ_RelationalExpression(self.context, p)
+    @_('EqualityExpression_In BANGEQ RelationalExpression_In')
+    def EqualityExpression_In(self, p):
+        return PN_EqualityExpression_EqualityExpression_BANGEQ_RelationalExpression(self.context, p)
+    @_('EqualityExpression_In EQEQEQ RelationalExpression_In')
+    def EqualityExpression_In(self, p):
+        return PN_EqualityExpression_EqualityExpression_EQEQEQ_RelationalExpression(self.context, p)
+    @_('EqualityExpression_In BANGEQEQ RelationalExpression_In')
+    def EqualityExpression_In(self, p):
         return PN_EqualityExpression_EqualityExpression_BANGEQEQ_RelationalExpression(self.context, p)
     ########################################################################################################################
 
@@ -7236,6 +7351,27 @@ class Ecma262Parser(Parser):
     @_('RelationalExpression INSTANCEOF ShiftExpression')
     def RelationalExpression(self, p):
         return PN_RelationalExpression_RelationalExpression_INSTANCEOF_ShiftExpression(self.context, p)
+    @_('ShiftExpression')
+    def RelationalExpression_In(self, p):
+        return PN_RelationalExpression_ShiftExpression(self.context, p)
+    @_('RelationalExpression_In LT ShiftExpression')
+    def RelationalExpression_In(self, p):
+        return PN_RelationalExpression_RelationalExpression_LT_ShiftExpression(self.context, p)
+    @_('RelationalExpression_In GT ShiftExpression')
+    def RelationalExpression_In(self, p):
+        return PN_RelationalExpression_RelationalExpression_GT_ShiftExpression(self.context, p)
+    @_('RelationalExpression_In LE ShiftExpression')
+    def RelationalExpression_In(self, p):
+        return PN_RelationalExpression_RelationalExpression_LE_ShiftExpression(self.context, p)
+    @_('RelationalExpression_In GE ShiftExpression')
+    def RelationalExpression_In(self, p):
+        return PN_RelationalExpression_RelationalExpression_GE_ShiftExpression(self.context, p)
+    @_('RelationalExpression_In INSTANCEOF ShiftExpression')
+    def RelationalExpression_In(self, p):
+        return PN_RelationalExpression_RelationalExpression_INSTANCEOF_ShiftExpression(self.context, p)
+    @_('RelationalExpression_In IN ShiftExpression')
+    def RelationalExpression_In(self, p):
+        return PN_RelationalExpression_RelationalExpression_IN_ShiftExpression(self.context, p)
     ########################################################################################################################
 
     ########################################################################################################################
@@ -7264,7 +7400,7 @@ class Ecma262Parser(Parser):
     ########################################################################################################################
 
     ########################################################################################################################
-    # 12.8Additive Operators
+    # 12.8 Additive Operators
     #
     # Syntax
     #
@@ -7315,7 +7451,34 @@ class Ecma262Parser(Parser):
     def PrimaryExpression(self, p):
         return PN_PrimaryExpression_Literal(self.context, p)
 
-
+    ########################################################################################################################
+    # 12.1 Identifiers
+    #
+    # Syntax
+    #
+    # IdentifierReference[Yield, Await] :
+    #       Identifier
+    #       [~Yield]yield
+    #       [~Await]await
+    #
+    # BindingIdentifier[Yield, Await] :
+    #       Identifier
+    #       yield
+    #       await
+    #
+    # LabelIdentifier[Yield, Await] :
+    #       Identifier
+    #       [~Yield]yield
+    #       [~Await]await
+    #
+    # Identifier :
+    #       IdentifierName but not ReservedWord
+    #
+    # Note: In this implementation, the tokenizer recognizes Identifiers, so really we have:
+    # IdentifierName :
+    #       Identifier
+    #       ReservedWord
+    #
     @_('Identifier')
     def IdentifierReference(self, p):
         return PN_IdentifierReference_Identifier(self.context, p)
@@ -7325,21 +7488,18 @@ class Ecma262Parser(Parser):
     @_('YIELD')
     def IdentifierReference(self, p):
         return PN_IdentifierReference_YIELD(self.context, p)
-
     @_('Identifier')
     def IdentifierReference_Yield(self, p):
         return PN_IdentifierReference_Identifier(self.context, p, yield_=True)
     @_('AWAIT')
     def IdentifierReference_Yield(self, p):
         return PN_IdentifierReference_AWAIT(self.context, p, yield_=True)
-
     @_('Identifier')
     def IdentifierReference_Await(self, p):
         return PN_IdentifierReference_Identifier(self.context, p, await_=True)
     @_('YIELD')
     def IdentifierReference_Await(self, p):
         return PN_IdentifierReference_YIELD(self.context, p, await_=True)
-
     @_('Identifier')
     def IdentifierReference_Yield_Await(self, p):
         return PN_IdentifierReference_Identifier(self.context, p, yield_=True, await_=True)
