@@ -6850,9 +6850,69 @@ class PN_Statement_EmptyStatement(ParseNode):
 class PN_Statement_COLON_LabelledStatement(ParseNode):
     def __init__(self, ctx, p):
         super()._init__('Statement', p)
-class PN_StatementListItem_Statement(ParseNode):
+class PN_Statement_BlockStatement(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('Statement', p)
+
+##########################################################################################################################
+#
+#  d888    .d8888b.       .d8888b.      888888b.   888                   888
+# d8888   d88P  Y88b     d88P  Y88b     888  "88b  888                   888
+#   888        .d88P            888     888  .88P  888                   888
+#   888       8888"           .d88P     8888888K.  888  .d88b.   .d8888b 888  888
+#   888        "Y8b.      .od888P"      888  "Y88b 888 d88""88b d88P"    888 .88P
+#   888   888    888     d88P"          888    888 888 888  888 888      888888K
+#   888   Y88b  d88P d8b 888"           888   d88P 888 Y88..88P Y88b.    888 "88b
+# 8888888  "Y8888P"  Y8P 888888888      8888888P"  888  "Y88P"   "Y8888P 888  888
+#
+##########################################################################################################################
+class PN_BlockStatement(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('BlockStatement', p)
+class PN_Block(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('Block', p)
+class PN_StatementList(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('StatementList', p)
+class PN_StatementListItem(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('StatementListItem', p)
+class PN_Block_LCURLY_StatementList_RCURLY(PN_Block):
+    def EarlyErrors(self):
+        StatementList = self.children[1]
+        errs = []
+        ldn = StatementList.LexicallyDeclaredNames()
+        ldn_set = set(ldn)
+        if len(ldn) != len(ldn_set):
+            errs.append(CreateSyntaxError('Duplicate names dectected in the Lexically Declared Names list'))
+        if not ldn_set.isdisjoint(set(StatementList.VarDeclaredNames())):
+            errs.append(CreateSyntaxError('Name clash between Lexically Declared Names and Var Declared Names'))
+        return errs
+class PN_Block_LCURLY_RCURLY(PN_Block):
+    def ContainsDuplicateLabels(self, labelSet):
+        return False
+    def ContainsUndefinedBreakTarget(self, labelSet):
+        return False
+    def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
+        return False
+    def LexicallyDeclaredNames(self):
+        return []
+    def TopLevelLexicallyScopedDeclarations(self):
+        return []
+    def TopLevelVarDeclaredNames(self):
+        return []
+    def TopLevelVarScopedDeclarations(self):
+        return []
+    def VarDeclaredNames(self):
+        return []
+    def VarScopedDeclarations(self):
+        return []
+    def evaluate(self):
+        return NormalCompletion(Empty.EMPTY)
+class PN_BlockStatement_Block(PN_BlockStatement):
+    pass
+class PN_StatementListItem_Statement(PN_StatementListItem):
     def TopLevelLexicallyDeclaredNames(self):
         return []
     def TopLevelVarDeclaredNames(self):
@@ -6869,12 +6929,18 @@ class PN_StatementListItem_Statement(ParseNode):
         return []
     def TopLevelLexicallyScopedDeclarations(self):
         return []
-class PN_StatementList_StatementListItem(ParseNode):
-    def __init__(self, ctx, p):
-        super().__init__('StatementList', p)
-class PN_StatementList_StatementList_StatementListItem(ParseNode):
-    def __init__(self, ctx, p):
-        super().__init__('StatementList', p)
+    def LexicallyDeclaredNames(self):
+        # 13.2.5 Static Semantics: LexicallyDeclaredNames
+        #   StatementListItem : Statement
+        #   1. If Statement is Statement : LabelledStatement , return LexicallyDeclaredNames of LabelledStatement.
+        Statement = self.children[0]
+        if len(Statement.children) == 1 and Statement.children[0].name == 'LabelledStatement':
+            return Statement.children[0].LexicallyDeclaredNames()
+        #   2. Return a new empty List.
+        return []
+class PN_StatementList_StatementListItem(PN_StatementList):
+    pass
+class PN_StatementList_StatementList_StatementListItem(PN_StatementList):
     def evaluate(self):
         sl, ok = ec(self.children[0].evaluate())
         if not ok:
@@ -7086,6 +7152,35 @@ class Ecma262Parser(Parser):
     def ScriptBody(self, p):
         return PN_ScriptBody_StatementList(self.context, p)
     ########################################################################################################################
+
+    ########################################################################################################################
+    # 13.2 Block
+    # Syntax
+    #
+    # BlockStatement[Yield, Await, Return] :
+    #       Block[?Yield, ?Await, ?Return]
+    #
+    # Block[Yield, Await, Return] :
+    #       { }
+    #       { StatementList[?Yield, ?Await, ?Return] }
+    #
+    # StatementList[Yield, Await, Return] :
+    #       StatementListItem[?Yield, ?Await, ?Return]
+    #       StatementList[?Yield, ?Await, ?Return] StatementListItem[?Yield, ?Await, ?Return]
+    #
+    # StatementListItem[Yield, Await, Return] :
+    #       Statement[?Yield, ?Await, ?Return]
+    #       Declaration[?Yield, ?Await]
+    #
+    @_('Block')
+    def BlockStatement(self, p):
+        return PN_BlockStatement_Block(self.context, p)
+    @_('LCURLY RCURLY')
+    def Block(self, p):
+        return PN_Block_LCURLY_RCURLY(self.context, p)
+    @_('LCURLY StatementList RCURLY')
+    def Block(self, p):
+        return PN_Block_LCURLY_StatementList_RCURLY(self.context, p)
     @_('StatementListItem')
     def StatementList(self, p):
         return PN_StatementList_StatementListItem(self.context, p)
@@ -7131,6 +7226,9 @@ class Ecma262Parser(Parser):
     #       IterationStatement[?Yield, ?Await, ?Return]
     #       SwitchStatement[?Yield, ?Await, ?Return]
     #
+    @_('BlockStatement')
+    def Statement(self, p):
+        return PN_Statement_BlockStatement(self.context, p)
     @_('ExpressionStatement')
     def Statement(self, p):
         return PN_Statement_ExpressionStatement(self.context, p)
@@ -8735,7 +8833,7 @@ def NumberFixups(realm):
     return NormalCompletion(None)
 
 if __name__ == '__main__':
-    rv, ok = ec(RunJobs(scripts=["'prototype' in Object;"]))
+    rv, ok = ec(RunJobs(scripts=['{ b=3; b*=6; }']))
 
     if ok:
         print('Script returned %s' % nc(ToString(rv)))

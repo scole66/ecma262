@@ -66,6 +66,8 @@ def cleanup():
     ('Infinity + 88;', math.inf),
     ("'prototype' in Object;", True),
     ("'yuccaplant' in Object;", False),
+    ('{}', None),
+    ('{ b=3; b*=6; }', 18),
 ])
 def test_scripts_01(cleanup, script, result):
     rv = RunJobs(scripts=[script])
