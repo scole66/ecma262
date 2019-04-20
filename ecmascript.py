@@ -18,6 +18,8 @@ def CreateTypeError(msg=''):
     if not msg:
         msg = ''.join(traceback.format_stack())
     return TypeError(msg) # This is a python object, not an ecmascript object. This will change when objects are turned on.
+def CreateSyntaxError(msg=''):
+    return SyntaxError(msg)
 
 class missing(Enum):
     MISSING = auto()
@@ -2873,8 +2875,8 @@ class ObjectEnvironmentRecord:
         # 3. Return ? DefinePropertyOrThrow(bindings, N, PropertyDescriptor { [[Value]]: undefined, [[Writable]]: true,
         #             [[Enumerable]]: true, [[Configurable]]: D }).
         return DefinePropertyOrThrow(self.binding_object, name,
-                                     PropertyDescriptor(Value=None, Writable=True,
-                                                        Enumerable=True, Configurable=deletable))
+                                     PropertyDescriptor(value=None, writable=True,
+                                                        enumerable=True, configurable=deletable))
         # NOTE
         # Normally envRec will not have a binding for N but if it does, the semantics of DefinePropertyOrThrow may
         # result in an existing binding being replaced or shadowed or cause an abrupt completion to be returned.
@@ -3348,7 +3350,7 @@ class GlobalEnvironmentRecord:
         # 1. Let envRec be the global Environment Record for which the method was invoked.
         # 2. Let DclRec be envRec.[[DeclarativeRecord]].
         # 3. Return DclRec.HasBinding(N).
-        return NormalCompletion(self.declarative_record.HasBinding(name))
+        return self.declarative_record.HasBinding(name)
 
     # 8.1.1.4.14 HasRestrictedGlobalProperty ( N )
     def HasRestrictedGlobalProperty(self, name):
@@ -4645,6 +4647,35 @@ def AddRestrictedFunctionProperties(func, realm):
     #    [[Enumerable]]: false, [[Configurable]]: true }).
     return nc(DefinePropertyOrThrow(func, 'arguments', PropertyDescriptor(Get=thrower, Set=thrower, enumerable=False, configurable=True)))
 
+# 9.2.13 SetFunctionName ( F, name [ , prefix ] )
+def SetFunctionName(F, name, prefix=missing.MISSING):
+    # The abstract operation SetFunctionName requires a Function argument F, a String or Symbol argument name and optionally a
+    # String argument prefix. This operation adds a name property to F by performing the following steps:
+    #
+    # 1. Assert: F is an extensible object that does not have a name own property.
+    assert IsExtensible(F) and not HasOwnProperty(F, 'name')
+    # 2. Assert: Type(name) is either Symbol or String.
+    assert isString(name) or isSymbol(name)
+    # 3. Assert: If prefix is present, then Type(prefix) is String.
+    assert  prefix == missing.MISSING or isString(prefix)
+    # 4. If Type(name) is Symbol, then
+    if isSymbol(name):
+        # a. Let description be name's [[Description]] value.
+        description = name.description
+        # b. If description is undefined, set name to the empty String.
+        if description is None:
+            name = ''
+        # c. Else, set name to the string-concatenation of "[", description, and "]".
+        else:
+            name = f'[{description}]'
+    # 5. If prefix is present, then
+    if prefix != missing.MISSING:
+        # a. Set name to the string-concatenation of prefix, the code unit 0x0020 (SPACE), and name.
+        name = f'{prefix} {name}'
+    # 6. Return ! DefinePropertyOrThrow(F, "name", PropertyDescriptor { [[Value]]: name, [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true }).
+    return nc(DefinePropertyOrThrow(F, 'name', PropertyDescriptor(value=name, writable=False, enumerable=False, configurable=True)))
+
+
 ################################################################################################################################################################################################################################
 #
 #  .d8888b.       .d8888b.      888888b.            d8b 888 888           d8b              8888888888                            888    d8b                        .d88888b.  888         d8b                   888
@@ -5819,16 +5850,35 @@ class ParseNode:
         return self.defer_target().ContainsUndefinedBreakTarget(lst)
     def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
         return self.defer_target().ContainsUndefinedContinueTarget(iterationSet, labelSet)
+    def BoundNames(self):
+        return self.defer_target().BoundNames()
+    def StringValue(self):
+        return self.defer_target().StringValue()
 
     def evaluate(self):
         # Subclasses need to override this, or we'll throw an AttributeError when we hit a terminal.
         return self.defer_target().evaluate()
-class PN_IdentifierReference_Identifier(ParseNode):
+
+######################################################################################################################
+#
+#  d888    .d8888b.       d888       8888888      888                   888    d8b  .d888 d8b
+# d8888   d88P  Y88b     d8888         888        888                   888    Y8P d88P"  Y8P
+#   888          888       888         888        888                   888        888
+#   888        .d88P       888         888    .d88888  .d88b.  88888b.  888888 888 888888 888  .d88b.  888d888 .d8888b
+#   888    .od888P"        888         888   d88" 888 d8P  Y8b 888 "88b 888    888 888    888 d8P  Y8b 888P"   88K
+#   888   d88P"            888         888   888  888 88888888 888  888 888    888 888    888 88888888 888     "Y8888b.
+#   888   888"       d8b   888         888   Y88b 888 Y8b.     888  888 Y88b.  888 888    888 Y8b.     888          X88
+# 8888888 888888888  Y8P 8888888     8888888  "Y88888  "Y8888  888  888  "Y888 888 888    888  "Y8888  888      88888P'
+#
+######################################################################################################################
+class PN_IdentifierReference(ParseNode):
     def __init__(self, ctx, p, yield_=False, await_=False):
         super().__init__('IdentifierReference', p)
         self.yield_ = yield_
         self.await_ = await_
         self.strict = ctx.strict
+        self.gloal = ctx.goal
+class PN_IdentifierReference_Identifier(PN_IdentifierReference):
     def EarlyErrors(self):
         # Early Errors
         if self.yield_ and self.children[0].StringValue() == 'yield':
@@ -5842,12 +5892,7 @@ class PN_IdentifierReference_Identifier(ParseNode):
         return self.children[0].StringValue()
     def evaluate(self):
         return ResolveBinding(self.children[0].StringValue())
-class PN_IdentifierReference_AWAIT(ParseNode):
-    def __init__(self, ctx, p, yield_=False, await_=False):
-        super().__init__('IdentifierReference', p)
-        self.yield_ = yield_
-        self.await_ = await_
-        self.goal = ctx.goal
+class PN_IdentifierReference_AWAIT(PN_IdentifierReference):
     def EarlyErrors(self):
         # Early Errors
         if self.goal == 'Module':
@@ -5859,12 +5904,7 @@ class PN_IdentifierReference_AWAIT(ParseNode):
         return 'await'
     def evaluate(self):
         return ResolveBinding('await')
-class PN_IdentifierReference_YIELD(ParseNode):
-    def __init__(self, ctx, p, yield_=False, await_=False):
-        super().__init__('IdentifierReference', p)
-        self.yield_ = yield_
-        self.await_ = await_
-        self.strict = ctx.strict
+class PN_IdentifierReference_YIELD(PN_IdentifierReference):
     def EarlyErrors(self):
         # Early Errors
         if self.strict:
@@ -5876,6 +5916,52 @@ class PN_IdentifierReference_YIELD(ParseNode):
         return 'yield'
     def evaluate(self):
         return ResolveBinding('yield')
+class PN_BindingIdentifier(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('BindingIdentifier', p)
+        #self.yield_ = yield_
+        #self.await_ = await_
+        self.strict = ctx.strict
+        self.gloal = ctx.goal
+class PN_BindingIdentifier_Identifier(PN_BindingIdentifier):
+    def EarlyErrors(self):
+        # 12.1.1 Static Semantics: Early Errors
+        #   BindingIdentifier : Identifier
+        #   * It is a Syntax Error if the code matched by this production is contained in strict mode code and the
+        #     StringValue of Identifier is  "arguments" or "eval".
+        Identifier = self.children[0]
+        if self.strict and Identifier.StringValue() in ['arguments', 'eval']:
+            return [CreateSyntaxError('In strict mode, an identifier name may be neither \'arguments\' nor \'eval\'.')]
+        return []
+    def BoundNames(self):
+        # 12.1.2 Static Semantics: BoundNames
+        #   BindingIdentifier : Identifier
+        #   1. Return a new List containing the StringValue of Identifier.
+        return [self.children[0].StringValue()]
+    def BindingInitialization(self, value, environment):
+        # 12.1.5 Runtime Semantics: BindingInitialization
+        #   BindingIdentifier : Identifier
+        #   1. Let name be StringValue of Identifier.
+        #   2. Return ? InitializeBoundName(name, value, environment).
+        return InitializeBoundName(self.children[0].StringValue(), value, environment)
+
+# 12.1.5.1 Runtime Semantics: InitializeBoundName ( name, value, environment )
+def InitializeBoundName(name, value, environment):
+    # 1. Assert: Type(name) is String.
+    assert isString(name)
+    # 2. If environment is not undefined, then
+    if environment is not None:
+        # a. Let env be the EnvironmentRecord component of environment.
+        env = environment.environment_record
+        # b. Perform env.InitializeBinding(name, value).
+        env.InitializeBinding(name, value)
+        # c. Return NormalCompletion(undefined).
+        return NormalCompletion(None)
+    # 3. Else,
+    # a. Let lhs be ResolveBinding(name).
+    lhs = ResoveBinding(name)
+    # b. Return ? PutValue(lhs, value).
+    return PutValue(lhs, value)
 class PN_Identifier(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('Identifier', p)
@@ -5900,6 +5986,7 @@ class PN_Identifier(ParseNode):
         return []
     def StringValue(self):
         return self.children[0].value
+#################################################################################################################
 class PN_PrimaryExpression_THIS(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('PrimaryExpression', p)
@@ -5917,6 +6004,11 @@ class PN_PrimaryExpression_Literal(ParseNode):
         super().__init__('PrimaryExpression', p)
     def IsFunctionDefinition(self):
         return False
+class PN_Initializer(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('Initializer', p)
+class PN_Initializer_EQUALS_AssignmentExpression(PN_Initializer):
+    pass
 class PN_Literal_NULL(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('Literal', p)
@@ -6853,6 +6945,16 @@ class PN_Statement_COLON_LabelledStatement(ParseNode):
 class PN_Statement_BlockStatement(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('Statement', p)
+class PN_Statement_VariableStatement(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('Statement', p)
+    def ContainsDuplicateLabels(self, lst):
+        return False
+    def ContainsUndefinedBreakTarget(self, lst):
+        return False
+    def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
+        return False
+
 
 ##########################################################################################################################
 #
@@ -7013,7 +7115,140 @@ class PN_StatementList_StatementList_StatementListItem(PN_StatementList):
         StatementListItem = self.children[1]
         return StatementList.LexicallyScopedDeclarations() + StatementListItem.LexicallyScopedDeclarations()
 
+#######################################################################################################################
+#
+#  d888    .d8888b.       .d8888b.       .d8888b.      888     888                  d8b          888      888
+# d8888   d88P  Y88b     d88P  Y88b     d88P  Y88b     888     888                  Y8P          888      888
+#   888        .d88P          .d88P            888     888     888                               888      888
+#   888       8888"          8888"           .d88P     Y88b   d88P  8888b.  888d888 888  8888b.  88888b.  888  .d88b.
+#   888        "Y8b.          "Y8b.      .od888P"       Y88b d88P      "88b 888P"   888     "88b 888 "88b 888 d8P  Y8b
+#   888   888    888     888    888     d88P"            Y88o88P   .d888888 888     888 .d888888 888  888 888 88888888
+#   888   Y88b  d88P d8b Y88b  d88P d8b 888"              Y888P    888  888 888     888 888  888 888 d88P 888 Y8b.
+# 8888888  "Y8888P"  Y8P  "Y8888P"  Y8P 888888888          Y8P     "Y888888 888     888 "Y888888 88888P"  888  "Y8888
+#
+#  .d8888b.  888             888                                             888
+# d88P  Y88b 888             888                                             888
+# Y88b.      888             888                                             888
+#  "Y888b.   888888  8888b.  888888  .d88b.  88888b.d88b.   .d88b.  88888b.  888888
+#     "Y88b. 888        "88b 888    d8P  Y8b 888 "888 "88b d8P  Y8b 888 "88b 888
+#       "888 888    .d888888 888    88888888 888  888  888 88888888 888  888 888
+# Y88b  d88P Y88b.  888  888 Y88b.  Y8b.     888  888  888 Y8b.     888  888 Y88b.
+#  "Y8888P"   "Y888 "Y888888  "Y888  "Y8888  888  888  888  "Y8888  888  888  "Y888
+#
+#######################################################################################################################
+class PN_VariableStatement(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('VariableStatement', p)
+class PN_VariableStatement_VAR_VariableDeclarationList(PN_VariableStatement):
+    def VarDeclaredNames(self):
+        # 13.3.2.2 Static Semantics: VarDeclaredNames
+        #       VariableStatement : var VariableDeclarationList ;
+        #   1. Return BoundNames of VariableDeclarationList.
+        return self.children[1].BoundNames()
+    def evaluate(self):
+        # 13.3.2.4 Runtime Semantics: Evaluation
+        #       VariableStatement : varVariableDeclarationList ;
+        # 1. Let next be the result of evaluating VariableDeclarationList.
+        # 2. ReturnIfAbrupt(next).
+        # 3. Return NormalCompletion(empty).
+        next, ok = ec(self.children[1].evaluate())
+        if not ok:
+            return next
+        return NormalCompletion(Empty.EMPTY)
+class PN_VariableDeclarationList(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('VariableDeclarationList', p)
+class PN_VariableDeclarationList_VariableDeclaration(PN_VariableDeclarationList):
+    def VarScopedDeclarations(self):
+        # 13.3.2.3 Static Semantics: VarScopedDeclarations
+        #       VariableDeclarationList : VariableDeclaration
+        #   1. Return a new List containing VariableDeclaration.
+        return [self.children[0]]
+class PN_VariableDeclarationList_VariableDeclarationList_COMMA_VariableDeclaration(PN_VariableDeclarationList):
+    def BoundNames(self):
+        # 13.3.2.1 Static Semantics: BoundNames
+        #       VariableDeclarationList : VariableDeclarationList , VariableDeclaration
+        #   1. Let names be BoundNames of VariableDeclarationList.
+        #   2. Append to names the elements of BoundNames of VariableDeclaration.
+        #   3. Return names.
+        VariableDeclarationList = self.children[0]
+        VariableDeclaration = self.children[2]
+        return VariableDeclarationList.BoundNames() + VariableDeclaration.BoundNames()
+    def VarScopedDeclarations(self):
+        # 13.3.2.3 Static Semantics: VarScopedDeclarations
+        #       VariableDeclarationList : VariableDeclarationList , VariableDeclaration
+        #   1. Let declarations be VarScopedDeclarations of VariableDeclarationList.
+        #   2. Append VariableDeclaration to declarations.
+        #   3. Return declarations.
+        declarations =  self.children[0].VarScopedDeclarations()
+        declarations.append(self.children[2])
+        return declarations
+    def evaluate(self):
+        # 13.3.2.4 Runtime Semantics: Evaluation
+        #       VariableDeclarationList : VariableDeclarationList , VariableDeclaration
+        #   1. Let next be the result of evaluating VariableDeclarationList.
+        #   2. ReturnIfAbrupt(next).
+        #   3. Return the result of evaluating VariableDeclaration.
+        next, ok = ec(self.children[0].evaluate())
+        if not ok:
+            return next
+        return self.children[2].evaluate()
+class PN_VariableDeclaration(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('VariableDeclaration', p)
+class PN_VariableDeclaration_BindingIdentifier(PN_VariableDeclaration):
+    def evaluate(self):
+        # 13.3.2.4 Runtime Semantics: Evaluation
+        #       VariableDeclaration : BindingIdentifier
+        #   1. Return NormalCompletion(empty).
+        return NormalCompletion(Empty.EMPTY)
+class PN_VariableDeclaration_BindingIdentifier_Initializer(PN_VariableDeclaration):
+    def BoundNames(self):
+        # 13.3.2.1 Static Semantics: BoundNames
+        #   VariableDeclaration : BindingIdentifier Initializer
+        #   1. Return the BoundNames of BindingIdentifier.
+        BindingIdentifier = self.children[0]
+        return BindingIdentifier.BoundNames()
+    def evaluate(self):
+        # 13.3.2.4 Runtime Semantics: Evaluation
+        #       VariableDeclaration : BindingIdentifier Initializer
+        #   1. Let bindingId be StringValue of BindingIdentifier.
+        #   2. Let lhs be ? ResolveBinding(bindingId).
+        #   3. Let rhs be the result of evaluating Initializer.
+        #   4. Let value be ? GetValue(rhs).
+        #   5. If IsAnonymousFunctionDefinition(Initializer) is true, then
+        #       a. Let hasNameProperty be ? HasOwnProperty(value, "name").
+        #       b. If hasNameProperty is false, perform SetFunctionName(value, bindingId).
+        #   6. Return ? PutValue(lhs, value).
+        BindingIdentifier = self.children[0]
+        Initializer = self.children[1]
+        bindingId = BindingIdentifier.StringValue()
+        lhs, ok = ec(ResolveBinding(bindingId))
+        if not ok:
+            return lhs
+        rhs = Initializer.evaluate()
+        value, ok = ec(GetValue(rhs))
+        if not ok:
+            return value
+        if IsAnonymousFunctionDefinition(Initializer):
+            hasNameProperty, ok = ec(HasOwnProperty(value, 'name'))
+            if not ok:
+                return hasNameProperty
+            if not hasNameProperty:
+                SetFunctionName(value, bindingId)
+        return PutValue(lhs, value)
 
+# 14.1.10 Static Semantics: IsAnonymousFunctionDefinition ( expr )
+def IsAnonymousFunctionDefinition(expr):
+    # The abstract operation IsAnonymousFunctionDefinition determines if its argument is a function definition that
+    # does not bind a name. The argument expr is the result of parsing an AssignmentExpression or Initializer. The
+    # following steps are taken:
+    #
+    # 1. If IsFunctionDefinition of expr is false, return false.
+    # 2. Let hasName be the result of HasName of expr.
+    # 3. If hasName is true, return false.
+    # 4. Return true.
+    return not (expr.IsFunctionDefinition() and expr.HasName())
 ###############################################################################################################################
 #
 #  d888   888888888       d888        .d8888b.                   d8b          888
@@ -7229,12 +7464,58 @@ class Ecma262Parser(Parser):
     @_('BlockStatement')
     def Statement(self, p):
         return PN_Statement_BlockStatement(self.context, p)
+    @_('VariableStatement')
+    def Statement(self, p):
+        return PN_Statement_VariableStatement(self.context, p)
     @_('ExpressionStatement')
     def Statement(self, p):
         return PN_Statement_ExpressionStatement(self.context, p)
     @_('EmptyStatement')
     def Statement(self, p):
         return PN_Statement_EmptyStatement(self.context, p)
+    ########################################################################################################################
+
+    ########################################################################################################################
+    # 13.3.2 Variable Statement
+    # NOTE
+    # A var statement declares variables that are scoped to the running execution context's VariableEnvironment. Var
+    # variables are created when their containing Lexical Environment is instantiated and are initialized to undefined
+    # when created. Within the scope of any VariableEnvironment a common BindingIdentifier may appear in more than one
+    # VariableDeclaration but those declarations collectively define only one variable. A variable defined by a
+    # VariableDeclaration with an Initializer is assigned the value of its Initializer's AssignmentExpression when the
+    # VariableDeclaration is executed, not when the variable is created.
+    #
+    # Syntax
+    #
+    # VariableStatement[Yield, Await] :
+    #       var VariableDeclarationList[+In, ?Yield, ?Await] ;
+    #
+    # VariableDeclarationList[In, Yield, Await] :
+    #       VariableDeclaration[?In, ?Yield, ?Await]
+    #       VariableDeclarationList[?In, ?Yield, ?Await] , VariableDeclaration[?In, ?Yield, ?Await]
+    #
+    # VariableDeclaration[In, Yield, Await] :
+    #       BindingIdentifier[?Yield, ?Await]
+    #       BindingIdentifier[?Yield, ?Await] Initializer[?In, ?Yield, ?Await]
+    #       BindingPattern[?Yield, ?Await] Initializer[?In, ?Yield, ?Await]
+    @_('VAR VariableDeclarationList_In SEMICOLON')
+    def VariableStatement(self, p):
+        return PN_VariableStatement_VAR_VariableDeclarationList(self.context, p)
+    @_('VariableDeclaration_In')
+    def VariableDeclarationList_In(self, p):
+        return PN_VariableDeclarationList_VariableDeclaration(self.context, p)
+    @_('VariableDeclarationList_In COMMA VariableDeclaration_In')
+    def VariableDeclarationList_In(self, p):
+        return PN_VariableDeclarationList_VariableDeclarationList_COMMA_VariableDeclaration(self.context, p)
+    @_('BindingIdentifier')
+    def VariableDeclaration_In(self, p):
+        return PN_VariableDeclaration_BindingIdentifier(self.context, p)
+    @_('BindingIdentifier Initializer_In')
+    def VariableDeclaration_In(self, p):
+        return PN_VariableDeclaration_BindingIdentifier_Initializer(self.context, p)
+    # @_('BindingPattern Initializer_In')
+    # def VariableDeclaration_In(self, p):
+    #     return PN_VariableDeclaration_BindingPattern_Initializer(self.context, p)
     ########################################################################################################################
 
     ########################################################################################################################
@@ -7576,6 +7857,19 @@ class Ecma262Parser(Parser):
         return PN_PrimaryExpression_Literal(self.context, p)
 
     ########################################################################################################################
+    # 12.2.6 Object Initializer
+    #
+    # Syntax
+    #
+    # Initializer[In, Yield, Await] :
+    #       = AssignmentExpression[?In, ?Yield, ?Await]
+    ########################################################################################################################
+    @_('EQUALS AssignmentExpression_In')
+    def Initializer_In(self, p):
+        return PN_Initializer_EQUALS_AssignmentExpression(self.context, p)
+    ########################################################################################################################
+
+    ########################################################################################################################
     # 12.1 Identifiers
     #
     # Syntax
@@ -7627,6 +7921,16 @@ class Ecma262Parser(Parser):
     @_('Identifier')
     def IdentifierReference_Yield_Await(self, p):
         return PN_IdentifierReference_Identifier(self.context, p, yield_=True, await_=True)
+
+    @_('Identifier')
+    def BindingIdentifier(self, p):
+        return PN_BindingIdentifier_Identifier(self.context, p)
+    @_('YIELD')
+    def BindingIdentifier(self, p):
+        return PN_BindingIdentifier_YIELD(self.context, p)
+    @_('AWAIT')
+    def BindingIdentifier(self, p):
+        return PN_BindingIdentifier_AWAIT(self.context, p)
 
     @_('IDENTIFIER')
     def Identifier(self, p):
@@ -7808,7 +8112,7 @@ def GlobalDeclarationInstantiation(script, env):
     # 12. For each d in varDeclarations, do
     for d in varDeclarations:
         # a. If d is a VariableDeclaration, a ForBinding, or a BindingIdentifier, then
-        if d.name in ['VaraibleDeclaration', 'ForBinding', 'BindingIdentifier']:
+        if d.name in ['VariableDeclaration', 'ForBinding', 'BindingIdentifier']:
             # i. For each String vn in the BoundNames of d, do
             for vn in d.BoundNames():
                 # 1. If vn is not an element of declaredFunctionNames, then
@@ -7859,6 +8163,8 @@ def GlobalDeclarationInstantiation(script, env):
     for vn in declaredVarNames:
         # a. Perform ? envRec.CreateGlobalVarBinding(vn, false).
         cr, ok = ec(envRec.CreateGlobalVarBinding(vn, False))
+        if not ok:
+            return cr
     # 19. Return NormalCompletion(empty).
     return NormalCompletion(Empty.EMPTY)
     # NOTE 2
@@ -8833,7 +9139,7 @@ def NumberFixups(realm):
     return NormalCompletion(None)
 
 if __name__ == '__main__':
-    rv, ok = ec(RunJobs(scripts=['{ b=3; b*=6; }']))
+    rv, ok = ec(RunJobs(scripts=['var xyz=67+99; xyz;']))
 
     if ok:
         print('Script returned %s' % nc(ToString(rv)))
