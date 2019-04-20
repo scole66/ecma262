@@ -1842,6 +1842,21 @@ def ToObject(argument):
         return NormalCompletion(argument)
     return ThrowCompletion(CreateTypeError())
 
+# 7.1.14 ToPropertyKey ( argument )
+def ToPropertyKey(argument):
+    # The abstract operation ToPropertyKey converts argument to a value that can be used as a property key by
+    # performing the following steps:
+    #
+    # 1. Let key be ? ToPrimitive(argument, hint String).
+    # 2. If Type(key) is Symbol, then
+    #    a. Return key.
+    # 3. Return ! ToString(key).
+    key, ok = ec(ToPrimitive(argument, 'string'))
+    if not ok:
+        return key
+    if isSymbol(key):
+        return NormalCompletion(key)
+    return NormalCompletion(nc(ToString(key)))
 
 # 7.1.16 CanonicalNumericIndexString ( argument )
 def CanonicalNumericIndexString(arg):
@@ -6244,6 +6259,17 @@ class PN_RelationalExpression_RelationalExpression_INSTANCEOF_ShiftExpression(PN
     def operate(self, lval, rval):
         # 5. Return ? InstanceofOperator(lval, rval).
         return InstanceofOperator(lval, rval)
+class PN_RelationalExpression_RelationalExpression_IN_ShiftExpression(PN_RelationalExpression_R_op_S):
+    # 12.10.3 Runtime Semantics: Evaluation
+    def operate(self, lval, rval):
+        # 5. If Type(rval) is not Object, throw a TypeError exception.
+        # 6. Return ? HasProperty(rval, ToPropertyKey(lval)).
+        if not isObject(rval):
+            return ThrowCompletion(CreateTypeError('Right-hand side of \'in\' must be of type Object'))
+        key, ok = ec(ToPropertyKey(lval))
+        if not ok:
+            return key
+        return HasProperty(rval, key)
 # 12.10.4 Runtime Semantics: InstanceofOperator ( V, target )
 def InstanceofOperator(V, target):
     # The abstract operation InstanceofOperator(V, target) implements the generic algorithm for determining if ECMAScript value
@@ -8709,7 +8735,7 @@ def NumberFixups(realm):
     return NormalCompletion(None)
 
 if __name__ == '__main__':
-    rv, ok = ec(RunJobs(scripts=['bob=3; bob*=2;']))
+    rv, ok = ec(RunJobs(scripts=["'prototype' in Object;"]))
 
     if ok:
         print('Script returned %s' % nc(ToString(rv)))
