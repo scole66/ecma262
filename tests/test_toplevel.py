@@ -70,6 +70,9 @@ def cleanup():
     ('{ b=3; b*=6; }', 18),
     ('var x;', None),
     ('var xyz=67+99; xyz;', 67+99),
+    ('1 * 1;', 1),
+    ('121 / 11;', 11),
+    ('67 % 16;', 3),
 ])
 def test_scripts_01(cleanup, script, result):
     rv = RunJobs(scripts=[script])

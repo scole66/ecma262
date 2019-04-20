@@ -6047,9 +6047,76 @@ class PN_UnaryExpression_UpdateExpression(ParseNode):
 class PN_ExponentiationExpression_UnaryExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('ExponentiationExpression', p)
-class PN_MultiplicativeExpression_ExponentiationExpression(ParseNode):
+################################################################################################################################################################################################
+#
+#  d888    .d8888b.      8888888888     888b     d888          888 888    d8b          888 d8b                   888    d8b
+# d8888   d88P  Y88b           d88P     8888b   d8888          888 888    Y8P          888 Y8P                   888    Y8P
+#   888          888          d88P      88888b.d88888          888 888                 888                       888
+#   888        .d88P         d88P       888Y88888P888 888  888 888 888888 888 88888b.  888 888  .d8888b  8888b.  888888 888 888  888  .d88b.
+#   888    .od888P"       88888888      888 Y888P 888 888  888 888 888    888 888 "88b 888 888 d88P"        "88b 888    888 888  888 d8P  Y8b
+#   888   d88P"            d88P         888  Y8P  888 888  888 888 888    888 888  888 888 888 888      .d888888 888    888 Y88  88P 88888888
+#   888   888"       d8b  d88P          888   "   888 Y88b 888 888 Y88b.  888 888 d88P 888 888 Y88b.    888  888 Y88b.  888  Y8bd8P  Y8b.
+# 8888888 888888888  Y8P d88P           888       888  "Y88888 888  "Y888 888 88888P"  888 888  "Y8888P "Y888888  "Y888 888   Y88P    "Y8888
+#                                                                             888
+#                                                                             888
+#                                                                             888
+#  .d88888b.                                     888
+# d88P" "Y88b                                    888
+# 888     888                                    888
+# 888     888 88888b.   .d88b.  888d888  8888b.  888888  .d88b.  888d888 .d8888b
+# 888     888 888 "88b d8P  Y8b 888P"       "88b 888    d88""88b 888P"   88K
+# 888     888 888  888 88888888 888     .d888888 888    888  888 888     "Y8888b.
+# Y88b. .d88P 888 d88P Y8b.     888     888  888 Y88b.  Y88..88P 888          X88
+#  "Y88888P"  88888P"   "Y8888  888     "Y888888  "Y888  "Y88P"  888      88888P'
+#             888
+#             888
+#             888
+#
+################################################################################################################################################################################################
+class PN_MultiplicativeExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('MultiplicativeExpression', p)
+class PN_MultiplicativeExpression_ExponentiationExpression(PN_MultiplicativeExpression):
+    pass
+class PN_MultiplicativeExpression_MultiplicativeOperator_ExponentiationExpression(PN_MultiplicativeExpression):
+    def IsFunctionDefinition(self):
+        # 12.7.1 Static Semantics: IsFunctionDefinition
+        #       MultiplicativeExpression : MultiplicativeExpression MultiplicativeOperator ExponentiationExpression
+        #   1. Return false.
+        return False
+    def IsValidSimpleAssignmentTarget(self):
+        # 12.7.2 Static Semantics: IsValidSimpleAssignmentTarget
+        #       MultiplicativeExpression : MultiplicativeExpression MultiplicativeOperator ExponentiationExpression
+        #   1. Return false.
+        return False
+    def evaluate(self):
+        # 12.7.3 Runtime Semantics: Evaluation
+        #       MultiplicativeExpression : MultiplicativeExpression MultiplicativeOperator ExponentiationExpression
+        MultiplicativeExpression = self.children[0]
+        MultiplicativeOperator = self.children[1]
+        ExponentiationExpression = self.children[2]
+        # 1. Let left be the result of evaluating MultiplicativeExpression.
+        left = MultiplicativeExpression.evaluate()
+        # 2. Let leftValue be ? GetValue(left).
+        leftValue, ok = ec(GetValue(left))
+        if not ok:
+            return leftValue
+        # 3. Let right be the result of evaluating ExponentiationExpression.
+        right = ExponentiationExpression.evaluate()
+        # 4. Let rightValue be ? GetValue(right).
+        rightValue, ok = ec(GetValue(right))
+        if not ok:
+            return rightValue
+        # 5. Let lnum be ? ToNumber(leftValue).
+        # 6. Let rnum be ? ToNumber(rightValue).
+        # 7. Return the result of applying the MultiplicativeOperator (*, /, or %) to lnum and rnum as specified in
+        #    12.7.3.1, 12.7.3.2, or 12.7.3.3.
+        return {'*': MultiplyOperation, '/': DivideOperation, '%': ModuloOperation}[MultiplicativeOperator.op()](leftValue, rightValue)
+class PN_MultiplicativeOperator(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('MultiplicativeOperator', p)
+    def op(self):
+        return self.children[0].value  # Will be '*' or '/' or '%'
 ################################################################################################################################################################################################
 #
 #  d888    .d8888b.       .d8888b.             d8888      888      888 d8b 888    d8b                        .d88888b.                                     888
@@ -7824,9 +7891,29 @@ class Ecma262Parser(Parser):
     def AdditiveExpression(self, p):
         return PN_AdditiveExpression_AdditiveExpression_MINUS_MultiplicativeExpression(self.context, p)
     ########################################################################################################################
+
+    ########################################################################################################################
+    # 12.7 Multiplicative Operators
+    #
+    # Syntax
+    #
+    # MultiplicativeExpression[Yield, Await] :
+    #               ExponentiationExpression[?Yield, ?Await]
+    #               MultiplicativeExpression[?Yield, ?Await] MultiplicativeOperator ExponentiationExpression[?Yield, ?Await]
+    #
+    # MultiplicativeOperator : one of
+    #               * / %
+    #
     @_('ExponentiationExpression')
     def MultiplicativeExpression(self, p):
         return PN_MultiplicativeExpression_ExponentiationExpression(self.context, p)
+    @_('MultiplicativeExpression MultiplicativeOperator ExponentiationExpression')
+    def MultiplicativeExpression(self, p):
+        return PN_MultiplicativeExpression_MultiplicativeOperator_ExponentiationExpression(self.context, p)
+    @_('STAR', 'DIV', 'PERCENT')
+    def MultiplicativeOperator(self, p):
+        return PN_MultiplicativeOperator(self.context, p)
+    ########################################################################################################################
     @_('UnaryExpression')
     def ExponentiationExpression(self, p):
         return PN_ExponentiationExpression_UnaryExpression(self.context, p)
@@ -9139,7 +9226,7 @@ def NumberFixups(realm):
     return NormalCompletion(None)
 
 if __name__ == '__main__':
-    rv, ok = ec(RunJobs(scripts=['67 in \'this is my string\';']))
+    rv, ok = ec(RunJobs(scripts=['67*3;']))
 
     if ok:
         print('Script returned %s' % nc(ToString(rv)))
