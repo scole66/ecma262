@@ -641,3 +641,24 @@ def test_IsExtensible_01(obj, mocker):
     obj.IsExtensible = ie
     res = IsExtensible(obj)
     ie.assert_called_once_with()
+
+# 7.1.14 ToPropertyKey ( argument )
+# The abstract operation ToPropertyKey converts argument to a value that can be used as a property key by performing
+# the following steps:
+#
+# 1. Let key be ? ToPrimitive(argument, hint String).
+# 2. If Type(key) is Symbol, then
+#   a. Return key.
+# 3. Return ! ToString(key).
+def test_ToPropertyKey_01():
+    res = ToPropertyKey(69)
+    assert res == Completion(NORMAL, '69', None)
+
+def test_ToPropertyKey_02():
+    res = ToPropertyKey(wks_to_primitive)
+    assert res == Completion(NORMAL, wks_to_primitive, None)
+
+def test_ToPropertyKey_03(mocker):
+    mocker.patch('ecmascript.ToPrimitive', return_value=Completion(THROW, 'throw test', None))
+    res = ToPropertyKey('a')
+    assert res == Completion(THROW, 'throw test', None)

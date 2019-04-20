@@ -64,6 +64,8 @@ def cleanup():
     pytest.param('-Infinity + -Infinity;', -math.inf, marks=pytest.mark.xfail),
     ('Infinity + Infinity;', math.inf),
     ('Infinity + 88;', math.inf),
+    ("'prototype' in Object;", True),
+    ("'yuccaplant' in Object;", False),
 ])
 def test_scripts_01(cleanup, script, result):
     rv = RunJobs(scripts=[script])
