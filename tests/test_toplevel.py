@@ -68,6 +68,8 @@ def cleanup():
     ("'yuccaplant' in Object;", False),
     ('{}', None),
     ('{ b=3; b*=6; }', 18),
+    ('var x;', None),
+    ('var xyz=67+99; xyz;', 67+99),
 ])
 def test_scripts_01(cleanup, script, result):
     rv = RunJobs(scripts=[script])
