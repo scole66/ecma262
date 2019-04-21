@@ -1877,7 +1877,7 @@ def IsArray(arg):
     if isinstance(arg, ProxyObject):
         # a. If argument.[[ProxyHandler]] is null, throw a TypeError exception.
         if isNull(arg.ProxyHandler):
-            return ThrowCompletion(CreateTypeError())
+            return ThrowCompletion(CreateTypeError('IsArray: Proxy object is missing a handler'))
         # b. Let target be argument.[[ProxyTarget]].
         target = arg.ProxyTarget
         # c. Return ? IsArray(target).
