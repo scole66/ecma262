@@ -61,7 +61,7 @@ def cleanup():
     ('3 + 7;', 10),
     ('100 - 25;', 75),
     ("'th' + 'ing';", 'thing'),
-    pytest.param('-Infinity + -Infinity;', -math.inf, marks=pytest.mark.xfail),
+    ('-Infinity + -Infinity;', -math.inf),
     ('Infinity + Infinity;', math.inf),
     ('Infinity + 88;', math.inf),
     ("'prototype' in Object;", True),
@@ -74,6 +74,16 @@ def cleanup():
     ('121 / 11;', 11),
     ('67 % 16;', 3),
     ('4**16;', 4**16),
+    ('xyz=8881; delete xyz;', True),
+    ('foo=NaN; typeof foo;', 'number'),
+    ('typeof missing;', 'undefined'),
+    ('typeof true;', 'boolean'),
+    ('typeof \'a\';', 'string'),
+    ('typeof Number;', 'function'),
+    ('+89;', 89),
+    ('-900;', -900),
+    ('~0x80008000;', 0x7fff7fff),
+    ('!true;', False),
 ])
 def test_scripts_01(cleanup, script, result):
     rv = RunJobs(scripts=[script])
@@ -82,8 +92,8 @@ def test_scripts_01(cleanup, script, result):
 @pytest.mark.parametrize('script', [
     'NaN + 3;',
     '78 + NaN;',
-    pytest.param('-Infinity + Infinity;', marks=pytest.mark.xfail),
-    pytest.param('Infinity + -Infinity;', marks=pytest.mark.xfail),
+    '-Infinity + Infinity;',
+    'Infinity + -Infinity;',
 ])
 def test_scripts_02(cleanup, script):
     # Check for those expressions that return NaN.

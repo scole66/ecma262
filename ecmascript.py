@@ -6069,10 +6069,258 @@ class PN_LeftHandSideExpression_NewExpression(ParseNode):
 class PN_UpdateExpression_LeftHandSideExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('UpdateExpression', p)
-class PN_UnaryExpression_UpdateExpression(ParseNode):
+################################################################################################################################################################################################
+#
+#  d888    .d8888b.      888888888      888     888
+# d8888   d88P  Y88b     888            888     888
+#   888          888     888            888     888
+#   888        .d88P     8888888b.      888     888 88888b.   8888b.  888d888 888  888
+#   888    .od888P"           "Y88b     888     888 888 "88b     "88b 888P"   888  888
+#   888   d88P"                 888     888     888 888  888 .d888888 888     888  888
+#   888   888"       d8b Y88b  d88P     Y88b. .d88P 888  888 888  888 888     Y88b 888
+# 8888888 888888888  Y8P  "Y8888P"       "Y88888P"  888  888 "Y888888 888      "Y88888
+#                                                                                  888
+#                                                                             Y8b d88P
+#                                                                              "Y88P"
+#  .d88888b.                                     888
+# d88P" "Y88b                                    888
+# 888     888                                    888
+# 888     888 88888b.   .d88b.  888d888  8888b.  888888  .d88b.  888d888 .d8888b
+# 888     888 888 "88b d8P  Y8b 888P"       "88b 888    d88""88b 888P"   88K
+# 888     888 888  888 88888888 888     .d888888 888    888  888 888     "Y8888b.
+# Y88b. .d88P 888 d88P Y8b.     888     888  888 Y88b.  Y88..88P 888          X88
+#  "Y88888P"  88888P"   "Y8888  888     "Y888888  "Y888  "Y88P"  888      88888P'
+#             888
+#             888
+#             888
+#
+################################################################################################################################################################################################
+class PN_UnaryExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('UnaryExpression', p)
-
+        self.strict = ctx.strict
+class PN_UnaryExpression_UpdateExpression(PN_UnaryExpression):
+    pass
+class PN_UnaryExpression_op(PN_UnaryExpression):
+    def IsFunctionDefinition(self):
+        return False
+    def IsValidSimpleAssignmentTarget(self):
+        return False
+class PN_UnaryExpression_DELETE_UnaryExpression(PN_UnaryExpression_op):
+    # 12.5.3 The delete Operator
+    def EarlyErrors(self):
+        errs = []
+        if self.strict:
+            # * It is a Syntax Error if the UnaryExpression is contained in strict mode code and the derived
+            #   UnaryExpression is PrimaryExpression:IdentifierReference .
+            # * It is a Syntax Error if the derived UnaryExpression is
+            #   PrimaryExpression:CoverParenthesizedExpressionAndArrowParameterList and
+            #   CoverParenthesizedExpressionAndArrowParameterList ultimately derives a phrase that, if used in place of
+            #   UnaryExpression, would produce a Syntax Error according to these rules. This rule is recursively applied.
+            # NOTE
+            # The last rule means that expressions such as delete (((foo))) produce early errors because of recursive
+            # application of the first rule.
+            # --> I'm pretty sure the only way this would happen is exactly the example they give.
+            #
+            UnaryExpression = self.children[1]
+            p = UnaryExpression
+            while 1:
+                if len(p.children) != 1 or not isinstance(p.children[0], ParseNode):
+                    break
+                if p.name == 'PrimaryExpression':
+                    if p.children[0].name == 'IdentifierReference':
+                        errs.append('Cannot delete a top-level property in strict mode')
+                        break
+                    if (p.children[0].name == 'CoverParenthesizedExpressionAndArrowParameterList' and
+                        len(p.children[0].children) == 3 and
+                        p.children[0].children[1].name == 'Expression'):
+                        p = p.children[0].children[1]
+                        continue
+                p = p.children[0]
+        return errs
+    def evaluate(self):
+        # 12.5.3.2 Runtime Semantics: Evaluation
+        #           UnaryExpression : delete UnaryExpression
+        UnaryExpression = self.children[1]
+        #   1. Let ref be the result of evaluating UnaryExpression.
+        #   2. ReturnIfAbrupt(ref).
+        ref, ok = ec(UnaryExpression.evaluate())
+        if not ok:
+            return ref
+        #   3. If Type(ref) is not Reference, return true.
+        if not isinstance(ref, Reference):
+            return NormalCompletion(True)
+        #   4. If IsUnresolvableReference(ref) is true, then
+        if IsUnresolvableReference(ref):
+            #   a. Assert: IsStrictReference(ref) is false.
+            assert not IsStrictReference(ref)
+            #   b. Return true.
+            return NormalCompletion(True)
+        #   5. If IsPropertyReference(ref) is true, then
+        if IsPropertyReference(ref):
+            #   a. If IsSuperReference(ref) is true, throw a ReferenceError exception.
+            if IsSuperReference(ref):
+                return ThrowCompletion(CreateReferenceError('Can\'t delete super references'))
+            #   b. Let baseObj be ! ToObject(GetBase(ref)).
+            baseObj = nc(ToObject(GetBase(ref)))
+            #   c. Let deleteStatus be ? baseObj.[[Delete]](GetReferencedName(ref)).
+            deleteStatus, ok = ec(baseObj.Delete(GetReferencedName(ref)))
+            if not ok:
+                return deleteStatus
+            #   d. If deleteStatus is false and IsStrictReference(ref) is true, throw a TypeError exception.
+            if not deleteStatus and IsStrictReference(ref):
+                return ThrowCompletion(CreateTypeError(f'Couldn\'t delete {GetReferencedName(ref)!r}.'))
+            #   e. Return deleteStatus.
+            return NormalCompletion(deleteStatus)
+        #   6. Else ref is a Reference to an Environment Record binding,
+        #   a. Let bindings be GetBase(ref).
+        bindings = GetBase(ref)
+        #   b. Return ? bindings.DeleteBinding(GetReferencedName(ref)).
+        return bindings.DeleteBinding(GetReferencedName(ref))
+        # NOTE
+        # When a delete operator occurs within strict mode code, a SyntaxError exception is thrown if its
+        # UnaryExpression is a direct reference to a variable, function argument, or function name. In addition, if a
+        # delete operator occurs within strict mode code and the property to be deleted has the attribute
+        # { [[Configurable]]: false }, a TypeError exception is thrown.
+class PN_UnaryExpression_VOID_UnaryExpression(PN_UnaryExpression_op):
+    # 12.5.4 The void Operator
+    def evaluate(self):
+        # 12.5.4.1 Runtime Semantics: Evaluation
+        #           UnaryExpression : void UnaryExpression
+        # 1. Let expr be the result of evaluating UnaryExpression.
+        # 2. Perform ? GetValue(expr).
+        # 3. Return undefined.
+        # NOTE
+        # GetValue must be called even though its value is not used because it may have observable side-effects.
+        cr, ok = ec(GetValue(self.children[1].evaluate()))
+        if not ok:
+            return cr
+        return NormalCompletion(None)
+class PN_UnaryExpression_TYPEOF_UnaryExpression(PN_UnaryExpression_op):
+    # 12.5.5 The typeof Operator
+    def evaluate(self):
+        # 12.5.5.1 Runtime Semantics: Evaluation
+        #           UnaryExpression : typeof UnaryExpression
+        # 1. Let val be the result of evaluating UnaryExpression.
+        # 2. If Type(val) is Reference, then
+        #   a. If IsUnresolvableReference(val) is true, return "undefined".
+        # 3. Set val to ? GetValue(val).
+        # 4. Return a String according to Table 35.
+        #
+        # Table 35: typeof Operator Results
+        # +----------------------------------------------------------+-------------------------------------------------
+        # | Type of val                                              | Result
+        # +----------------------------------------------------------+-------------------------------------------------
+        # | Undefined                                                | "undefined"
+        # +----------------------------------------------------------+-------------------------------------------------
+        # | Null                                                     | "object"
+        # +----------------------------------------------------------+-------------------------------------------------
+        # | Boolean                                                  | "boolean"
+        # +----------------------------------------------------------+-------------------------------------------------
+        # | Number                                                   | "number"
+        # +----------------------------------------------------------+-------------------------------------------------
+        # | String                                                   | "string"
+        # +----------------------------------------------------------+-------------------------------------------------
+        # | Symbol                                                   | "symbol"
+        # +----------------------------------------------------------+-------------------------------------------------
+        # | Object (ordinary and does not implement [[Call]])        | "object"
+        # +----------------------------------------------------------+-------------------------------------------------
+        # | Object (standard exotic and does not implement [[Call]]) | "object"
+        # +----------------------------------------------------------+-------------------------------------------------
+        # | Object (implements [[Call]])                             | "function"
+        # +----------------------------------------------------------+-------------------------------------------------
+        # | Object (non-standard exotic and does not                 | Implementation-defined. Must not be "undefined",
+        # | implement [[Call]])                                      | "boolean", "function", "number", "symbol", or
+        # |                                                          |  "string".
+        # +----------------------------------------------------------+-------------------------------------------------
+        # NOTE
+        # Implementations are discouraged from defining new typeof result values for non-standard exotic objects. If
+        # possible "object" should be used for such objects.
+        val, ok = ec(self.children[1].evaluate())
+        if not ok:
+            return val
+        if isinstance(val, Reference) and IsUnresolvableReference(val):
+            return NormalCompletion('undefined')
+        val, ok = ec(GetValue(val))
+        if not ok:
+            return val
+        type_matrix = [
+            (isUndefined, 'undefined'),
+            (isNull, 'object'),
+            (isBoolean, 'boolean'),
+            (isNumber, 'number'),
+            (isString, 'string'),
+            (isSymbol, 'symbol'),
+            (lambda x: isObject(x) and not hasattr(x, 'Call'), 'object'),
+            (isObject, 'function'),
+        ]
+        return NormalCompletion(next(result for check, result in type_matrix if check(val)))
+class PN_UnaryExpression_PLUS_UnaryExpression(PN_UnaryExpression_op):
+    # 12.5.6 Unary + Operator
+    # NOTE
+    # The unary + operator converts its operand to Number type.
+    def evaluate(self):
+        # 12.5.6.1 Runtime Semantics: Evaluation
+        #           UnaryExpression : + UnaryExpression
+        # 1. Let expr be the result of evaluating UnaryExpression.
+        # 2. Return ? ToNumber(? GetValue(expr)).
+        val, ok = ec(GetValue(self.children[1].evaluate()))
+        if not ok:
+            return val
+        return ToNumber(val)
+class PN_UnaryExpression_MINUS_UnaryExpression(PN_UnaryExpression_op):
+    # 12.5.7 Unary - Operator
+    # NOTE
+    # The unary - operator converts its operand to Number type and then negates it. Negating +0 produces -0, and
+    # negating -0 produces +0.
+    def evaluate(self):
+        # 12.5.7.1 Runtime Semantics: Evaluation
+        #           UnaryExpression : - UnaryExpression
+        # 1. Let expr be the result of evaluating UnaryExpression.
+        # 2. Let oldValue be ? ToNumber(? GetValue(expr)).
+        # 3. If oldValue is NaN, return NaN.
+        # 4. Return the result of negating oldValue; that is, compute a Number with the same magnitude but opposite
+        #    sign.
+        UnaryExpression = self.children[1]
+        expr, ok = ec(GetValue(UnaryExpression.evaluate()))
+        if not ok:
+            return expr
+        oldValue, ok = ec(ToNumber(expr))
+        if not ok:
+            return oldValue
+        if math.isnan(oldValue):
+            return NormalCompletion(math.nan)
+        return NormalCompletion(-oldValue)
+class PN_UnaryExpression_TILDE_UnaryExpression(PN_UnaryExpression_op):
+    # 12.5.8 Bitwise NOT Operator ( ~ )
+    def evaluate(self):
+        # 12.5.8.1 Runtime Semantics: Evaluation
+        #           UnaryExpression : ~ UnaryExpression
+        # 1. Let expr be the result of evaluating UnaryExpression.
+        # 2. Let oldValue be ? ToInt32(? GetValue(expr)).
+        # 3. Return the result of applying bitwise complement to oldValue. The result is a signed 32-bit integer.
+        UnaryExpression = self.children[1]
+        expr, ok = ec(GetValue(UnaryExpression.evaluate()))
+        if not ok:
+            return expr
+        oldValue, ok = ec(ToInt32(expr))
+        if not ok:
+            return oldValue
+        return NormalCompletion(nc(ToInt32(~oldValue)))
+class PN_UnaryExpression_BANG_UnaryExpression(PN_UnaryExpression_op):
+    # 12.5.9 Logical NOT Operator ( ! )
+    def evaluate(self):
+        # 12.5.9.1 Runtime Semantics: Evaluation
+        #           UnaryExpression : ! UnaryExpression
+        # 1. Let expr be the result of evaluating UnaryExpression.
+        # 2. Let oldValue be ToBoolean(? GetValue(expr)).
+        # 3. If oldValue is true, return false.
+        # 4. Return true.
+        expr, ok = ec(GetValue(self.children[1].evaluate()))
+        if not ok:
+            return expr
+        oldValue = ToBoolean(expr)
+        return NormalCompletion(not oldValue)
 ################################################################################################################################################################################################
 #
 #  d888    .d8888b.       .d8888b.      8888888888                                                       888    d8b          888    d8b
@@ -7484,27 +7732,24 @@ class Ecma262Parser(Parser):
     start = 'Script'
     debugfile = 'parser.out'
 
-    def __init__(self, text):
-        super().__init__()
-        self.source_text = text
-
     def error(self, p):
         raise SyntaxError(f'Syntax Error in script. Offending token: {p!r}')
 
     class ParseContext:
-        __slots__ = ['goal', 'strict', 'direct_eval']
-        def __init__(self, goal, strict):
+        __slots__ = ['goal', 'strict', 'direct_eval', 'source_text']
+        def __init__(self, goal, strict, source_text):
             self.goal = goal
             self.strict = strict
             self.direct_eval = False
+            self.source_text = source_text
         def __repr__(self):
             return f'ParseContext(goal={self.goal}, strict={self.strict})'
 
-    def __init__(self, strict=False, start=None):
+    def __init__(self, strict=False, start=None, source_text=''):
         if start:
             self.start = start
         super().__init__()
-        self.context = self.ParseContext(self.start, strict)
+        self.context = self.ParseContext(self.start, strict, source_text)
 
     ########################################################################################################################
     # 15.1 Scripts
@@ -8024,6 +8269,24 @@ class Ecma262Parser(Parser):
     @_('UpdateExpression')
     def UnaryExpression(self, p):
         return PN_UnaryExpression_UpdateExpression(self.context, p)
+    @_('DELETE UnaryExpression')
+    def UnaryExpression(self, p):
+        return PN_UnaryExpression_DELETE_UnaryExpression(self.context, p)
+    @_('TYPEOF UnaryExpression')
+    def UnaryExpression(self, p):
+        return PN_UnaryExpression_TYPEOF_UnaryExpression(self.context, p)
+    @_('PLUS UnaryExpression')
+    def UnaryExpression(self, p):
+        return PN_UnaryExpression_PLUS_UnaryExpression(self.context, p)
+    @_('MINUS UnaryExpression')
+    def UnaryExpression(self, p):
+        return PN_UnaryExpression_MINUS_UnaryExpression(self.context, p)
+    @_('TILDE UnaryExpression')
+    def UnaryExpression(self, p):
+        return PN_UnaryExpression_TILDE_UnaryExpression(self.context, p)
+    @_('BANG UnaryExpression')
+    def UnaryExpression(self, p):
+        return PN_UnaryExpression_BANG_UnaryExpression(self.context, p)
     ########################################################################################################################
 
     ########################################################################################################################
@@ -8174,7 +8437,7 @@ def ParseScript(sourceText, realm, hostDefined):
     #    early error is present, the number and ordering of error objects in the list is implementation-dependent, but at least
     #    one must be present.
     lex = Lexer(sourceText)
-    psr = Ecma262Parser(sourceText)
+    psr = Ecma262Parser(start='Script', source_text=sourceText)
     tree = psr.parse(lex.lex())
     errs = tree.EarlyErrorsScan()
     body = errs or tree
@@ -9333,7 +9596,7 @@ def NumberFixups(realm):
     return NormalCompletion(None)
 
 if __name__ == '__main__':
-    rv, ok = ec(RunJobs(scripts=['67*3;']))
+    rv, ok = ec(RunJobs(scripts=['-89;']))
 
     if ok:
         print('Script returned %s' % nc(ToString(rv)))
