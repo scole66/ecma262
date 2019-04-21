@@ -6620,9 +6620,146 @@ class PN_NewExpression_MemberExpression(ParseNode):
 class PN_LeftHandSideExpression_NewExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('LeftHandSideExpression', p)
-class PN_UpdateExpression_LeftHandSideExpression(ParseNode):
+################################################################################################################################################################################################
+#
+#  d888    .d8888b.          d8888      888     888               888          888
+# d8888   d88P  Y88b        d8P888      888     888               888          888
+#   888          888       d8P 888      888     888               888          888
+#   888        .d88P      d8P  888      888     888 88888b.   .d88888  8888b.  888888  .d88b.
+#   888    .od888P"      d88   888      888     888 888 "88b d88" 888     "88b 888    d8P  Y8b
+#   888   d88P"          8888888888     888     888 888  888 888  888 .d888888 888    88888888
+#   888   888"       d8b       888      Y88b. .d88P 888 d88P Y88b 888 888  888 Y88b.  Y8b.
+# 8888888 888888888  Y8P       888       "Y88888P"  88888P"   "Y88888 "Y888888  "Y888  "Y8888
+#                                                   888
+#                                                   888
+#                                                   888
+# 8888888888                                                      d8b
+# 888                                                             Y8P
+# 888
+# 8888888    888  888 88888b.  888d888  .d88b.  .d8888b  .d8888b  888  .d88b.  88888b.  .d8888b
+# 888        `Y8bd8P' 888 "88b 888P"   d8P  Y8b 88K      88K      888 d88""88b 888 "88b 88K
+# 888          X88K   888  888 888     88888888 "Y8888b. "Y8888b. 888 888  888 888  888 "Y8888b.
+# 888        .d8""8b. 888 d88P 888     Y8b.          X88      X88 888 Y88..88P 888  888      X88
+# 8888888888 888  888 88888P"  888      "Y8888   88888P'  88888P' 888  "Y88P"  888  888  88888P'
+#                     888
+#                     888
+#                     888
+#
+################################################################################################################################################################################################
+class PN_UpdateExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('UpdateExpression', p)
+class PN_UpdateExpression_LeftHandSideExpression(PN_UpdateExpression):
+    pass
+class PN_UpdateExpression_NotFallthru(PN_UpdateExpression):
+    # 12.4.2 Static Semantics: IsFunctionDefinition
+    def IsFunctionDefinition(self):
+        return False
+    # 12.4.3 Static Semantics: IsValidSimpleAssignmentTarget
+    def IsValidSimpleAssignmentTarget(self):
+        return False
+class PN_UpdateExpression_prefix(PN_UpdateExpression_NotFallthru):
+    # 12.4.1 Static Semantics: Early Errors
+    def EarlyErrors(self):
+        UnaryExpression = self.children[1]
+        if not UnaryExpression.IsValidSimpleAssignmentTarget():
+            return [CreateReferenceError('Invalid Reference for prefix update')]
+        return []
+class PN_UpdateExpression_postfix(PN_UpdateExpression_NotFallthru):
+    # 12.4.1 Static Semantics: Early Errors
+    def EarlyErrors(self):
+        LeftHandSideExpression = self.children[0]
+        return [CreateReferenceError('Invalid Reference for postfix update')] if not LeftHandSideExpression.IsValidSimpleAssignmentTarget() else []
+class PN_UpdateExpression_LeftHandSideExpression_PLUSPLUS(PN_UpdateExpression_postfix):
+    # 12.4.4 Postfix Increment Operator
+    def evaluate(self):
+        # 12.4.4.1 Runtime Semantics: Evaluation
+        #           UpdateExpression : LeftHandSideExpression ++
+        # 1. Let lhs be the result of evaluating LeftHandSideExpression.
+        # 2. Let oldValue be ? ToNumber(? GetValue(lhs)).
+        # 3. Let newValue be the result of adding the value 1 to oldValue, using the same rules as for the + operator (see 12.8.5).
+        # 4. Perform ? PutValue(lhs, newValue).
+        # 5. Return oldValue.
+        LeftHandSideExpression = self.children[0]
+        lhs = LeftHandSideExpression.evaluate()
+        oldValue, ok = ec(GetValue(lhs))
+        if not ok:
+            return oldValue
+        oldValue, ok = ec(ToNumber(oldValue))
+        if not ok:
+            return oldValue
+        cr, ok = ec(PutValue(lhs, oldValue + 1))
+        if not ok:
+            return cr
+        return oldValue
+class PN_UpdateExpression_LeftHandSideExpression_MINUSMINUS(PN_UpdateExpression_postfix):
+    # 12.4.5 Postfix Decrement Operator
+    def evaluate(self):
+        # 12.4.5.1 Runtime Semantics: Evaluation
+        #           UpdateExpression : LeftHandSideExpression --
+        # 1. Let lhs be the result of evaluating LeftHandSideExpression.
+        # 2. Let oldValue be ? ToNumber(? GetValue(lhs)).
+        # 3. Let newValue be the result of subtracting the value 1 from oldValue, using the same rules as for the - operator (see 12.8.5).
+        # 4. Perform ? PutValue(lhs, newValue).
+        # 5. Return oldValue.
+        LeftHandSideExpression = self.children[0]
+        lhs = LeftHandSideExpression.evaluate()
+        oldValue, ok = ec(GetValue(lhs))
+        if not ok:
+            return oldValue
+        oldValue, ok = ec(ToNumber(oldValue))
+        if not ok:
+            return oldValue
+        cr, ok = ec(PutValue(lhs, oldValue - 1))
+        if not ok:
+            return cr
+        return oldValue
+class PN_UpdateExpression_PLUSPLUS_UnaryExpression(PN_UpdateExpression_prefix):
+    # 12.4.6 Prefix Increment Operator
+    def evaluate(self):
+        # 12.4.6.1 Runtime Semantics: Evaluation
+        #           UpdateExpression : ++ UnaryExpression
+        # 1. Let expr be the result of evaluating UnaryExpression.
+        # 2. Let oldValue be ? ToNumber(? GetValue(expr)).
+        # 3. Let newValue be the result of adding the value 1 to oldValue, using the same rules as for the + operator (see 12.8.5).
+        # 4. Perform ? PutValue(expr, newValue).
+        # 5. Return newValue.
+        UnaryExpression = self.children[1]
+        expr = UnaryExpression.evaluate()
+        oldValue, ok = ec(GetValue(expr))
+        if not ok:
+            return oldValue
+        oldValue, ok = ec(ToNumber(oldValue))
+        if not ok:
+            return oldValue
+        newValue = oldValue + 1
+        cr, ok = ec(PutValue(expr, newValue))
+        if not ok:
+            return cr
+        return newValue
+class PN_UpdateExpression_MINUSMINUS_UnaryExpression(PN_UpdateExpression_prefix):
+    # 12.4.7 Prefix Decrement Operator
+    def evaluate(self):
+        # 12.4.7.1 Runtime Semantics: Evaluation
+        #           UpdateExpression : -- UnaryExpression
+        # 1. Let expr be the result of evaluating UnaryExpression.
+        # 2. Let oldValue be ? ToNumber(? GetValue(expr)).
+        # 3. Let newValue be the result of subtracting the value 1 from oldValue, using the same rules as for the - operator (see 12.8.5).
+        # 4. Perform ? PutValue(expr, newValue).
+        # 5. Return newValue.
+        UnaryExpression = self.children[1]
+        expr = UnaryExpression.evaluate()
+        oldValue, ok = ec(GetValue(expr))
+        if not ok:
+            return oldValue
+        oldValue, ok = ec(ToNumber(oldValue))
+        if not ok:
+            return oldValue
+        newValue = oldValue - 1
+        cr, ok = ec(PutValue(expr, newValue))
+        if not ok:
+            return cr
+        return newValue
 ################################################################################################################################################################################################
 #
 #  d888    .d8888b.      888888888      888     888
@@ -8844,9 +8981,35 @@ class Ecma262Parser(Parser):
     ########################################################################################################################
 
     ########################################################################################################################
+    # 12.4 Update Expressions
+    #
+    # Syntax
+    #
+    # UpdateExpression[Yield, Await] :
+    #           LeftHandSideExpression[?Yield, ?Await]
+    #           LeftHandSideExpression[?Yield, ?Await] [no LineTerminator here] ++
+    #           LeftHandSideExpression[?Yield, ?Await] [no LineTerminator here] --
+    #           ++ UnaryExpression[?Yield, ?Await]
+    #           -- UnaryExpression[?Yield, ?Await]
+    #
     @_('LeftHandSideExpression')
     def UpdateExpression(self, p):
         return PN_UpdateExpression_LeftHandSideExpression(self.context, p)
+    @_('LeftHandSideExpression PLUSPLUS')
+    def UpdateExpression(self, p):
+        return PN_UpdateExpression_LeftHandSideExpression_PLUSPLUS(self.context, p)
+    @_('LeftHandSideExpression MINUSMINUS')
+    def UpdateExpression(self, p):
+        return PN_UpdateExpression_LeftHandSideExpression_MINUSMINUS(self.context, p)
+    @_('PLUSPLUS UnaryExpression')
+    def UpdateExpression(self, p):
+        return PN_UpdateExpression_PLUSPLUS_UnaryExpression(self.context, p)
+    @_('MINUSMINUS UnaryExpression')
+    def UpdateExpression(self, p):
+        return PN_UpdateExpression_MINUSMINUS_UnaryExpression(self.context, p)
+    ########################################################################################################################
+
+    ########################################################################################################################
     @_('NewExpression')
     def LeftHandSideExpression(self, p):
         return PN_LeftHandSideExpression_NewExpression(self.context, p)

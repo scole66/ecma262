@@ -84,6 +84,12 @@ def cleanup():
     ('-900;', -900),
     ('~0x80008000;', 0x7fff7fff),
     ('!true;', False),
+    ('x=100; --x;', 99),
+    ('x=100; x--;', 100),
+    ('x=100; x--; x;', 99),
+    ('x=100; ++x;', 101),
+    ('x=100; x++;', 100),
+    ('x=100; x++; x;', 101),
 ])
 def test_scripts_01(cleanup, script, result):
     rv = RunJobs(scripts=[script])
