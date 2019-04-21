@@ -662,3 +662,55 @@ def test_ToPropertyKey_03(mocker):
     mocker.patch('ecmascript.ToPrimitive', return_value=Completion(THROW, 'throw test', None))
     res = ToPropertyKey('a')
     assert res == Completion(THROW, 'throw test', None)
+
+# 7.2.2 IsArray ( argument )
+#
+# The abstract operation IsArray takes one argument argument, and performs the following steps:
+#
+# 1. If Type(argument) is not Object, return false.
+# 2. If argument is an Array exotic object, return true.
+# 3. If argument is a Proxy exotic object, then
+#    a. If argument.[[ProxyHandler]] is null, throw a TypeError exception.
+#    b. Let target be argument.[[ProxyTarget]].
+#    c. Return ? IsArray(target).
+# 4. Return false.
+def test_IsArray_01(realm):
+    # arg isn't an object.
+    res = IsArray('foo')
+    assert res == Completion(NORMAL, False, None)
+
+def test_IsArray_02(realm):
+    # arg is an array.
+    arg = nc(ArrayCreate(10, realm.intrinsics['%ObjectPrototype%']))
+    res = IsArray(arg)
+    assert res == Completion(NORMAL, True, None)
+
+def test_IsArray_03(realm):
+    # arg is a busted proxy object.
+    arg = ProxyObject()
+    arg.ProxyHandler = JSNull.NULL
+    res = IsArray(arg)
+    assert res.ctype == THROW
+    assert res.target is None
+    assert isinstance(res.value, TypeError)
+
+def test_IsArray_04(realm):
+    # arg is a proxy object with a proxy target that's an array.
+    arg = ProxyObject()
+    arg.ProxyHandler = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
+    arg.ProxyTarget = nc(ArrayCreate(10, realm.intrinsics['%ObjectPrototype%']))
+    res = IsArray(arg)
+    assert res == Completion(NORMAL, True, None)
+
+def test_IsArray_05(realm):
+    # arg is a proxy object with a proxy target that isn't an array.
+    arg = ProxyObject()
+    arg.ProxyHandler = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
+    arg.ProxyTarget = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
+    res = IsArray(arg)
+    assert res == Completion(NORMAL, False, None)
+
+def test_IsArray_06(obj):
+    # An object that's not an array
+    res = IsArray(obj)
+    assert res == Completion(NORMAL, False, None)
