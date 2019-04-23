@@ -90,6 +90,13 @@ def cleanup():
     ('x=100; ++x;', 101),
     ('x=100; x++;', 100),
     ('x=100; x++; x;', 101),
+    ('new Number - 0;', 0),
+    ('new Number(60) - 0;', 60),
+    ("Number('55');", 55),
+    ('      Boolean(60);', True),
+    ('n = new Number(3); n[\'extra\'] = 6; n[\'extra\'];', 6),
+    ('puppy = new Boolean(false); puppy[\'true\'] = 888; puppy.true;', 888),
+    ('bob = new Object(); bob.thing_1 = 99; bob.thing_2 = 102; bob.NUMBER = -1234;', -1234),
 ])
 def test_scripts_01(cleanup, script, result):
     rv = RunJobs(scripts=[script])

@@ -629,7 +629,7 @@ def OrdinarySetWithOwnDescriptor(obj, propkey, value, receiver, own_desc):
     if setter is None:
         return NormalCompletion(False)
     # 7. Perform ? Call(setter, Receiver, « V »).
-    result, ok = ec(Call(setter, receiver, value))
+    result, ok = ec(Call(setter, receiver, [value]))
     if not ok:
         return result
     # 8. Return true.
@@ -1475,8 +1475,7 @@ def ToPrimitive(input, preferred_type='default'):
         # e. If exoticToPrim is not undefined, then
         if exotic_to_prim is not None:
             # i. Let result be ? Call(exoticToPrim, input, � hint �).
-            # --> spec bug. That hint should not be in a list.
-            result, ok = ec(Call(exotic_to_prim, input, preferred_type))
+            result, ok = ec(Call(exotic_to_prim, input, [preferred_type]))
             if not ok:
                 return result
             # ii. If Type(result) is not Object, return result.
@@ -1800,13 +1799,13 @@ def ToObject(argument):
     # | Object        | Return argument.
     # +---------------+-------------------------------------------------------------------------------------------------
     if isBoolean(argument):
-        return Construct(intrinsics['%Boolean%'], argument)
+        return Construct(intrinsics['%Boolean%'], [argument])
     if isNumber(argument):
-        return Construct(intrinsics['%Number%'], argument)
+        return Construct(intrinsics['%Number%'], [argument])
     if isString(argument):
-        return Construct(intrinsics['%String%'], argument)
+        return Construct(intrinsics['%String%'], [argument])
     if isSymbol(argument):
-        return Construct(intrinsics['%Symbol%'], argument)
+        return Construct(intrinsics['%Symbol%'], [argument])
     if isObject(argument):
         return NormalCompletion(argument)
     return ThrowCompletion(CreateTypeError())
@@ -1863,6 +1862,21 @@ def CanonicalNumericIndexString(arg):
 #                                                                                  "Y88P"                                                                       888                                                                      888
 #
 #################################################################################################################################################################################################################################################################################################################
+# 7.2.1 RequireObjectCoercible ( argument )
+def RequireObjectCoercible(argument):
+    # The abstract operation RequireObjectCoercible throws an error if argument is a value that cannot be converted to an Object using ToObject. It is defined by Table 13:
+    #
+    # Table 13: RequireObjectCoercible Results
+    # Argument Type	Result
+    # Undefined	Throw a TypeError exception.
+    # Null	Throw a TypeError exception.
+    # Boolean	Return argument.
+    # Number	Return argument.
+    # String	Return argument.
+    # Symbol	Return argument.
+    # Object	Return argument.
+    return ThrowCompletion(CreateTypeError('Must be a coercible value')) if isNull(argument) or isUndefined(argument) else NormalCompletion(argument)
+
 # 7.2.2 IsArray ( argument )
 def IsArray(arg):
     # The abstract operation IsArray takes one argument argument, and performs the following steps:
@@ -2317,7 +2331,7 @@ def HasOwnProperty(O, P):
     return NormalCompletion(desc is not None)
 
 # 7.3.12 Call ( F, V [ , argumentsList ] )
-def Call(func, value, *args):
+def Call(func, value, args=[]):
     # The abstract operation Call is used to call the [[Call]] internal method of a function object. The operation is
     # called with arguments F, V, and optionally argumentsList where F is the function object, V is an ECMAScript
     # language value that is the this value of the [[Call]], and argumentsList is the value passed to the corresponding
@@ -2332,7 +2346,7 @@ def Call(func, value, *args):
     return func.Call(value, args)
 
 # 7.3.13 Construct ( F [ , argumentsList [ , newTarget ]] )
-def Construct(func, *args, newTarget=missing.MISSING):
+def Construct(func, args, newTarget=missing.MISSING):
     # The abstract operation Construct is used to call the [[Construct]] internal method of a function object. The operation is
     # called with arguments F, and optionally argumentsList, and newTarget where F is the function object. argumentsList and
     # newTarget are the values to be passed as the corresponding arguments of the internal method. If argumentsList is not
@@ -3277,24 +3291,24 @@ class GlobalEnvironmentRecord:
     # 8.1.1.4.8 HasThisBinding ( )
     def HasThisBinding(self):
         # Return true.
-        return NormalCompletion(True)
+        return True
 
     # 8.1.1.4.9 HasSuperBinding ( )
     def HasSuperBinding(self):
         # Return false.
-        return NormalCompletion(False)
+        return False
 
     # 8.1.1.4.10 WithBaseObject ( )
     def WithBaseObject(self):
         # Global Environment Records always return undefined as their WithBaseObject.
         # Return undefined.
-        return NormalCompletion(None)
+        return None
 
     # 8.1.1.4.11 GetThisBinding ( )
     def GetThisBinding(self):
         # 1. Let envRec be the global Environment Record for which the method was invoked.
         # 2. Return envRec.[[GlobalThisValue]].
-        return NormalCompletion(self.global_this_value)
+        return self.global_this_value
 
     # 8.1.1.4.12 HasVarDeclaration ( N )
     def HasVarDeclaration(self, name):
@@ -3306,7 +3320,7 @@ class GlobalEnvironmentRecord:
         # 2. Let varDeclaredNames be envRec.[[VarNames]].
         # 3. If varDeclaredNames contains N, return true.
         # 4. Return false.
-        return NormalCompletion(name in self.var_names)
+        return name in self.var_names
 
     # 8.1.1.4.13 HasLexicalDeclaration ( N )
     def HasLexicalDeclaration(self, name):
@@ -3487,7 +3501,7 @@ def GetIdentifierReference(lex, name, strict):
     if isNull(lex):
         # a. Return a value of type Reference whose base value component is undefined, whose referenced name component
         #    is name, and whose strict reference flag is strict.
-        return NormalCompletion(Reference(None, name, strict))
+        return Reference(None, name, strict)
     # 2. Let envRec be lex's EnvironmentRecord.
     env_rec = lex.environment_record
     # 3. Let exists be ? envRec.HasBinding(name).
@@ -3498,7 +3512,7 @@ def GetIdentifierReference(lex, name, strict):
     if exists:
         # a. Return a value of type Reference whose base value component is envRec, whose referenced name component is
         # name, and whose strict reference flag is strict.
-        return NormalCompletion(Reference(env_rec, name, strict))
+        return Reference(env_rec, name, strict)
     # 5. Else,
     # a. Let outer be the value of lex's outer environment reference.
     outer = lex.outer
@@ -5392,7 +5406,7 @@ def ArraySpeciescreate(originalArray, length):
     if not IsConstructor(C):
         return ThrowCompletion(CreateTypeError())
     # 10. Return ? Construct(C, « length »).
-    return Construct(C, length)
+    return Construct(C, [length])
     # NOTE
     # If originalArray was created using the standard built-in Array constructor for a realm that is not the realm of the
     # running execution context, then a new Array is created using the realm of the running execution context. This maintains
@@ -5556,8 +5570,15 @@ class Lexer():
         'FINALLY', 'FOR', 'FUNCTION', 'IF', 'IMPORT', 'IN', 'INSTANCEOF',
         'NEW', 'RETURN', 'SUPER', 'SWITCH', 'THIS', 'THROW', 'TRY', 'TYPEOF',
         'VAR', 'VOID', 'WHILE', 'WITH', 'YIELD', 'ENUM', 'NULL', 'TRUE',
-        'FALSE'
+        'FALSE',
+
+        'GOAL_SCRIPT', 'GOAL_CALLMEMBEREXPRESSION'
          }
+
+    GoalTokens = {
+        'Script': 'GOAL_SCRIPT',
+        'CallMemberExpression': 'GOAL_CALLMEMBEREXPRESSION',
+    }
 
     class TokenValue:
         __slots__ = ('name', 'value', 'lt_follows', 'index', 'length')
@@ -5579,12 +5600,13 @@ class Lexer():
         '\u2029'  # <PS> PARAGRAPH SEPARATOR
     )
 
-    def __init__(self, source_text):
+    def __init__(self, source_text, first_token='Script'):
         super().__init__()
         self.source = source_text
         self.linenum = 1
         self.start = 0
         self.pos = 0
+        self.first_token = self.GoalTokens[first_token]
 
     def _swallow(self, end_prior):
         self.start = self.pos
@@ -6326,7 +6348,7 @@ class Lexer():
 
     def lex(self, goal=Goal.InputElementDiv):
         state = self._initial
-        token_buffer = deque([])
+        token_buffer = deque([self._make_token(self.first_token, None, False)])
 
         try:
             ch = self.source[self.pos]
@@ -6355,12 +6377,30 @@ class Lexer():
         while len(token_buffer) > 0:
             yield token_buffer.popleft()
 
+ReservedWords = [
+            'await', 'break', 'case', 'catch', 'class', 'const', 'continue',
+            'debugger', 'default', 'delete', 'do', 'else', 'export', 'extends',
+            'finally', 'for', 'function', 'if', 'import', 'in', 'instanceof',
+            'new', 'return', 'super', 'switch', 'this', 'throw', 'try', 'typeof',
+            'var', 'void', 'while', 'with', 'yield', 'enum', 'null', 'true',
+            'false' ]
+
 class ParseNode:
     def __init__(self, name, p):
         self.name = name
         self.children = [p[z] for z in range(len(p))]
     def __repr__(self):
-        return f'{self.name}[{",".join(repr(child) for child in self.children)}]'
+        #return f'{self.name}[{",".join(repr(child) for child in self.children)}]'
+        children = ' '.join(ch.name if isinstance(ch, ParseNode) else ch.value for ch in self.children)
+        terms = ' '.join(repr(trm.value) if trm.name == 'STRING' else str(trm.value) for trm in self.terminals())
+        return f'ParseNode[{self.name} : ' + children + '] (' + terms + ')'
+    def terminals(self):
+        for child in self.children:
+            if not isinstance(child, ParseNode):
+                yield child
+            else:
+                for sub_token in child.terminals():
+                    yield sub_token
     def first_terminal(self):
         for child in self.children:
             if isinstance(child, ParseNode):
@@ -6386,7 +6426,7 @@ class ParseNode:
         # Find the last terminal:
         l = self.last_terminal()
         end_idx = l.index + l.length
-        return (start_idx, end_idx - start_idx)
+        return (start_idx, end_idx)
     def Contains(self, symbol):
         return (any(child.name == symbol for child in self.children) or
                 any(child.Contains(symbol) for child in self.children if isinstance(child, ParseNode)))
@@ -6436,6 +6476,8 @@ class ParseNode:
         return self.defer_target().BoundNames()
     def StringValue(self):
         return self.defer_target().StringValue()
+    def ArgumentListEvaluation(self):
+        return self.defer_target().ArgumentListEvaluation()
 
     def evaluate(self):
         # Subclasses need to override this, or we'll throw an AttributeError when we hit a terminal.
@@ -6568,6 +6610,14 @@ class PN_Identifier(ParseNode):
         return []
     def StringValue(self):
         return self.children[0].value
+class PN_ReservedWord(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('ReservedWord', p)
+    def StringValue(self):
+        return self.children[0].value
+class PN_IdentifierName(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('IdentifierName', p)
 #################################################################################################################
 class PN_PrimaryExpression_THIS(ParseNode):
     def __init__(self, ctx, p):
@@ -6595,31 +6645,502 @@ class PN_Literal_NULL(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('Literal', p)
     def evaluate(self):
-        return NormalCompletion(JSNull.NULL)
+        return JSNull.NULL
 class PN_Literal_BOOLEAN(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('Literal', p)
     def evaluate(self):
-        return NormalCompletion(self.children[0].value == 'true')
+        return self.children[0].value == 'true'
 class PN_Literal_NUMERIC(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('Literal', p)
     def evaluate(self):
-        return NormalCompletion(self.children[0].value)
+        return self.children[0].value
 class PN_Literal_STRING(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('Literal', p)
     def evaluate(self):
-        return NormalCompletion(self.children[0].value)
-class PN_MemberExpression_PrimaryExpression(ParseNode):
+        return self.children[0].value
+################################################################################################################################################################################################
+#
+#  d888    .d8888b.       .d8888b.      888                .d888 888           888    888                        888         .d8888b.  d8b      888
+# d8888   d88P  Y88b     d88P  Y88b     888               d88P"  888           888    888                        888        d88P  Y88b Y8P      888
+#   888          888          .d88P     888               888    888           888    888                        888        Y88b.               888
+#   888        .d88P         8888"      888       .d88b.  888888 888888        8888888888  8888b.  88888b.   .d88888         "Y888b.   888  .d88888  .d88b.
+#   888    .od888P"           "Y8b.     888      d8P  Y8b 888    888           888    888     "88b 888 "88b d88" 888            "Y88b. 888 d88" 888 d8P  Y8b
+#   888   d88P"          888    888     888      88888888 888    888    888888 888    888 .d888888 888  888 888  888 888888       "888 888 888  888 88888888
+#   888   888"       d8b Y88b  d88P     888      Y8b.     888    Y88b.         888    888 888  888 888  888 Y88b 888        Y88b  d88P 888 Y88b 888 Y8b.
+# 8888888 888888888  Y8P  "Y8888P"      88888888  "Y8888  888     "Y888        888    888 "Y888888 888  888  "Y88888         "Y8888P"  888  "Y88888  "Y8888
+#
+# 8888888888                                                      d8b
+# 888                                                             Y8P
+# 888
+# 8888888    888  888 88888b.  888d888  .d88b.  .d8888b  .d8888b  888  .d88b.  88888b.  .d8888b
+# 888        `Y8bd8P' 888 "88b 888P"   d8P  Y8b 88K      88K      888 d88""88b 888 "88b 88K
+# 888          X88K   888  888 888     88888888 "Y8888b. "Y8888b. 888 888  888 888  888 "Y8888b.
+# 888        .d8""8b. 888 d88P 888     Y8b.          X88      X88 888 Y88..88P 888  888      X88
+# 8888888888 888  888 88888P"  888      "Y8888   88888P'  88888P' 888  "Y88P"  888  888  88888P'
+#                     888
+#                     888
+#                     888
+#
+################################################################################################################################################################################################
+# = - = - = - = - = - = - = - = - = MemberExpression - = - = - = - = - = - = - = - = - = - = - = - = - = - = - = -
+class PN_MemberExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('MemberExpression', p)
-class PN_NewExpression_MemberExpression(ParseNode):
+        self.strict = ctx.strict
+class PN_MemberExpression_PrimaryExpression(PN_MemberExpression):
+    pass
+class PN_MemberExpression_NotPassThru(PN_MemberExpression):
+    def IsFunctionDefinition(self):
+        # 12.3.1.3 Static Semantics: IsFunctionDefinition
+        return False
+    def IsDestructuring(self):
+        # 12.3.1.4 Static Semantics: IsDestructuring
+        return False
+    def IdentifierRef(self):
+        # 12.3.1.5 Static Semantics: IsIdentifierRef
+        return False
+class PN_MemberExpression_NEW_MemberExpression_Arguments(PN_MemberExpression_NotPassThru):
+    @property
+    def MemberExpression(self):
+        return self.children[1]
+    @property
+    def Arguments(self):
+        return self.children[2]
+    def IsValidSimpleAssignmentTarget(self):
+        # 12.3.1.6 Static Semantics: IsValidSimpleAssignmentTarget
+        return False
+    def evaluate(self):
+        # 12.3.3.1 Runtime Semantics: Evaluation
+        #           MemberExpression: new MemberExpression Arguments
+        # 1. Return ? EvaluateNew(MemberExpression, Arguments).
+        return EvaluateNew(self.MemberExpression, self.Arguments)
+class PN_MemberExpression_MemberExpression_LBRACKET_Expression_RBRACKET(PN_MemberExpression_NotPassThru):
+    @property
+    def MemberExpression(self):
+        return self.children[0]
+    @property
+    def Expression(self):
+        return self.children[2]
+    def IsValidSimpleAssignmentTarget(self):
+        return True
+    def evaluate(self):
+        # 12.3.2.1 Runtime Semantics: Evaluation
+        #           MemberExpression : MemberExpression [ Expression ]
+        # 1. Let baseReference be the result of evaluating MemberExpression.
+        # 2. Let baseValue be ? GetValue(baseReference).
+        # 3. Let propertyNameReference be the result of evaluating Expression.
+        # 4. Let propertyNameValue be ? GetValue(propertyNameReference).
+        # 5. Let bv be ? RequireObjectCoercible(baseValue).
+        # 6. Let propertyKey be ? ToPropertyKey(propertyNameValue).
+        # 7. If the code matched by this MemberExpression is strict mode code, let strict be true, else let strict be false.
+        # 8. Return a value of type Reference whose base value component is bv, whose referenced name component is propertyKey, and whose strict reference flag is strict.
+        baseReference = self.MemberExpression.evaluate()
+        baseValue, ok = ec(GetValue(baseReference))
+        if not ok:
+            return baseValue
+        propertyNameReference = self.Expression.evaluate()
+        propertyNameValue, ok = ec(GetValue(propertyNameReference))
+        if not ok:
+            return propertyNameValue
+        bv, ok = ec(RequireObjectCoercible(baseValue))
+        if not ok:
+            return bv
+        propertyKey, ok = ec(ToPropertyKey(propertyNameValue))
+        if not ok:
+            return propertyKey
+        return Reference(bv, propertyKey, self.strict)
+class PN_MemberExpression_MemberExpression_DOT_IdentifierName(PN_MemberExpression_NotPassThru):
+    @property
+    def MemberExpression(self):
+        return self.children[0]
+    @property
+    def IdentifierName(self):
+        return self.children[2]
+    def Contains(self, symbol):
+        # 12.3.1.2 Static Semantics: Contains
+        # With parameter symbol.
+        #           MemberExpression : MemberExpression . IdentifierName
+        # 1. If MemberExpression Contains symbol is true, return true.
+        # 2. If symbol is a ReservedWord, return false.
+        # 3. If symbol is an Identifier and StringValue of symbol is the same value as the StringValue of IdentifierName, return true.
+        # 4. Return false.
+        if self.MemberExpression.Contains(symbol):
+            return True
+        if symbol in ReservedWords:
+            return False
+        return self.IdentifierName.StringValue() == symbol
+    def IsValidSimpleAssignmentTarget(self):
+        return True
+    def evaluate(self):
+        # 12.3.2.1 Runtime Semantics: Evaluation
+        #           MemberExpression : MemberExpression . IdentifierName
+        # 1. Let baseReference be the result of evaluating MemberExpression.
+        # 2. Let baseValue be ? GetValue(baseReference).
+        # 3. Let bv be ? RequireObjectCoercible(baseValue).
+        # 4. Let propertyNameString be StringValue of IdentifierName.
+        # 5. If the code matched by this MemberExpression is strict mode code, let strict be true, else let strict be false.
+        # 6. Return a value of type Reference whose base value component is bv, whose referenced name component is propertyNameString, and whose strict reference flag is strict.
+        baseReference = self.MemberExpression.evaluate()
+        baseValue, ok = ec(GetValue(baseReference))
+        if not ok:
+            return baseValue
+        bv, ok = ec(RequireObjectCoercible(baseValue))
+        if not ok:
+            return bv
+        propertyNameString = self.IdentifierName.StringValue()
+        return Reference(bv, propertyNameString, self.strict)
+# = - = - = - = - = - = - = - = - = NewExpression - = - = - = - = - = - = - = - = - = - = - = - = - = - = - = -
+class PN_NewExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('NewExpression', p)
-class PN_LeftHandSideExpression_NewExpression(ParseNode):
+class PN_NewExpression_MemberExpression(PN_NewExpression):
+    pass
+class PN_NewExpression_NEW_NewExpression(PN_NewExpression):
+    # 12.3.3 The new Operator
+    def IsFunctionDefinition(self):
+        # 12.3.1.3 Static Semantics: IsFunctionDefinition
+        return False
+    def IsDestructuring(self):
+        # 12.3.1.4 Static Semantics: IsDestructuring
+        return False
+    def IdentifierRef(self):
+        # 12.3.1.5 Static Semantics: IsIdentifierRef
+        return False
+    def IsValidSimpleAssignmentTarget(self):
+        # 12.3.1.6 Static Semantics: IsValidSimpleAssignmentTarget
+        return False
+    def evaluate(self):
+        # 12.3.3.1 Runtime Semantics: Evaluation
+        #           NewExpression : new NewExpression
+        # 1. Return ? EvaluateNew(NewExpression, empty).
+        NewExpression = self.children[1]
+        return EvaluateNew(NewExpression, Empty.EMPTY)
+# 12.3.3.1.1 Runtime Semantics: EvaluateNew ( constructExpr, arguments )
+def EvaluateNew(constructExpr, arguments):
+    # The abstract operation EvaluateNew with arguments constructExpr, and arguments performs the following steps:
+    #
+    # 1. Assert: constructExpr is either a NewExpression or a MemberExpression.
+    # 2. Assert: arguments is either empty or an Arguments.
+    # 3. Let ref be the result of evaluating constructExpr.
+    # 4. Let constructor be ? GetValue(ref).
+    # 5. If arguments is empty, let argList be a new empty List.
+    # 6. Else,
+    #    a. Let argList be ArgumentListEvaluation of arguments.
+    #    b. ReturnIfAbrupt(argList).
+    # 7. If IsConstructor(constructor) is false, throw a TypeError exception.
+    # 8. Return ? Construct(constructor, argList).
+    assert constructExpr.name in ['NewExpression', 'MemberExpression']
+    assert arguments == Empty.EMPTY or arguments.name == 'Arguments'
+    ref = constructExpr.evaluate()
+    constructor, ok = ec(GetValue(ref))
+    if not ok:
+        return constructor
+    if arguments == Empty.EMPTY:
+        argList = []
+    else:
+        argList, ok = ec(arguments.ArgumentListEvaluation())
+        if not ok:
+            return argList
+    if not IsConstructor(constructor):
+        return ThrowCompletion(CreateTypeError(f'{GetReferencedName(ref)} is not a constructor'))
+    return Construct(constructor, argList)
+# = - = - = - = - = - = - = - = - = CallExpression - = - = - = - = - = - = - = - = - = - = - = - = - = - = - = -
+# 12.3.4 Function Calls
+class PN_CallExpression(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('CallExpression', p)
+class PN_CallExpression_CallExpression_Arguments(PN_CallExpression):
+    @property
+    def CallExpression(self):
+        return self.children[0]
+    @property
+    def Arguments(self):
+        return self.children[1]
+    def IsValidSimpleAssignmentTarget(self):
+        # 12.3.1.6 Static Semantics: IsValidSimpleAssignmentTarget
+        #           CallExpression : CallExpression Arguments
+        # 1. Return false.
+        return False
+    def evaluate(self):
+        # 12.3.4.1 Runtime Semantics: Evaluation
+        #           CallExpression : CallExpression Arguments
+        # 1. Let ref be the result of evaluating CallExpression.
+        # 2. Let func be ? GetValue(ref).
+        # 3. Let thisCall be this CallExpression.
+        # 4. Let tailCall be IsInTailPosition(thisCall).
+        # 5. Return ? EvaluateCall(func, ref, Arguments, tailCall).
+        CallExpression = self.CallExpression
+        Arguments = self.Arguments
+        ref = CallExpression.evaluate()
+        func, ok = ec(GetValue(ref))
+        if not ok:
+            return func
+        thisCall = CallExpression
+        tailCall = IsInTailPosition(thisCall)
+        return EvaluateCall(func, ref, Arguments, tailCall)
+class PN_CallExpression_CoverCallExpressionAndAsyncArrowHead(PN_CallExpression):
+    def __init__(self, context, p):
+        super().__init__(context, p)
+        self.source_text = context.source_text
+        start, end = self.source_range()
+        source = self.source_text[start:end]
+        subparser = Ecma262Parser(start='CallMemberExpression', source_text=source)
+        sublexer = Lexer(source, 'CallMemberExpression')
+        tree = subparser.parse(sublexer.lex())
+        self.covered_production = tree
+        self.strict = context.strict
+    @property
+    def CoverCallExpressionAndAsyncArrowHead(self):
+        return self.children[0]
+    def CoveredCallExpression(self):
+        # 12.3.1.1 Static Semantics: CoveredCallExpression
+        return self.covered_production
+    def IsValidSimpleAssignmentTarget(self):
+        # 12.3.1.6 Static Semantics: IsValidSimpleAssignmentTarget
+        #           CallExpression : CoverCallExpressionAndAsyncArrowHead
+        # 1. Return false.
+        return False
+    def evaluate(self):
+        # 12.3.4.1 Runtime Semantics: Evaluation
+        #           CallExpression : CoverCallExpressionAndAsyncArrowHead
+        # 1. Let expr be CoveredCallExpression of CoverCallExpressionAndAsyncArrowHead.
+        # 2. Let memberExpr be the MemberExpression of expr.
+        # 3. Let arguments be the Arguments of expr.
+        # 4. Let ref be the result of evaluating memberExpr.
+        # 5. Let func be ? GetValue(ref).
+        # 6. If Type(ref) is Reference and IsPropertyReference(ref) is false and GetReferencedName(ref) is "eval", then
+        #    a. If SameValue(func, %eval%) is true, then
+        #       i. Let argList be ? ArgumentListEvaluation of arguments.
+        #       ii. If argList has no elements, return undefined.
+        #       iii. Let evalText be the first element of argList.
+        #       iv. If the source code matching this CallExpression is strict mode code, let strictCaller be true. Otherwise let strictCaller be false.
+        #       v. Let evalRealm be the current Realm Record.
+        #       vi. Perform ? HostEnsureCanCompileStrings(evalRealm, evalRealm).
+        #       vii. Return ? PerformEval(evalText, evalRealm, strictCaller, true).
+        # 7. Let thisCall be this CallExpression.
+        # 8. Let tailCall be IsInTailPosition(thisCall).
+        # 9. Return ? EvaluateCall(func, ref, arguments, tailCall).
+        # A CallExpression evaluation that executes step 6.a.vii is a direct eval.
+        expr = self.CoveredCallExpression()
+        memberExpr = expr.MemberExpression
+        arguments = expr.Arguments
+        ref = memberExpr.evaluate()
+        func, ok = ec(GetValue(ref))
+        if not ok:
+            return func
+        if isinstance(ref, Reference) and not IsPropertyReference(ref) and GetReferencedName(ref) == 'eval':
+            if SameValue(func, surrounding_realm.intrinsics['%eval%']):
+                argList, ok = ec(arguments.ArgumentListEvaluation())
+                if not ok:
+                    return argList
+                if len(argList) == 0:
+                    return None
+                evalText = argList[0]
+                strictCaller = self.strict
+                evalRealm = surrounding_realm
+                cr, ok = HostEnsureCanCompileStrings(evalRealm, evalRealm)
+                if not ok:
+                    return cr
+                return PerformEval(evalText, evalRealm, strictCaller, True)
+        thisCall = self
+        tailCall = False #IsInTailPosition(thisCall)
+        return EvaluateCall(func, ref, arguments, tailCall)
+class PN_CallMemberExpression_MemberExpression_Arguments(ParseNode):
+    def __init__(self, context, p):
+        super().__init__('CallMemberExpression', p)
+    @property
+    def MemberExpression(self):
+        return self.children[0]
+    @property
+    def Arguments(self):
+        return self.children[1]
+
+# 12.3.4.2 Runtime Semantics: EvaluateCall ( func, ref, arguments, tailPosition )
+def EvaluateCall(func, ref, arguments, tailPosition):
+    # The abstract operation EvaluateCall takes as arguments a value func, a value ref, a Parse Node arguments, and a
+    # Boolean argument tailPosition. It performs the following steps:
+    #
+    # 1. If Type(ref) is Reference, then
+    #    a. If IsPropertyReference(ref) is true, then
+    #       i. Let thisValue be GetThisValue(ref).
+    #    b. Else the base of ref is an Environment Record,
+    #       i. Let refEnv be GetBase(ref).
+    #       ii. Let thisValue be refEnv.WithBaseObject().
+    # 2. Else Type(ref) is not Reference,
+    #    a. Let thisValue be undefined.
+    # 3. Let argList be ArgumentListEvaluation of arguments.
+    # 4. ReturnIfAbrupt(argList).
+    # 5. If Type(func) is not Object, throw a TypeError exception.
+    # 6. If IsCallable(func) is false, throw a TypeError exception.
+    # 7. If tailPosition is true, perform PrepareForTailCall().
+    # 8. Let result be Call(func, thisValue, argList).
+    # 9. Assert: If tailPosition is true, the above call will not return here, but instead evaluation will continue as
+    #    if the following return has already occurred.
+    # 10. Assert: If result is not an abrupt completion, then Type(result) is an ECMAScript language type.
+    # 11. Return result.
+    if isinstance(ref, Reference):
+        if IsPropertyReference(ref):
+            thisValue = GetThisValue(ref)
+        else:
+            refEnv = GetBase(ref)
+            thisValue = refEnv.WithBaseObject()
+    else:
+        thisValue = None
+    argList, ok = ec(arguments.ArgumentListEvaluation())
+    if not ok:
+        return argList
+    if not isObject(func):
+        return ThrowCompletion(CreateTypeError('Not a function'))
+    if not IsCallable(func):
+        return ThrowCompletion(CreateTypeError('Not a function'))
+    if tailPosition:
+        PrepareForTailCall()
+    result = Call(func, thisValue, argList)
+    # assert not tailPosition
+    assert (isinstance(result, Completion) and (result.ctype != CompletionType.NORMAL or isEcmaValue(result.value))) or isEcmaValue(result)
+    return result
+# = - = - = - = - = - = - = - = - = ArgumentList - = - = - = - = - = - = - = - = - = - = - = - = - = - = - = -
+# 12.3.6 Argument Lists
+# NOTE
+# The evaluation of an argument list produces a List of values.
+class PN_ArgumentList(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('ArgumentList', p)
+class PN_ArgumentList_AssignmentExpression(PN_ArgumentList):
+    def ArgumentListEvaluation(self):
+        # 12.3.6.1 Runtime Semantics: ArgumentListEvaluation
+        #           ArgumentList : AssignmentExpression
+        # 1. Let ref be the result of evaluating AssignmentExpression.
+        # 2. Let arg be ? GetValue(ref).
+        # 3. Return a List whose sole item is arg.
+        AssignmentExpression = self.children[0]
+        ref = AssignmentExpression.evaluate()
+        arg, ok = ec(GetValue(ref))
+        if not ok:
+            return arg
+        return [arg]
+class PN_ArgumentList_DOTDOTDOT_AssignmentExpression(PN_ArgumentList):
+    def ArgumentListEvaluation(self):
+        # 12.3.6.1 Runtime Semantics: ArgumentListEvaluation
+        #           ArgumentList : ... AssignmentExpression
+        # 1. Let list be a new empty List.
+        # 2. Let spreadRef be the result of evaluating AssignmentExpression.
+        # 3. Let spreadObj be ? GetValue(spreadRef).
+        # 4. Let iteratorRecord be ? GetIterator(spreadObj).
+        # 5. Repeat,
+        #    a. Let next be ? IteratorStep(iteratorRecord).
+        #    b. If next is false, return list.
+        #    c. Let nextArg be ? IteratorValue(next).
+        #    d. Append nextArg as the last element of list.
+        AssignmentExpression = self.children[1]
+        lst = []
+        spreadRef = AssignmentExpression.evaluate()
+        spreadObj, ok = ec(GetValue(spreadRef))
+        if not ok:
+            return spreadObj
+        iteratorRecord, ok = GetIterator(spreadObj)
+        if not ok:
+            return iteratorRecord
+        while 1:
+            nxt, ok = ec(IteratorStep(iteratorRecord))
+            if not ok:
+                return nxt
+            if not nxt:
+                return lst
+            nextArg, ok = ec(IteratorValue(nxt))
+            if not ok:
+                return nextArg
+            lst.append(nextArg)
+class PN_ArgumentList_ArgumentList_COMMA_AssignmentExpression(PN_ArgumentList):
+    def ArgumentListEvaluation(self):
+        # 12.3.6.1 Runtime Semantics: ArgumentListEvaluation
+        #           ArgumentList : ArgumentList , AssignmentExpression
+        # 1. Let precedingArgs be ArgumentListEvaluation of ArgumentList.
+        # 2. ReturnIfAbrupt(precedingArgs).
+        # 3. Let ref be the result of evaluating AssignmentExpression.
+        # 4. Let arg be ? GetValue(ref).
+        # 5. Append arg to the end of precedingArgs.
+        # 6. Return precedingArgs.
+        ArgumentList = self.children[0]
+        AssignmentExpression = self.children[2]
+        precedingArgs, ok = ec(ArgumentList.ArgumentListEvaluation())
+        if not ok:
+            return precedingArgs
+        ref = AssignmentExpression.evaluate()
+        arg, ok = ec(GetValue(ref))
+        if not ok:
+            return arg
+        precedingArgs.append(arg)
+        return precedingArgs
+class PN_ArgumentList_ArgumentList_COMMA_DOTDOTDOT_AssignmentExpression(PN_ArgumentList):
+    def ArgumentListEvaluation(self):
+        # 12.3.6.1 Runtime Semantics: ArgumentListEvaluation
+        #           ArgumentList : ArgumentList , ... AssignmentExpression
+        # 1. Let precedingArgs be ArgumentListEvaluation of ArgumentList.
+        # 2. ReturnIfAbrupt(precedingArgs).
+        # 3. Let spreadRef be the result of evaluating AssignmentExpression.
+        # 4. Let iteratorRecord be ? GetIterator(? GetValue(spreadRef)).
+        # 5. Repeat,
+        #    a. Let next be ? IteratorStep(iteratorRecord).
+        #    b. If next is false, return precedingArgs.
+        #    c. Let nextArg be ? IteratorValue(next).
+        #    d. Append nextArg as the last element of precedingArgs.
+        ArgumentList = self.children[0]
+        AssignmentExpression = self.children[3]
+        precedingArgs, ok = ec(ArgumentList.ArgumentListEvaluation)
+        if not ok:
+            return precedingArgs
+        spreadRef = AssignmentExpression.evaluate()
+        spreadObj, ok = ec(GetValue(spreadRef))
+        if not ok:
+            return spreadObj
+        iteratorRecord, ok = ec(GetIterator(spreadObj))
+        if not ok:
+            return iteratorRecord
+        while 1:
+            nxt, ok = ec(IteratorStep(iteratorRecord))
+            if not ok:
+                return nxt
+            if not nxt:
+                return prededingArgs
+            nextArg, ok = ec(IteratorValue(nxt))
+            if not ok:
+                return nextArg
+            precedingArgs.append(nextArg)
+# = - = - = - = - = - = - = - = - = Arguments - = - = - = - = - = - = - = - = - = - = - = - = - = - = - = -
+class PN_Arguments(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('Arguments', p)
+class PN_Arguments_LPAREN_RPAREN(PN_Arguments):
+    def ArgumentListEvaluation(self):
+        # 12.3.6.1 Runtime Semantics: ArgumentListEvaluation
+        #           Arguments : ( )
+        # 1. Return a new empty List.
+        return []
+    pass
+class PN_Arguments_LPAREN_ArgumentList_RPAREN(PN_Arguments):
+    pass
+class PN_Arguments_LPAREN_ArgumentList_COMMA_RPAREN(PN_Arguments):
+    pass
+# = - = - = - = - = - = - = - = - = LeftHandSideExpression - = - = - = - = - = - = - = - = - = - = - = - = - = - = - = -
+class PN_LeftHandSideExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('LeftHandSideExpression', p)
+class PN_LeftHandSideExpression_NewExpression(PN_LeftHandSideExpression):
+    pass
+class PN_LeftHandSideExpression_CallExpression(PN_LeftHandSideExpression):
+    def IsFunctionDefinition(self):
+        # 12.3.1.3 Static Semantics: IsFunctionDefinition
+        return False
+    def IsDestructuring(self):
+        # 12.3.1.4 Static Semantics: IsDestructuring
+        return False
+    def IdentifierRef(self):
+        # 12.3.1.5 Static Semantics: IsIdentifierRef
+        return False
 ################################################################################################################################################################################################
 #
 #  d888    .d8888b.          d8888      888     888               888          888
@@ -6840,13 +7361,13 @@ class PN_UnaryExpression_DELETE_UnaryExpression(PN_UnaryExpression_op):
             return ref
         #   3. If Type(ref) is not Reference, return true.
         if not isinstance(ref, Reference):
-            return NormalCompletion(True)
+            return True
         #   4. If IsUnresolvableReference(ref) is true, then
         if IsUnresolvableReference(ref):
             #   a. Assert: IsStrictReference(ref) is false.
             assert not IsStrictReference(ref)
             #   b. Return true.
-            return NormalCompletion(True)
+            return True
         #   5. If IsPropertyReference(ref) is true, then
         if IsPropertyReference(ref):
             #   a. If IsSuperReference(ref) is true, throw a ReferenceError exception.
@@ -6862,7 +7383,7 @@ class PN_UnaryExpression_DELETE_UnaryExpression(PN_UnaryExpression_op):
             if not deleteStatus and IsStrictReference(ref):
                 return ThrowCompletion(CreateTypeError(f'Couldn\'t delete {GetReferencedName(ref)!r}.'))
             #   e. Return deleteStatus.
-            return NormalCompletion(deleteStatus)
+            return deleteStatus
         #   6. Else ref is a Reference to an Environment Record binding,
         #   a. Let bindings be GetBase(ref).
         bindings = GetBase(ref)
@@ -6886,7 +7407,7 @@ class PN_UnaryExpression_VOID_UnaryExpression(PN_UnaryExpression_op):
         cr, ok = ec(GetValue(self.children[1].evaluate()))
         if not ok:
             return cr
-        return NormalCompletion(None)
+        return None
 class PN_UnaryExpression_TYPEOF_UnaryExpression(PN_UnaryExpression_op):
     # 12.5.5 The typeof Operator
     def evaluate(self):
@@ -6931,7 +7452,7 @@ class PN_UnaryExpression_TYPEOF_UnaryExpression(PN_UnaryExpression_op):
         if not ok:
             return val
         if isinstance(val, Reference) and IsUnresolvableReference(val):
-            return NormalCompletion('undefined')
+            return 'undefined'
         val, ok = ec(GetValue(val))
         if not ok:
             return val
@@ -6945,7 +7466,7 @@ class PN_UnaryExpression_TYPEOF_UnaryExpression(PN_UnaryExpression_op):
             (lambda x: isObject(x) and not hasattr(x, 'Call'), 'object'),
             (isObject, 'function'),
         ]
-        return NormalCompletion(next(result for check, result in type_matrix if check(val)))
+        return next(result for check, result in type_matrix if check(val))
 class PN_UnaryExpression_PLUS_UnaryExpression(PN_UnaryExpression_op):
     # 12.5.6 Unary + Operator
     # NOTE
@@ -6980,8 +7501,8 @@ class PN_UnaryExpression_MINUS_UnaryExpression(PN_UnaryExpression_op):
         if not ok:
             return oldValue
         if math.isnan(oldValue):
-            return NormalCompletion(math.nan)
-        return NormalCompletion(-oldValue)
+            return math.nan
+        return -oldValue
 class PN_UnaryExpression_TILDE_UnaryExpression(PN_UnaryExpression_op):
     # 12.5.8 Bitwise NOT Operator ( ~ )
     def evaluate(self):
@@ -6997,7 +7518,7 @@ class PN_UnaryExpression_TILDE_UnaryExpression(PN_UnaryExpression_op):
         oldValue, ok = ec(ToInt32(expr))
         if not ok:
             return oldValue
-        return NormalCompletion(nc(ToInt32(~oldValue)))
+        return nc(ToInt32(~oldValue))
 class PN_UnaryExpression_BANG_UnaryExpression(PN_UnaryExpression_op):
     # 12.5.9 Logical NOT Operator ( ! )
     def evaluate(self):
@@ -7011,7 +7532,7 @@ class PN_UnaryExpression_BANG_UnaryExpression(PN_UnaryExpression_op):
         if not ok:
             return expr
         oldValue = ToBoolean(expr)
-        return NormalCompletion(not oldValue)
+        return not oldValue
 ################################################################################################################################################################################################
 #
 #  d888    .d8888b.       .d8888b.      8888888888                                                       888    d8b          888    d8b
@@ -7193,7 +7714,7 @@ class PN_AdditiveExpression_AdditiveExpression_PLUS_MultiplicativeExpression(PN_
             if not ok:
                 return rstr
             # c. Return the string-concatenation of lstr and rstr.
-            return NormalCompletion(lstr + rstr)
+            return lstr + rstr
         # 8. Let lnum be ? ToNumber(lprim).
         lnum, ok = ec(ToNumber(lprim))
         if not ok:
@@ -7203,7 +7724,7 @@ class PN_AdditiveExpression_AdditiveExpression_PLUS_MultiplicativeExpression(PN_
         if not ok:
             return rnum
         # 10. Return the result of applying the addition operation to lnum and rnum. See the Note below 12.8.5.
-        return NormalCompletion(lnum + rnum)
+        return lnum + rnum
         # NOTE 1
         # No hint is provided in the calls to ToPrimitive in steps 5 and 6. All standard objects except Date objects handle the
         # absence of a hint as if the hint Number were given; Date objects handle the absence of a hint as if the hint String
@@ -7236,7 +7757,7 @@ class PN_AdditiveExpression_AdditiveExpression_MINUS_MultiplicativeExpression(PN
         if not ok:
             return rnum
         # 7. Return the result of applying the subtraction operation to lnum and rnum. See the note below 12.8.5.
-        return NormalCompletion(lnum - rnum)
+        return lnum - rnum
 # 12.8.5 Applying the Additive Operators to Numbers
 #
 # The + operator performs addition when applied to two operands of numeric type, producing the sum of the operands. The -
@@ -7328,13 +7849,13 @@ class PN_ShiftExpression_GTGT_AdditiveExpression(PN_ShiftExpression_S_op_A):
     def operate(self, lnum, shiftCount):
         # 8. Return the result of performing a sign-extending right shift of lnum by shiftCount bits. The most significant bit
         #    is propagated. The result is a signed 32-bit integer.
-        return NormalCompletion(lnum >> shiftCount)
+        return lnum >> shiftCount
 class PN_ShiftExpression_GTGTGT_AdditiveExpression(PN_ShiftExpression_S_op_A):
     lval_is_signed = False
     def operate(self, lnum, shiftCount):
         # 8. Return the result of performing a zero-filling right shift of lnum by shiftCount bits. Vacated bits are filled
         #    with zero. The result is an unsigned 32-bit integer.
-        return NormalCompletion(lnum >> shiftCount)
+        return lnum >> shiftCount
 ##############################################################################################################################################################################################################
 #
 #  d888    .d8888b.       d888    .d8888b.      8888888b.           888          888    d8b                            888      .d88888b.                                     888
@@ -7391,7 +7912,7 @@ class PN_RelationalExpression_RelationalExpression_LT_ShiftExpression(PN_Relatio
         if not ok:
             return r
         # 7. If r is undefined, return false. Otherwise, return r.
-        return NormalCompletion(r or False)
+        return r or False
 class PN_RelationalExpression_RelationalExpression_GT_ShiftExpression(PN_RelationalExpression_R_op_S):
     # 12.10.3 Runtime Semantics: Evaluation
     def operate(self, lval, rval):
@@ -7401,7 +7922,7 @@ class PN_RelationalExpression_RelationalExpression_GT_ShiftExpression(PN_Relatio
         if not ok:
             return r
         # 7. If r is undefined, return false. Otherwise, return r.
-        return NormalCompletion(r or False)
+        return r or False
 class PN_RelationalExpression_RelationalExpression_LE_ShiftExpression(PN_RelationalExpression_R_op_S):
     # 12.10.3 Runtime Semantics: Evaluation
     def operate(self, lval, rval):
@@ -7411,7 +7932,7 @@ class PN_RelationalExpression_RelationalExpression_LE_ShiftExpression(PN_Relatio
         if not ok:
             return r
         # 7. If r is true or undefined, return false. Otherwise, return true.
-        return NormalCompletion(not (r is None or r))
+        return not (r is None or r)
 class PN_RelationalExpression_RelationalExpression_GE_ShiftExpression(PN_RelationalExpression_R_op_S):
     # 12.10.3 Runtime Semantics: Evaluation
     def operate(self, lval, rval):
@@ -7421,7 +7942,7 @@ class PN_RelationalExpression_RelationalExpression_GE_ShiftExpression(PN_Relatio
         if not ok:
             return r
         # 7. If r is true or undefined, return false. Otherwise, return true.
-        return NormalCompletion(not (r is None or r))
+        return not (r is None or r)
 class PN_RelationalExpression_RelationalExpression_INSTANCEOF_ShiftExpression(PN_RelationalExpression_R_op_S):
     # 12.10.3 Runtime Semantics: Evaluation
     def operate(self, lval, rval):
@@ -7455,10 +7976,10 @@ def InstanceofOperator(V, target):
     # 3. If instOfHandler is not undefined, then
     if instOfHandler is not None:
         # a. Return ToBoolean(? Call(instOfHandler, target, « V »)).
-        val, ok = ec(Call(instOfHandler, target, V))
+        val, ok = ec(Call(instOfHandler, target, [V]))
         if not ok:
             return val
-        return NormalCompletion(ToBoolean(val))
+        return ToBoolean(val)
     # 4. If IsCallable(target) is false, throw a TypeError exception.
     if not IsCallable(target):
         return ThrowCompletion(CreateTypeError())
@@ -7520,27 +8041,27 @@ class PN_EqualityExpression_EqualityExpression_EQEQ_RelationalExpression(PN_Equa
     #   For EqualityExpression:EqualityExpression == RelationalExpression
     def operation(self, lval, rval):
         # 5. Return the result of performing Abstract Equality Comparison rval == lval.
-        return NormalCompletion(AbstractEqualityComparison(rval, lval))
+        return AbstractEqualityComparison(rval, lval)
 class PN_EqualityExpression_EqualityExpression_BANGEQ_RelationalExpression(PN_EqualityExpression_E_op_R):
     # 12.11.3 Runtime Semantics: Evaluation
     #   For EqualityExpression : EqualityExpression != RelationalExpression
     def operation(self, lval, rval):
         # 5. Let r be the result of performing Abstract Equality Comparison rval == lval.
         # 6. If r is true, return false. Otherwise, return true.
-        return NormalCompletion(not AbstractEqualityComparison(rval, lval))
+        return not AbstractEqualityComparison(rval, lval)
 class PN_EqualityExpression_EqualityExpression_EQEQEQ_RelationalExpression(PN_EqualityExpression_E_op_R):
     # 12.11.3 Runtime Semantics: Evaluation
     #   For EqualityExpression : EqualityExpression === RelationalExpression
     def operation(self, lval, rval):
         # 5. Return the result of performing Strict Equality Comparison rval === lval.
-        return NormalCompletion(StrictEqualityComparison(rval, lval))
+        return StrictEqualityComparison(rval, lval)
 class PN_EqualityExpression_EqualityExpression_BANGEQEQ_RelationalExpression(PN_EqualityExpression_E_op_R):
     # 12.11.3 Runtime Semantics: Evaluation
     #   For EqualityExpression : EqualityExpression !== RelationalExpression
     def operation(self, lval, rval):
         # 5. Let r be the result of performing Strict Equality Comparison rval === lval.
         # 6. If r is true, return false. Otherwise, return true.
-        return NormalCompletion(not StrictEqualityComparison(rval, lval))
+        return not StrictEqualityComparison(rval, lval)
 ########################################################################################################################
 
 ###################################################################################################################################################################################################################################################
@@ -7602,7 +8123,7 @@ class PN_BitwiseANDExpression_EqualityExpression(PN_BitwiseANDExpression):
 class PN_BitwiseANDExpression_BitwiseANDExpression_AMP_EqualityExpression(PN_BitwiseANDExpression, PN_BitwiseExpression):
     def operate(self, lnum, rnum):
         # 7. Return the result of applying the bitwise operator @ to lnum and rnum. The result is a signed 32-bit integer.
-        return NormalCompletion(lnum & rnum)
+        return lnum & rnum
 # '^' Productions
 class PN_BitwiseXORExpression(ParseNode):
     def __init__(self, ctx, p):
@@ -7613,7 +8134,7 @@ class PN_BitwiseXORExpression_BitwiseXORExpression_XOR_BitwiseANDExpression(PN_B
     # 12.12.3 Runtime Semantics: Evaluation
     def operate(self, lnum, rnum):
         # 7. Return the result of applying the bitwise operator @ to lnum and rnum. The result is a signed 32-bit integer.
-        return NormalCompletion(lnum ^ rnum)
+        return lnum ^ rnum
 # '|' Productions
 class PN_BitwiseORExpression(ParseNode):
     def __init__(self, ctx, p):
@@ -7624,7 +8145,7 @@ class PN_BitwiseORExpression_BitwiseORExpression_PIPE_BitwiseXORExpression(PN_Bi
     # 12.12.3 Runtime Semantics: Evaluation
     def operate(self, lnum, rnum):
         # 7. Return the result of applying the bitwise operator @ to lnum and rnum. The result is a signed 32-bit integer.
-        return NormalCompletion(lnum | rnum)
+        return lnum | rnum
 ##############################################################################################################################################################################################################################################
 #
 #  d888    .d8888b.       d888    .d8888b.      888888b.   d8b                                        888                        d8b                   888      .d88888b.                                     888
@@ -7669,7 +8190,7 @@ class PN_LogicalANDExpression_LogicalANDExpression_AMPAMP_BitwiseORExpression(PN
         lbool = ToBoolean(lval)
         # 4. If lbool is false, return lval.
         if not lbool:
-            return NormalCompletion(lval)
+            return lval
         # 5. Let rref be the result of evaluating BitwiseORExpression.
         rref = self.children[2].evaluate()
         # 6. Return ? GetValue(rref).
@@ -7693,7 +8214,7 @@ class PN_LogicalORExpression_LogicalORExpression_PIPEPIPE_LogicalANDExpression(P
         lbool = ToBoolean(lval)
         # 4. If lbool is true, return lval.
         if lbool:
-            return NormalCompletion(lval)
+            return lval
         # 5. Let rref be the result of evaluating LogicalANDExpression.
         rref = self.children[2].evaluate()
         # 6. Return ? GetValue(rref).
@@ -7762,7 +8283,7 @@ class PN_AssignmentExpression_LeftHandSideExpression_EQUALS_AssignmentExpression
         cr, ok = ec(PutValue(lref, rval))
         if not ok:
             return cr
-        return NormalCompletion(rval)
+        return rval
 def prep_for_bitwise(lval, rval):
     lnum, ok = ec(ToInt32(lval))  # 1. Let lnum be ? ToInt32(lval).
     if not ok:
@@ -7770,7 +8291,7 @@ def prep_for_bitwise(lval, rval):
     rnum, ok = ec(ToInt32(rval))  # 2. Let rnum be ? ToInt32(rval).
     if not ok:
         return rnum
-    return NormalCompletion((lnum, rnum))  # Return (lnum, rnum)
+    return (lnum, rnum)  # Return (lnum, rnum)
 def BitwiseANDOperation(lval, rval):
     # Do integer conversion on the operands, forming lnum and rnum
     operands, ok = ec(prep_for_bitwise(lval, rval))
@@ -7778,7 +8299,7 @@ def BitwiseANDOperation(lval, rval):
         return operands
     lnum, rnum = operands
     # Return the result of applying the bitwise operator & to lnum and rnum. The result is a signed 32-bit integer.
-    return NormalCompletion(lnum & rnum)
+    return lnum & rnum
 def BitwiseXOROperation(lval, rval):
     # Do integer conversion on the operands, forming lnum and rnum
     operands, ok = ec(prep_for_bitwise(lval, rval))
@@ -7786,7 +8307,7 @@ def BitwiseXOROperation(lval, rval):
         return operands
     lnum, rnum = operands
     # Return the result of applying the bitwise operator ^ to lnum and rnum. The result is a signed 32-bit integer.
-    return NormalCompletion(lnum ^ rnum)
+    return lnum ^ rnum
 def BitwiseOROperation(lval, rval):
     # Do integer conversion on the operands, forming lnum and rnum
     operands, ok = ec(prep_for_bitwise(lval, rval))
@@ -7794,7 +8315,7 @@ def BitwiseOROperation(lval, rval):
         return operands
     lnum, rnum = operands
     # Return the result of applying the bitwise operator | to lnum and rnum. The result is a signed 32-bit integer.
-    return NormalCompletion(lnum | rnum)
+    return lnum | rnum
 def prep_for_math(lval, rval):
     # Converts args to Number values, in preparation for math.
     lnum, ok = ec(ToNumber(lval))  # 1. Let lnum be ? ToNumber(lval)
@@ -7803,7 +8324,7 @@ def prep_for_math(lval, rval):
     rnum, ok = ec(ToNumber(rval))  # 2. Let rnum be ? ToNumber(rval)
     if not ok:
         return rnum
-    return NormalCompletion((lnum, rnum))  # 3. Return (lnum, rnum)
+    return (lnum, rnum)  # 3. Return (lnum, rnum)
 def MultiplyOperation(lval, rval):
     # Do number conversion on the operands, forming lnum and rnum
     operands, ok = ec(prep_for_math(lval, rval))
@@ -7811,7 +8332,7 @@ def MultiplyOperation(lval, rval):
         return operands
     lnum, rnum = operands
     # Return the result of multiplying lnum and rnum.
-    return NormalCompletion(lnum * rnum)
+    return lnum * rnum
 def DivideOperation(lval, rval):
     # Do number conversion on the operands, forming lnum and rnum
     operands, ok = ec(prep_for_math(lval, rval))
@@ -7819,7 +8340,7 @@ def DivideOperation(lval, rval):
         return operands
     lnum, rnum = operands
     # Return the result of dividing lnum and rnum.
-    return NormalCompletion(lnum / rnum)
+    return lnum / rnum
 def ModuloOperation(lval, rval):
     # Do number conversion on the operands, forming lnum and rnum
     operands, ok = ec(prep_for_math(lval, rval))
@@ -7827,7 +8348,7 @@ def ModuloOperation(lval, rval):
         return operands
     lnum, rnum = operands
     # Return the result of applying the modulo operator to lnum and rnum.
-    return NormalCompletion(lnum % rnum)
+    return lnum % rnum
 def AdditionOperation(lval, rval):
     # Do number conversion on the operands, forming lnum and rnum
     operands, ok = ec(prep_for_math(lval, rval))
@@ -7835,7 +8356,7 @@ def AdditionOperation(lval, rval):
         return operands
     lnum, rnum = operands
     # Return the result of applying the modulo operator to lnum and rnum.
-    return NormalCompletion(lnum + rnum)
+    return lnum + rnum
 def SubtractionOperation(lval, rval):
     # Do number conversion on the operands, forming lnum and rnum
     operands, ok = ec(prep_for_math(lval, rval))
@@ -7843,7 +8364,7 @@ def SubtractionOperation(lval, rval):
         return operands
     lnum, rnum = operands
     # Return the result of applying the modulo operator to lnum and rnum.
-    return NormalCompletion(lnum - rnum)
+    return lnum - rnum
 def prep_for_signed_shift(lval, rval):
     # Converts args to integer values, in preparation for signed shifting.
     lnum, ok = ec(ToInt32(lval))  # 1. Let lnum be ? ToInt32(lval)
@@ -7852,7 +8373,7 @@ def prep_for_signed_shift(lval, rval):
     rnum, ok = ec(ToUint32(rval))  # 2. Let rnum be ? ToUnit32(rval)
     if not ok:
         return rnum
-    return NormalCompletion((int(lnum), int(rnum)))  # 3. Return (lnum, rnum)
+    return (int(lnum), int(rnum))  # 3. Return (lnum, rnum)
 def LeftShiftOperation(lval, rval):
     # Do number conversion on the operands, forming lnum and rnum
     operands, ok = ec(prep_for_signed_shift(lval, rval))
@@ -7869,7 +8390,7 @@ def RightShiftOperation(lval, rval):
         return operands
     lnum, rnum = operands
     shiftCount = rnum & 0x1f
-    return NormalCompletion(lnum >> shiftCount)
+    return lnum >> shiftCount
 def prep_for_unsigned_shift(lval, rval):
     # Converts args to integer values, in preparation for unsigned shifting.
     lnum, ok = ec(ToUint32(lval))  # 1. Let lnum be ? ToUint32(lval)
@@ -7878,7 +8399,7 @@ def prep_for_unsigned_shift(lval, rval):
     rnum, ok = ec(ToUint32(rval))  # 2. Let rnum be ? ToUnit32(rval)
     if not ok:
         return rnum
-    return NormalCompletion((int(lnum), int(rnum)))  # 3. Return (lnum, rnum)
+    return (int(lnum), int(rnum))  # 3. Return (lnum, rnum)
 def UnsignedRightShiftOperation(lval, rval):
     # Do number conversion on the operands, forming lnum and rnum
     operands, ok = ec(prep_for_unsigned_shift(lval, rval))
@@ -7886,17 +8407,17 @@ def UnsignedRightShiftOperation(lval, rval):
         return operands
     lnum, rnum = operands
     shiftCount = rnum & 0x1f
-    return NormalCompletion(lnum >> shiftCount)
+    return lnum >> shiftCount
 def ExponentiationOperation(lval, rval):
     operands, ok = ec(prep_for_math(lval, rval))
     if not ok:
         return operands
     lnum, rnum = operands
     if abs(lnum) == 1.0 and abs(rnum) == math.inf:
-        return NormalCompletion(math.nan)
+        return math.nan
     if lnum < 0.0 and math.isfinite(lnum) and math.isfinite(rnum) and math.floor(rnum) != rnum:
-        return NormalCompletion(math.nan)
-    return NormalCompletion(lnum ** rnum)
+        return math.nan
+    return lnum ** rnum
 
 class PN_AssignmentOperator(ParseNode):
     def __init__(self, ctx, p):
@@ -7952,7 +8473,7 @@ class PN_AssignmentExpression_LeftHandSideExpression_AssignmentOperator_Assignme
         if not ok:
             return cr
         # 8. Return r.
-        return NormalCompletion(r)
+        return r
         # NOTE
         # When an assignment occurs within strict mode code, it is a runtime error if lref in step 1.f of the first algorithm
         # or step 7 of the second algorithm it is an unresolvable reference. If it is, a ReferenceError exception is thrown.
@@ -7968,9 +8489,9 @@ class PN_Expression_Expression_COMMA_AssignmentExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('Expression', p)
     def IsFunctionDefinition(self):
-        return NormalCompletion(False)
+        return False
     def IsValidSimpleAssignmentTarget(self):
-        return NormalCompletion(False)
+        return False
     def evaluate(self):
         lref = self.children[0].evaluate()
         cr, ok = ec(GetValue(lref)) # Have to run, thanks to side effects
@@ -8057,8 +8578,11 @@ class PN_StatementListItem(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('StatementListItem', p)
 class PN_Block_LCURLY_StatementList_RCURLY(PN_Block):
+    @property
+    def StatementList(self):
+        return self.children[1]
     def EarlyErrors(self):
-        StatementList = self.children[1]
+        StatementList = self.StatementList
         errs = []
         ldn = StatementList.LexicallyDeclaredNames()
         ldn_set = set(ldn)
@@ -8091,6 +8615,9 @@ class PN_Block_LCURLY_RCURLY(PN_Block):
 class PN_BlockStatement_Block(PN_BlockStatement):
     pass
 class PN_StatementListItem_Statement(PN_StatementListItem):
+    @property
+    def Statement(self):
+        return self.children[0]
     def TopLevelLexicallyDeclaredNames(self):
         return []
     def TopLevelVarDeclaredNames(self):
@@ -8111,7 +8638,7 @@ class PN_StatementListItem_Statement(PN_StatementListItem):
         # 13.2.5 Static Semantics: LexicallyDeclaredNames
         #   StatementListItem : Statement
         #   1. If Statement is Statement : LabelledStatement , return LexicallyDeclaredNames of LabelledStatement.
-        Statement = self.children[0]
+        Statement = self.Statement
         if len(Statement.children) == 1 and Statement.children[0].name == 'LabelledStatement':
             return Statement.children[0].LexicallyDeclaredNames()
         #   2. Return a new empty List.
@@ -8119,11 +8646,17 @@ class PN_StatementListItem_Statement(PN_StatementListItem):
 class PN_StatementList_StatementListItem(PN_StatementList):
     pass
 class PN_StatementList_StatementList_StatementListItem(PN_StatementList):
+    @property
+    def StatementList(self):
+        return self.children[0]
+    @property
+    def StatementListItem(self):
+        return self.children[1]
     def evaluate(self):
-        sl, ok = ec(self.children[0].evaluate())
+        sl, ok = ec(self.StatementList.evaluate())
         if not ok:
             return sl
-        s = self.children[1].evaluate()
+        s = self.StatementListItem.evaluate()
         return UpdateEmpty(s, sl)
     def TopLevelLexicallyDeclaredNames(self):
         names = self.children[0].TopLevelLexicallyDeclaredNames()
@@ -8314,6 +8847,12 @@ class PN_VariableDeclaration_BindingIdentifier_Initializer(PN_VariableDeclaratio
                 SetFunctionName(value, bindingId)
         return PutValue(lhs, value)
 
+
+class PN_CoverCallExpressionAndAsyncArrowHead(ParseNode):
+    def __init__(self, context, p):
+        super().__init__('CoverCallExpressionAndAsyncArrowHead', p)
+class PN_CoverCallExpressionAndAsyncArrowHead_MemberExpression_Arguments(PN_CoverCallExpressionAndAsyncArrowHead):
+    pass
 # 14.1.10 Static Semantics: IsAnonymousFunctionDefinition ( expr )
 def IsAnonymousFunctionDefinition(expr):
     # The abstract operation IsAnonymousFunctionDefinition determines if its argument is a function definition that
@@ -8344,18 +8883,20 @@ class PN_Script(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('Script', p)
 class PN_Script_ScriptBody(PN_Script):
+    @property
+    def ScriptBody(self):
+        return self.children[0]
     def EarlyErrors(self):
         # 15.1.1 Static Semantics: Early Errors
         # Script : ScriptBody
         #   * It is a Syntax Error if the LexicallyDeclaredNames of ScriptBody contains any duplicate entries.
         #   * It is a Syntax Error if any element of the LexicallyDeclaredNames of ScriptBody also occurs in the VarDeclaredNames of ScriptBody.
-        ScriptBody = self.children[0]
         errs = []
-        lexnames = ScriptBody.LexicallyDeclaredNames()
+        lexnames = self.ScriptBody.LexicallyDeclaredNames()
         lexnameset = set(lexnames)
         if len(lexnames) != len(lexnameset):
             errs.append('Duplicate Lexical Declarations')
-        if not lexnameset.isdisjoint(set(ScriptBody.VarDeclaredNames())):
+        if not lexnameset.isdisjoint(set(self.ScriptBody.VarDeclaredNames())):
             errs.append('Var declaration mirrors lexical declaration')
         return [CreateSyntaxError(msg) for msg in errs]
 class PN_Script_empty(PN_Script):
@@ -8376,6 +8917,9 @@ class PN_ScriptBody_StatementList(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('ScriptBody', p)
         self.direct_eval = ctx.direct_eval
+    @property
+    def StatementList(self):
+        return self.children[0]
     def EarlyErrors(self):
         # 15.1.1 Static Semantics: Early Errors
         # ScriptBody : StatementList
@@ -8389,7 +8933,7 @@ class PN_ScriptBody_StatementList(ParseNode):
         # * It is a Syntax Error if ContainsUndefinedBreakTarget of StatementList with argument « » is true.
         # * It is a Syntax Error if ContainsUndefinedContinueTarget of StatementList with arguments « » and « » is true.
         errs = []
-        StatementList = self.children[0]
+        StatementList = self.StatementList
         if not self.direct_eval and StatementList.Contains('SUPER'):
             errs.append("'super' not allowed in this context")
         if not self.direct_eval and StatementList.Contains('NewTarget'):
@@ -8420,7 +8964,7 @@ class PN_ScriptBody_StatementList(ParseNode):
 from sly import Parser
 class Ecma262Parser(Parser):
     tokens = Lexer.tokens
-    start = 'Script'
+    start = 'SpecialStart'
     debugfile = 'parser.out'
 
     def error(self, p):
@@ -8437,10 +8981,17 @@ class Ecma262Parser(Parser):
             return f'ParseContext(goal={self.goal}, strict={self.strict})'
 
     def __init__(self, strict=False, start=None, source_text=''):
-        if start:
-            self.start = start
         super().__init__()
         self.context = self.ParseContext(self.start, strict, source_text)
+
+    @_('GOAL_SCRIPT Script')
+    def SpecialStart(self, p):
+        # The goal target for this parse is 'Script'
+        return p[1]
+    @_('GOAL_CALLMEMBEREXPRESSION CallMemberExpression')
+    def SpecialStart(self, p):
+        # The goal target for this parse is 'CallMemberExpression'
+        return p[1]
 
     ########################################################################################################################
     # 15.1 Scripts
@@ -8463,6 +9014,20 @@ class Ecma262Parser(Parser):
     @_('StatementList')
     def ScriptBody(self, p):
         return PN_ScriptBody_StatementList(self.context, p)
+    ########################################################################################################################
+
+    ########################################################################################################################
+    # 14.8 Async Arrow Function Definitions
+    #
+    # Syntax
+    #
+    # @@@ Need to add the rest
+    #
+    # CoverCallExpressionAndAsyncArrowHead[Yield, Await] :
+    #               MemberExpression[?Yield, ?Await] Arguments[?Yield, ?Await]
+    @_('MemberExpression Arguments')
+    def CoverCallExpressionAndAsyncArrowHead(self, p):
+        return PN_CoverCallExpressionAndAsyncArrowHead_MemberExpression_Arguments(self.context, p)
     ########################################################################################################################
 
     ########################################################################################################################
@@ -9010,16 +9575,116 @@ class Ecma262Parser(Parser):
     ########################################################################################################################
 
     ########################################################################################################################
+    # 12.3 Left-Hand-Side Expressions
+    #
+    # Syntax
+    #
+    # MemberExpression[Yield, Await] :
+    #           PrimaryExpression[?Yield, ?Await]
+    #           MemberExpression[?Yield, ?Await] [ Expression[+In, ?Yield, ?Await] ]
+    #           MemberExpression[?Yield, ?Await] . IdentifierName
+    #           MemberExpression[?Yield, ?Await] TemplateLiteral[?Yield, ?Await, +Tagged]
+    #           SuperProperty[?Yield, ?Await]
+    #           MetaProperty
+    #           new MemberExpression[?Yield, ?Await] Arguments[?Yield, ?Await]
+    #
+    # SuperProperty[Yield, Await] :
+    #           super [ Expression[+In, ?Yield, ?Await] ]
+    #           super . IdentifierName
+    #
+    # MetaProperty :
+    #           NewTarget
+    #
+    # NewTarget :
+    #           new . target
+    #
+    # NewExpression[Yield, Await] :
+    #           MemberExpression[?Yield, ?Await]
+    #           new NewExpression[?Yield, ?Await]
+    #
+    # CallExpression[Yield, Await] :
+    #           CoverCallExpressionAndAsyncArrowHead[?Yield, ?Await]
+    #           SuperCall[?Yield, ?Await]
+    #           CallExpression[?Yield, ?Await] Arguments[?Yield, ?Await]
+    #           CallExpression[?Yield, ?Await] [ Expression[+In, ?Yield, ?Await] ]
+    #           CallExpression[?Yield, ?Await] . IdentifierName
+    #           CallExpression[?Yield, ?Await] TemplateLiteral[?Yield, ?Await, +Tagged]
+    #
+    # SuperCall[Yield, Await] :
+    #           super Arguments[?Yield, ?Await]
+    #
+    # Arguments[Yield, Await] :
+    #           ( )
+    #           ( ArgumentList[?Yield, ?Await] )
+    #           ( ArgumentList[?Yield, ?Await] , )
+    #
+    # ArgumentList[Yield, Await] :
+    #           AssignmentExpression[+In, ?Yield, ?Await]
+    #           ... AssignmentExpression[+In, ?Yield, ?Await]
+    #           ArgumentList[?Yield, ?Await] , AssignmentExpression[+In, ?Yield, ?Await]
+    #           ArgumentList[?Yield, ?Await] , ...AssignmentExpression[+In, ?Yield, ?Await]
+    #
+    # LeftHandSideExpression[Yield, Await] :
+    #           NewExpression[?Yield, ?Await]
+    #           CallExpression[?Yield, ?Await]
+    #
     @_('NewExpression')
     def LeftHandSideExpression(self, p):
         return PN_LeftHandSideExpression_NewExpression(self.context, p)
+    @_('CallExpression')
+    def LeftHandSideExpression(self, p):
+        return PN_LeftHandSideExpression_CallExpression(self.context, p)
+    @_('CoverCallExpressionAndAsyncArrowHead')
+    def CallExpression(self, p):
+        return PN_CallExpression_CoverCallExpressionAndAsyncArrowHead(self.context, p)
+    @_('CallExpression Arguments')
+    def CallExpression(self, p):
+        return PN_CallExpression_CallExpression_Arguments(self.context, p)
+    @_('MemberExpression Arguments')
+    def CallMemberExpression(self, p):
+        return PN_CallMemberExpression_MemberExpression_Arguments(self.context, p)
+    @_('AssignmentExpression_In')
+    def ArgumentList(self, p):
+        return PN_ArgumentList_AssignmentExpression(self.context, p)
+    @_('DOTDOTDOT AssignmentExpression_In')
+    def ArgumentList(self, p):
+        return PN_ArgumentList_DOTDOTDOT_AssignmentExpression(self.context, p)
+    @_('ArgumentList COMMA AssignmentExpression_In')
+    def ArgumentList(self, p):
+        return PN_ArgumentList_COMMA_AssignmentExpression(self.context, p)
+    @_('ArgumentList COMMA DOTDOTDOT AssignmentExpression_In')
+    def ArgumentList(self, p):
+        return PN_ArgumentList_COMMA_DOTDOTDOT_AssignmentExpression(self.context, p)
+    @_('LPAREN RPAREN')
+    def Arguments(self, p):
+        return PN_Arguments_LPAREN_RPAREN(self.context, p)
+    @_('LPAREN ArgumentList RPAREN')
+    def Arguments(self, p):
+        return PN_Arguments_LPAREN_ArgumentList_RPAREN(self.context, p)
+    @_('LPAREN ArgumentList COMMA RPAREN')
+    def Arguments(self, p):
+        return PN_Arguments_LPAREN_ArgumentList_COMMA_RPAREN(self.context, p)
     @_('MemberExpression')
     def NewExpression(self, p):
         return PN_NewExpression_MemberExpression(self.context, p)
+    @_('NEW NewExpression')
+    def NewExpression(self, p):
+        return PN_NewExpression_NEW_NewExpression(self.context, p)
     @_('PrimaryExpression')
     def MemberExpression(self, p):
         return PN_MemberExpression_PrimaryExpression(self.context, p)
+    @_('NEW MemberExpression Arguments')
+    def MemberExpression(self, p):
+        return PN_MemberExpression_NEW_MemberExpression_Arguments(self.context, p)
+    @_('MemberExpression LBRACKET Expression_In RBRACKET')
+    def MemberExpression(self, p):
+        return PN_MemberExpression_MemberExpression_LBRACKET_Expression_RBRACKET(self.context, p)
+    @_('MemberExpression PERIOD  IdentifierName')
+    def MemberExpression(self, p):
+        return PN_MemberExpression_MemberExpression_DOT_IdentifierName(self.context, p)
+    ########################################################################################################################
 
+    ########################################################################################################################
     @_('THIS')
     def PrimaryExpression(self, p):
         return PN_PrimaryExpression_THIS(self.context, p)
@@ -9105,6 +9770,18 @@ class Ecma262Parser(Parser):
     @_('AWAIT')
     def BindingIdentifier(self, p):
         return PN_BindingIdentifier_AWAIT(self.context, p)
+
+    @_('Identifier', 'ReservedWord')
+    def IdentifierName(self, p):
+        return PN_IdentifierName(self.context, p)
+    @_('AWAIT', 'BREAK', 'CASE', 'CATCH', 'CLASS', 'CONST', 'CONTINUE',
+       'DEBUGGER', 'DEFAULT', 'DELETE', 'DO', 'ELSE', 'EXPORT', 'EXTENDS',
+        'FINALLY', 'FOR', 'FUNCTION', 'IF', 'IMPORT', 'IN', 'INSTANCEOF',
+        'NEW', 'RETURN', 'SUPER', 'SWITCH', 'THIS', 'THROW', 'TRY', 'TYPEOF',
+        'VAR', 'VOID', 'WHILE', 'WITH', 'YIELD', 'ENUM', 'NULL', 'TRUE',
+        'FALSE')
+    def ReservedWord(self, p):
+        return PN_ReservedWord(self.context, p)
 
     @_('IDENTIFIER')
     def Identifier(self, p):
@@ -10313,12 +10990,14 @@ def NumberFixups(realm):
     return NormalCompletion(None)
 
 if __name__ == '__main__':
-    rv, ok = ec(RunJobs(scripts=['-89;']))
+    rv, ok = ec(RunJobs(scripts=['n = Number(3);']))
 
+    InitializeHostDefinedRealm()
     if ok:
         print('Script returned %s' % nc(ToString(rv)))
     else:
         print(repr(rv))
-
+    surrounding_agent.ec_stack.pop()
+    surrounding_agent.running_ec = None
 
 # Banners produced using font "Colossal" on https://www.messletters.com/en/big-text/

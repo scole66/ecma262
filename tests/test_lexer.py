@@ -9,6 +9,7 @@ def test_lex_simple_sample():
     result = [{'type': token.type, 'value': token.value.value} for token in l.lex()]
 
     expected = [
+        {'type': 'GOAL_SCRIPT', 'value': None},
         {'type': 'IDENTIFIER', 'value': 'goat'},
         {'type': 'EQUALS', 'value': '='},
         {'type': 'IDENTIFIER', 'value': 'pig'},
@@ -180,7 +181,7 @@ multiple lines!
              ])
 def test_lex(test_input, expected):
     l = Lexer(test_input)
-    result = list(l.lex())
+    result = list(l.lex())[1:]
     assert [{'type': token.type, 'value': token.value.value} for token in result] == expected
 
 @pytest.mark.parametrize('test_input',
