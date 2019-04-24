@@ -35,6 +35,7 @@ class JSType(Enum):
     SYMBOL = auto()
     NUMBER = auto()
     OBJECT = auto()
+    ILLEGAL = auto() # Not actually a JS type.
 
 # 6.1.1 The Undefined Type
 # The Undefined type has exactly one value, called "undefined". Any variable that has not been assigned a value has the
@@ -847,6 +848,7 @@ def TypeOf(arg):
         return JSType.SYMBOL
     if isObject(arg):
         return JSType.OBJECT
+    return JSType.ILLEGAL
 
 # 6.2.1 The List and Record Specification Types
 #

@@ -124,3 +124,4 @@ def test_TypeOf_01():
     assert TypeOf('test') == JSType.STRING
     assert TypeOf(wks_match) == JSType.SYMBOL
     assert TypeOf(JSObject()) == JSType.OBJECT
+    assert TypeOf(PropertyDescriptor(value=10)) == JSType.ILLEGAL
