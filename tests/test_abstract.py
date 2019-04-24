@@ -663,6 +663,42 @@ def test_ToPropertyKey_03(mocker):
     res = ToPropertyKey('a')
     assert res == Completion(THROW, 'throw test', None)
 
+# 7.2.1 RequireObjectCoercible ( argument )
+#
+# The abstract operation RequireObjectCoercible throws an error if argument is a value that cannot be converted to an
+# Object using ToObject. It is defined by Table 13:
+#
+# Table 13: RequireObjectCoercible Results
+# +---------------+-------------------------------
+# | Argument Type | Result
+# +---------------+-------------------------------
+# | Undefined     | Throw a TypeError exception.
+# | Null          | Throw a TypeError exception.
+# | Boolean       | Return argument.
+# | Number        | Return argument.
+# | String        | Return argument.
+# | Symbol        | Return argument.
+# | Object        | Return argument.
+# +---------------+-------------------------------
+@pytest.mark.parametrize('inp', [None, JSNull.NULL])
+def test_RequireObjectCoercible_01(inp):
+    # The "I throw a type error exception" case.
+    res = RequireObjectCoercible(inp)
+    assert res.ctype == THROW
+    assert res.target is None
+    assert isinstance(res.value, TypeError)
+
+@pytest.mark.parametrize('inp', [True, 10, 'flower', wks_to_primitive])
+def test_RequireObjectCoercible_02(inp):
+    # Boolean, Number, String, and Symbol values
+    res = RequireObjectCoercible(inp)
+    assert res == Completion(NORMAL, inp, None)
+
+def test_RequireObjectCoercible_03(obj):
+    # An Object value
+    res = RequireObjectCoercible(obj)
+    assert res == Completion(NORMAL, obj, None)
+
 # 7.2.2 IsArray ( argument )
 #
 # The abstract operation IsArray takes one argument argument, and performs the following steps:
