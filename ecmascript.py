@@ -2044,7 +2044,7 @@ def AbstractRelationalComparison(x, y, LeftFirst):
         # e. Let n be the integer that is the numeric value of the code unit at index k within py.
         # f. If m < n, return true. Otherwise, return false.
         # -- Steps a-f are what python already does. So this is easy.
-        return px < py
+        return NormalCompletion(px < py)
     # 4. Else,
     # a. NOTE: Because px and py are primitive values evaluation order is not important.
     # b. Let nx be ? ToNumber(px).
