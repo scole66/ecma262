@@ -6,5 +6,6 @@
     /Users/scole/.vscode/*
     C:\Users\scole\Appdata\*
     /usr/local/lib/*
+  branch = True
 [report]
   show_missing = true

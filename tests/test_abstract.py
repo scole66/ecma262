@@ -750,3 +750,116 @@ def test_IsArray_06(obj):
     # An object that's not an array
     res = IsArray(obj)
     assert res == Completion(NORMAL, False, None)
+
+# 7.2.13 Abstract Relational Comparison
+# The comparison x < y, where x and y are values, produces true, false, or undefined (which indicates that at least one
+# operand is NaN). In addition to x and y the algorithm takes a Boolean flag named LeftFirst as a parameter. The flag
+# is used to control the order in which operations with potentially visible side-effects are performed upon x and y. It
+# is necessary because ECMAScript specifies left to right evaluation of expressions. The default value of LeftFirst is
+# true and indicates that the x parameter corresponds to an expression that occurs to the left of the y parameter's
+# corresponding expression. If LeftFirst is false, the reverse is the case and operations must be performed upon y
+# before x. Such a comparison is performed as follows:
+#
+# 1. If the LeftFirst flag is true, then
+#    a. Let px be ? ToPrimitive(x, hint Number).
+#    b. Let py be ? ToPrimitive(y, hint Number).
+# 2. Else the order of evaluation needs to be reversed to preserve left to right evaluation,
+#    a. Let py be ? ToPrimitive(y, hint Number).
+#    b. Let px be ? ToPrimitive(x, hint Number).
+# 3. If Type(px) is String and Type(py) is String, then
+#    a. If IsStringPrefix(py, px) is true, return false.
+#    b. If IsStringPrefix(px, py) is true, return true.
+#    c. Let k be the smallest nonnegative integer such that the code unit at index k within px is different from the
+#       code unit at index k within py. (There must be such a k, for neither String is a prefix of the other.)
+#    d. Let m be the integer that is the numeric value of the code unit at index k within px.
+#    e. Let n be the integer that is the numeric value of the code unit at index k within py.
+#    f. If m < n, return true. Otherwise, return false.
+# 4. Else,
+#    a. NOTE: Because px and py are primitive values evaluation order is not important.
+#    b. Let nx be ? ToNumber(px).
+#    c. Let ny be ? ToNumber(py).
+#    d. If nx is NaN, return undefined.
+#    e. If ny is NaN, return undefined.
+#    f. If nx and ny are the same Number value, return false.
+#    g. If nx is +0 and ny is -0, return false.
+#    h. If nx is -0 and ny is +0, return false.
+#    i. If nx is +∞, return false.
+#    j. If ny is +∞, return true.
+#    k. If ny is -∞, return false.
+#    l. If nx is -∞, return true.
+#    m. If the mathematical value of nx is less than the mathematical value of ny—note that these mathematical values
+#       are both finite and not both zero—return true. Otherwise, return false.
+# NOTE 1
+# Step 3 differs from step 7 in the algorithm for the addition operator + (12.8.3) by using the logical-and operation
+# instead of the logical-or operation.#
+#
+# NOTE 2
+# The comparison of Strings uses a simple lexicographic ordering on sequences of code unit values. There is no attempt
+# to use the more complex, semantically oriented definitions of character or string equality and collating order
+# defined in the Unicode specification. Therefore String values that are canonically equal according to the Unicode
+# standard could test as unequal. In effect this algorithm assumes that both Strings are already in normalized form.
+# Also, note that for strings containing supplementary characters, lexicographic ordering on sequences of UTF-16 code
+# unit values differs from that on sequences of code point values.
+from unittest.mock import call
+def test_AbstractRelationalComparison_01(mocker):
+    # LeftFirst True: make sure we evaluate the left arg before the right arg.
+    mocker.patch('ecmascript.ToPrimitive', side_effect=lambda a, b: a)
+    res = AbstractRelationalComparison(10, 20, True)
+
+    # assert the order
+    ecmascript.ToPrimitive.assert_has_calls([call(10, 'number'), call(20, 'number')])
+    # and check the result, just because
+    assert res == Completion(NORMAL, True, None)
+
+def test_AbstractRelationalComparison_02(mocker):
+    # LeftFirst False: make sure we evaluate the right arg before the left arg
+    mocker.patch('ecmascript.ToPrimitive', side_effect=lambda a, b: a)
+    res = AbstractRelationalComparison(10, 20, False)
+
+    # assert the order
+    ecmascript.ToPrimitive.assert_has_calls([call(20, 'number'), call(10, 'number')])
+    assert res == Completion(NORMAL, True, None)
+
+@pytest.mark.parametrize('left, right, expected', [
+    ('th', 'thing', True), # Left is a substring of Right (3b)
+    ('thing', 'th', False), # Right is a substring of Left (3a)
+    ('thing', 'thang', False), # 3f: strings where one is not a prefix of the other
+    ('thing', 'thzzz', True), # 3f: strings where one is not a prefix of the other
+    (math.nan, 67, None), # 4d left is nan
+    (67, math.nan, None), # 4e right is nan
+    (88, 88, False), # 4f Same number
+    (0, -0.0, False), # 4g
+    (-0.0, 0, False), # 4h
+    (math.inf, math.inf, False), # 4f again
+    (math.inf, 888, False), # 4i
+    (222, math.inf, True), # 4j
+    (987, -math.inf, False), # 4k
+    (-math.inf, 8193, True), # 4l
+    (100, 1000, True), # 4m
+    (1000, 100, False), # 4m
+])
+def test_AbstractRelationalComparison_03(realm, left, right, expected):
+    res = AbstractRelationalComparison(left, right, True)
+    assert res == Completion(NORMAL, expected, None)
+
+@pytest.mark.parametrize('left, right, lrf', [
+    (20, 10, True),
+    (10, 20, True),
+    (20, 10, False),
+    (10, 20, False),
+] )
+def test_AbstractRelationalComparison_04(realm, mocker, left, right, lrf):
+    # The ToPrimitive error paths
+    mocker.patch('ecmascript.ToPrimitive', side_effect=lambda a, b: 10 if a == 10 else ThrowCompletion('err thrown'))
+    res = AbstractRelationalComparison(left, right, lrf)
+    assert res == Completion(THROW, 'err thrown', None)
+
+@pytest.mark.parametrize('left, right', [
+    (10, 20),
+    (20, 10),
+])
+def test_AbstractRelationalComparison_05(realm, mocker, left, right):
+    # The ToNumber error paths
+    mocker.patch('ecmascript.ToNumber', side_effect=lambda a: 10 if a == 10 else ThrowCompletion('err thrown'))
+    res = AbstractRelationalComparison(left, right, True)
+    assert res == Completion(THROW, 'err thrown', None)
