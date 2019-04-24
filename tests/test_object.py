@@ -393,6 +393,54 @@ def test_ValidateAndApplyPropertyDescriptor_19(realm):
     assert (current.Get, current.Set, current.enumerable, current.configurable) == \
                 (after.Get, after.Set, after.enumerable, after.configurable)
 
+def test_ValidateAndApplyPropertyDescriptor_20(realm):
+    # A validation request with an data descriptor and no "current" just returns True
+    desc = PropertyDescriptor(value='foo')
+    cr = ValidateAndApplyPropertyDescriptor(None, 'myprop', True, desc, None)
+    assert cr == Completion(NORMAL, True, None)
+
+def test_ValidateAndApplyPropertyDescriptor_21(realm):
+    # Switching from a data desriptor to an accessor descriptor for validation only is ok.
+    obj = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
+    def test_get(self, new_target):
+        return NormalCompletion('nonsense')
+    get_func = CreateBuiltinFunction(test_get, [], realm)
+    DefinePropertyOrThrow(obj, 'testkey', PropertyDescriptor(value='hoop', writable=True, enumerable=True, configurable=True))
+    current = obj.GetOwnProperty('testkey').value
+
+    desc = PropertyDescriptor(Get=get_func)
+    cr = ValidateAndApplyPropertyDescriptor(None, 'testkey', True, desc, current)
+    assert cr == Completion(NORMAL, True, None)
+
+def test_ValidateAndApplyPropertyDescriptor_22(realm):
+    # Switching from an accessor desriptor to a data descriptor for validation only is ok.
+    obj = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
+    def test_get(self, new_target):
+        return NormalCompletion('nonsense')
+    get_func = CreateBuiltinFunction(test_get, [], realm)
+    DefinePropertyOrThrow(obj, 'testkey', PropertyDescriptor(Get=get_func, enumerable=True, configurable=True))
+    current = obj.GetOwnProperty('testkey').value
+
+    desc = PropertyDescriptor(value='bar')
+    cr = ValidateAndApplyPropertyDescriptor(None, 'testkey', True, desc, current)
+    assert cr == Completion(NORMAL, True, None)
+
+def test_ValidateAndApplyPropertyDescriptor_23(realm):
+    # Switch an accessor property
+    obj = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
+    def test_get(self, new_target):
+        return NormalCompletion('nonsense')
+    get_func = CreateBuiltinFunction(test_get, [], realm)
+    DefinePropertyOrThrow(obj, 'testkey', PropertyDescriptor(Get=get_func, enumerable=True, configurable=True))
+    current = obj.GetOwnProperty('testkey').value
+
+    def test_get2(self, new_target):
+        return NormalCompletion('alternate')
+    get_func2 = CreateBuiltinFunction(test_get2, [], realm)
+    desc = PropertyDescriptor(Get=get_func2)
+    cr = ValidateAndApplyPropertyDescriptor(None, 'testkey', True, desc, current)
+    assert cr == Completion(NORMAL, True, None)
+
 # [[DefineOwnProperty]] on objects: if we assume ValidateAndApplyPropertyDescriptor works properly,
 # all we care about here:
 #   * Ensuring that we pass the Extensible property correctly;
