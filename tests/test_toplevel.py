@@ -97,6 +97,7 @@ def cleanup():
     ('n = new Number(3); n[\'extra\'] = 6; n[\'extra\'];', 6),
     ('puppy = new Boolean(false); puppy[\'true\'] = 888; puppy.true;', 888),
     ('bob = new Object(); bob.thing_1 = 99; bob.thing_2 = 102; bob.NUMBER = -1234;', -1234),
+    ('((4+8)*(12-3)+1)/(13-3);', 10.9),
 ])
 def test_scripts_01(cleanup, script, result):
     rv = RunJobs(scripts=[script])
