@@ -5574,12 +5574,13 @@ class Lexer():
         'VAR', 'VOID', 'WHILE', 'WITH', 'YIELD', 'ENUM', 'NULL', 'TRUE',
         'FALSE',
 
-        'GOAL_SCRIPT', 'GOAL_CALLMEMBEREXPRESSION'
+        'GOAL_SCRIPT', 'GOAL_CALLMEMBEREXPRESSION', 'GOAL_PARENTHESIZEDEXPRESSION'
          }
 
     GoalTokens = {
         'Script': 'GOAL_SCRIPT',
         'CallMemberExpression': 'GOAL_CALLMEMBEREXPRESSION',
+        'ParenthesizedExpression': 'GOAL_PARENTHESIZEDEXPRESSION',
     }
 
     class TokenValue:
@@ -6620,24 +6621,132 @@ class PN_ReservedWord(ParseNode):
 class PN_IdentifierName(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('IdentifierName', p)
-#################################################################################################################
-class PN_PrimaryExpression_THIS(ParseNode):
+#################################################################################################################################################################################################
+#
+#  d888    .d8888b.       .d8888b.      8888888b.          d8b                                             8888888888                                                      d8b
+# d8888   d88P  Y88b     d88P  Y88b     888   Y88b         Y8P                                             888                                                             Y8P
+#   888          888            888     888    888                                                         888
+#   888        .d88P          .d88P     888   d88P 888d888 888 88888b.d88b.   8888b.  888d888 888  888     8888888    888  888 88888b.  888d888  .d88b.  .d8888b  .d8888b  888  .d88b.  88888b.
+#   888    .od888P"       .od888P"      8888888P"  888P"   888 888 "888 "88b     "88b 888P"   888  888     888        `Y8bd8P' 888 "88b 888P"   d8P  Y8b 88K      88K      888 d88""88b 888 "88b
+#   888   d88P"          d88P"          888        888     888 888  888  888 .d888888 888     888  888     888          X88K   888  888 888     88888888 "Y8888b. "Y8888b. 888 888  888 888  888
+#   888   888"       d8b 888"           888        888     888 888  888  888 888  888 888     Y88b 888     888        .d8""8b. 888 d88P 888     Y8b.          X88      X88 888 Y88..88P 888  888
+# 8888888 888888888  Y8P 888888888      888        888     888 888  888  888 "Y888888 888      "Y88888     8888888888 888  888 88888P"  888      "Y8888   88888P'  88888P' 888  "Y88P"  888  888
+#                                                                                                  888                         888
+#                                                                                             Y8b d88P                         888
+#                                                                                              "Y88P"                          888
+#
+#################################################################################################################################################################################################
+class PN_PrimaryExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('PrimaryExpression', p)
+class PN_PrimaryExpression_THIS(PN_PrimaryExpression):
     def evaluate(self):
         return ResolveThisBinding()
     def IsFunctionDefinition(self):
         return False
-class PN_PrimaryExpression_IdentifierReference(ParseNode):
-    def __init__(self, ctx, p):
-        super().__init__('PrimaryExpression', p)
+    def IsIdentifierRef(self):
+        return False
+    def IsValidSimpleAssignmentTarget(self):
+        return False
+class PN_PrimaryExpression_IdentifierReference(PN_PrimaryExpression):
     def IsFunctionDefinition(self):
         return False
-class PN_PrimaryExpression_Literal(ParseNode):
-    def __init__(self, ctx, p):
-        super().__init__('PrimaryExpression', p)
+    def IsIdentifierRef(self):
+        return True
+class PN_PrimaryExpression_Literal(PN_PrimaryExpression):
     def IsFunctionDefinition(self):
         return False
+    def IsIdentifierRef(self):
+        return False
+    def IsValidSimpleAssignmentTarget(self):
+        return False
+class PN_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(PN_PrimaryExpression):
+    # 12.2.10 The Grouping Operator
+    def __init__(self, ctx, p):
+        super().__init__(ctx, p)
+        start, end = self.source_range()
+        source = ctx.source_text[start:end]
+        subparser = Ecma262Parser(start='ParenthesizedExpression', source_text=source)
+        sublexer = Lexer(source, 'ParenthesizedExpression')
+        tree = subparser.parse(sublexer.lex())
+        self.children[0].covered_production = tree
+    @property
+    def CoverParenthesizedExpressionAndArrowParameterList(self):
+        return self.children[0]
+    def EarlyErrors(self):
+        # 12.2.10.1 Static Semantics: Early Errors
+        #           PrimaryExpression : CoverParenthesizedExpressionAndArrowParameterList
+        # * It is a Syntax Error if CoverParenthesizedExpressionAndArrowParameterList is not covering a
+        #   ParenthesizedExpression.
+        # * All Early Error rules for ParenthesizedExpression and its derived productions also apply to
+        #   CoveredParenthesizedExpression of CoverParenthesizedExpressionAndArrowParameterList.
+        errs = []
+        expr = self.CoverParenthesizedExpressionAndArrowParameterList.CoveredParenthesizedExpression()
+        if not isinstance(expr, ParseNode):
+            errs.append(CreateSyntaxError('Bad grouping syntax'))
+        else:
+            errs.extend(expr.EarlyErrorsScan())
+        return errs
+    def HasName(self):
+        # 12.2.1.2 Static Semantics: HasName
+        #           PrimaryExpression : CoverParenthesizedExpressionAndArrowParameterList
+        # 1. Let expr be CoveredParenthesizedExpression of CoverParenthesizedExpressionAndArrowParameterList.
+        # 2. If IsFunctionDefinition of expr is false, return false.
+        # 3. Return HasName of expr.
+        expr = self.CoverParenthesizedExpressionAndArrowParameterList.CoveredParenthesizedExpression()
+        return expr.IsFunctionDefinition() and expr.HasName()
+    def IsFunctionDefinition(self):
+        # 12.2.1.3 Static Semantics: IsFunctionDefinition
+        #           PrimaryExpression : CoverParenthesizedExpressionAndArrowParameterList
+        # 1. Let expr be CoveredParenthesizedExpression of CoverParenthesizedExpressionAndArrowParameterList.
+        # 2. Return IsFunctionDefinition of expr.
+        expr = self.CoverParenthesizedExpressionAndArrowParameterList.CoveredParenthesizedExpression()
+        return expr.IsFunctionDefinition()
+    def IsIdentifierRef(self):
+        return False
+    def IsValidSimpleAssignmentTarget(self):
+        # 12.2.1.5 Static Semantics: IsValidSimpleAssignmentTarget
+        #           PrimaryExpression : CoverParenthesizedExpressionAndArrowParameterList
+        # 1. Let expr be CoveredParenthesizedExpression of CoverParenthesizedExpressionAndArrowParameterList.
+        # 2. Return IsValidSimpleAssignmentTarget of expr.
+        expr = self.CoverParenthesizedExpressionAndArrowParameterList.CoveredParenthesizedExpression()
+        return expr.IsValidSimpleAssignmentTarget()
+    def evaluate(self):
+        # 12.2.10.4 Runtime Semantics: Evaluation
+        #           PrimaryExpression : CoverParenthesizedExpressionAndArrowParameterList
+        # 1. Let expr be CoveredParenthesizedExpression of CoverParenthesizedExpressionAndArrowParameterList.
+        # 2. Return the result of evaluating expr.
+        return self.CoverParenthesizedExpressionAndArrowParameterList.CoveredParenthesizedExpression().evaluate()
+
+class PN_CoverParenthesizedExpressionAndArrowParameterList(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('CoverParenthesizedExpressionAndArrowParameterList', p)
+    def CoveredParenthesizedExpression(self):
+        if hasattr(self, 'covered_production'):
+            return self.covered_production
+        return None
+class PN_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_RPAREN(PN_CoverParenthesizedExpressionAndArrowParameterList):
+    pass
+class PN_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_COMMA_RPAREN(PN_CoverParenthesizedExpressionAndArrowParameterList):
+    pass
+class PN_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_RPAREN(PN_CoverParenthesizedExpressionAndArrowParameterList):
+    pass
+class PN_ParenthesizedExpression(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('ParenthesizedExpression', p)
+class PN_ParenthesizedExpression_LPAREN_Expression_RPAREN(PN_ParenthesizedExpression):
+    @property
+    def Expression(self):
+        return self.children[1]
+    def evaluate(self):
+        # 12.2.10.4 Runtime Semantics: Evaluation
+        #           ParenthesizedExpression : ( Expression )
+        # 1. Return the result of evaluating Expression. This may be of type Reference.
+        # NOTE
+        # This algorithm does not apply GetValue to the result of evaluating Expression. The principal motivation for
+        # this is so that operators such as delete and typeof may be applied to parenthesized expressions.
+        return self.Expression.evaluate()
+
 class PN_Initializer(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('Initializer', p)
@@ -6886,9 +6995,8 @@ class PN_CallExpression_CallExpression_Arguments(PN_CallExpression):
 class PN_CallExpression_CoverCallExpressionAndAsyncArrowHead(PN_CallExpression):
     def __init__(self, context, p):
         super().__init__(context, p)
-        self.source_text = context.source_text
         start, end = self.source_range()
-        source = self.source_text[start:end]
+        source = context.source_text[start:end]
         subparser = Ecma262Parser(start='CallMemberExpression', source_text=source)
         sublexer = Lexer(source, 'CallMemberExpression')
         tree = subparser.parse(sublexer.lex())
@@ -7343,7 +7451,7 @@ class PN_UnaryExpression_DELETE_UnaryExpression(PN_UnaryExpression_op):
                     break
                 if p.name == 'PrimaryExpression':
                     if p.children[0].name == 'IdentifierReference':
-                        errs.append('Cannot delete a top-level property in strict mode')
+                        errs.append(CreateSyntaxError('Cannot delete a top-level property in strict mode'))
                         break
                     if (p.children[0].name == 'CoverParenthesizedExpressionAndArrowParameterList' and
                         len(p.children[0].children) == 3 and
@@ -8994,7 +9102,9 @@ class Ecma262Parser(Parser):
     def SpecialStart(self, p):
         # The goal target for this parse is 'CallMemberExpression'
         return p[1]
-
+    @_('GOAL_PARENTHESIZEDEXPRESSION ParenthesizedExpression')
+    def SpecialStart(self, p):
+        return p[1]
     ########################################################################################################################
     # 15.1 Scripts
     # Syntax
@@ -9687,6 +9797,36 @@ class Ecma262Parser(Parser):
     ########################################################################################################################
 
     ########################################################################################################################
+    # 12.2 Primary Expression
+    #
+    # Syntax
+    #
+    # PrimaryExpression[Yield, Await] :
+    #           this
+    #           IdentifierReference[?Yield, ?Await]
+    #           Literal
+    #           ArrayLiteral[?Yield, ?Await]
+    #           ObjectLiteral[?Yield, ?Await]
+    #           FunctionExpression
+    #           ClassExpression[?Yield, ?Await]
+    #           GeneratorExpression
+    #           AsyncFunctionExpression
+    #           AsyncGeneratorExpression
+    #           RegularExpressionLiteral
+    #           TemplateLiteral[?Yield, ?Await, ~Tagged]
+    #           CoverParenthesizedExpressionAndArrowParameterList[?Yield, ?Await]
+    #
+    # CoverParenthesizedExpressionAndArrowParameterList[Yield, Await] :
+    #           ( Expression[+In, ?Yield, ?Await] )
+    #           ( Expression[+In, ?Yield, ?Await] , )
+    #           ( )
+    #           ( ... BindingIdentifier[?Yield, ?Await] )
+    #           ( ... BindingPattern[?Yield, ?Await] )
+    #           ( Expression[+In, ?Yield, ?Await] , ... BindingIdentifier[?Yield, ?Await] )
+    #           ( Expression[+In, ?Yield, ?Await] , ... BindingPattern[?Yield, ?Await] )
+    #
+    # ParenthesizedExpression[Yield, Await] :
+    #           ( Expression[+In, ?Yield, ?Await] )
     @_('THIS')
     def PrimaryExpression(self, p):
         return PN_PrimaryExpression_THIS(self.context, p)
@@ -9696,7 +9836,23 @@ class Ecma262Parser(Parser):
     @_('Literal')
     def PrimaryExpression(self, p):
         return PN_PrimaryExpression_Literal(self.context, p)
+    @_('CoverParenthesizedExpressionAndArrowParameterList')
+    def PrimaryExpression(self, p):
+        return PN_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(self.context, p)
 
+    @_('LPAREN Expression_In RPAREN')
+    def CoverParenthesizedExpressionAndArrowParameterList(self, p):
+        return PN_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_RPAREN(self.context, p)
+    @_('LPAREN Expression_In COMMA RPAREN')
+    def CoverParenthesizedExpressionAndArrowParameterList(self, p):
+        return PN_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_COMMA_RPAREN(self.context, p)
+    @_('LPAREN RPAREN')
+    def CoverParenthesizedExpressionAndArrowParameterList(self, p):
+        return PN_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_RPAREN(self.context, p)
+
+    @_('LPAREN Expression_In RPAREN')
+    def ParenthesizedExpression(self, p):
+        return PN_ParenthesizedExpression_LPAREN_Expression_RPAREN(self.context, p)
     ########################################################################################################################
     # 12.2.6 Object Initializer
     #
@@ -10992,7 +11148,7 @@ def NumberFixups(realm):
     return NormalCompletion(None)
 
 if __name__ == '__main__':
-    rv, ok = ec(RunJobs(scripts=['n = Number(3);']))
+    rv, ok = ec(RunJobs(scripts=['56 * ( 4 + 2);']))
 
     InitializeHostDefinedRealm()
     if ok:
