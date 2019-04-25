@@ -44,13 +44,19 @@ def some_objects(realm):
     CreateMethodPropertyOrThrow(treasure, 'toString', objfunc)
     objfunc = CreateBuiltinFunction(lambda _a, _b: NormalCompletion(42), [], realm, JSNull.NULL)
     CreateMethodPropertyOrThrow(treasure, 'valueOf', objfunc)
+    # An object whose valueOf method isn't actually a function.
+    no_value = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
+    Set(no_value, 'valueOf', 67, False)
+    objfunc = CreateBuiltinFunction(lambda _a, _b: NormalCompletion('The no_value object'), [], realm, JSNull.NULL)
+    CreateMethodProperty(no_value, 'toString', objfunc)
 
     return {
         'plain': plain,
         'evil_get': evil_get,
         'evil_tostring': evil_tostring,
         'bad_primitives': bad_primitives,
-        'treasure': treasure
+        'treasure': treasure,
+        'no_value': no_value,
         }
 
 @pytest.mark.parametrize('objname, cnvtype, result_val, result_type', [
@@ -60,7 +66,8 @@ def some_objects(realm):
     ('evil_tostring', 'string', 'I am evil tostring', THROW),
     ('bad_primitives', 'string', TypeError(), THROW),
     ('treasure', 'string', 'You found the treasure', NORMAL),
-    ('treasure', 'number', 42, NORMAL)
+    ('treasure', 'number', 42, NORMAL),
+    ('no_value', 'number', 'The no_value object', NORMAL),
 ])
 def test_OrdinaryToPrimitive(some_objects, objname, cnvtype, result_val, result_type):
     cr = OrdinaryToPrimitive(some_objects[objname], cnvtype)
