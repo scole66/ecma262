@@ -87,11 +87,11 @@ def test_GetValue_01(ref, expected):
     rval = GetValue(ref)
     assert rval == expected
 
-def test_GetValue_02():
+def test_GetValue_02(realm):
     # If the input reference is unresolvable, throw a reference error.
     rval = GetValue(Reference(None, 'unresolvable', False))
     assert rval.ctype == THROW
-    assert isinstance(rval.value, ReferenceError)
+    assert nc(ToString(rval.value)).startswith('ReferenceError')
     assert rval.target is None
 
 def test_GetValue_03(obj):
@@ -127,11 +127,11 @@ def test_PutValue_02():
     rval = PutValue(None, Completion(THROW, 'throws', None))
     assert rval == Completion(THROW, 'throws', None)
 
-def test_PutValue_03():
+def test_PutValue_03(realm):
     # If the first arg is not a reference, throws a reference error.
     rval = PutValue(Completion(NORMAL, 'monkey', None), 'tigger')
     assert rval.ctype == THROW
-    assert isinstance(rval.value, ReferenceError)
+    assert nc(ToString(rval.value)).startswith('ReferenceError')
     assert rval.target is None
 
 def test_PutValue_04(realm):
@@ -146,7 +146,7 @@ def test_PutValue_05(realm):
     # If the reference is unresolvable and strict, then we get a reference error.
     rval = PutValue(Reference(None, 'strict_field', True), 'blocked!')
     assert rval.ctype == THROW
-    assert isinstance(rval.value, ReferenceError)
+    assert nc(ToString(rval.value)).startswith('ReferenceError')
     assert rval.target is None
 
 def test_PutValue_06(realm):
@@ -160,7 +160,7 @@ def test_PutValue_07(realm):
     # try to Put a value on a primitive time, the Put always fails, so... that's easy to arrange...
     rval = PutValue(Reference(True, 'odd_field', True), 'add')
     assert rval.ctype == THROW
-    assert isinstance(rval.value, TypeError)
+    assert nc(ToString(rval.value)).startswith('TypeError')
     assert rval.target is None
 
 def test_PutValue_08(realm):

@@ -13,13 +13,18 @@ import types
 import traceback
 
 def CreateReferenceError(msg=''):
-    return ReferenceError(msg) # This is a python object, not an ecmascript object. This will change when objects are turned on.
+    reference_error = surrounding_agent.running_ec.realm.intrinsics['%ReferenceError%']
+    return nc(Construct(reference_error, [msg]))
+    #return ReferenceError(msg) # This is a python object, not an ecmascript object. This will change when objects are turned on.
 def CreateTypeError(msg=''):
-    if not msg:
-        msg = ''.join(traceback.format_stack())
-    return TypeError(msg) # This is a python object, not an ecmascript object. This will change when objects are turned on.
+    type_error = surrounding_agent.running_ec.realm.intrinsics['%TypeError%']
+    errobj = nc(Construct(type_error, [msg]))
+    Set(errobj, 'stack', ''.join(traceback.format_stack()), False)
+    return errobj
+    #    return TypeError(msg) # This is a python object, not an ecmascript object. This will change when objects are turned on.
 def CreateSyntaxError(msg=''):
-    return SyntaxError(msg)
+    syntax_error = surrounding_agent.running_ec.realm.intrinsics['%SyntaxError%']
+    return nc(Construct(syntax_error, [msg]))
 
 class missing(Enum):
     MISSING = auto()
@@ -3720,6 +3725,13 @@ def CreateIntrinsics(realm_rec):
     #     must be ordered to avoid any dependencies upon objects that have not yet been created.
     intrinsics['%Object%'] = CreateObjectConstructor(realm_rec)
     AddObjectPrototypeProps(realm_rec)
+    intrinsics['%Error%'] = CreateErrorConstructor(realm_rec)
+    intrinsics['%ErrorPrototype%'] = CreateErrorPrototype(realm_rec)
+    ErrorFixups(realm_rec)
+    for name in ['Eval', 'Range', 'Reference', 'Syntax', 'Type', 'URI']:
+        intrinsics[f'%{name}Error%'] = CreateNativeErrorConstructor(realm_rec, name)
+        intrinsics[f'%{name}ErrorPrototype%'] = CreateNativeErrorPrototype(realm_rec, name)
+    NativeErrorFixups(realm_rec)
     intrinsics['%Boolean%'] = CreateBooleanConstructor(realm_rec)
     intrinsics['%BooleanPrototype%'] = CreateBooleanPrototype(realm_rec)
     BooleanFixups(realm_rec)
@@ -11014,6 +11026,230 @@ def BooleanPrototype_valueOf(this_value, _):
     # 1. Return ? thisBooleanValue(this value).
     return thisBooleanValue(this_value)
 
+##################################################################################################################################################################################
+#
+#  d888    .d8888b.      888888888      8888888888                                       .d88888b.  888         d8b                   888
+# d8888   d88P  Y88b     888            888                                             d88P" "Y88b 888         Y8P                   888
+#   888   888    888     888            888                                             888     888 888                               888
+#   888   Y88b. d888     8888888b.      8888888    888d888 888d888  .d88b.  888d888     888     888 88888b.    8888  .d88b.   .d8888b 888888 .d8888b
+#   888    "Y888P888          "Y88b     888        888P"   888P"   d88""88b 888P"       888     888 888 "88b   "888 d8P  Y8b d88P"    888    88K
+#   888          888            888     888        888     888     888  888 888         888     888 888  888    888 88888888 888      888    "Y8888b.
+#   888   Y88b  d88P d8b Y88b  d88P     888        888     888     Y88..88P 888         Y88b. .d88P 888 d88P    888 Y8b.     Y88b.    Y88b.       X88
+# 8888888  "Y8888P"  Y8P  "Y8888P"      8888888888 888     888      "Y88P"  888          "Y88888P"  88888P"     888  "Y8888   "Y8888P  "Y888  88888P'
+#                                                                                                               888
+#                                                                                                              d88P
+#                                                                                                            888P"
+#
+##################################################################################################################################################################################
+# 19.5 Error Objects
+# Instances of Error objects are thrown as exceptions when runtime errors occur. The Error objects may also serve as
+# base objects for user-defined exception classes.
+#
+# 19.5.1 The Error Constructor
+# The Error constructor:
+#
+#  * is the intrinsic object %Error%.
+#  * is the initial value of the Error property of the global object.
+#  * creates and initializes a new Error object when called as a function rather than as a constructor. Thus the
+#    function call Error(…) is equivalent to the object creation expression new Error(…) with the same arguments.
+#  * is designed to be subclassable. It may be used as the value of an extends clause of a class definition. Subclass
+#    constructors that intend to inherit the specified Error behaviour must include a super call to the Error
+#    constructor to create and initialize subclass instances with an [[ErrorData]] internal slot.
+def CreateErrorConstructor(realm):
+    obj = CreateBuiltinFunction(ErrorFunction, ['Construct'], realm=realm)
+    for key, value in [('length', 1), ('name', 'Error')]:
+        desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)
+        cr, ok = ec(DefinePropertyOrThrow(obj, key, desc))
+        if not ok:
+            return cr
+    return obj
+
+# 19.5.1.1 Error ( message )
+def ErrorFunction(this_value, new_target, message):
+    # When the Error function is called with argument message, the following steps are taken:
+    #
+    # 1. If NewTarget is undefined, let newTarget be the active function object, else let newTarget be NewTarget.
+    # 2. Let O be ? OrdinaryCreateFromConstructor(newTarget, "%ErrorPrototype%", « [[ErrorData]] »).
+    # 3. If message is not undefined, then
+    #    a. Let msg be ? ToString(message).
+    #    b. Let msgDesc be the PropertyDescriptor
+    #       { [[Value]]: msg, [[Writable]]: true, [[Enumerable]]: false, [[Configurable]]: true }.
+    #    c. Perform ! DefinePropertyOrThrow(O, "message", msgDesc).
+    # 4. Return O.
+    newTarget = new_target or surrounding_agent.running_ec.function
+    O, ok = ec(OrdinaryCreateFromConstructor(newTarget, '%ErrorPrototype%', ['ErrorData']))
+    if not ok:
+        return O
+    if message is not None:
+        msg, ok = ec(ToString(message))
+        if not ok:
+            return msg
+        msgDesc = PropertyDescriptor(value=msg, writable=True, enumerable=False, configurable=True)
+        nc(DefinePropertyOrThrow(O, 'message', msgDesc))
+    return NormalCompletion(O)
+
+# 19.5.2 Properties of the Error Constructor
+# The Error constructor:
+#
+#   * has a [[Prototype]] internal slot whose value is the intrinsic object %FunctionPrototype%.
+#   * has the following properties:
+
+# 19.5.2.1 Error.prototype
+# The initial value of Error.prototype is the intrinsic object %ErrorPrototype%.
+# This property has the attributes { [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: false }.
+
+def ErrorFixups(realm):
+    error_constructor = realm.intrinsics['%Error%']
+    error_prototype = realm.intrinsics['%ErrorPrototype%']
+    cr, ok = ec(DefinePropertyOrThrow(error_constructor, 'prototype',
+                PropertyDescriptor(value=error_prototype, writable=False, enumerable=False, configurable=False)))
+    if not ok:
+        return cr
+    # 19.5.3.1 Error.prototype.constructor
+    # The initial value of Error.prototype.constructor is the intrinsic object %Error%.
+    cr, ok = ec(DefinePropertyOrThrow(error_prototype, 'constructor', PropertyDescriptor(value=error_constructor)))
+    if not ok:
+        return cr
+    return NormalCompletion(None)
+
+# 19.5.3 Properties of the Error Prototype Object
+# The Error prototype object:
+#
+#   * is the intrinsic object %ErrorPrototype%.
+#   * is an ordinary object.
+#   * is not an Error instance and does not have an [[ErrorData]] internal slot.
+#   * has a [[Prototype]] internal slot whose value is the intrinsic object %ObjectPrototype%.
+def CreateErrorPrototype(realm):
+    error_prototype = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
+    # 19.5.3.2 Error.prototype.message
+    # The initial value of Error.prototype.message is the empty String.
+    # 19.5.3.3 Error.prototype.name
+    # The initial value of Error.prototype.name is "Error".
+    for key, value in [('message', ''), ('name', 'Error')]:
+        cr, ok = ec(Set(error_prototype, key, value, True))
+        if not ok:
+            return cr
+    cr, ok = ec(BindBuiltinFunctions(realm, error_prototype, [('toString', ErrorPrototype_toString, 1)]))
+    if not ok:
+        return cr
+    return error_prototype
+
+# 19.5.3.4 Error.prototype.toString ( )
+def ErrorPrototype_toString(this_value, _):
+    # The following steps are taken:
+    #
+    # 1. Let O be the this value.
+    # 2. If Type(O) is not Object, throw a TypeError exception.
+    # 3. Let name be ? Get(O, "name").
+    # 4. If name is undefined, let name be "Error"; otherwise let name be ? ToString(name).
+    # 5. Let msg be ? Get(O, "message").
+    # 6. If msg is undefined, let msg be the empty String; otherwise let msg be ? ToString(msg).
+    # 7. If name is the empty String, return msg.
+    # 8. If msg is the empty String, return name.
+    # 9. Return the string-concatenation of name, the code unit 0x003A (COLON), the code unit 0x0020 (SPACE), and msg.
+    if not isObject(this_value):
+        return ThrowCompletion(CreateTypeError('Method used on non-object'))
+    name, ok = ec(Get(this_value, 'name'))
+    if not ok:
+        return name
+    if name is None:
+        name = 'Error'
+    else:
+        name, ok = ec(ToString(name))
+        if not ok:
+            return name
+    msg, ok = ec(Get(this_value, 'message'))
+    if not ok:
+        return msg
+    if msg is None:
+        msg = ''
+    else:
+        msg, ok = ec(ToString(msg))
+        if not ok:
+            return msg
+    if name == '':
+        return NormalCompletion(msg)
+    if msg == '':
+        return NormalCompletion(name)
+    return NormalCompletion(f'{name}: {msg}')
+
+def CreateNativeErrorConstructor(realm, errorname):
+    errfunc = CreateErrorConstructorFunction(errorname)
+    obj = CreateBuiltinFunction(errfunc, ['Construct'], realm=realm, prototype=realm.intrinsics['%Error%'])
+    for key, value in [('length', 1), ('name', f'{errorname}Error')]:
+        desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)
+        cr, ok = ec(DefinePropertyOrThrow(obj, key, desc))
+        if not ok:
+            return cr
+    return obj
+
+def CreateErrorConstructorFunction(name):
+    def native_error_function(this_value, new_target, message):
+        newTarget = new_target or surrounding_agent.running_ec.function
+        O, ok = ec(OrdinaryCreateFromConstructor(newTarget, f'%{name}ErrorPrototype%', ['ErrorData']))
+        if not ok:
+            return O
+        if message is not None:
+            msg, ok = ec(ToString(message))
+            if not ok:
+                return msg
+            msgDesc = PropertyDescriptor(value=msg, writable=True, enumerable=False, configurable=True)
+            nc(DefinePropertyOrThrow(O, 'message', msgDesc))
+        return NormalCompletion(O)
+    return native_error_function
+
+def NativeErrorFixups(realm):
+    for name in ['Eval', 'Range', 'Reference', 'Syntax', 'Type', 'URI']:
+        constructor = realm.intrinsics[f'%{name}Error%']
+        prototype = realm.intrinsics[f'%{name}ErrorPrototype%']
+        cr, ok = ec(DefinePropertyOrThrow(constructor, 'prototype',
+                    PropertyDescriptor(value=prototype, writable=False, enumerable=False, configurable=False)))
+        if not ok:
+            return cr
+        cr, ok = ec(DefinePropertyOrThrow(prototype, 'constructor', PropertyDescriptor(value=constructor)))
+        if not ok:
+            return cr
+    return NormalCompletion(None)
+
+def CreateNativeErrorPrototype(realm, name):
+    prototype = ObjectCreate(realm.intrinsics['%ErrorPrototype%'])
+    for key, value in [('message', ''), ('name', f'{name}Error')]:
+        cr, ok = ec(Set(prototype, key, value, True))
+        if not ok:
+            return cr
+    return prototype
+
+
+##################################################################################################################################################################################
+##################################################################################################################################################################################
+##
+##  .d8888b.   .d8888b.      888b    888                        888                                                           888     8888888b.           888
+## d88P  Y88b d88P  Y88b     8888b   888                        888                                                           888     888  "Y88b          888
+##        888 888    888     88888b  888                        888                                                           888     888    888          888
+##      .d88P 888    888     888Y88b 888 888  888 88888b.d88b.  88888b.   .d88b.  888d888 .d8888b       8888b.  88888b.   .d88888     888    888  8888b.  888888  .d88b.  .d8888b
+##  .od888P"  888    888     888 Y88b888 888  888 888 "888 "88b 888 "88b d8P  Y8b 888P"   88K              "88b 888 "88b d88" 888     888    888     "88b 888    d8P  Y8b 88K
+## d88P"      888    888     888  Y88888 888  888 888  888  888 888  888 88888888 888     "Y8888b.     .d888888 888  888 888  888     888    888 .d888888 888    88888888 "Y8888b.
+## 888"       Y88b  d88P     888   Y8888 Y88b 888 888  888  888 888 d88P Y8b.     888          X88     888  888 888  888 Y88b 888     888  .d88P 888  888 Y88b.  Y8b.          X88
+## 888888888   "Y8888P"      888    Y888  "Y88888 888  888  888 88888P"   "Y8888  888      88888P'     "Y888888 888  888  "Y88888     8888888P"  "Y888888  "Y888  "Y8888   88888P'
+##
+##################################################################################################################################################################################
+##################################################################################################################################################################################
+
+#######################################################################################################################################################################
+#
+#  .d8888b.   .d8888b.       d888       888b    888                        888                            .d88888b.  888         d8b                   888
+# d88P  Y88b d88P  Y88b     d8888       8888b   888                        888                           d88P" "Y88b 888         Y8P                   888
+#        888 888    888       888       88888b  888                        888                           888     888 888                               888
+#      .d88P 888    888       888       888Y88b 888 888  888 88888b.d88b.  88888b.   .d88b.  888d888     888     888 88888b.    8888  .d88b.   .d8888b 888888 .d8888b
+#  .od888P"  888    888       888       888 Y88b888 888  888 888 "888 "88b 888 "88b d8P  Y8b 888P"       888     888 888 "88b   "888 d8P  Y8b d88P"    888    88K
+# d88P"      888    888       888       888  Y88888 888  888 888  888  888 888  888 88888888 888         888     888 888  888    888 88888888 888      888    "Y8888b.
+# 888"       Y88b  d88P d8b   888       888   Y8888 Y88b 888 888  888  888 888 d88P Y8b.     888         Y88b. .d88P 888 d88P    888 Y8b.     Y88b.    Y88b.       X88
+# 888888888   "Y8888P"  Y8P 8888888     888    Y888  "Y88888 888  888  888 88888P"   "Y8888  888          "Y88888P"  88888P"     888  "Y8888   "Y8888P  "Y888  88888P'
+#                                                                                                                                888
+#                                                                                                                               d88P
+#                                                                                                                             888P"
+#
+#######################################################################################################################################################################
 # 20.1.1 The Number Constructor
 # The Number constructor:
 #
@@ -11148,14 +11384,17 @@ def NumberFixups(realm):
     return NormalCompletion(None)
 
 if __name__ == '__main__':
-    rv, ok = ec(RunJobs(scripts=['56 * ( 4 + 2);']))
+    #rv, ok = ec(RunJobs(scripts=['56 * ( 4 + 2);']))
 
     InitializeHostDefinedRealm()
-    if ok:
-        print('Script returned %s' % nc(ToString(rv)))
-    else:
-        print(repr(rv))
-    surrounding_agent.ec_stack.pop()
-    surrounding_agent.running_ec = None
+    z = CreateTypeError('thing')
+
+    print('Made an error object: %s' % nc(ToString(z)))
+    #if ok:
+    #    print('Script returned %s' % nc(ToString(rv)))
+    #else:
+    #    print(repr(rv))
+    #surrounding_agent.ec_stack.pop()
+    #surrounding_agent.running_ec = None
 
 # Banners produced using font "Colossal" on https://www.messletters.com/en/big-text/
