@@ -98,6 +98,11 @@ def cleanup():
     ('puppy = new Boolean(false); puppy[\'true\'] = 888; puppy.true;', 888),
     ('bob = new Object(); bob.thing_1 = 99; bob.thing_2 = 102; bob.NUMBER = -1234;', -1234),
     ('((4+8)*(12-3)+1)/(13-3);', 10.9),
+    ("if (true) { 'true value'; } else { 'false value'; };", 'true value'),
+    ("if (false) { 'true value'; } else { 'false value'; };", 'false value'),
+    ("if (true) { 'true value'; };", 'true value'),
+    ("if (false) { 'true value'; };", None),
+
 ])
 def test_scripts_01(cleanup, script, result):
     rv = RunJobs(scripts=[script])
