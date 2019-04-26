@@ -103,7 +103,10 @@ def cleanup():
     ("if (false) { 'true value'; } else { 'false value'; };", 'false value'),
     ("if (true) { 'true value'; };", 'true value'),
     ("if (false) { 'true value'; };", None),
-
+    ('x=0; do x++; while (x<10); x;', 10),
+    ('x=0; y=0; while (x++ < 10) y -= 2; y;', -20),
+    ("y=''; for (x=0; x<10; x++) { y += x; }", '0123456789'),
+    ("var mystr=''; for (var x=0, y=0; x<15; x++,y--) {if (x%2) {mystr += x;} else {mystr += y;}}; mystr;", '01-23-45-67-89-1011-1213-14'),
 ])
 def test_scripts_01(cleanup, script, result):
     rv = RunJobs(scripts=[script])
