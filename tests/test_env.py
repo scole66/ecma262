@@ -6,6 +6,13 @@ NORMAL = CompletionType.NORMAL
 THROW = CompletionType.THROW
 empty = Empty.EMPTY
 
+@pytest.fixture
+def realm():
+    InitializeHostDefinedRealm()
+    yield surrounding_agent.running_ec.realm
+    surrounding_agent.ec_stack.pop()
+    surrounding_agent.running_ec = None
+
 def test_de_HasBinding():
     # setup
     der = DeclarativeEnvironmentRecord()
@@ -41,7 +48,7 @@ def test_de_CreateMutableBinding():
     assert not der.HasBinding('goblin')
     assert der.HasBinding('kobold')
 
-def test_de_CreateImmutableBinding():
+def test_de_CreateImmutableBinding(realm):
     # setup
     der = DeclarativeEnvironmentRecord()
 
@@ -108,7 +115,7 @@ def test_de_InitializedBinding():
     assert der.bindings['gnome'].value == 104
     assert der.bindings['gnome'].initialized
 
-def test_SetMutableBinding():
+def test_SetMutableBinding(realm):
     # The concrete Environment Record method SetMutableBinding for declarative Environment Records attempts to
     # change the bound value of the current binding of the identifier whose name is the value of the argument N to
     # the value of argument V. A binding for N normally already exists, but in rare cases it may not. If the
@@ -165,7 +172,7 @@ def test_SetMutableBinding():
     cr = der.GetBindingValue('gnome', False)
     assert cr.ctype == NORMAL and cr.value == 'baked potato'
 
-def test_GetBindingValue():
+def test_GetBindingValue(realm):
     der = DeclarativeEnvironmentRecord()
 
     cr = der.CreateMutableBinding('goblin', False)

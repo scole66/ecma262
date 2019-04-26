@@ -845,7 +845,7 @@ def test_GetPrototypeFromConstructor_05(realm):
     val = GetPrototypeFromConstructor(constructor, '%ObjectPrototype%')
     assert val.ctype == THROW
     assert val.target is None
-    assert isinstance(val.value, TypeError)
+    assert nc(ToString(val.value)).startswith('TypeError')
 
 def test_OrdinaryCreateFromConstructor_01(realm):
     # Test the successful path. (Most of the work happens in GetPrototypeFromConstructor, so we really don't need to check much

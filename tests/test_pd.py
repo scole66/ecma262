@@ -291,11 +291,11 @@ def test_FromPropertyDescriptor_03(realm):
     assert nc(Get(res, 'set')) is None
     assert nc(Get(res, 'get')) is None
 
-def test_ToPropertyDescriptor_01():
+def test_ToPropertyDescriptor_01(realm):
     # Can't make a descriptor out of a non-object.
     res = ToPropertyDescriptor(88)
     assert res.ctype == THROW
-    assert isinstance(res.value, TypeError)
+    assert nc(ToString(res.value)).startswith('TypeError')
     assert res.target is None
 
 def test_ToPropertyDescriptor_02(obj):
@@ -367,7 +367,7 @@ def test_ToPropertyDescriptor_06(obj, field):
 
     res = ToPropertyDescriptor(obj)
     assert res.ctype == THROW
-    assert isinstance(res.value, TypeError)
+    assert nc(ToString(res.value)).startswith('TypeError')
     assert res.target is None
 
 @pytest.mark.parametrize('fields',
@@ -387,5 +387,5 @@ def test_ToPropertyDescriptor_17(obj, fields):
         Set(obj, f, None, False)
     res = ToPropertyDescriptor(obj)
     assert res.ctype == THROW
-    assert isinstance(res.value, TypeError)
+    assert nc(ToString(res.value)).startswith('TypeError')
     assert res.target is None
