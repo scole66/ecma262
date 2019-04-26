@@ -8632,9 +8632,10 @@ class PN_EmptyStatement_SEMICOLON(ParseNode):
         super().__init__('EmptyStatement', p)
     def evaluate(self):
         return NormalCompletion(Empty.EMPTY)
-class PN_Statement_ExpressionStatement(ParseNode):
+class PN_Statement(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('Statement', p)
+class PN_Statement_ExpressionStatement(PN_Statement):
     def VarDeclaredNames(self):
         return []
     def VarScopedDeclarations(self):
@@ -8645,9 +8646,7 @@ class PN_Statement_ExpressionStatement(ParseNode):
         return False
     def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
         return False
-class PN_Statement_EmptyStatement(ParseNode):
-    def __init__(self, ctx, p):
-        super().__init__('Statement', p)
+class PN_Statement_EmptyStatement(PN_Statement):
     def VarDeclaredNames(self):
         return []
     def VarScopedDeclarations(self):
@@ -8658,22 +8657,19 @@ class PN_Statement_EmptyStatement(ParseNode):
         return False
     def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
         return False
-class PN_Statement_COLON_LabelledStatement(ParseNode):
-    def __init__(self, ctx, p):
-        super()._init__('Statement', p)
-class PN_Statement_BlockStatement(ParseNode):
-    def __init__(self, ctx, p):
-        super().__init__('Statement', p)
-class PN_Statement_VariableStatement(ParseNode):
-    def __init__(self, ctx, p):
-        super().__init__('Statement', p)
+class PN_Statement_COLON_LabelledStatement(PN_Statement):
+    pass
+class PN_Statement_BlockStatement(PN_Statement):
+    pass
+class PN_Statement_VariableStatement(PN_Statement):
     def ContainsDuplicateLabels(self, lst):
         return False
     def ContainsUndefinedBreakTarget(self, lst):
         return False
     def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
         return False
-
+class PN_Statement_IfStatement(PN_Statement):
+    pass
 
 ##########################################################################################################################
 #
@@ -8969,6 +8965,140 @@ class PN_VariableDeclaration_BindingIdentifier_Initializer(PN_VariableDeclaratio
                 SetFunctionName(value, bindingId)
         return PutValue(lhs, value)
 
+###########################################################################################################################################################################
+#
+#  d888    .d8888b.       .d8888b.      88888888888 888                   d8b  .d888      .d8888b.  888             888                                             888
+# d8888   d88P  Y88b     d88P  Y88b         888     888                   Y8P d88P"      d88P  Y88b 888             888                                             888
+#   888        .d88P     888                888     888                       888        Y88b.      888             888                                             888
+#   888       8888"      888d888b.          888     88888b.   .d88b.      888 888888      "Y888b.   888888  8888b.  888888  .d88b.  88888b.d88b.   .d88b.  88888b.  888888
+#   888        "Y8b.     888P "Y88b         888     888 "88b d8P  Y8b     888 888            "Y88b. 888        "88b 888    d8P  Y8b 888 "888 "88b d8P  Y8b 888 "88b 888
+#   888   888    888     888    888         888     888  888 88888888     888 888              "888 888    .d888888 888    88888888 888  888  888 88888888 888  888 888
+#   888   Y88b  d88P d8b Y88b  d88P         888     888  888 Y8b.         888 888        Y88b  d88P Y88b.  888  888 Y88b.  Y8b.     888  888  888 Y8b.     888  888 Y88b.
+# 8888888  "Y8888P"  Y8P  "Y8888P"          888     888  888  "Y8888      888 888         "Y8888P"   "Y888 "Y888888  "Y888  "Y8888  888  888  888  "Y8888  888  888  "Y888
+#
+###########################################################################################################################################################################
+# 13.6 The if Statement
+class PN_IfStatement(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('IfStatement', p)
+class PN_IfStatement_IF_LPAREN_Expression_RPAREN_Statement_ELSE_Statement(PN_IfStatement):
+    @property
+    def Expression(self):
+        return self.children[2]
+    @property
+    def Statement1(self):
+        return self.children[4]
+    @property
+    def Statement2(self):
+        return self.children[6]
+    def ContainsDuplicateLabels(self, labelSet):
+        # 13.6.2 Static Semantics: ContainsDuplicateLabels
+        #   With parameter labelSet.
+        #           IfStatement : if ( Expression ) Statement else Statement
+        # 1. Let hasDuplicate be ContainsDuplicateLabels of the first Statement with argument labelSet.
+        # 2. If hasDuplicate is true, return true.
+        # 3. Return ContainsDuplicateLabels of the second Statement with argument labelSet.
+        return self.Statement1.ContainsDuplicateLabels(labelSet) or self.Statement2.ContainsDuplicateLabels(labelSet)
+    def ContainsUndefinedBreakTarget(self, labelSet):
+        # 13.6.3 Static Semantics: ContainsUndefinedBreakTarget
+        #   With parameter labelSet.
+        #           IfStatement : if ( Expression ) Statement else Statement
+        # 1. Let hasUndefinedLabels be ContainsUndefinedBreakTarget of the first Statement with argument labelSet.
+        # 2. If hasUndefinedLabels is true, return true.
+        # 3. Return ContainsUndefinedBreakTarget of the second Statement with argument labelSet.
+        return (self.Statement1.ContainsUndefinedBreakTarget(labelSet) or
+                self.Statement2.ContainsUndefinedBreakTarget(labelSet))
+    def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
+        # 13.6.4 Static Semantics: ContainsUndefinedContinueTarget
+        #   With parameters iterationSet and labelSet.
+        #           IfStatement : if ( Expression ) Statement else Statement
+        # 1. Let hasUndefinedLabels be ContainsUndefinedContinueTarget of the first Statement with arguments iterationSet and « ».
+        # 2. If hasUndefinedLabels is true, return true.
+        # 3. Return ContainsUndefinedContinueTarget of the second Statement with arguments iterationSet and « ».
+        return (self.Statement1.ContainsUndefinedContinueTarget(iterationSet, []) or
+                self.Statement2.ContainsUndefinedContinueTarget(iterationSet, []))
+    def VarDeclaredNames(self):
+        # 13.6.5 Static Semantics: VarDeclaredNames
+        #           IfStatement : if ( Expression ) Statement else Statement
+        # 1. Let names be VarDeclaredNames of the first Statement.
+        # 2. Append to names the elements of the VarDeclaredNames of the second Statement.
+        # 3. Return names.
+        names = self.Statement1.VarDeclaredNames()
+        names.extend(self.Statement2.VarDeclaredNames())
+        return names
+    def VarScopedDeclarations(self):
+        # 13.6.6 Static Semantics: VarScopedDeclarations
+        #           IfStatement : if ( Expression ) Statement else Statement
+        # 1. Let declarations be VarScopedDeclarations of the first Statement.
+        # 2. Append to declarations the elements of the VarScopedDeclarations of the second Statement.
+        # 3. Return declarations.
+        declarations = self.Statement1.VarScopedDeclarations()
+        declarations.extend(self.Statement2.VarScopedDeclarations())
+        return declarations
+    def evaluate(self):
+        # 13.6.7 Runtime Semantics: Evaluation
+        #           IfStatement : if ( Expression ) Statement else Statement
+        # 1. Let exprRef be the result of evaluating Expression.
+        # 2. Let exprValue be ToBoolean(? GetValue(exprRef)).
+        # 3. If exprValue is true, then
+        #    a. Let stmtCompletion be the result of evaluating the first Statement.
+        # 4. Else,
+        #    a. Let stmtCompletion be the result of evaluating the second Statement.
+        # 5. Return Completion(UpdateEmpty(stmtCompletion, undefined)).
+        exprValue, ok = ec(GetValue(self.Expression.evaluate()))
+        if not ok:
+            return exprValue
+        stmtCompletion = self.Statement1.evaluate() if ToBoolean(exprValue) else self.Statement2.evaluate()
+        return UpdateEmpty(stmtCompletion, None)
+class PN_IfStatement_IF_LPAREN_Expression_RPAREN_Statement(PN_IfStatement):
+    @property
+    def Expression(self):
+        return self.children[2]
+    @property
+    def Statement(self):
+        return self.children[4]
+    def ContainsDuplicateLabels(self, labelSet):
+        # 13.6.2 Static Semantics: ContainsDuplicateLabels
+        #   With parameter labelSet.
+        #           IfStatement : if ( Expression ) Statement
+        # 1. Return ContainsDuplicateLabels of Statement with argument labelSet.
+        return self.Statement.ContainsDuplicateLabels(labelSet)
+    def ContainsUndefinedBreakTarget(self, labelSet):
+        # 13.6.3 Static Semantics: ContainsUndefinedBreakTarget
+        #   With parameter labelSet.
+        #           IfStatement : if ( Expression ) Statement
+        # 1. Return ContainsUndefinedBreakTarget of Statement with argument labelSet.
+        return self.Statement.ContainsUndefinedBreakTarget(labelSet)
+    def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
+        # 13.6.4 Static Semantics: ContainsUndefinedContinueTarget
+        #   With parameters iterationSet and labelSet.
+        #           IfStatement : if ( Expression ) Statement
+        # 1. Return ContainsUndefinedContinueTarget of Statement with arguments iterationSet and « ».
+        return self.Statement.ContainsUndefinedContinueTarget(iterationSet, [])
+    def VarDeclaredNames(self):
+        # 13.6.5 Static Semantics: VarDeclaredNames
+        #           IfStatement : if ( Expression ) Statement
+        # 1. Return the VarDeclaredNames of Statement.
+        return self.Statement.VarDeclaredNames()
+    def VarScopedDeclarations(self):
+        # 13.6.6 Static Semantics: VarScopedDeclarations
+        #           IfStatement : if ( Expression ) Statement
+        # 1. Return the VarScopedDeclarations of Statement.
+        return self.Statement.VarScopedDeclarations()
+    def evaluate(self):
+        # 13.6.7 Runtime Semantics: Evaluation
+        #           IfStatement : if ( Expression ) Statement
+        # 1. Let exprRef be the result of evaluating Expression.
+        # 2. Let exprValue be ToBoolean(? GetValue(exprRef)).
+        # 3. If exprValue is false, then
+        #    a. Return NormalCompletion(undefined).
+        # 4. Else,
+        #    a. Let stmtCompletion be the result of evaluating Statement.
+        #    b. Return Completion(UpdateEmpty(stmtCompletion, undefined)).
+        exprValue, ok = ec(GetValue(self.Expression.evaluate()))
+        if not ok:
+            return exprValue
+        return UpdateEmpty(self.Statement.evaluate(), None) if ToBoolean(exprValue) else NormalCompletion(None)
 
 class PN_CoverCallExpressionAndAsyncArrowHead(ParseNode):
     def __init__(self, context, p):
@@ -9155,6 +9285,83 @@ class Ecma262Parser(Parser):
     ########################################################################################################################
 
     ########################################################################################################################
+    # 13.6 The if Statement
+    #
+    # Syntax
+    #
+    # IfStatement[Yield, Await, Return] :
+    #           if ( Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return] else Statement[?Yield, ?Await, ?Return]
+    #           if ( Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    #
+    # Each else for which the choice of associated if is ambiguous shall be associated with the nearest possible if
+    # that would otherwise have no corresponding else.
+    ########################################################################################################################
+    @_('IF LPAREN Expression_In RPAREN Statement ELSE Statement')
+    def IfStatement(self, p):
+        return PN_IfStatement_IF_LPAREN_Expression_RPAREN_Statement_ELSE_Statement(self.context, p)
+    @_('IF LPAREN Expression_In RPAREN Statement')
+    def IfStatement(self, p):
+        return PN_IfStatement_IF_LPAREN_Expression_RPAREN_Statement(self.context, p)
+    ########################################################################################################################
+
+    ########################################################################################################################
+    # 13.4 Empty Statement
+    #
+    # Syntax
+    #
+    # EmptyStatement :
+    #       ;
+    #
+    @_('SEMICOLON')
+    def EmptyStatement(self, p):
+        return PN_EmptyStatement_SEMICOLON(self.context, p)
+    ########################################################################################################################
+
+    ########################################################################################################################
+    # 13.3.2 Variable Statement
+    # NOTE
+    # A var statement declares variables that are scoped to the running execution context's VariableEnvironment. Var
+    # variables are created when their containing Lexical Environment is instantiated and are initialized to undefined
+    # when created. Within the scope of any VariableEnvironment a common BindingIdentifier may appear in more than one
+    # VariableDeclaration but those declarations collectively define only one variable. A variable defined by a
+    # VariableDeclaration with an Initializer is assigned the value of its Initializer's AssignmentExpression when the
+    # VariableDeclaration is executed, not when the variable is created.
+    #
+    # Syntax
+    #
+    # VariableStatement[Yield, Await] :
+    #       var VariableDeclarationList[+In, ?Yield, ?Await] ;
+    #
+    # VariableDeclarationList[In, Yield, Await] :
+    #       VariableDeclaration[?In, ?Yield, ?Await]
+    #       VariableDeclarationList[?In, ?Yield, ?Await] , VariableDeclaration[?In, ?Yield, ?Await]
+    #
+    # VariableDeclaration[In, Yield, Await] :
+    #       BindingIdentifier[?Yield, ?Await]
+    #       BindingIdentifier[?Yield, ?Await] Initializer[?In, ?Yield, ?Await]
+    #       BindingPattern[?Yield, ?Await] Initializer[?In, ?Yield, ?Await]
+    #
+    @_('VAR VariableDeclarationList_In SEMICOLON')
+    def VariableStatement(self, p):
+        return PN_VariableStatement_VAR_VariableDeclarationList(self.context, p)
+    @_('VariableDeclaration_In')
+    def VariableDeclarationList_In(self, p):
+        return PN_VariableDeclarationList_VariableDeclaration(self.context, p)
+    @_('VariableDeclarationList_In COMMA VariableDeclaration_In')
+    def VariableDeclarationList_In(self, p):
+        return PN_VariableDeclarationList_VariableDeclarationList_COMMA_VariableDeclaration(self.context, p)
+    @_('BindingIdentifier')
+    def VariableDeclaration_In(self, p):
+        return PN_VariableDeclaration_BindingIdentifier(self.context, p)
+    @_('BindingIdentifier Initializer_In')
+    def VariableDeclaration_In(self, p):
+        return PN_VariableDeclaration_BindingIdentifier_Initializer(self.context, p)
+    # @_('BindingPattern Initializer_In')
+    # def VariableDeclaration_In(self, p):
+    #     return PN_VariableDeclaration_BindingPattern_Initializer(self.context, p)
+    ########################################################################################################################
+
+    ########################################################################################################################
     # 13.2 Block
     # Syntax
     #
@@ -9239,62 +9446,9 @@ class Ecma262Parser(Parser):
     @_('EmptyStatement')
     def Statement(self, p):
         return PN_Statement_EmptyStatement(self.context, p)
-    ########################################################################################################################
-
-    ########################################################################################################################
-    # 13.3.2 Variable Statement
-    # NOTE
-    # A var statement declares variables that are scoped to the running execution context's VariableEnvironment. Var
-    # variables are created when their containing Lexical Environment is instantiated and are initialized to undefined
-    # when created. Within the scope of any VariableEnvironment a common BindingIdentifier may appear in more than one
-    # VariableDeclaration but those declarations collectively define only one variable. A variable defined by a
-    # VariableDeclaration with an Initializer is assigned the value of its Initializer's AssignmentExpression when the
-    # VariableDeclaration is executed, not when the variable is created.
-    #
-    # Syntax
-    #
-    # VariableStatement[Yield, Await] :
-    #       var VariableDeclarationList[+In, ?Yield, ?Await] ;
-    #
-    # VariableDeclarationList[In, Yield, Await] :
-    #       VariableDeclaration[?In, ?Yield, ?Await]
-    #       VariableDeclarationList[?In, ?Yield, ?Await] , VariableDeclaration[?In, ?Yield, ?Await]
-    #
-    # VariableDeclaration[In, Yield, Await] :
-    #       BindingIdentifier[?Yield, ?Await]
-    #       BindingIdentifier[?Yield, ?Await] Initializer[?In, ?Yield, ?Await]
-    #       BindingPattern[?Yield, ?Await] Initializer[?In, ?Yield, ?Await]
-    @_('VAR VariableDeclarationList_In SEMICOLON')
-    def VariableStatement(self, p):
-        return PN_VariableStatement_VAR_VariableDeclarationList(self.context, p)
-    @_('VariableDeclaration_In')
-    def VariableDeclarationList_In(self, p):
-        return PN_VariableDeclarationList_VariableDeclaration(self.context, p)
-    @_('VariableDeclarationList_In COMMA VariableDeclaration_In')
-    def VariableDeclarationList_In(self, p):
-        return PN_VariableDeclarationList_VariableDeclarationList_COMMA_VariableDeclaration(self.context, p)
-    @_('BindingIdentifier')
-    def VariableDeclaration_In(self, p):
-        return PN_VariableDeclaration_BindingIdentifier(self.context, p)
-    @_('BindingIdentifier Initializer_In')
-    def VariableDeclaration_In(self, p):
-        return PN_VariableDeclaration_BindingIdentifier_Initializer(self.context, p)
-    # @_('BindingPattern Initializer_In')
-    # def VariableDeclaration_In(self, p):
-    #     return PN_VariableDeclaration_BindingPattern_Initializer(self.context, p)
-    ########################################################################################################################
-
-    ########################################################################################################################
-    # 13.4 Empty Statement
-    #
-    # Syntax
-    #
-    # EmptyStatement :
-    #       ;
-    #
-    @_('SEMICOLON')
-    def EmptyStatement(self, p):
-        return PN_EmptyStatement_SEMICOLON(self.context, p)
+    @_('IfStatement')
+    def Statement(self, p):
+        return PN_Statement_IfStatement(self.context, p)
     ########################################################################################################################
 
     ########################################################################################################################
@@ -11384,17 +11538,15 @@ def NumberFixups(realm):
     return NormalCompletion(None)
 
 if __name__ == '__main__':
-    #rv, ok = ec(RunJobs(scripts=['56 * ( 4 + 2);']))
+    rv, ok = ec(RunJobs(scripts=['if (false) { 1; } else { 2; };']))
 
     InitializeHostDefinedRealm()
-    z = CreateTypeError('thing')
 
-    print('Made an error object: %s' % nc(ToString(z)))
-    #if ok:
-    #    print('Script returned %s' % nc(ToString(rv)))
-    #else:
-    #    print(repr(rv))
-    #surrounding_agent.ec_stack.pop()
-    #surrounding_agent.running_ec = None
+    if ok:
+        print('Script returned %s' % nc(ToString(rv)))
+    else:
+        print(repr(rv))
+    surrounding_agent.ec_stack.pop()
+    surrounding_agent.running_ec = None
 
 # Banners produced using font "Colossal" on https://www.messletters.com/en/big-text/
