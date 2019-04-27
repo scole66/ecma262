@@ -8472,6 +8472,20 @@ def ModuloOperation(lval, rval):
     # Return the result of applying the modulo operator to lnum and rnum.
     return lnum % rnum
 def AdditionOperation(lval, rval):
+    lprim, ok = ec(ToPrimitive(lval))
+    if not ok:
+        return lprim
+    rprim, ok = ec(ToPrimitive(rval))
+    if not ok:
+        return rprim
+    if isString(lprim) or isString(rprim):
+        lstr, ok = ec(ToString(lprim))
+        if not ok:
+            return lstr
+        rstr, ok = ec(ToString(rprim))
+        if not ok:
+            return rstr
+        return NormalCompletion(lstr + rstr)
     # Do number conversion on the operands, forming lnum and rnum
     operands, ok = ec(prep_for_math(lval, rval))
     if not ok:

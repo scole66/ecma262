@@ -19,6 +19,7 @@ def cleanup():
     ('Infinity;', math.inf),
     ('bob = 3;', 3),
     ('bob = 3; bob *= 2;', 6),
+    ("bob = 'fire'; bob += 'truck';", 'firetruck'),
     ('7, 8;', 8),
     ('''
     true ? 'truth value' : 'falsehood value';
