@@ -6517,6 +6517,8 @@ class ParseNode:
         return self.defer_target().StringValue()
     def ArgumentListEvaluation(self):
         return self.defer_target().ArgumentListEvaluation()
+    def IsConstantDeclaration(self):
+        return self.defer_target().IsConstantDeclaration()
 
     def evaluate(self):
         # Subclasses need to override this, or we'll throw an AttributeError when we hit a terminal.
@@ -8365,7 +8367,21 @@ class PN_LogicalORExpression_LogicalORExpression_PIPEPIPE_LogicalANDExpression(P
         rref = self.children[2].evaluate()
         # 6. Return ? GetValue(rref).
         return GetValue(rref)
-########################################################################################################################
+############################################################################################################################################################################################################################################################
+#
+#  d888    .d8888b.       d888       d8888       .d8888b.                         888 d8b 888    d8b                            888      .d88888b.                                     888                           .d88      .d8888b.              88b.
+# d8888   d88P  Y88b     d8888      d8P888      d88P  Y88b                        888 Y8P 888    Y8P                            888     d88P" "Y88b                                    888                          d88P"     d88P  Y88b             "Y88b
+#   888          888       888     d8P 888      888    888                        888     888                                   888     888     888                                    888                         d88P            .d88P               Y88b
+#   888        .d88P       888    d8P  888      888         .d88b.  88888b.   .d88888 888 888888 888  .d88b.  88888b.   8888b.  888     888     888 88888b.   .d88b.  888d888  8888b.  888888  .d88b.  888d888     888           .d88P"      d8b        888
+#   888    .od888P"        888   d88   888      888        d88""88b 888 "88b d88" 888 888 888    888 d88""88b 888 "88b     "88b 888     888     888 888 "88b d8P  Y8b 888P"       "88b 888    d88""88b 888P"       888           888"        Y8P        888
+#   888   d88P"            888   8888888888     888    888 888  888 888  888 888  888 888 888    888 888  888 888  888 .d888888 888     888     888 888  888 88888888 888     .d888888 888    888  888 888         Y88b          888                   d88P
+#   888   888"       d8b   888         888      Y88b  d88P Y88..88P 888  888 Y88b 888 888 Y88b.  888 Y88..88P 888  888 888  888 888     Y88b. .d88P 888 d88P Y8b.     888     888  888 Y88b.  Y88..88P 888          Y88b.                    d8b     .d88P
+# 8888888 888888888  Y8P 8888888       888       "Y8888P"   "Y88P"  888  888  "Y88888 888  "Y888 888  "Y88P"  888  888 "Y888888 888      "Y88888P"  88888P"   "Y8888  888     "Y888888  "Y888  "Y88P"  888           "Y88        888         Y8P     88P"
+#                                                                                                                                                   888
+#                                                                                                                                                   888
+#                                                                                                                                                   888
+#
+############################################################################################################################################################################################################################################################
 class PN_ConditionalExpression_LogicalORExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('ConditionalExpression', p)
@@ -8397,6 +8413,21 @@ class PN_ConditionalExpression_QUESTION_AssignmentExpression_COLON_AssignmentExp
         falseRef = self.children[4].evaluate()
         # b. Return ? GetValue(falseRef).
         return GetValue(falseRef)
+################################################################################################################################################################################################################################
+#
+#  d888    .d8888b.       d888   888888888             d8888                   d8b                                                   888         .d88888b.                                     888
+# d8888   d88P  Y88b     d8888   888                  d88888                   Y8P                                                   888        d88P" "Y88b                                    888
+#   888          888       888   888                 d88P888                                                                         888        888     888                                    888
+#   888        .d88P       888   8888888b.          d88P 888 .d8888b  .d8888b  888  .d88b.  88888b.  88888b.d88b.   .d88b.  88888b.  888888     888     888 88888b.   .d88b.  888d888  8888b.  888888  .d88b.  888d888 .d8888b
+#   888    .od888P"        888        "Y88b        d88P  888 88K      88K      888 d88P"88b 888 "88b 888 "888 "88b d8P  Y8b 888 "88b 888        888     888 888 "88b d8P  Y8b 888P"       "88b 888    d88""88b 888P"   88K
+#   888   d88P"            888          888       d88P   888 "Y8888b. "Y8888b. 888 888  888 888  888 888  888  888 88888888 888  888 888        888     888 888  888 88888888 888     .d888888 888    888  888 888     "Y8888b.
+#   888   888"       d8b   888   Y88b  d88P      d8888888888      X88      X88 888 Y88b 888 888  888 888  888  888 Y8b.     888  888 Y88b.      Y88b. .d88P 888 d88P Y8b.     888     888  888 Y88b.  Y88..88P 888          X88
+# 8888888 888888888  Y8P 8888888  "Y8888P"      d88P     888  88888P'  88888P' 888  "Y88888 888  888 888  888  888  "Y8888  888  888  "Y888      "Y88888P"  88888P"   "Y8888  888     "Y888888  "Y888  "Y88P"  888      88888P'
+#                                                                                       888                                                                 888
+#                                                                                  Y8b d88P                                                                 888
+#                                                                                   "Y88P"                                                                  888
+#
+################################################################################################################################################################################################################################
 class PN_AssignmentExpression_ConditionalExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('AssignmentExpression', p)
@@ -8641,7 +8672,21 @@ class PN_AssignmentExpression_LeftHandSideExpression_AssignmentOperator_Assignme
         # { [[Writable]]: false }, to an accessor property with the attribute value { [[Set]]: undefined }, nor to a
         # non-existent property of an object for which the IsExtensible predicate returns the value false. In these cases a
         # TypeError exception is thrown.
-
+##################################################################################################################################################################################################################
+#
+#  d888    .d8888b.       d888    .d8888b.       .d8888b.                                                     .d88888b.                                     888                           .d88             88b.
+# d8888   d88P  Y88b     d8888   d88P  Y88b     d88P  Y88b                                                   d88P" "Y88b                                    888                          d88P"             "Y88b
+#   888          888       888   888            888    888                                                   888     888                                    888                         d88P                 Y88b
+#   888        .d88P       888   888d888b.      888         .d88b.  88888b.d88b.  88888b.d88b.   8888b.      888     888 88888b.   .d88b.  888d888  8888b.  888888  .d88b.  888d888     888                   888
+#   888    .od888P"        888   888P "Y88b     888        d88""88b 888 "888 "88b 888 "888 "88b     "88b     888     888 888 "88b d8P  Y8b 888P"       "88b 888    d88""88b 888P"       888                   888
+#   888   d88P"            888   888    888     888    888 888  888 888  888  888 888  888  888 .d888888     888     888 888  888 88888888 888     .d888888 888    888  888 888         Y88b                 d88P
+#   888   888"       d8b   888   Y88b  d88P     Y88b  d88P Y88..88P 888  888  888 888  888  888 888  888     Y88b. .d88P 888 d88P Y8b.     888     888  888 Y88b.  Y88..88P 888          Y88b.     d8b     .d88P
+# 8888888 888888888  Y8P 8888888  "Y8888P"       "Y8888P"   "Y88P"  888  888  888 888  888  888 "Y888888      "Y88888P"  88888P"   "Y8888  888     "Y888888  "Y888  "Y88P"  888           "Y88     88P     88P"
+#                                                                                                                        888                                                                       8P
+#                                                                                                                        888                                                                       "
+#                                                                                                                        888
+#
+##################################################################################################################################################################################################################
 class PN_Expression_AssignmentExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('Expression', p)
@@ -8659,6 +8704,21 @@ class PN_Expression_Expression_COMMA_AssignmentExpression(ParseNode):
             return cr
         rref = self.children[2].evaluate()
         return GetValue(rref)
+################################################################################################################################################################################3################################################################################################################################################################################3###########################################################################
+#
+#  d888    .d8888b.      8888888888  .d8888b.  888b     d888        d8888  .d8888b.                   d8b          888        888                                                                              .d8888b.  888             888                                             888                                        888     8888888b.                    888                           888    d8b
+# d8888   d88P  Y88b     888        d88P  Y88b 8888b   d8888       d88888 d88P  Y88b                  Y8P          888        888                                                                             d88P  Y88b 888             888                                             888                                        888     888  "Y88b                   888                           888    Y8P
+#   888        .d88P     888        888    888 88888b.d88888      d88P888 Y88b.                                    888        888                                                                             Y88b.      888             888                                             888                                        888     888    888                   888                           888
+#   888       8888"      8888888    888        888Y88888P888     d88P 888  "Y888b.    .d8888b 888d888 888 88888b.  888888     888       8888b.  88888b.   .d88b.  888  888  8888b.   .d88b.   .d88b.  d8b      "Y888b.   888888  8888b.  888888  .d88b.  88888b.d88b.   .d88b.  88888b.  888888 .d8888b       8888b.  88888b.   .d88888     888    888  .d88b.   .d8888b 888  8888b.  888d888  8888b.  888888 888  .d88b.  88888b.  .d8888b
+#   888        "Y8b.     888        888        888 Y888P 888    d88P  888     "Y88b. d88P"    888P"   888 888 "88b 888        888          "88b 888 "88b d88P"88b 888  888     "88b d88P"88b d8P  Y8b Y8P         "Y88b. 888        "88b 888    d8P  Y8b 888 "888 "88b d8P  Y8b 888 "88b 888    88K              "88b 888 "88b d88" 888     888    888 d8P  Y8b d88P"    888     "88b 888P"       "88b 888    888 d88""88b 888 "88b 88K
+#   888   888    888     888        888    888 888  Y8P  888   d88P   888       "888 888      888     888 888  888 888        888      .d888888 888  888 888  888 888  888 .d888888 888  888 88888888               "888 888    .d888888 888    88888888 888  888  888 88888888 888  888 888    "Y8888b.     .d888888 888  888 888  888     888    888 88888888 888      888 .d888888 888     .d888888 888    888 888  888 888  888 "Y8888b.
+#   888   Y88b  d88P     888        Y88b  d88P 888   "   888  d8888888888 Y88b  d88P Y88b.    888     888 888 d88P Y88b.      888      888  888 888  888 Y88b 888 Y88b 888 888  888 Y88b 888 Y8b.     d8b     Y88b  d88P Y88b.  888  888 Y88b.  Y8b.     888  888  888 Y8b.     888  888 Y88b.       X88     888  888 888  888 Y88b 888     888  .d88P Y8b.     Y88b.    888 888  888 888     888  888 Y88b.  888 Y88..88P 888  888      X88
+# 8888888  "Y8888P"      8888888888  "Y8888P"  888       888 d88P     888  "Y8888P"   "Y8888P 888     888 88888P"   "Y888     88888888 "Y888888 888  888  "Y88888  "Y88888 "Y888888  "Y88888  "Y8888  Y8P      "Y8888P"   "Y888 "Y888888  "Y888  "Y8888  888  888  888  "Y8888  888  888  "Y888  88888P'     "Y888888 888  888  "Y88888     8888888P"   "Y8888   "Y8888P 888 "Y888888 888     "Y888888  "Y888 888  "Y88P"  888  888  88888P'
+#                                                                                                         888                                                 888                        888
+#                                                                                                         888                                            Y8b d88P                   Y8b d88P
+#                                                                                                         888                                             "Y88P"                     "Y88P"
+#
+################################################################################################################################################################################3################################################################################################################################################################################3###########################################################################
 class PN_ExpressionStatement_Expression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('ExpressionStatement', p)
@@ -8772,7 +8832,18 @@ class PN_BreakableStatement_SwitchStatement(PN_BreakableStatement):
         # 2. Return the result of performing LabelledEvaluation of this BreakableStatement with argument newLabelSet.
         return self.LabelledEvaluation([])
 
-
+class PN_Declaration(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('Declaration', p)
+class PN_Declaration_LexicalDeclaration(PN_Declaration):
+    @property
+    def LexicalDeclaration(self):
+        return self.children[0]
+    def DeclarationPart(self):
+        # 13.1.4 Static Semantics: DeclarationPart
+        #           Declaration : LexicalDeclaration
+        # 1. Return LexicalDeclaration.
+        return self.LexicalDeclaration
 ##########################################################################################################################
 #
 #  d888    .d8888b.       .d8888b.      888888b.   888                   888
@@ -8863,6 +8934,85 @@ class PN_StatementListItem_Statement(PN_StatementListItem):
             return Statement.children[0].LexicallyDeclaredNames()
         #   2. Return a new empty List.
         return []
+class PN_StatementListItem_Declaration(PN_StatementListItem):
+    @property
+    def Declaration(self):
+        return self.children[0]
+    def ContainsDuplicateLabels(self, labelSet):
+        # 13.2.2 Static Semantics: ContainsDuplicateLabels
+        #   With parameter labelSet.
+        #           StatementListItem : Declaration
+        # 1. Return false.
+        return False
+    def ContainsUndefinedBreakTarget(self, labelSet):
+        # 13.2.3 Static Semantics: ContainsUndefinedBreakTarget
+        #   With parameter labelSet.
+        #           StatementListItem : Declaration
+        # 1. Return false.
+        return False
+    def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
+        # 13.2.4 Static Semantics: ContainsUndefinedContinueTarget
+        #   With parameters iterationSet and labelSet.
+        #           StatementListItem : Declaration
+        # 1. Return false.
+        return False
+    def LexicallyDeclaredNames(self):
+        # 13.2.5 Static Semantics: LexicallyDeclaredNames
+        #           StatementListItem : Declaration
+        # 1. Return the BoundNames of Declaration.
+        return self.Declaration.BoundNames()
+    def LexicallyScopedDeclarations(self):
+        # 13.2.6 Static Semantics: LexicallyScopedDeclarations
+        #           StatementListItem : Declaration
+        # 1. Return a new List containing DeclarationPart of Declaration.
+        return [self.Declaration.DeclarationPart()]
+    def TopLevelLexicallyDeclaredNames(self):
+        # 13.2.7 Static Semantics: TopLevelLexicallyDeclaredNames
+        #           StatementListItem : Declaration
+        # 1. If Declaration is Declaration : HoistableDeclaration , then
+        #    a. Return « ».
+        # 2. Return the BoundNames of Declaration.
+        if len(self.Declaration.children) == 1 and self.Declaration.children[0].name == 'HoistableDeclaration':
+            return []
+        return self.Declaration.BoundNames()
+    def TopLevelLexicallyScopedDeclarations(self):
+        # 13.2.8 Static Semantics: TopLevelLexicallyScopedDeclarations
+        #           StatementListItem : Declaration
+        # 1. If Declaration is Declaration:HoistableDeclaration , then
+        #    a. Return « ».
+        # 2. Return a new List containing Declaration.
+        if len(self.Declaration.children) == 1 and self.Declaration.children[0].name == 'HoistableDeclaration':
+            return []
+        return [self.Declaration]
+    def TopLevelVarDeclaredNames(self):
+        # 13.2.9 Static Semantics: TopLevelVarDeclaredNames
+        #           StatementListItem : Declaration
+        # 1. If Declaration is Declaration:HoistableDeclaration , then
+        #    a. Return the BoundNames of HoistableDeclaration.
+        # 2. Return a new empty List.
+        if len(self.Declaration.children) == 1 and self.Declaration.children[0].name == 'HoistableDeclaration':
+            return self.Declaration.HoistableDeclaration.BoundNames()
+        return []
+    def TopLevelVarScopedDeclarations(self):
+        # 13.2.10 Static Semantics: TopLevelVarScopedDeclarations
+        #           StatementListItem : Declaration
+        # 1. If Declaration is Declaration:HoistableDeclaration , then
+        #    a. Let declaration be DeclarationPart of HoistableDeclaration.
+        #    b. Return « declaration ».
+        # 2. Return a new empty List.
+        if len(self.Declaration.children) == 1 and self.Declaration.children[0].name == 'HoistableDeclaration':
+            return [self.Declaration.HoistableDeclaration.DeclarationPart()]
+        return []
+    def VarDeclaredNames(self):
+        # 13.2.11 Static Semantics: VarDeclaredNames
+        #           StatementListItem : Declaration
+        # 1. Return a new empty List.
+        return []
+    def VarScopedDeclarations(self):
+        # 13.2.11 Static Semantics: VarScopedDeclarations
+        #           StatementListItem : Declaration
+        # 1. Return a new empty List.
+        return []
 class PN_StatementList_StatementListItem(PN_StatementList):
     pass
 class PN_StatementList_StatementList_StatementListItem(PN_StatementList):
@@ -8943,7 +9093,195 @@ class PN_StatementList_StatementList_StatementListItem(PN_StatementList):
         StatementList = self.children[0]
         StatementListItem = self.children[1]
         return StatementList.LexicallyScopedDeclarations() + StatementListItem.LexicallyScopedDeclarations()
+###############################################################################################################################################################################################################################################################################################################################################################
+#
+#  d888    .d8888b.       .d8888b.      8888888b.                    888                           888    d8b                                                       888     888    888                   888     888                  d8b          888      888               .d8888b.  888             888                                             888
+# d8888   d88P  Y88b     d88P  Y88b     888  "Y88b                   888                           888    Y8P                                                       888     888    888                   888     888                  Y8P          888      888              d88P  Y88b 888             888                                             888
+#   888        .d88P          .d88P     888    888                   888                           888                                                              888     888    888                   888     888                               888      888              Y88b.      888             888                                             888
+#   888       8888"          8888"      888    888  .d88b.   .d8888b 888  8888b.  888d888  8888b.  888888 888  .d88b.  88888b.  .d8888b       8888b.  88888b.   .d88888     888888 88888b.   .d88b.      Y88b   d88P  8888b.  888d888 888  8888b.  88888b.  888  .d88b.       "Y888b.   888888  8888b.  888888  .d88b.  88888b.d88b.   .d88b.  88888b.  888888
+#   888        "Y8b.          "Y8b.     888    888 d8P  Y8b d88P"    888     "88b 888P"       "88b 888    888 d88""88b 888 "88b 88K              "88b 888 "88b d88" 888     888    888 "88b d8P  Y8b      Y88b d88P      "88b 888P"   888     "88b 888 "88b 888 d8P  Y8b         "Y88b. 888        "88b 888    d8P  Y8b 888 "888 "88b d8P  Y8b 888 "88b 888
+#   888   888    888     888    888     888    888 88888888 888      888 .d888888 888     .d888888 888    888 888  888 888  888 "Y8888b.     .d888888 888  888 888  888     888    888  888 88888888       Y88o88P   .d888888 888     888 .d888888 888  888 888 88888888           "888 888    .d888888 888    88888888 888  888  888 88888888 888  888 888
+#   888   Y88b  d88P d8b Y88b  d88P     888  .d88P Y8b.     Y88b.    888 888  888 888     888  888 Y88b.  888 Y88..88P 888  888      X88     888  888 888  888 Y88b 888     Y88b.  888  888 Y8b.            Y888P    888  888 888     888 888  888 888 d88P 888 Y8b.         Y88b  d88P Y88b.  888  888 Y88b.  Y8b.     888  888  888 Y8b.     888  888 Y88b.
+# 8888888  "Y8888P"  Y8P  "Y8888P"      8888888P"   "Y8888   "Y8888P 888 "Y888888 888     "Y888888  "Y888 888  "Y88P"  888  888  88888P'     "Y888888 888  888  "Y88888      "Y888 888  888  "Y8888          Y8P     "Y888888 888     888 "Y888888 88888P"  888  "Y8888       "Y8888P"   "Y888 "Y888888  "Y888  "Y8888  888  888  888  "Y8888  888  888  "Y888
+#
+###############################################################################################################################################################################################################################################################################################################################################################
+# 13.3.1 Let and Const Declarations
+# NOTE
+# let and const declarations define variables that are scoped to the running execution context's LexicalEnvironment.
+# The variables are created when their containing Lexical Environment is instantiated but may not be accessed in any
+# way until the variable's LexicalBinding is evaluated. A variable defined by a LexicalBinding with an Initializer is
+# assigned the value of its Initializer's AssignmentExpression when the LexicalBinding is evaluated, not when the
+# variable is created. If a LexicalBinding in a let declaration does not have an Initializer the variable is assigned
+# the value undefined when the LexicalBinding is evaluated.
 
+class PN_LexicalDeclaration(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('LexicalDeclaration', p)
+class PN_LexicalDeclaration_LetOrConst_BindingList_SEMICOLON(PN_LexicalDeclaration):
+    @property
+    def BindingList(self):
+        return self.children[1]
+    @property
+    def LetOrConst(self):
+        return self.children[0]
+    def __init__(self, ctx, p):
+        super().__init__(ctx, p)
+        # We want to have our child LexicalBindings to be able to refer to their containing declaration, so we set
+        # that up here.
+        bl = self.BindingList
+        while bl:
+            bl.LexicalBinding.parent_declaration = self
+            bl = bl.BindingList
+
+    def EarlyErrors(self):
+        # 13.3.1.1 Static Semantics: Early Errors
+        #           LexicalDeclaration : LetOrConst BindingList ;
+        # 1. It is a Syntax Error if the BoundNames of BindingList contains "let".
+        # 2. It is a Syntax Error if the BoundNames of BindingList contains any duplicate entries.
+        errs = []
+        bn = self.BindingList.BoundNames()
+        if 'let' in bn:
+            errs.append(CreateSyntaxError("let is disallowed as a lexically bound name"))
+        if len(set(bn)) != len(bn):
+            errs.append(CreateSyntaxError('duplicate labels not allowed for lexically bound identifiers'))
+        return errs
+    def BoundNames(self):
+        # 13.3.1.2 Static Semantics: BoundNames
+        #           LexicalDeclaration : LetOrConst BindingList ;
+        # 1. Return the BoundNames of BindingList.
+        return self.BindingList.BoundNames()
+    def IsConstantDeclaration(self):
+        # 13.3.1.3 Static Semantics: IsConstantDeclaration
+        #           LexicalDeclaration : LetOrConst BindingList ;
+        # 1. Return IsConstantDeclaration of LetOrConst.
+        return self.LetOrConst.IsConstantDeclaration()
+    def evaluate(self):
+        # 13.3.1.4 Runtime Semantics: Evaluation
+        #           LexicalDeclaration : LetOrConst BindingList ;
+        # 1. Let next be the result of evaluating BindingList.
+        # 2. ReturnIfAbrupt(next).
+        # 3. Return NormalCompletion(empty).
+        next, ok = ec(self.BindingList.evaluate())
+        if not ok:
+            return next
+        return NormalCompletion(Empty.EMPTY)
+
+class PN_LetOrConst(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('LetOrConst', p)
+class PN_LetOrConst_LET(PN_LetOrConst):
+    def IsConstantDeclaration(self):
+        # 13.3.1.3 Static Semantics: IsConstantDeclaration
+        #           LetOrConst : let
+        # 1. Return false.
+        return False
+class PN_LetOrConst_CONST(PN_LetOrConst):
+    def IsConstantDeclaration(self):
+        # 13.3.1.3 Static Semantics: IsConstantDeclaration
+        #           LetOrConst : const
+        # 1. Return true.
+        return True
+
+class PN_BindingList(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('BindingList', p)
+class PN_BindingList_LexicalBinding(PN_BindingList):
+    @property
+    def BindingList(self):
+        return None
+    @property
+    def LexicalBinding(self):
+        return self.children[0]
+class PN_BindingList_BindingList_COMMA_LexicalBinding(PN_BindingList):
+    @property
+    def BindingList(self):
+        return self.children[0]
+    @property
+    def LexicalBinding(self):
+        return self.children[2]
+    def BoundNames(self):
+        # 13.3.1.2 Static Semantics: BoundNames
+        #           BindingList : BindingList , LexicalBinding
+        # 1. Let names be the BoundNames of BindingList.
+        # 2. Append to names the elements of the BoundNames of LexicalBinding.
+        # 3. Return names.
+        names = self.BindingList.BoundNames()
+        names.extend(self.LexicalBinding.BoundNames())
+        return names
+    def evaluate(self):
+        # 13.3.1.4 Runtime Semantics: Evaluation
+        #           BindingList : BindingList , LexicalBinding
+        # 1. Let next be the result of evaluating BindingList.
+        # 2. ReturnIfAbrupt(next).
+        # 3. Return the result of evaluating LexicalBinding.
+        next, ok = ec(self.BindingList.evaluate())
+        if not ok:
+            return next
+        return self.LexicalBinding.evaluate()
+
+class PN_LexicalBinding(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('LexicalBinding', p)
+    def BoundNames(self):
+        # 13.3.1.2 Static Semantics: BoundNames
+        #           LexicalBinding : BindingIdentifier Initializer
+        # 1. Return the BoundNames of BindingIdentifier.
+        return self.BindingIdentifier.BoundNames()
+class PN_LexicalBinding_BindingIdentifier_Initializer(PN_LexicalBinding):
+    @property
+    def BindingIdentifier(self):
+        return self.children[0]
+    @property
+    def Initializer(self):
+        return self.children[1]
+    def evaluate(self):
+        # 13.3.1.4 Runtime Semantics: Evaluation
+        #           LexicalBinding : BindingIdentifier Initializer
+        # 1. Let bindingId be StringValue of BindingIdentifier.
+        # 2. Let lhs be ResolveBinding(bindingId).
+        # 3. Let rhs be the result of evaluating Initializer.
+        # 4. Let value be ? GetValue(rhs).
+        # 5. If IsAnonymousFunctionDefinition(Initializer) is true, then
+        #    a. Let hasNameProperty be ? HasOwnProperty(value, "name").
+        #    b. If hasNameProperty is false, perform SetFunctionName(value, bindingId).
+        # 6. Return InitializeReferencedBinding(lhs, value).
+        bindingId = self.BindingIdentifier.StringValue()
+        lhs = ResolveBinding(bindingId)
+        rhs = self.Initializer.evaluate()
+        value, ok = ec(GetValue(rhs))
+        if not ok:
+            return value
+        if IsAnonymousFunctionDefinition(self.Initializer):
+            hasNameProperty, ok = ec(HasOwnProperty(value, 'name'))
+            if not ok:
+                return hasNameProperty
+            if not hasNameProperty:
+                SetFunctionName(value, bindingId)
+        return InitializeReferencedBinding(lhs, value)
+class PN_LexicalBinding_BindingIdentifier(PN_LexicalBinding):
+    @property
+    def BindingIdentifier(self):
+        return self.children[0]
+    @property
+    def Initializer(self):
+        return None
+    def EarlyErrors(self):
+        # 13.3.1.1 Static Semantics: Early Errors
+        #           LexicalBinding : BindingIdentifier Initializer
+        # * It is a Syntax Error if Initializer is not present and IsConstantDeclaration of the LexicalDeclaration
+        #   containing this LexicalBinding is true.
+        if self.parent_declaration.IsConstantDeclaration():
+            return [CreateSyntaxError('constant declarations must have initializers')]
+        return []
+    def evaluate(self):
+        # 13.3.1.4 Runtime Semantics: Evaluation
+        #           LexicalBinding : BindingIdentifier
+        # 1. Let lhs be ResolveBinding(StringValue of BindingIdentifier).
+        # 2. Return InitializeReferencedBinding(lhs, undefined).
+        # NOTE
+        # A static semantics rule ensures that this form of LexicalBinding never occurs in a const declaration.
+        lhs = ResolveBinding(self.BindingIdentifier.StringValue())
+        return InitializeReferencedBinding(lhs, None)
 #######################################################################################################################
 #
 #  d888    .d8888b.       .d8888b.       .d8888b.      888     888                  d8b          888      888
@@ -10112,6 +10450,9 @@ class Ecma262Parser(Parser):
     @_('LetOrConst BindingList SEMICOLON')
     def LexicalDeclaration(self, p):
         return PN_LexicalDeclaration_LetOrConst_BindingList_SEMICOLON(self.context, p)
+    @_('LetOrConst BindingList_In SEMICOLON')
+    def LexicalDeclaration_In(self, p):
+        return PN_LexicalDeclaration_LetOrConst_BindingList_SEMICOLON(self.context, p)
 
     @_('LET')
     def LetOrConst(self, p):
@@ -10126,6 +10467,12 @@ class Ecma262Parser(Parser):
     @_('BindingList COMMA LexicalBinding')
     def BindingList(self, p):
         return PN_BindingList_BindingList_COMMA_LexicalBinding(self.context, p)
+    @_('LexicalBinding_In')
+    def BindingList_In(self, p):
+        return PN_BindingList_LexicalBinding(self.context, p)
+    @_('BindingList_In COMMA LexicalBinding_In')
+    def BindingList_In(self, p):
+        return PN_BindingList_BindingList_COMMA_LexicalBinding(self.context, p)
 
     @_('BindingIdentifier Initializer')
     def LexicalBinding(self, p):
@@ -10135,6 +10482,15 @@ class Ecma262Parser(Parser):
         return PN_LexicalBinding_BindingIdentifier(self.context, p)
     #@_('BindingPattern Initializer')
     #def LexicalBinding(self, p):
+    #    return PN_LexicalBinding_BindingPattern_Initializer(self.context, p)
+    @_('BindingIdentifier Initializer_In')
+    def LexicalBinding_In(self, p):
+        return PN_LexicalBinding_BindingIdentifier_Initializer(self.context, p)
+    @_('BindingIdentifier')
+    def LexicalBinding_In(self, p):
+        return PN_LexicalBinding_BindingIdentifier(self.context, p)
+    #@_('BindingPattern Initializer_In')
+    #def LexicalBinding_In(self, p):
     #    return PN_LexicalBinding_BindingPattern_Initializer(self.context, p)
     ########################################################################################################################
     # 13.2 Block
@@ -10173,6 +10529,9 @@ class Ecma262Parser(Parser):
     @_('Statement')
     def StatementListItem(self, p):
         return PN_StatementListItem_Statement(self.context, p)
+    @_('Declaration')
+    def StatementListItem(self, p):
+        return PN_StatementListItem_Declaration(self.context, p)
     ########################################################################################################################
     # 13 ECMAScript Language: Statements and Declarations
     #
@@ -10227,6 +10586,10 @@ class Ecma262Parser(Parser):
     @_('BreakableStatement')
     def Statement(self, p):
         return PN_Statement_BreakableStatement(self.context, p)
+
+    @_('LexicalDeclaration_In')
+    def Declaration(self, p):
+        return PN_Declaration_LexicalDeclaration(self.context, p)
 
     @_('IterationStatement')
     def BreakableStatement(self, p):
@@ -10895,7 +11258,7 @@ class Ecma262Parser(Parser):
     def ReservedWord(self, p):
         return PN_ReservedWord(self.context, p)
 
-    @_('IDENTIFIER')
+    @_('IDENTIFIER', 'OF', 'LET')
     def Identifier(self, p):
         return PN_Identifier(self.context, p)
 
@@ -12326,7 +12689,7 @@ def NumberFixups(realm):
     return NormalCompletion(None)
 
 if __name__ == '__main__':
-    rv, ok = ec(RunJobs(scripts=["var mystr=''; for (var x=0, y=0; x<15; x++,y--) {if (x%2) {mystr += x;} else {mystr += y;}}; mystr;"]))
+    rv, ok = ec(RunJobs(scripts=["{ let let=3;}"]))
 
     InitializeHostDefinedRealm()
 
