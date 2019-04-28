@@ -11525,6 +11525,23 @@ def ScriptEvaluationJob(source_text, host_defined):
     # 5. Return ? ScriptEvaluation(s).
     return ScriptEvaluation(nc(script_nodes))
 
+# 16.1 HostReportErrors ( errorList )
+def HostReportErrors(errorList):
+    # HostReportErrors is an implementation-defined abstract operation that allows host environments to report parsing
+    # errors, early errors, and runtime errors.
+    #
+    # An implementation of HostReportErrors must complete normally in all cases. The default implementation of
+    # HostReportErrors is to unconditionally return an empty normal completion.
+    #
+    # NOTE
+    # errorList will be a List of ECMAScript language values. If the errors are parsing errors or early errors, these
+    # will always be SyntaxError or ReferenceError objects. Runtime errors, however, can be any ECMAScript value.
+
+    for err in errorList:
+        print(nc(ToString(err)))
+
+    return NormalCompletion(Empty.EMPTY)
+
 ###########################################################################################################################################################
 #
 #  d888    .d8888b.       d888        .d88888b.  888         d8b                   888         .d88888b.  888         d8b                   888
