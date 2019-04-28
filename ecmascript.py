@@ -12,19 +12,17 @@ import random
 import types
 import traceback
 
-def CreateReferenceError(msg=''):
-    reference_error = surrounding_agent.running_ec.realm.intrinsics['%ReferenceError%']
-    return nc(Construct(reference_error, [msg]))
-    #return ReferenceError(msg) # This is a python object, not an ecmascript object. This will change when objects are turned on.
-def CreateTypeError(msg=''):
-    type_error = surrounding_agent.running_ec.realm.intrinsics['%TypeError%']
-    errobj = nc(Construct(type_error, [msg]))
-    Set(errobj, 'stack', ''.join(traceback.format_stack()), False)
+def CreateError(msg, intrinsic):
+    error_constructor = surrounding_agent.running_ec.realm.intrinsics[intrinsic]
+    errobj = nc(Construct(error_constructor, [msg]))
+    Set(errobj, 'stack', ''.join(traceback.format_stack()[:-2]), False)
     return errobj
-    #    return TypeError(msg) # This is a python object, not an ecmascript object. This will change when objects are turned on.
+def CreateReferenceError(msg=''):
+    return CreateError(msg, '%ReferenceError%')
+def CreateTypeError(msg=''):
+    return CreateError(msg, '%TypeError%')
 def CreateSyntaxError(msg=''):
-    syntax_error = surrounding_agent.running_ec.realm.intrinsics['%SyntaxError%']
-    return nc(Construct(syntax_error, [msg]))
+    return CreateError(msg, '%SyntaxError%')
 
 class missing(Enum):
     MISSING = auto()
