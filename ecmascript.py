@@ -5545,7 +5545,9 @@ class Lexer():
         'AMP',
         'AMPAMP',
         'AMPEQ',
-        'LPAREN',
+        'LPAREN_',
+        'LPAREN_LET',
+        'LPAREN_LBRACKET',
         'RPAREN',
         'LBRACKET',
         'RBRACKET',
@@ -5586,8 +5588,14 @@ class Lexer():
         'VAR', 'VOID', 'WHILE', 'WITH', 'YIELD', 'ENUM', 'NULL', 'TRUE',
         'FALSE',
 
+        'OF', # Not marked as a ReservedWord in the spec, but it's used as one in for statements.
+        'LET', # Also not marked as a ReservedWord
+
         'GOAL_SCRIPT', 'GOAL_CALLMEMBEREXPRESSION', 'GOAL_PARENTHESIZEDEXPRESSION'
          }
+
+    # Tokens we will fiter out (the parser should never see these)
+    temp_tokens = { 'LPAREN' }
 
     GoalTokens = {
         'Script': 'GOAL_SCRIPT',
@@ -5629,7 +5637,7 @@ class Lexer():
             self.start -= 1
 
     def _make_token(self, type, value, end_prior):
-        assert type in self.tokens
+        assert type in self.tokens or type in self.temp_tokens
         tok = Token()
         val = self.TokenValue()
         val.value = value
@@ -6104,7 +6112,7 @@ class Lexer():
             'finally', 'for', 'function', 'if', 'import', 'in', 'instanceof',
             'new', 'return', 'super', 'switch', 'this', 'throw', 'try', 'typeof',
             'var', 'void', 'while', 'with', 'yield', 'enum', 'null', 'true',
-            'false' ]
+            'false', 'of', 'let' ] # ('of' and 'let' are not technically reserved, but we have to treat them as word tokens)
         return word.upper() if word in reserved_word_tokens else None
 
     @staticmethod
@@ -6362,6 +6370,22 @@ class Lexer():
         raise LexerError('Syntax Error in Unicode String Escape')
 
     def lex(self, goal=Goal.InputElementDiv):
+        token_buffer = deque([])
+        for token in self.lex_nolooks(goal):
+            token_buffer.append(token)
+            if len(token_buffer) > 1:
+                src = token_buffer.popleft()
+                if src.type == 'LPAREN':
+                    if token_buffer[0].type == 'LBRACKET':
+                        src.type = 'LPAREN_LBRACKET'  # A left-parenthesis, where lookahead = [
+                    elif token_buffer[0].type == 'LET':
+                        src.type = 'LPAREN_LET' #  left-parenthesis, where lookahead = let
+                    else:
+                        src.type = 'LPAREN_'  # left-parenthesis, where lookahead isn't something we care about
+                yield src
+        for tok in token_buffer:
+            yield tok
+    def lex_nolooks(self, goal=Goal.InputElementDiv):
         state = self._initial
         token_buffer = deque([self._make_token(self.first_token, None, False)])
 
@@ -8491,7 +8515,7 @@ def AdditionOperation(lval, rval):
     if not ok:
         return operands
     lnum, rnum = operands
-    # Return the result of applying the modulo operator to lnum and rnum.
+    # Return the result of applying the addition operator to lnum and rnum.
     return lnum + rnum
 def SubtractionOperation(lval, rval):
     # Do number conversion on the operands, forming lnum and rnum
@@ -8684,6 +8708,70 @@ class PN_Statement_VariableStatement(PN_Statement):
         return False
 class PN_Statement_IfStatement(PN_Statement):
     pass
+class PN_Statement_BreakableStatement(PN_Statement):
+    pass
+
+class PN_BreakableStatement(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('BreakableStatement', p)
+class PN_BreakableStatement_IterationStatement(PN_BreakableStatement):
+    @property
+    def IterationStatement(self):
+        return self.children[0]
+    def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
+        # 13.1.3 Static Semantics: ContainsUndefinedContinueTarget
+        #   With parameters iterationSet and labelSet.
+        #           BreakableStatement : IterationStatement
+        # 1. Let newIterationSet be a copy of iterationSet with all the elements of labelSet appended.
+        # 2. Return ContainsUndefinedContinueTarget of IterationStatement with arguments newIterationSet and « ».
+        newIterationSet = iterationSet.copy()
+        newIterationSet.extend(labelSet)
+        return self.IterationStatement.ContainsUndefinedContinueTarget(newIterationSet, [])
+    def LabelledEvaluation(self, labelSet):
+        # 13.1.7 Runtime Semantics: LabelledEvaluation
+        #   With parameter labelSet.
+        #           BreakableStatement : IterationStatement
+        # 1. Let stmtResult be the result of performing LabelledEvaluation of IterationStatement with argument labelSet.
+        # 2. If stmtResult.[[Type]] is break, then
+        #     a. If stmtResult.[[Target]] is empty, then
+        #        i. If stmtResult.[[Value]] is empty, set stmtResult to NormalCompletion(undefined).
+        #       ii. Else, set stmtResult to NormalCompletion(stmtResult.[[Value]]).
+        # 3. Return Completion(stmtResult).
+        stmtResult = self.IterationStatement.LabelledEvaluation(labelSet)
+        if stmtResult.ctype == CompletionType.BREAK and stmtResult.target == Empty.EMPTY:
+            stmtResult = NormalCompletion(stmtResult.value if stmtResult.value != Empty.EMPTY else None)
+        return stmtResult
+    def evaluate(self):
+        # 13.1.8 Runtime Semantics: Evaluation
+        #           BreakableStatement : IterationStatement
+        # 1. Let newLabelSet be a new empty List.
+        # 2. Return the result of performing LabelledEvaluation of this BreakableStatement with argument newLabelSet.
+        return self.LabelledEvaluation([])
+class PN_BreakableStatement_SwitchStatement(PN_BreakableStatement):
+    @property
+    def SwitchStatement(self):
+        return self.children[0]
+    def LabelledEvaluation(self, labelSet):
+        # 13.1.7 Runtime Semantics: LabelledEvaluation
+        #   With parameter labelSet.
+        #           BreakableStatement : SwitchStatement
+        # 1. Let stmtResult be the result of evaluating SwitchStatement.
+        # 2. If stmtResult.[[Type]] is break, then
+        #    a. If stmtResult.[[Target]] is empty, then
+        #       i. If stmtResult.[[Value]] is empty, set stmtResult to NormalCompletion(undefined).
+        #      ii. Else, set stmtResult to NormalCompletion(stmtResult.[[Value]]).
+        # 3. Return Completion(stmtResult).
+        stmtResult = self.SwitchStatement.evaluate()
+        if stmtResult.ctype == CompletionType.BREAK and stmtResult.target == Empty.EMPTY:
+            stmtResult = NormalCompletion(stmtResult.value if stmtResult.value != Empty.EMPTY else None)
+        return stmtResult
+    def evaluate(self):
+        # 13.1.8 Runtime Semantics: Evaluation
+        #           BreakableStatement : SwitchStatement
+        # 1. Let newLabelSet be a new empty List.
+        # 2. Return the result of performing LabelledEvaluation of this BreakableStatement with argument newLabelSet.
+        return self.LabelledEvaluation([])
+
 
 ##########################################################################################################################
 #
@@ -9113,6 +9201,469 @@ class PN_IfStatement_IF_LPAREN_Expression_RPAREN_Statement(PN_IfStatement):
         if not ok:
             return exprValue
         return UpdateEmpty(self.Statement.evaluate(), None) if ToBoolean(exprValue) else NormalCompletion(None)
+############################################################################################################################################################################################################
+#
+#  d888    .d8888b.      8888888888     8888888 888                              888    d8b                        .d8888b.  888             888                                             888
+# d8888   d88P  Y88b           d88P       888   888                              888    Y8P                       d88P  Y88b 888             888                                             888
+#   888        .d88P          d88P        888   888                              888                              Y88b.      888             888                                             888
+#   888       8888"          d88P         888   888888  .d88b.  888d888  8888b.  888888 888  .d88b.  88888b.       "Y888b.   888888  8888b.  888888  .d88b.  88888b.d88b.   .d88b.  88888b.  888888 .d8888b
+#   888        "Y8b.      88888888        888   888    d8P  Y8b 888P"       "88b 888    888 d88""88b 888 "88b         "Y88b. 888        "88b 888    d8P  Y8b 888 "888 "88b d8P  Y8b 888 "88b 888    88K
+#   888   888    888       d88P           888   888    88888888 888     .d888888 888    888 888  888 888  888           "888 888    .d888888 888    88888888 888  888  888 88888888 888  888 888    "Y8888b.
+#   888   Y88b  d88P d8b  d88P            888   Y88b.  Y8b.     888     888  888 Y88b.  888 Y88..88P 888  888     Y88b  d88P Y88b.  888  888 Y88b.  Y8b.     888  888  888 Y8b.     888  888 Y88b.       X88
+# 8888888  "Y8888P"  Y8P d88P           8888888  "Y888  "Y8888  888     "Y888888  "Y888 888  "Y88P"  888  888      "Y8888P"   "Y888 "Y888888  "Y888  "Y8888  888  888  888  "Y8888  888  888  "Y888  88888P'
+#
+############################################################################################################################################################################################################
+class PN_IterationStatement(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('IterationStatement', p)
+class PN_IterationStatement_DO_Statement_WHILE_LPAREN_Expression_RPAREN_SEMICOLON(PN_IterationStatement):
+    # 13.7.2 The do-while Statement
+    @property
+    def Statement(self):
+        return self.children[1]
+    @property
+    def Expression(self):
+        return self.children[4]
+    def ContainsDuplicateLabels(self, labelSet):
+        # 13.7.2.1 Static Semantics: ContainsDuplicateLabels
+        #   With parameter labelSet.
+        #           IterationStatement : do Statement while ( Expression ) ;
+        # 1. Return ContainsDuplicateLabels of Statement with argument labelSet.
+        return self.Statement.ContainsDuplicateLabels(labelSet)
+    def ContainsUndefinedBreakTarget(self, labelSet):
+        # 13.7.2.2 Static Semantics: ContainsUndefinedBreakTarget
+        #   With parameter labelSet.
+        #           IterationStatement : do Statement while ( Expression ) ;
+        # 1. Return ContainsUndefinedBreakTarget of Statement with argument labelSet.
+        return self.Statement.ContainsUndefinedBreakTarget(labelSet)
+    def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
+        # 13.7.2.3 Static Semantics: ContainsUndefinedContinueTarget
+        #   With parameters iterationSet and labelSet.
+        #           IterationStatement : do Statement while ( Expression ) ;
+        # 1. Return ContainsUndefinedContinueTarget of Statement with arguments iterationSet and « ».
+        return self.Statement.ContainsUndefinedContinueTarget(iterationSet, [])
+    def VarDeclaredNames(self):
+        # 13.7.2.4 Static Semantics: VarDeclaredNames
+        #           IterationStatement : do Statement while ( Expression ) ;
+        # 1. Return the VarDeclaredNames of Statement.
+        return self.Statement.VarDeclaredNames()
+    def VarScopedDeclarations(self):
+        # 13.7.2.5 Static Semantics: VarScopedDeclarations
+        #           IterationStatement : do Statement while ( Expression ) ;
+        # 1. Return the VarScopedDeclarations of Statement.
+        return self.Statement.VarScopedDeclarations()
+    def LabelledEvaluation(self, labelSet):
+        # 13.7.2.6 Runtime Semantics: LabelledEvaluation
+        #   With parameter labelSet.
+        #           IterationStatement : do Statement while ( Expression ) ;
+        # 1. Let V be undefined.
+        # 2. Repeat,
+        #    a. Let stmtResult be the result of evaluating Statement.
+        #    b. If LoopContinues(stmtResult, labelSet) is false, return Completion(UpdateEmpty(stmtResult, V)).
+        #    c. If stmtResult.[[Value]] is not empty, set V to stmtResult.[[Value]].
+        #    d. Let exprRef be the result of evaluating Expression.
+        #    e. Let exprValue be ? GetValue(exprRef).
+        #    f. If ToBoolean(exprValue) is false, return NormalCompletion(V).
+        V = None
+        while 1:
+            stmtResult = self.Statement.evaluate()
+            if not LoopContinues(stmtResult, labelSet):
+                return UpdateEmpty(stmtResult, V)
+            if stmtResult.value != Empty.EMPTY:
+                V = stmtResult.value
+            exprValue, ok = ec(GetValue(self.Expression.evaluate()))
+            if not ok:
+                return exprValue
+            if not ToBoolean(exprValue):
+                return NormalCompletion(V)
+class PN_IterationStatement_WHILE_LPAREN_Expression_RPAREN_Statement(PN_IterationStatement):
+    # 13.7.3 The while Statement
+    @property
+    def Expression(self):
+        return self.children[2]
+    @property
+    def Statement(self):
+        return self.children[4]
+    def ContainsDuplicateLabels(self, labelSet):
+        # 13.7.3.1 Static Semantics: ContainsDuplicateLabels
+        #   With parameter labelSet.
+        #           IterationStatement : while ( Expression ) Statement
+        # 1. Return ContainsDuplicateLabels of Statement with argument labelSet.
+        return self.Statement.ContainsDuplicateLabels(labelSet)
+    def ContainsUndefinedBreakTarget(self, labelSet):
+        # 13.7.3.2 Static Semantics: ContainsUndefinedBreakTarget
+        #   With parameter labelSet.
+        #           IterationStatement : while ( Expression ) Statement
+        # 1. Return ContainsUndefinedBreakTarget of Statement with argument labelSet.
+        return self.Statement.ContainsUndefinedBreakTarget(labelSet)
+    def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
+        # 13.7.3.3 Static Semantics: ContainsUndefinedContinueTarget
+        #   With parameters iterationSet and labelSet.
+        #           IterationStatement : while ( Expression ) Statement
+        # 1. Return ContainsUndefinedContinueTarget of Statement with arguments iterationSet and « ».
+        return self.Statement.ContainsUndefinedContinueTarget(iterationSet, [])
+    def VarDeclaredNames(self):
+        # 13.7.3.4 Static Semantics: VarDeclaredNames
+        #           IterationStatement : while ( Expression ) Statement
+        # 1. Return the VarDeclaredNames of Statement.
+        return self.Statement.VarDeclaredNames()
+    def VarScopedDeclarations(self):
+        # 13.7.3.5 Static Semantics: VarScopedDeclarations
+        #           IterationStatement : while ( Expression ) Statement
+        # 1. Return the VarScopedDeclarations of Statement.
+        return self.Statement.VarScopedDeclarations()
+    def LabelledEvaluation(self, labelSet):
+        # 13.7.3.6 Runtime Semantics: LabelledEvaluation
+        #   With parameter labelSet.
+        #           IterationStatement : while ( Expression ) Statement
+        # 1. Let V be undefined.
+        # 2. Repeat,
+        #    a. Let exprRef be the result of evaluating Expression.
+        #    b. Let exprValue be ? GetValue(exprRef).
+        #    c. If ToBoolean(exprValue) is false, return NormalCompletion(V).
+        #    d. Let stmtResult be the result of evaluating Statement.
+        #    e. If LoopContinues(stmtResult, labelSet) is false, return Completion(UpdateEmpty(stmtResult, V)).
+        #    f. If stmtResult.[[Value]] is not empty, set V to stmtResult.[[Value]].
+        V = None
+        while 1:
+            exprValue, ok = ec(GetValue(self.Expression.evaluate()))
+            if not ok:
+                return exprValue
+            if not ToBoolean(exprValue):
+                return NormalCompletion(V)
+            stmtResult = self.Statement.evaluate()
+            if not LoopContinues(stmtResult, labelSet):
+                return UpdateEmpty(stmtResult, V)
+            if stmtResult.value != Empty.EMPTY:
+                V = stmtResult.value
+def LoopContinues(completion, labelSet):
+    # 13.7.1.2 Runtime Semantics: LoopContinues ( completion, labelSet )
+    # The abstract operation LoopContinues with arguments completion and labelSet is defined by the following steps:
+    #
+    # 1. If completion.[[Type]] is normal, return true.
+    # 2. If completion.[[Type]] is not continue, return false.
+    # 3. If completion.[[Target]] is empty, return true.
+    # 4. If completion.[[Target]] is an element of labelSet, return true.
+    # 5. Return false.
+    # NOTE
+    # Within the Statement part of an IterationStatement a ContinueStatement may be used to begin a new iteration.
+    return (completion.ctype == CompletionType.NORMAL or
+            (completion.ctype == CompletionType.CONTINUE and (completion.target == Empty.EMPTY or completion.target in labelSet)))
+class PN_IterationStatement_For_Expressions(PN_IterationStatement):
+    # This is for the for statements with simple-ish expresions (no "in" or "of")
+    def ContainsDuplicateLabels(self, labelSet):
+        # 13.7.4.2 Static Semantics: ContainsDuplicateLabels
+        #   With parameter labelSet.
+        #       IterationStatement :
+        #           for ( Expression[opt] ; Expression[opt] ; Expression[opt] ) Statement
+        #           for ( var VariableDeclarationList ; Expression[opt] ; Expression[opt] ) Statement
+        #           for ( LexicalDeclaration Expression[opt] ; Expression[opt] ) Statement
+        # 1. Return ContainsDuplicateLabels of Statement with argument labelSet.
+        return self.Statement.ContainsDuplicateLabels(labelSet)
+    def ContainsUndefinedBreakTarget(self, labelSet):
+        # 13.7.4.3 Static Semantics: ContainsUndefinedBreakTarget
+        #   With parameter labelSet.
+        #       IterationStatement :
+        #           for ( Expression[opt] ; Expression[opt] ; Expression[opt] ) Statement
+        #           for ( var VariableDeclarationList ; Expression[opt] ; Expression[opt] ) Statement
+        #           for ( LexicalDeclaration Expression[opt] ; Expression[opt] ) Statement
+        # 1. Return ContainsUndefinedBreakTarget of Statement with argument labelSet.
+        return self.Statement.ContainsUndefinedBreakTarget(labelSet)
+    def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
+        # 13.7.4.4 Static Semantics: ContainsUndefinedContinueTarget
+        #   With parameters iterationSet and labelSet.
+        #       IterationStatement :
+        #           for ( Expression[opt] ; Expression[opt] ; Expression[opt] ) Statement
+        #           for ( var VariableDeclarationList ; Expression[opt] ; Expression[opt] ) Statement
+        #           for ( LexicalDeclaration Expression[opt] ; Expression[opt] ) Statement
+        # 1. Return ContainsUndefinedContinueTarget of Statement with arguments iterationSet and « ».
+        return self.Statement.ContainsUndefinedContinueTarget(iterationSet, [])
+class PN_IterationStatement_For_Expressions_only(PN_IterationStatement_For_Expressions):
+    def VarDeclaredNames(self):
+        # 13.7.4.5 Static Semantics: VarDeclaredNames
+        #           IterationStatement : for ( Expression ; Expression ; Expression ) Statement
+        # 1. Return the VarDeclaredNames of Statement.
+        return self.Statement.VarDeclaredNames()
+    def VarScopedDeclarations(self):
+        # 13.7.4.6 Static Semantics: VarScopedDeclarations
+        #           IterationStatement : for ( Expression ; Expression ; Expression ) Statement
+        # 1. Return the VarScopedDeclarations of Statement.
+        return self.Statement.VarScopedDeclarations()
+    def LabelledEvaluation(self, labelSet):
+        # 13.7.4.7 Runtime Semantics: LabelledEvaluation
+        #   With parameter labelSet.
+        #           IterationStatement : for ( Expression ; Expression ; Expression ) Statement
+        # 1. If the first Expression is present, then
+        #    a. Let exprRef be the result of evaluating the first Expression.
+        #    b. Perform ? GetValue(exprRef).
+        # 1. Return ? ForBodyEvaluation(the second Expression, the third Expression, Statement, « », labelSet).
+        if self.Expression1:
+            cr, ok = ec(GetValue(self.Expression1.evaluate()))
+            if not ok:
+                return cr
+        return ForBodyEvaluation(self.Expression2, self.Expression3, self.Statement, [], labelSet)
+class PN_IterationStatement_FOR_LPAREN_Expression_SEMICOLON_Expression_SEMICOLON_Expression_RPAREN_Statement(PN_IterationStatement_For_Expressions_only):
+    @property
+    def Statement(self):
+        return self.children[8]
+    @property
+    def Expression1(self):
+        return self.children[2]
+    @property
+    def Expression2(self):
+        return self.children[4]
+    @property
+    def Expression3(self):
+        return self.children[6]
+class PN_IterationStatement_FOR_LPAREN_SEMICOLON_Expression_SEMICOLON_Expression_RPAREN_Statement(PN_IterationStatement_For_Expressions_only):
+    @property
+    def Statement(self):
+        return self.children[7]
+    @property
+    def Expression1(self):
+        return None
+    @property
+    def Expression2(self):
+        return self.children[3]
+    @property
+    def Expression3(self):
+        return self.children[5]
+class PN_IterationStatement_FOR_LPAREN_Expression_SEMICOLON_SEMICOLON_Expression_RPAREN_Statement(PN_IterationStatement_For_Expressions_only):
+    @property
+    def Statement(self):
+        return self.children[7]
+    @property
+    def Expression1(self):
+        return self.children[2]
+    @property
+    def Expression2(self):
+        return None
+    @property
+    def Expression3(self):
+        return self.children[5]
+class PN_IterationStatement_FOR_LPAREN_Expression_SEMICOLON_Expression_SEMICOLON_RPAREN_Statement(PN_IterationStatement_For_Expressions_only):
+    @property
+    def Statement(self):
+        return self.children[7]
+    @property
+    def Expression1(self):
+        return self.children[2]
+    @property
+    def Expression2(self):
+        return self.children[4]
+    @property
+    def Expression3(self):
+        return None
+class PN_IterationStatement_FOR_LPAREN_Expression_SEMICOLON_SEMICOLON_RPAREN_Statement(PN_IterationStatement_For_Expressions_only):
+    @property
+    def Statement(self):
+        return self.children[6]
+    @property
+    def Expression1(self):
+        return self.children[2]
+    @property
+    def Expression2(self):
+        return None
+    @property
+    def Expression3(self):
+        return None
+class PN_IterationStatement_FOR_LPAREN_SEMICOLON_Expression_SEMICOLON_RPAREN_Statement(PN_IterationStatement_For_Expressions_only):
+    @property
+    def Statement(self):
+        return self.children[6]
+    @property
+    def Expression1(self):
+        return None
+    @property
+    def Expression2(self):
+        return self.children[3]
+    @property
+    def Expression3(self):
+        return None
+class PN_IterationStatement_FOR_LPAREN_SEMICOLON_SEMICOLON_Expression_RPAREN_Statement(PN_IterationStatement_For_Expressions_only):
+    @property
+    def Statement(self):
+        return self.children[6]
+    @property
+    def Expression1(self):
+        return None
+    @property
+    def Expression2(self):
+        return None
+    @property
+    def Expression3(self):
+        return self.children[4]
+class PN_IterationStatement_FOR_LPAREN_SEMICOLON_SEMICOLON_RPAREN_Statement(PN_IterationStatement_For_Expressions_only):
+    @property
+    def Statement(self):
+        return self.children[5]
+    @property
+    def Expression1(self):
+        return None
+    @property
+    def Expression2(self):
+        return None
+    @property
+    def Expression3(self):
+        return None
+class PN_IterationStatement_For_varlist(PN_IterationStatement_For_Expressions):
+    def VarDeclaredNames(self):
+        # 13.7.4.5 Static Semantics: VarDeclaredNames
+        #           IterationStatement : for ( var VariableDeclarationList ; Expression ; Expression ) Statement
+        # 1. Let names be BoundNames of VariableDeclarationList.
+        # 2. Append to names the elements of the VarDeclaredNames of Statement.
+        # 3. Return names.
+        names = self.VariableDeclarationList.BoundNames()
+        names.extend(self.Statement.VarDeclaredNames())
+        return names
+    def VarScopedDeclarations(self):
+        # 13.7.4.6 Static Semantics: VarScopedDeclarations
+        #           IterationStatement : for ( var VariableDeclarationList ; Expression ; Expression ) Statement
+        # 1. Let declarations be VarScopedDeclarations of VariableDeclarationList.
+        # 2. Append to declarations the elements of the VarScopedDeclarations of Statement.
+        # 3. Return declarations.
+        declarations = self.VariableDeclarationList.VarScopedDeclarations()
+        declarations.extend(self.Statement.VarScopedDeclarations())
+        return declarations
+    def LabelledEvaluation(self, labelSet):
+        # 13.7.4.7 Runtime Semantics: LabelledEvaluation
+        #   With parameter labelSet.
+        #           IterationStatement : for ( var VariableDeclarationList ; Expression ; Expression ) Statement
+        # 1. Let varDcl be the result of evaluating VariableDeclarationList.
+        # 2. ReturnIfAbrupt(varDcl).
+        # 3. Return ? ForBodyEvaluation(the first Expression, the second Expression, Statement, « », labelSet).
+        varDcl, ok = ec(self.VariableDeclarationList.evaluate())
+        if not ok:
+            return varDcl
+        return ForBodyEvaluation(self.Expression1, self.Expression2, self.Statement, [], labelSet)
+class PN_IterationStatement_FOR_LPAREN_VAR_VariableDeclarationList_SEMICOLON_Expression_SEMICOLON_Expression_RPAREN_Statement(PN_IterationStatement_For_varlist):
+    @property
+    def VariableDeclarationList(self):
+        return self.children[3]
+    @property
+    def Expression1(self):
+        return self.children[5]
+    @property
+    def Expression2(self):
+        return self.children[7]
+    @property
+    def Statement(self):
+        return self.children[9]
+class PN_IterationStatement_FOR_LPAREN_VAR_VariableDeclarationList_SEMICOLON_SEMICOLON_Expression_RPAREN_Statement(PN_IterationStatement_For_varlist):
+    @property
+    def VariableDeclarationList(self):
+        return self.children[3]
+    @property
+    def Expression1(self):
+        return None
+    @property
+    def Expression2(self):
+        return self.children[6]
+    @property
+    def Statement(self):
+        return self.children[8]
+class PN_IterationStatement_FOR_LPAREN_VAR_VariableDeclarationList_SEMICOLON_Expression_SEMICOLON_RPAREN_Statement(PN_IterationStatement_For_varlist):
+    @property
+    def VariableDeclarationList(self):
+        return self.children[3]
+    @property
+    def Expression1(self):
+        return self.children[5]
+    @property
+    def Expression2(self):
+        return None
+    @property
+    def Statement(self):
+        return self.children[8]
+class PN_IterationStatement_FOR_LPAREN_VAR_VariableDeclarationList_SEMICOLON_SEMICOLON_RPAREN_Statement(PN_IterationStatement_For_varlist):
+    @property
+    def VariableDeclarationList(self):
+        return self.children[3]
+    @property
+    def Expression1(self):
+        return None
+    @property
+    def Expression2(self):
+        return None
+    @property
+    def Statement(self):
+        return self.children[7]
+
+# 13.7.4.8 Runtime Semantics: ForBodyEvaluation ( test, increment, stmt, perIterationBindings, labelSet )
+def ForBodyEvaluation(test, increment, stmt, perIterationBindings, lableSet):
+    # The abstract operation ForBodyEvaluation with arguments test, increment, stmt, perIterationBindings, and
+    # labelSet is performed as follows:
+    #
+    # 1. Let V be undefined.
+    # 2. Perform ? CreatePerIterationEnvironment(perIterationBindings).
+    # 3. Repeat,
+    #    a. If test is not [empty], then
+    #       i. Let testRef be the result of evaluating test.
+    #      ii. Let testValue be ? GetValue(testRef).
+    #     iii. If ToBoolean(testValue) is false, return NormalCompletion(V).
+    #    b. Let result be the result of evaluating stmt.
+    #    c. If LoopContinues(result, labelSet) is false, return Completion(UpdateEmpty(result, V)).
+    #    d. If result.[[Value]] is not empty, set V to result.[[Value]].
+    #    e. Perform ? CreatePerIterationEnvironment(perIterationBindings).
+    #    f. If increment is not [empty], then
+    #       i. Let incRef be the result of evaluating increment.
+    #      ii. Perform ? GetValue(incRef).
+    V = None
+    cr, ok = ec(CreatePerIterationEnvironment(perIterationBindings))
+    if not ok:
+        return cr
+    while 1:
+        if test:
+            testValue, ok = ec(GetValue(test.evaluate()))
+            if not ok:
+                return testValue
+            if not ToBoolean(testValue):
+                return NormalCompletion(V)
+        result = stmt.evaluate()
+        if not LoopContinues(result, lableSet):
+            return UpdateEmpty(result, V)
+        if result.value != Empty.EMPTY:
+            V = result.value
+        cr, ok = ec(CreatePerIterationEnvironment(perIterationBindings))
+        if not ok:
+            return cr
+        if increment:
+            cr, ok = ec(GetValue(increment.evaluate()))
+            if not ok:
+                return cr
+# 13.7.4.9 Runtime Semantics: CreatePerIterationEnvironment ( perIterationBindings )
+def CreatePerIterationEnvironment(perIterationBindings):
+    # The abstract operation CreatePerIterationEnvironment with argument perIterationBindings is performed as follows:
+    #
+    # 1. If perIterationBindings has any elements, then
+    #    a. Let lastIterationEnv be the running execution context's LexicalEnvironment.
+    #    b. Let lastIterationEnvRec be lastIterationEnv's EnvironmentRecord.
+    #    c. Let outer be lastIterationEnv's outer environment reference.
+    #    d. Assert: outer is not null.
+    #    e. Let thisIterationEnv be NewDeclarativeEnvironment(outer).
+    #    f. Let thisIterationEnvRec be thisIterationEnv's EnvironmentRecord.
+    #    g. For each element bn of perIterationBindings, do
+    #       i. Perform ! thisIterationEnvRec.CreateMutableBinding(bn, false).
+    #      ii. Let lastValue be ? lastIterationEnvRec.GetBindingValue(bn, true).
+    #     iii. Perform thisIterationEnvRec.InitializeBinding(bn, lastValue).
+    #    h. Set the running execution context's LexicalEnvironment to thisIterationEnv.
+    # 2. Return undefined.
+    if perIterationBindings:
+        lastIterationEnv = surrounding_agent.running_ec.lexical_environment
+        lastIterationEnvRec = lastIterationEnv.environment_record
+        outer = lastIterationEnv.outer
+        assert outer and not isNull(outer)
+        thisIterationEnv = NewDeclarativeEnvironment(outer)
+        thisIterationEnvRec = thisIterationEnv.environment_record
+        for bn in perIterationBindings:
+            nc(thisIterationEnvRec.CreateMutableBinding(bn, False))
+            lastValue, ok = ec(lastIterationEnvRec.GetBindingValue(bn, True))
+            if not ok:
+                return lastValue
+            thisIterationEnvRec.InitializeBinding(bn, lastValue)
+        surrounding_agent.running_ec.lexical_environment = thisIterationEnv
+    return NormalCompletion(None)
+
 
 class PN_CoverCallExpressionAndAsyncArrowHead(ParseNode):
     def __init__(self, context, p):
@@ -9298,6 +9849,157 @@ class Ecma262Parser(Parser):
         return PN_CoverCallExpressionAndAsyncArrowHead_MemberExpression_Arguments(self.context, p)
     ########################################################################################################################
 
+    # LPAREN_  ---   ( [lookahead ∉ { let [ }]
+    # LPAREN_LET --- ( [lookahead = let ]
+    # LPAREN_LBRACKET --- ( [lookahead = [ ]
+    @_('LPAREN_', 'LPAREN_LET', 'LPAREN_LBRACKET')
+    def LPAREN(self, p):    # LPAREN --- (
+        return p[0]
+    @_('LPAREN_', 'LPAREN_LBRACKET') # --- ( [lookahead != let ]
+    def LPAREN_NOTLET(self, p):
+        return p[0]
+    ########################################################################################################################
+    # 13.7 Iteration Statements
+    #
+    # Syntax
+    #
+    # IterationStatement[Yield, Await, Return] :
+    #           do Statement[?Yield, ?Await, ?Return] while ( Expression[+In, ?Yield, ?Await] ) ;
+    #           while ( Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    #           for ( [lookahead ∉ { let [ }] Expression[~In, ?Yield, ?Await] ; Expression[+In, ?Yield, ?Await] ; Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    #           for ( [lookahead ∉ { let [ }] Expression[~In, ?Yield, ?Await] ; Expression[+In, ?Yield, ?Await] ; ) Statement[?Yield, ?Await, ?Return]
+    #           for ( [lookahead ∉ { let [ }] Expression[~In, ?Yield, ?Await] ; ; Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    #           for ( [lookahead ∉ { let [ }] Expression[~In, ?Yield, ?Await] ; ; ) Statement[?Yield, ?Await, ?Return]
+    #           for ( [lookahead ∉ { let [ }] ; Expression[+In, ?Yield, ?Await] ; Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    #           for ( [lookahead ∉ { let [ }] ; Expression[+In, ?Yield, ?Await] ; ) Statement[?Yield, ?Await, ?Return]
+    #           for ( [lookahead ∉ { let [ }] ; ; Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    #           for ( [lookahead ∉ { let [ }] ; ; ) Statement[?Yield, ?Await, ?Return]
+    #           for ( var VariableDeclarationList[~In, ?Yield, ?Await] ; Expression[+In, ?Yield, ?Await] ; Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    #           for ( var VariableDeclarationList[~In, ?Yield, ?Await] ; ; Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    #           for ( var VariableDeclarationList[~In, ?Yield, ?Await] ; Expression[+In, ?Yield, ?Await] ; ) Statement[?Yield, ?Await, ?Return]
+    #           for ( var VariableDeclarationList[~In, ?Yield, ?Await] ; ; ) Statement[?Yield, ?Await, ?Return]
+    #           for ( LexicalDeclaration[~In, ?Yield, ?Await] Expression[+In, ?Yield, ?Await] ; Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    #           for ( LexicalDeclaration[~In, ?Yield, ?Await] ; Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    #           for ( LexicalDeclaration[~In, ?Yield, ?Await] Expression[+In, ?Yield, ?Await] ; ) Statement[?Yield, ?Await, ?Return]
+    #           for ( LexicalDeclaration[~In, ?Yield, ?Await] ; ) Statement[?Yield, ?Await, ?Return]
+    #           for ( [lookahead ∉ { let [ }] LeftHandSideExpression[?Yield, ?Await] in Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    #           for ( var ForBinding[?Yield, ?Await] in Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    #           for ( ForDeclaration[?Yield, ?Await] in Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    #           for ( [lookahead ≠ let] LeftHandSideExpression[?Yield, ?Await] of AssignmentExpression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    #           for ( var ForBinding[?Yield, ?Await] of AssignmentExpression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    #           for ( ForDeclaration[?Yield, ?Await] of AssignmentExpression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    #           [+Await] for await ( [lookahead ≠ let] LeftHandSideExpression[?Yield, ?Await] of AssignmentExpression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    #           [+Await] for await ( var ForBinding[?Yield, ?Await] of AssignmentExpression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    #           [+Await] for await ( ForDeclaration[?Yield, ?Await] of AssignmentExpression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    #
+    # ForDeclaration[Yield, Await] :
+    #           LetOrConst ForBinding[?Yield, ?Await]
+    #
+    # ForBinding[Yield, Await] :
+    #           BindingIdentifier[?Yield, ?Await]
+    #           BindingPattern[?Yield, ?Await]
+    #
+    @_('DO Statement WHILE LPAREN Expression_In RPAREN SEMICOLON')
+    def IterationStatement(self, p):
+        return PN_IterationStatement_DO_Statement_WHILE_LPAREN_Expression_RPAREN_SEMICOLON(self.context, p)
+    @_('WHILE LPAREN Expression_In RPAREN Statement')
+    def IterationStatement(self, p):
+        return PN_IterationStatement_WHILE_LPAREN_Expression_RPAREN_Statement(self.context, p)
+    @_('FOR LPAREN_ Expression SEMICOLON Expression_In SEMICOLON Expression_In RPAREN Statement')
+    def IterationStatement(self, p):
+        return PN_IterationStatement_FOR_LPAREN_Expression_SEMICOLON_Expression_SEMICOLON_Expression_RPAREN_Statement(self.context, p)
+    @_('FOR LPAREN_ Expression SEMICOLON Expression_In SEMICOLON RPAREN Statement')
+    def IterationStatement(self, p):
+        return PN_IterationStatement_FOR_LPAREN_Expression_SEMICOLON_Expression_SEMICOLON_RPAREN_Statement(self.context, p)
+    @_('FOR LPAREN_ Expression SEMICOLON SEMICOLON Expression_In RPAREN Statement')
+    def IterationStatement(self, p):
+        return PN_IterationStatement_FOR_LPAREN_Expression_SEMICOLON_SEMICOLON_Expression_RPAREN_Statement(self.context, p)
+    @_('FOR LPAREN_ Expression SEMICOLON SEMICOLON RPAREN Statement')
+    def IterationStatement(self, p):
+        return PN_IterationStatement_FOR_LPAREN_Expression_SEMICOLON_SEMICOLON_RPAREN_Statement(self.context, p)
+    # for ( [lookahead ∉ { let [ }] ; Expression[+In, ?Yield, ?Await] ; Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN_ SEMICOLON Expression_In SEMICOLON Expression_In RPAREN Statement')
+    def IterationStatement(self, p):
+        return PN_IterationStatement_FOR_LPAREN_SEMICOLON_Expression_SEMICOLON_Expression_RPAREN_Statement(self.context, p)
+    # for ( [lookahead ∉ { let [ }] ; Expression[+In, ?Yield, ?Await] ; ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN_ SEMICOLON Expression_In SEMICOLON RPAREN Statement')
+    def IterationStatement(self, p):
+        return PN_IterationStatement_FOR_LPAREN_SEMICOLON_Expression_SEMICOLON_RPAREN_Statement(self.context, p)
+    # for ( [lookahead ∉ { let [ }] ; ; Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN_ SEMICOLON SEMICOLON Expression_In RPAREN Statement')
+    def IterationStatement(self, p):
+        return PN_IterationStatement_FOR_LPAREN_SEMICOLON_SEMICOLON_Expression_RPAREN_Statement(self.context, p)
+    # for ( [lookahead ∉ { let [ }] ; ; ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN_ SEMICOLON SEMICOLON RPAREN Statement')
+    def IterationStatement(self, p):
+        return PN_IterationStatement_FOR_LPAREN_SEMICOLON_SEMICOLON_RPAREN_Statement(self.context, p)
+    #           for ( var VariableDeclarationList[~In, ?Yield, ?Await] ; Expression[+In, ?Yield, ?Await] ; Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN VAR VariableDeclarationList SEMICOLON Expression_In SEMICOLON Expression_In RPAREN Statement')
+    def IterationStatement(self, p):
+        return PN_IterationStatement_FOR_LPAREN_VAR_VariableDeclarationList_SEMICOLON_Expression_SEMICOLON_Expression_RPAREN_Statement(self.context, p)
+    #           for ( var VariableDeclarationList[~In, ?Yield, ?Await] ; ; Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN VAR VariableDeclarationList SEMICOLON SEMICOLON Expression_In RPAREN Statement')
+    def IterationStatement(self, p):
+        return PN_IterationStatement_FOR_LPAREN_VAR_VariableDeclarationList_SEMICOLON_SEMICOLON_Expression_RPAREN_Statement(self.context, p)
+    #           for ( var VariableDeclarationList[~In, ?Yield, ?Await] ; Expression[+In, ?Yield, ?Await] ; ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN VAR VariableDeclarationList SEMICOLON Expression_In SEMICOLON RPAREN Statement')
+    def IterationStatement(self, p):
+        return PN_IterationStatement_FOR_LPAREN_VAR_VariableDeclarationList_SEMICOLON_Expression_SEMICOLON_RPAREN_Statement(self.context, p)
+    #           for ( var VariableDeclarationList[~In, ?Yield, ?Await] ; ; ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN VAR VariableDeclarationList SEMICOLON SEMICOLON RPAREN Statement')
+    def IterationStatement(self, p):
+        return PN_IterationStatement_FOR_LPAREN_VAR_VariableDeclarationList_SEMICOLON_SEMICOLON_RPAREN_Statement(self.context, p)
+    #           for ( LexicalDeclaration[~In, ?Yield, ?Await] Expression[+In, ?Yield, ?Await] ; Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN LexicalDeclaration Expression_In SEMICOLON Expression_In RPAREN Statement')
+    def IterationStatement(self, p):
+        return PN_IterationStatement_FOR_LPAREN_LexicalDeclaration_Expression_SEMICOLON_Expression_RPAREN_Statement(self.context, p)
+    #           for ( LexicalDeclaration[~In, ?Yield, ?Await] ; Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN LexicalDeclaration SEMICOLON Expression_In RPAREN Statement')
+    def IterationStatement(self, p):
+        return PN_IterationStatement_FOR_LPAREN_LexicalDeclaration_SEMICOLON_Expression_RPAREN_Statement(self.context, p)
+    #           for ( LexicalDeclaration[~In, ?Yield, ?Await] Expression[+In, ?Yield, ?Await] ; ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN LexicalDeclaration Expression_In SEMICOLON RPAREN Statement')
+    def IterationStatement(self, p):
+        return PN_IterationStatement_FOR_LPAREN_LexicalDeclaration_Expression_SEMICOLON_RPAREN_Statement(self.context, p)
+    #           for ( LexicalDeclaration[~In, ?Yield, ?Await] ; ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN LexicalDeclaration SEMICOLON RPAREN Statement')
+    def IterationStatement(self, p):
+        return PN_IterationStatement_FOR_LPAREN_LexicalDeclaration_SEMICOLON_RPAREN_Statement(self.context, p)
+    #           for ( [lookahead ∉ { let [ }] LeftHandSideExpression[?Yield, ?Await] in Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN_ LeftHandSideExpression IN Expression_In RPAREN Statement')
+    def IterationStatement(self, p):
+        return PN_IterationStatement_FOR_LPAREN_LeftHandSideExpression_IN_Expression_RPAREN_Statement(self.context, p)
+    #           for ( var ForBinding[?Yield, ?Await] in Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN VAR ForBinding IN Expression_In RPAREN Statement')
+    def IterationStatement(self, p):
+        return PN_IterationStatement_FOR_LPAREN_VAR_ForBinding_IN_Expression_RPAREN_Statement(self.context, p)
+    #           for ( ForDeclaration[?Yield, ?Await] in Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN ForDeclaration IN Expression_In RPAREN Statement')
+    def IterationStatement(self, p):
+        return PN_IterationStatement_FOR_LPAREN_VAR_ForBinding_IN_Expression_RPAREN_Statement(self.context, p)
+    #           for ( [lookahead ≠ let] LeftHandSideExpression[?Yield, ?Await] of AssignmentExpression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN_NOTLET LeftHandSideExpression OF AssignmentExpression_In RPAREN Statement')
+    def IterationStatement(self, p):
+        return PN_IterationStatement_FOR_LPAREN_LeftHandSideExpression_OF_AssignmentExpression_RPAREN_Statement(self.context, p)
+    #           for ( var ForBinding[?Yield, ?Await] of AssignmentExpression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN VAR ForBinding OF AssignmentExpression_In RPAREN Statement')
+    def IterationStatement(self, p):
+        return PN_IterationStatement_FOR_LPAREN_VAR_ForBinding_OF_AssignmentExpression_RPAREN_Statement(self.context, p)
+    #           for ( ForDeclaration[?Yield, ?Await] of AssignmentExpression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN ForDeclaration OF AssignmentExpression_In RPAREN Statement')
+    def IterationStatement(self, p):
+        return PN_IterationStatement_FOR_LPAREN_ForDeclaration_OF_AssignmentExpression_RPAREN_Statement(self.context, p)
+
+    @_('LetOrConst ForBinding')
+    def ForDeclaration(self, p):
+        return PN_ForDeclaration_LetOrConst_ForBinding(self.context, p)
+
+    @_('BindingIdentifier')
+    def ForBinding(self, p):
+        return PN_ForBinding_BindingIdentifier(self.context, p)
+    #@_('BindingPattern')
+    #def ForBinding(self, p):
+    #    return PN_ForBinding_BindingPattern(self.context, p)
     ########################################################################################################################
     # 13.6 The if Statement
     #
@@ -9361,8 +10063,14 @@ class Ecma262Parser(Parser):
     @_('VariableDeclaration_In')
     def VariableDeclarationList_In(self, p):
         return PN_VariableDeclarationList_VariableDeclaration(self.context, p)
+    @_('VariableDeclaration')
+    def VariableDeclarationList(self, p):
+        return PN_VariableDeclarationList_VariableDeclaration(self.context, p)
     @_('VariableDeclarationList_In COMMA VariableDeclaration_In')
     def VariableDeclarationList_In(self, p):
+        return PN_VariableDeclarationList_VariableDeclarationList_COMMA_VariableDeclaration(self.context, p)
+    @_('VariableDeclarationList COMMA VariableDeclaration')
+    def VariableDeclarationList(self, p):
         return PN_VariableDeclarationList_VariableDeclarationList_COMMA_VariableDeclaration(self.context, p)
     @_('BindingIdentifier')
     def VariableDeclaration_In(self, p):
@@ -9370,11 +10078,64 @@ class Ecma262Parser(Parser):
     @_('BindingIdentifier Initializer_In')
     def VariableDeclaration_In(self, p):
         return PN_VariableDeclaration_BindingIdentifier_Initializer(self.context, p)
-    # @_('BindingPattern Initializer_In')
-    # def VariableDeclaration_In(self, p):
-    #     return PN_VariableDeclaration_BindingPattern_Initializer(self.context, p)
+    #@_('BindingPattern Initializer_In')
+    #def VariableDeclaration_In(self, p):
+    #    return PN_VariableDeclaration_BindingPattern_Initializer(self.context, p)
+    @_('BindingIdentifier')
+    def VariableDeclaration(self, p):
+        return PN_VariableDeclaration_BindingIdentifier(self.context, p)
+    @_('BindingIdentifier Initializer')
+    def VariableDeclaration(self, p):
+        return PN_VariableDeclaration_BindingIdentifier_Initializer(self.context, p)
+    #@_('BindingPattern Initializer')
+    #def VariableDeclaration(self, p):
+    #    return PN_VariableDeclaration_BindingPattern_Initializer(self.context, p)
     ########################################################################################################################
 
+    # 13.3.1
+    # LexicalDeclaration[In, Yield, Await] :
+    #           LetOrConst BindingList[?In, ?Yield, ?Await] ;
+    #
+    # LetOrConst :
+    #           let
+    #           const
+    #
+    # BindingList[In, Yield, Await] :
+    #           LexicalBinding[?In, ?Yield, ?Await]
+    #           BindingList[?In, ?Yield, ?Await] , LexicalBinding[?In, ?Yield, ?Await]
+    #
+    # LexicalBinding[In, Yield, Await] :
+    #           BindingIdentifier[?Yield, ?Await] Initializer[?In, ?Yield, ?Await]
+    #           BindingIdentifier[?Yield, ?Await]
+    #           BindingPattern[?Yield, ?Await] Initializer[?In, ?Yield, ?Await]
+    #
+    @_('LetOrConst BindingList SEMICOLON')
+    def LexicalDeclaration(self, p):
+        return PN_LexicalDeclaration_LetOrConst_BindingList_SEMICOLON(self.context, p)
+
+    @_('LET')
+    def LetOrConst(self, p):
+        return PN_LetOrConst_LET(self.context, p)
+    @_('CONST')
+    def LetOrConst(self, p):
+        return PN_LetOrConst_CONST(self.context, p)
+
+    @_('LexicalBinding')
+    def BindingList(self, p):
+        return PN_BindingList_LexicalBinding(self.context, p)
+    @_('BindingList COMMA LexicalBinding')
+    def BindingList(self, p):
+        return PN_BindingList_BindingList_COMMA_LexicalBinding(self.context, p)
+
+    @_('BindingIdentifier Initializer')
+    def LexicalBinding(self, p):
+        return PN_LexicalBinding_BindingIdentifier_Initializer(self.context, p)
+    @_('BindingIdentifier')
+    def LexicalBinding(self, p):
+        return PN_LexicalBinding_BindingIdentifier(self.context, p)
+    #@_('BindingPattern Initializer')
+    #def LexicalBinding(self, p):
+    #    return PN_LexicalBinding_BindingPattern_Initializer(self.context, p)
     ########################################################################################################################
     # 13.2 Block
     # Syntax
@@ -9463,6 +10224,16 @@ class Ecma262Parser(Parser):
     @_('IfStatement')
     def Statement(self, p):
         return PN_Statement_IfStatement(self.context, p)
+    @_('BreakableStatement')
+    def Statement(self, p):
+        return PN_Statement_BreakableStatement(self.context, p)
+
+    @_('IterationStatement')
+    def BreakableStatement(self, p):
+        return PN_BreakableStatement_IterationStatement(self.context, p)
+    #@_('SwitchStatement')
+    #def BreakableStatement(self, p):
+    #    return PN_BreakableStatement_SwitchStatement(self.context, p)
     ########################################################################################################################
 
     ########################################################################################################################
@@ -10043,6 +10814,9 @@ class Ecma262Parser(Parser):
     ########################################################################################################################
     @_('EQUALS AssignmentExpression_In')
     def Initializer_In(self, p):
+        return PN_Initializer_EQUALS_AssignmentExpression(self.context, p)
+    @_('EQUALS AssignmentExpression')
+    def Initializer(self, p):
         return PN_Initializer_EQUALS_AssignmentExpression(self.context, p)
     ########################################################################################################################
 
@@ -11552,7 +12326,7 @@ def NumberFixups(realm):
     return NormalCompletion(None)
 
 if __name__ == '__main__':
-    rv, ok = ec(RunJobs(scripts=['if (false) { 1; } else { 2; };']))
+    rv, ok = ec(RunJobs(scripts=["var mystr=''; for (var x=0, y=0; x<15; x++,y--) {if (x%2) {mystr += x;} else {mystr += y;}}; mystr;"]))
 
     InitializeHostDefinedRealm()
 
