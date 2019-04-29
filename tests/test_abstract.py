@@ -870,3 +870,64 @@ def test_AbstractRelationalComparison_05(realm, mocker, left, right):
     mocker.patch('ecmascript.ToNumber', side_effect=lambda a: 10 if a == 10 else ThrowCompletion('err thrown'))
     res = AbstractRelationalComparison(left, right, True)
     assert res == Completion(THROW, 'err thrown', None)
+
+# 7.2.14 Abstract Equality Comparison
+
+@pytest.mark.parametrize('left, right', [
+    (None, None),
+    (JSNull.NULL, JSNull.NULL),
+    (True, False),
+    (100, 200),
+    ('abc', 'def'),
+    (wks_to_primitive, wks_search),
+])
+def test_AbstractEqualityComparsion_01(realm, mocker, left, right):
+    # If Type(left) == Type(right) we're supposed to defer to StrictEqualityComparison
+    mocker.patch('ecmascript.StrictEqualityComparison')
+
+    res = AbstractEqualityComparison(left, right)
+    ecmascript.StrictEqualityComparison.assert_called_once_with(left, right)
+
+@pytest.mark.parametrize('left, right, expected', [
+    (JSNull.NULL, None, True), # If x is null and y is undefined, return true.
+    (None, JSNull.NULL, True), # If x is undefined and y is null, return true.
+    (10, '10', True), # If Type(x) is Number and Type(y) is String, return the result of the comparison x == ! ToNumber(y).
+    (15, '0xf', True),
+    ('0b0111', 7, True), # If Type(x) is String and Type(y) is Number, return the result of the comparison ! ToNumber(x) == y.
+    ('67', 99, False),
+    (True, 1, True), # If Type(x) is Boolean, return the result of the comparison ! ToNumber(x) == y.
+    (False, 0, True),
+    (1, False, False), # If Type(y) is Boolean, return the result of the comparison x == ! ToNumber(y).
+    (1, True, True),
+    ('0', False, True),
+    ('teststring', None, False),
+])
+def test_AbstractEqualityComparsion_02(realm, left, right, expected):
+    res = AbstractEqualityComparison(left, right)
+    assert res == Completion(NORMAL, expected, None)
+
+@pytest.mark.parametrize('nonobj, expected', [
+    (55, False),
+    ('[object Object]', True),
+])
+def test_AbstractEqualityComparsion_03(obj, nonobj, expected):
+    res = AbstractEqualityComparison(nonobj, obj)
+    assert res == Completion(NORMAL, expected, None)
+
+@pytest.mark.parametrize('nonobj, expected', [
+    (55, False),
+    ('[object Object]', True),
+])
+def test_AbstractEqualityComparsion_04(obj, nonobj, expected):
+    res = AbstractEqualityComparison(obj, nonobj)
+    assert res == Completion(NORMAL, expected, None)
+
+def test_AbstractEqualityComparison_05(obj, mocker):
+    mocker.patch('ecmascript.ToPrimitive', side_effect=lambda a: ThrowCompletion('test'))
+    res = AbstractEqualityComparison(obj, 67)
+    assert res == Completion(THROW, 'test', None)
+
+def test_AbstractEqualityComparison_06(obj, mocker):
+    mocker.patch('ecmascript.ToPrimitive', side_effect=lambda a: ThrowCompletion('test'))
+    res = AbstractEqualityComparison(99, obj)
+    assert res == Completion(THROW, 'test', None)

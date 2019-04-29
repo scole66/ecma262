@@ -2095,13 +2095,13 @@ def AbstractEqualityComparison(x, y):
     # 1. If Type(x) is the same as Type(y), then
     if TypeOf(x) == TypeOf(y):
         # a. Return the result of performing Strict Equality Comparison x === y.
-        return StrictEqualityComparison(x, y)
+        return NormalCompletion(StrictEqualityComparison(x, y))
     # 2. If x is null and y is undefined, return true.
     if isNull(x) and isUndefined(y):
-        return True
+        return NormalCompletion(True)
     # 3. If x is undefined and y is null, return true.
     if isUndefined(x) and isNull(y):
-        return True
+        return NormalCompletion(True)
     # 4. If Type(x) is Number and Type(y) is String, return the result of the comparison x == ! ToNumber(y).
     if isNumber(x) and isString(y):
         return AbstractEqualityComparison(x, nc(ToNumber(y)))
@@ -2116,12 +2116,18 @@ def AbstractEqualityComparison(x, y):
         return AbstractEqualityComparison(x, nc(ToNumber(y)))
     # 8. If Type(x) is either String, Number, or Symbol and Type(y) is Object, return the result of the comparison x == ToPrimitive(y).
     if (isString(x) or isNumber(x) or isSymbol(x)) and isObject(y):
-        return AbstractEqualityComparison(x, ToPrimitive(y))
+        prim, ok = ec(ToPrimitive(y))
+        if not ok:
+            return prim
+        return AbstractEqualityComparison(x, prim)
     # 9. If Type(x) is Object and Type(y) is either String, Number, or Symbol, return the result of the comparison ToPrimitive(x) == y.
     if isObject(x) and (isString(y) or isNumber(y) or isSymbol(y)):
-        return AbstractEqualityComparison(ToPrimitive(x), y)
+        prim, ok = ec(ToPrimitive(x))
+        if not ok:
+            return prim
+        return AbstractEqualityComparison(prim, y)
     # 10. Return false.
-    return False
+    return NormalCompletion(False)
 
 # 7.2.15 Strict Equality Comparison
 def StrictEqualityComparison(x, y):
@@ -8194,7 +8200,10 @@ class PN_EqualityExpression_EqualityExpression_BANGEQ_RelationalExpression(PN_Eq
     def operation(self, lval, rval):
         # 5. Let r be the result of performing Abstract Equality Comparison rval == lval.
         # 6. If r is true, return false. Otherwise, return true.
-        return not AbstractEqualityComparison(rval, lval)
+        r, ok = ec(AbstractEqualityComparison(rval, lval))
+        if not ok:
+            return r
+        return NormalCompletion(not r)
 class PN_EqualityExpression_EqualityExpression_EQEQEQ_RelationalExpression(PN_EqualityExpression_E_op_R):
     # 12.11.3 Runtime Semantics: Evaluation
     #   For EqualityExpression : EqualityExpression === RelationalExpression
@@ -12704,7 +12713,7 @@ def NumberFixups(realm):
     return NormalCompletion(None)
 
 if __name__ == '__main__':
-    rv, ok = ec(RunJobs(scripts=["{ let let=3;}"]))
+    rv, ok = ec(RunJobs(scripts=["67 != 89;"]))
 
     InitializeHostDefinedRealm()
 
