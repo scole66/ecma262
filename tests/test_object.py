@@ -875,6 +875,80 @@ def test_OrdinaryCreateFromConstructor_02(realm):
     val = OrdinaryCreateFromConstructor(constructor, '%ObjectPrototype%')
     assert val == Completion(THROW, 'Thrown from OCFC_02', None)
 
+# 7.3.1 Get(O, P)
+def test_Get_01(obj, mocker):
+    # All this really does is pitch to the [[Get]] method of the object.
+    m = mocker.patch.object(obj, 'Get')
+    r = Get(obj, 'propkey')
+    assert m.called_once_with('propkey', obj)
+
+# 7.3.2 GetV(V, P)
+def test_GetV_01(obj, mocker):
+    # When given an object, this is just like Get.
+    m = mocker.patch.object(obj, 'Get')
+    r = GetV(obj, 'propkey')
+    assert m.called_once_with('propkey', obj)
+
+def test_GetV_02(realm):
+    # When given a primitive, it gets wrapped in an object first.
+    r = GetV(True, 'constructor')
+    assert r == Completion(NORMAL, realm.intrinsics['%Boolean%'], None)
+
+def test_GetV_03(realm, mocker):
+    # Error path from ToObject
+    mocker.patch('ecmascript.ToObject', side_effect=lambda a: ThrowCompletion('test'))
+    r = GetV(True, 'constructor')
+    assert r == Completion(THROW, 'test', None)
+
+def test_GetV_04(realm):
+    # In particular, the null and undefined values can't be converted to objects, so...
+    r = GetV(None, 'constructor')
+    assert isinstance(r, Completion)
+    assert r.ctype == THROW
+    assert r.target is None
+    assert nc(ToString(r.value)).startswith('TypeError: ')
+
+# 7.3.3 Set(O, P, V, Throw)
+# Defers to the object's [[Set]] method, but adds an error on failure if Throw is true.
+def test_Set_01(obj, mocker):
+    # When Throw is false, just defer to [[Set]]
+    m = mocker.patch.object(obj, 'Set')
+    r = Set(obj, 'propkey', 100, False)
+    assert m.called_once_with('propkey', 100, obj)
+
+def test_Set_02(obj):
+    # If the [[Set]] method returns False and Throw is True, an exception is raised
+    obj.PreventExtensions()
+    r = Set(obj, 'propkey', 100, True)
+    assert isinstance(r, Completion)
+    assert r.ctype == THROW
+    assert r.target is None
+    assert nc(ToString(r.value)).startswith('TypeError: ')
+
+def test_Set_03(obj):
+    # Just a quick integration test here.
+    r = Set(obj, 'propkey', 100, True)
+    assert r == Completion(NORMAL, True, None)
+    assert nc(Get(obj, 'propkey')) == 100
+
+def test_Set_04(obj, mocker):
+    # Check that if the Set Method throws an error, we report it.
+    mocker.patch('ecmascript.OrdinarySet', return_value=Completion(THROW, 'test', None))
+    r = Set(obj, 'propkey', 100, True)
+    assert r == Completion(THROW, 'test', None)
+
+# 7.3.4 CreateDataProperty(O, P, V)
+# This just really defers to the object's DefineOwnProperty method
+def test_CreateDataProperty_01(obj, mocker):
+    m = mocker.patch.object(obj, 'DefineOwnProperty')
+    r = CreateDataProperty(obj, 'propkey', 100)
+    assert m.called_once_with('propkey', PropertyDescriptor(value=100, writable=True, enumerable=True, configurable=True))
+
+def test_CreateDataProperty_02(obj, mocker):
+    r = CreateDataProperty(obj, 'propkey', 100)
+    assert r == Completion(NORMAL, True, None)
+
+# 7.3.11 HasOwnProperty(O, P)
 def test_HasOwnProperty_01(obj):
     # a property that's not there.
     res = HasOwnProperty(obj, 'silly')

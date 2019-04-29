@@ -1813,7 +1813,7 @@ def ToObject(argument):
         return Construct(intrinsics['%Symbol%'], [argument])
     if isObject(argument):
         return NormalCompletion(argument)
-    return ThrowCompletion(CreateTypeError())
+    return ThrowCompletion(CreateTypeError('undefined and null cannot be converted to objects'))
 
 # 7.1.14 ToPropertyKey ( argument )
 def ToPropertyKey(argument):
@@ -2212,7 +2212,7 @@ def Set(O, P, V, Throw):
         return success
     # 5. If success is false and Throw is true, throw a TypeError exception.
     if not success and Throw:
-        return ThrowCompletion(CreateTypeError())
+        return ThrowCompletion(CreateTypeError(f'unable to set property \'{P}\''))
     # 6. Return success.
     return NormalCompletion(success)
 
@@ -12716,11 +12716,11 @@ if __name__ == '__main__':
     rv, ok = ec(RunJobs(scripts=["67 != 89;"]))
 
     InitializeHostDefinedRealm()
-
     if ok:
         print('Script returned %s' % nc(ToString(rv)))
     else:
         print(repr(rv))
+        print(nc(ToString(rv.value)))
     surrounding_agent.ec_stack.pop()
     surrounding_agent.running_ec = None
 
