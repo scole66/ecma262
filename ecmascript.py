@@ -2260,12 +2260,33 @@ def CreateMethodProperty(obj, propkey, value):
     # methods and methods defined using class declaration syntax. Normally, the property will not already exist. If it
     # does exist and is not configurable or if O is not extensible, [[DefineOwnProperty]] will return false.
 
+# 7.3.6 CreateDataPropertyOrThrow ( O, P, V )
+def CreateDataPropertyOrThrow(O, P, V):
+    # The abstract operation CreateDataPropertyOrThrow is used to create a new own property of an object. It throws a
+    # TypeError exception if the requested property update cannot be performed. The operation is called with arguments
+    # O, P, and V where O is the object, P is the property key, and V is the value for the property. This abstract
+    # operation performs the following steps:
+    #
+    # 1. Assert: Type(O) is Object.
+    # 2. Assert: IsPropertyKey(P) is true.
+    # 3. Let success be ? CreateDataProperty(O, P, V).
+    # 4. If success is false, throw a TypeError exception.
+    # 5. Return success.
+    assert isObject(O)
+    assert IsPropertyKey(P)
+    success, ok = ec(CreateDataProperty(O, P, V))
+    if not ok:
+        return success
+    if not success:
+        return ThrowCompletion(CreateTypeError(f'Cannot create property \'{P}\''))
+    return NormalCompletion(success)
+
 def CreateMethodPropertyOrThrow(obj, propkey, value):
     success, ok = ec(CreateMethodProperty(obj, propkey, value))
     if not ok:
         return success
     if not success:
-        return ThrowCompletion(CreateTypeError())
+        return ThrowCompletion(CreateTypeError(f'Cannot create method \'{propkey}\''))
     return NormalCompletion(success)
 
 # 7.3.7 DefinePropertyOrThrow ( O, P, desc )
@@ -2285,10 +2306,32 @@ def DefinePropertyOrThrow(obj, propkey, desc):
         return success
     # 4. If success is false, throw a TypeError exception.
     if not success:
-        return ThrowCompletion(CreateTypeError())
+        return ThrowCompletion(CreateTypeError(f'cannot define property \'{propkey}\''))
     # 5. Return success.
     return NormalCompletion(success)
 
+# ------------------------------------ 𝟕.𝟑.𝟖 𝑫𝒆𝒍𝒆𝒕𝒆𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚𝑶𝒓𝑻𝒉𝒓𝒐𝒘 ( 𝑶, 𝑷 ) ------------------------------------
+# 7.3.8 DeletePropertyOrThrow ( O, P )
+def DeletePropertyOrThrow(O, P):
+    # The abstract operation DeletePropertyOrThrow is used to remove a specific own property of an object. It throws an
+    # exception if the property is not configurable. The operation is called with arguments O and P where O is the
+    # object and P is the property key. This abstract operation performs the following steps:
+    #
+    # 1. Assert: Type(O) is Object.
+    # 2. Assert: IsPropertyKey(P) is true.
+    # 3. Let success be ? O.[[Delete]](P).
+    # 4. If success is false, throw a TypeError exception.
+    # 5. Return success.
+    assert isObject(O)
+    assert IsPropertyKey(P)
+    success, ok = ec(O.Delete(P))
+    if not ok:
+        return success
+    if not success:
+        return ThrowCompletion(CreateTypeError(f'cannot delete property \'{P}\''))
+    return NormalCompletion(success)
+
+# ------------------------------------ 𝟕.𝟑.𝟗 𝑮𝒆𝒕𝑴𝒆𝒕𝒉𝒐𝒅 ( 𝑽, 𝑷 ) ------------------------------------
 # 7.3.9 GetMethod ( V, P )
 def GetMethod(value, propkey):
     # The abstract operation GetMethod is used to get the value of a specific property of an ECMAScript language value
