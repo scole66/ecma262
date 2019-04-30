@@ -1,6 +1,7 @@
 import pytest
 
 from ecmascript import *
+import ecmascript # Need it this way for the mocker fixture
 
 NORMAL = CompletionType.NORMAL
 THROW = CompletionType.THROW
@@ -940,13 +941,100 @@ def test_Set_04(obj, mocker):
 # 7.3.4 CreateDataProperty(O, P, V)
 # This just really defers to the object's DefineOwnProperty method
 def test_CreateDataProperty_01(obj, mocker):
-    m = mocker.patch.object(obj, 'DefineOwnProperty')
+    m = mocker.patch.object(obj, 'DefineOwnProperty', mocker.Mock(return_value=Completion(NORMAL, 'from test', None)))
     r = CreateDataProperty(obj, 'propkey', 100)
     assert m.called_once_with('propkey', PropertyDescriptor(value=100, writable=True, enumerable=True, configurable=True))
+    assert r == Completion(NORMAL, 'from test', None)
 
-def test_CreateDataProperty_02(obj, mocker):
-    r = CreateDataProperty(obj, 'propkey', 100)
-    assert r == Completion(NORMAL, True, None)
+# 7.3.5 CreateMethodProperty(O, P, V)
+# This also just defers to the object's DefineOwnProperty method
+def test_CreateMethodProperty_01(obj, mocker):
+    m = mocker.patch.object(obj, 'DefineOwnProperty', mocker.Mock(return_value=Completion(NORMAL, 'from test', None)))
+    r = CreateMethodProperty(obj, 'propkey', 100)
+    assert m.called_once_with('propkey', PropertyDescriptor(value=100, writable=True, enumerable=False, configurable=True))
+    assert r == Completion(NORMAL, 'from test', None)
+
+# 7.3.6 CreateDataPropertyOrThrow(O, P, V)
+# Wraps CreateDataProperty. Essentially:
+#    If CreateDataProperty returns (not NORMAL, anything, anything), CreateDataPropertyOrThrow should return that same thing.
+#    If CreateDataProperty returns (NORMAL, False, anything), CreateDataPropertyOrThrow should return a TypeError
+#    Otheriwise, CreateDataProperty returns (NORMAL, True, None)
+@pytest.mark.parametrize('cdp_rval, expected', [
+    (Completion(THROW, 'test throw', None), Completion(THROW, 'test throw', None)),
+    (Completion(NORMAL, True, None), Completion(NORMAL, True, None)),
+    (Completion(NORMAL, False, None), 'TypeError'),
+])
+def test_CreateDataPropertyOrThrow_01(obj, mocker, cdp_rval, expected):
+    mocker.patch('ecmascript.CreateDataProperty', return_value=cdp_rval)
+    res = CreateDataPropertyOrThrow(obj, 'propkey', 'fudge')
+    assert ecmascript.CreateDataProperty.called_once_with(obj, 'propkey', 'fudge')
+    if expected == 'TypeError':
+        assert isinstance(res, Completion)
+        assert res.ctype == THROW
+        assert res.target is None
+        assert nc(ToString(res.value)).startswith('TypeError: ')
+    else:
+        assert res == expected
+
+# CreateMethodPropertyOrThrow(O, P, V)
+# Wraps CreateMethodProperty. Essentially:
+#    If CreateMethodProperty returns (not NORMAL, anything, anything), CreateMethodPropertyOrThrow should return that same thing.
+#    If CreateMethodProperty returns (NORMAL, False, anything), CreateMethodPropertyOrThrow should return a TypeError
+#    Otheriwise, CreateMethodProperty returns (NORMAL, True, None)
+@pytest.mark.parametrize('cdp_rval, expected', [
+    (Completion(THROW, 'test throw', None), Completion(THROW, 'test throw', None)),
+    (Completion(NORMAL, True, None), Completion(NORMAL, True, None)),
+    (Completion(NORMAL, False, None), 'TypeError'),
+])
+def test_CreateMethodPropertyOrThrow_01(obj, mocker, cdp_rval, expected):
+    mocker.patch('ecmascript.CreateMethodProperty', return_value=cdp_rval)
+    res = CreateMethodPropertyOrThrow(obj, 'propkey', 'fudge')
+    assert ecmascript.CreateMethodProperty.called_once_with(obj, 'propkey', 'fudge')
+    if expected == 'TypeError':
+        assert isinstance(res, Completion)
+        assert res.ctype == THROW
+        assert res.target is None
+        assert nc(ToString(res.value)).startswith('TypeError: ')
+    else:
+        assert res == expected
+
+# 7.3.7 DefinePropertyOrThrow ( O, P, desc )
+# Wraps DefineOwnProperty method
+@pytest.mark.parametrize('dpot_rval, expected', [
+    (Completion(THROW, 'test throw', None), Completion(THROW, 'test throw', None)),
+    (Completion(NORMAL, True, None), Completion(NORMAL, True, None)),
+    (Completion(NORMAL, False, None), 'TypeError'),
+])
+def test_DefinePropertyOrThrow_01(obj, mocker, dpot_rval, expected):
+    m = mocker.patch.object(obj, 'DefineOwnProperty', mocker.Mock(return_value=dpot_rval))
+    res = DefinePropertyOrThrow(obj, 'propkey', PropertyDescriptor(value='test'))
+    assert m.called_once_with(obj, 'propkey', PropertyDescriptor(value='test'))
+    if expected == 'TypeError':
+        assert isinstance(res, Completion)
+        assert res.ctype == THROW
+        assert res.target is None
+        assert nc(ToString(res.value)).startswith('TypeError: ')
+    else:
+        assert res == expected
+
+# 7.3.8 DeletePropertyOrThrow ( O, P )
+@pytest.mark.parametrize('dpot_rval, expected', [
+    (Completion(THROW, 'test throw', None), Completion(THROW, 'test throw', None)),
+    (Completion(NORMAL, True, None), Completion(NORMAL, True, None)),
+    (Completion(NORMAL, False, None), 'TypeError'),
+])
+def test_DeletePropertyOrThrow_01(obj, mocker, dpot_rval, expected):
+    m = mocker.patch.object(obj, 'Delete', mocker.Mock(return_value=dpot_rval))
+    res = DeletePropertyOrThrow(obj, 'propkey')
+    assert m.called_once_with('propkey')
+    if expected == 'TypeError':
+        assert isinstance(res, Completion)
+        assert res.ctype == THROW
+        assert res.target is None
+        assert nc(ToString(res.value)).startswith('TypeError: ')
+    else:
+        assert res == expected
+
 
 # 7.3.11 HasOwnProperty(O, P)
 def test_HasOwnProperty_01(obj):
