@@ -1035,6 +1035,33 @@ def test_DeletePropertyOrThrow_01(obj, mocker, dpot_rval, expected):
     else:
         assert res == expected
 
+# 7.3.9 GetMethod(V, P)
+@pytest.mark.parametrize('inp', [JSNull.NULL, None])
+def test_GetMethod_01(obj, inp):
+    # Undefined & Null return Undefined
+    Set(obj, 'something', inp, False)
+    res = GetMethod(obj, 'something')
+    assert res == Completion(NORMAL, None, None)
+
+def test_GetMethod_02(obj):
+    # When the thing isn't a method, throw a TypeError
+    Set(obj, 'something', 89, False)
+    res = GetMethod(obj, 'something')
+    assert isinstance(res, Completion)
+    assert res.ctype == THROW
+    assert res.target is None
+    assert nc(ToString(res.value)).startswith('TypeError: ')
+
+def test_GetMethod_03(obj):
+    myfunc = CreateBuiltinFunction(lambda this_value, new_target, arg: arg * 3 + 27, [])
+    Set(obj, 'something', myfunc, False)
+    res = GetMethod(obj, 'something')
+    assert res == Completion(NORMAL, myfunc, None)
+
+def test_GetMethod_04(obj, mocker):
+    mocker.patch('ecmascript.GetV', return_value=ThrowCompletion('test throw'))
+    res = GetMethod(obj, 'something')
+    assert res == Completion(THROW, 'test throw', None)
 
 # 7.3.11 HasOwnProperty(O, P)
 def test_HasOwnProperty_01(obj):
