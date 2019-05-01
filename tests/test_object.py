@@ -1,3 +1,5 @@
+from itertools import zip_longest
+
 import pytest
 
 from ecmascript import *
@@ -1063,6 +1065,14 @@ def test_GetMethod_04(obj, mocker):
     res = GetMethod(obj, 'something')
     assert res == Completion(THROW, 'test throw', None)
 
+# 7.3.10 HasProperty(O, P)
+# Just wraps the [[HasProperty]] object method
+def test_HasProperty_01(obj, mocker):
+    m = mocker.patch.object(obj, 'HasProperty', mocker.Mock(return_value=Completion(NORMAL, 'testcase result', None)))
+    res = HasProperty(obj, 'propkey')
+    assert m.called_once_with(obj, 'propkey')
+    assert res == Completion(NORMAL, 'testcase result', None)
+
 # 7.3.11 HasOwnProperty(O, P)
 def test_HasOwnProperty_01(obj):
     # a property that's not there.
@@ -1080,3 +1090,193 @@ def test_HasOwnProperty_03(obj):
     obj.GetOwnProperty = types.MethodType(lambda _a, _b: ThrowCompletion('thrown'), obj)
     res = HasOwnProperty(obj, 'silly')
     assert res == Completion(THROW, 'thrown', None)
+
+# 7.3.12 Call ( F, V [, argumentesList ] )
+def test_Call_01(realm):
+    # Test the not-callable scenario
+    res = Call(True, None)
+    assert isinstance(res, Completion)
+    assert res.ctype == THROW
+    assert res.target is None
+    assert nc(ToString(res.value)).startswith('TypeError: ')
+
+def test_Call_02(obj, mocker):
+    func = CreateBuiltinFunction(lambda thisvalue, newtarget, x: NormalCompletion(x+10), [])
+    # Validate that we use the object's [[Call]] method and return its result
+    # (and that a missing arglist gets transformed into an empty list)
+    m = mocker.patch.object(func, 'Call', mocker.Mock(return_value=Completion(NORMAL, 'test result', None)))
+    res = Call(func, obj)
+    assert m.called_once_with(func, obj, [])
+    assert res == Completion(NORMAL, 'test result', None)
+
+def test_Call_03(obj, mocker):
+    # Same thing, but with args this time.
+    func = CreateBuiltinFunction(lambda thisvalue, newtarget, x, y: NormalCompletion(x+10*y), [])
+    m = mocker.patch.object(func, 'Call', mocker.Mock(return_value=Completion(NORMAL, 'test result', None)))
+    res = Call(func, obj, [6, 8])
+    assert m.called_once_with(func, obj, [6, 8])
+    assert res == Completion(NORMAL, 'test result', None)
+
+# 7.3.13 Construct ( F [, argumentsList [, newTaget ] ] )
+def test_Construct_01(realm, mocker):
+    # The one-argument case
+    cstr = realm.intrinsics['%Boolean%']
+    m = mocker.patch.object(cstr, 'Construct', mocker.Mock(return_value=Completion(NORMAL, 'test result', None)))
+    res = Construct(cstr)
+    assert m.called_once_with([], cstr)
+    assert res == Completion(NORMAL, 'test result', None)
+
+def test_Construct_02(realm, mocker):
+    # The two-argument case
+    cstr = realm.intrinsics['%Boolean%']
+    m = mocker.patch.object(cstr, 'Construct', mocker.Mock(return_value=Completion(NORMAL, 'test result', None)))
+    res = Construct(cstr, [True, False])
+    assert m.called_once_with([True, False], cstr)
+    assert res == Completion(NORMAL, 'test result', None)
+
+def test_Construct_03(realm, mocker):
+    # The three-argument case
+    cstr = realm.intrinsics['%Boolean%']
+    new_target = realm.intrinsics['%Number%']
+    m = mocker.patch.object(cstr, 'Construct', mocker.Mock(return_value=Completion(NORMAL, 'test result', None)))
+    res = Construct(cstr, [True], new_target)
+    assert m.called_once_with([True], new_target)
+    assert res == Completion(NORMAL, 'test result', None)
+
+# 7.3.14 SetIntegrityLevel ( O, level )
+# If level is 'sealed':
+#    - Object is marked not-extensible
+#    - All exisiting properties are marked not-configurable
+#    - All other property attributes remain unchanged.
+# If level is 'frozen':
+#    - Object is marked not-extensible
+#    - All existing properties are marked not-configurable
+#    - All data descriptors are marked not-writable
+@pytest.fixture
+def props():
+    return [
+        PropertyDescriptor(value='p1', writable=True, enumerable=True, configurable=True),
+        PropertyDescriptor(value='p2', writable=False, enumerable=True, configurable=True),
+        PropertyDescriptor(value='p3', writable=True, enumerable=False, configurable=True),
+        PropertyDescriptor(value='p4', writable=False, enumerable=False, configurable=True),
+        PropertyDescriptor(value='p5', writable=True, enumerable=True, configurable=False),
+        PropertyDescriptor(value='p6', writable=False, enumerable=True, configurable=False),
+        PropertyDescriptor(value='p7', writable=True, enumerable=False, configurable=False),
+        PropertyDescriptor(value='p8', writable=False, enumerable=False, configurable=False),
+        PropertyDescriptor(Get=None, Set=None, enumerable=True, configurable=True),
+        PropertyDescriptor(Get=None, Set=None, enumerable=False, configurable=True),
+        PropertyDescriptor(Get=None, Set=None, enumerable=True, configurable=False),
+        PropertyDescriptor(Get=None, Set=None, enumerable=False, configurable=False)
+    ]
+
+def test_SetIntegrityLevel_01(obj, props):
+    for idx, p in enumerate(props):
+        DefinePropertyOrThrow(obj, f'property_{idx+1}', p)
+
+    res = SetIntegrityLevel(obj, 'sealed')
+
+    assert res == Completion(NORMAL, True, None)
+    assert not nc(IsExtensible(obj))
+    after = [nc(OrdinaryGetOwnProperty(obj, f'property_{idx}')) for idx in range(1,len(props)+1)]
+    for result, inp in zip_longest(after, props):
+        assert not result.configurable
+        assert result.enumerable == inp.enumerable
+        assert (result.writable == inp.writable) if hasattr(inp, 'writable') else True
+        assert (result.value == inp.value) if hasattr(inp, 'value') else True
+        assert (result.Get == inp.Get) if hasattr(inp, 'Get') else True
+        assert (result.Set == inp.Set) if hasattr(inp, 'Set') else True
+
+def test_SetIntegrityLevel_02(obj, props):
+    for idx, p in enumerate(props):
+        DefinePropertyOrThrow(obj, f'property_{idx+1}', p)
+
+    res = SetIntegrityLevel(obj, 'frozen')
+
+    assert res == Completion(NORMAL, True, None)
+    assert not nc(IsExtensible(obj))
+    after = [nc(OrdinaryGetOwnProperty(obj, f'property_{idx}')) for idx in range(1,len(props)+1)]
+    for result, inp in zip_longest(after, props):
+        assert not result.configurable
+        assert result.enumerable == inp.enumerable
+        assert (not result.writable) if hasattr(inp, 'writable') else True
+        assert (result.value == inp.value) if hasattr(inp, 'value') else True
+        assert (result.Get == inp.Get) if hasattr(inp, 'Get') else True
+        assert (result.Set == inp.Set) if hasattr(inp, 'Set') else True
+
+def test_SetIntegrityLevel_03(obj, props, mocker):
+    # If the [[PreventExtensions]] method returns false, we just bail and return false as well.
+    for idx, p in enumerate(props):
+        DefinePropertyOrThrow(obj, f'property_{idx+1}', p)
+    mocker.patch.object(obj, 'PreventExtensions', mocker.Mock(return_value=False))
+
+    res = SetIntegrityLevel(obj, 'sealed')
+
+    assert res == Completion(NORMAL, False, None)
+    assert nc(IsExtensible(obj))
+    after = [nc(OrdinaryGetOwnProperty(obj, f'property_{idx}')) for idx in range(1,len(props)+1)]
+    for result, inp in zip_longest(after, props):
+        assert result.configurable == inp.configurable
+        assert result.enumerable == inp.enumerable
+        assert (result.writable == inp.writable) if hasattr(inp, 'writable') else True
+        assert (result.value == inp.value) if hasattr(inp, 'value') else True
+        assert (result.Get == inp.Get) if hasattr(inp, 'Get') else True
+        assert (result.Set == inp.Set) if hasattr(inp, 'Set') else True
+
+def test_SetIntegrityLevel_04(obj, mocker):
+    # If [[PreventExtensions]] throws, we exit with that
+    mocker.patch.object(obj, 'PreventExtensions', mocker.Mock(return_value=Completion(THROW, 'test throw', None)))
+    res = SetIntegrityLevel(obj, 'sealed')
+    assert res == Completion(THROW, 'test throw', None)
+
+def test_SetIntegrityLevel_05(obj, mocker):
+    # If [[OwnPropertyKeys]] throws, we exit with that.
+    mocker.patch.object(obj, 'OwnPropertyKeys', mocker.Mock(return_value=Completion(THROW, 'test throw', None)))
+    res = SetIntegrityLevel(obj, 'sealed')
+    assert res == Completion(THROW, 'test throw', None)
+
+def test_SetIntegrityLevel_06(obj, mocker):
+    # If [[GetOwnProperty]] throws, and we're freezing, we return that throw.
+    Set(obj, 'random', 77, False) # Need to have a property to look up!
+    mocker.patch.object(obj, 'GetOwnProperty', mocker.Mock(return_value=Completion(THROW, 'test throw', None)))
+    res = SetIntegrityLevel(obj, 'frozen')
+    assert res == Completion(THROW, 'test throw', None)
+
+def test_SetIntegrityLevel_07(obj, mocker, props):
+    # If DefinePropertyOrThrow throws, in the sealed case, rethrow
+    for idx, p in enumerate(props):
+        DefinePropertyOrThrow(obj, f'property_{idx+1}', p)
+    mocker.patch('ecmascript.DefinePropertyOrThrow', return_value=Completion(THROW, 'test throw', None))
+
+    res = SetIntegrityLevel(obj, 'sealed')
+    assert res == Completion(THROW, 'test throw', None)
+
+def test_SetIntegrityLevel_08(obj, mocker, props):
+    # If DefinePropertyOrThrow throws, in the frozen case, rethrow
+    for idx, p in enumerate(props):
+        DefinePropertyOrThrow(obj, f'property_{idx+1}', p)
+    mocker.patch('ecmascript.DefinePropertyOrThrow', return_value=Completion(THROW, 'test throw', None))
+
+    res = SetIntegrityLevel(obj, 'frozen')
+    assert res == Completion(THROW, 'test throw', None)
+
+def test_SetIntegrityLevel_09(obj, mocker, props):
+    # Test a particular branch I'm not sure how to really bring about -- when we can't
+    # actually look up a property even though it's in the keys list, we just skip it.
+    for idx, p in enumerate(props):
+        DefinePropertyOrThrow(obj, f'property_{idx+1}', p)
+    mocker.patch.object(obj, 'OwnPropertyKeys', mocker.Mock(side_effect=lambda: ['mystery'] + OrdinaryOwnPropertyKeys(obj)))
+
+    res = SetIntegrityLevel(obj, 'frozen')
+
+    assert res == Completion(NORMAL, True, None)
+    assert not nc(IsExtensible(obj))
+    after = [nc(OrdinaryGetOwnProperty(obj, f'property_{idx}')) for idx in range(1,len(props)+1)]
+    for result, inp in zip_longest(after, props):
+        assert not result.configurable
+        assert result.enumerable == inp.enumerable
+        assert (not result.writable) if hasattr(inp, 'writable') else True
+        assert (result.value == inp.value) if hasattr(inp, 'value') else True
+        assert (result.Get == inp.Get) if hasattr(inp, 'Get') else True
+        assert (result.Set == inp.Set) if hasattr(inp, 'Set') else True
+    # Make sure it didn't get added
+    assert nc(OrdinaryGetOwnProperty(obj, 'mystery')) is None

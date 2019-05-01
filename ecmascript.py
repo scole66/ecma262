@@ -2353,6 +2353,7 @@ def GetMethod(value, propkey):
     # 5. Return func.
     return NormalCompletion(func)
 
+# ------------------------------------ 𝟕.𝟑.𝟏𝟎 𝑯𝒂𝒔𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚 ( 𝑶, 𝑷 ) ------------------------------------
 # 7.3.10 HasProperty ( O, P )
 def HasProperty(O, P):
     # The abstract operation HasProperty is used to determine whether an object has a property with the specified property key.
@@ -2366,6 +2367,7 @@ def HasProperty(O, P):
     # 3. Return ? O.[[HasProperty]](P).
     return O.HasProperty(P)
 
+# ------------------------------------ 𝟕.𝟑.𝟏𝟏 𝑯𝒂𝒔𝑶𝒘𝒏𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚 ( 𝑶, 𝑷 ) ------------------------------------
 # 7.3.11 HasOwnProperty ( O, P )
 def HasOwnProperty(O, P):
     # The abstract operation HasOwnProperty is used to determine whether an object has an own property with the specified
@@ -2384,6 +2386,7 @@ def HasOwnProperty(O, P):
     # 5. Return true.
     return NormalCompletion(desc is not None)
 
+# ------------------------------------ 𝟕.𝟑.𝟏𝟐 𝑪𝒂𝒍𝒍 ( 𝑭, 𝑽 [ , 𝒂𝒓𝒈𝒖𝒎𝒆𝒏𝒕𝒔𝑳𝒊𝒔𝒕 ] ) ------------------------------------
 # 7.3.12 Call ( F, V [ , argumentsList ] )
 def Call(func, value, args=[]):
     # The abstract operation Call is used to call the [[Call]] internal method of a function object. The operation is
@@ -2395,12 +2398,13 @@ def Call(func, value, args=[]):
     # 1. If argumentsList is not present, set argumentsList to a new empty List.
     # 2. If IsCallable(F) is false, throw a TypeError exception.
     if not IsCallable(func):
-        return ThrowCompletion(CreateTypeError())
+        return ThrowCompletion(CreateTypeError(f'\'{func!r}\' is not a callable function'))
     # 3. Return ? F.[[Call]](V, argumentsList).
     return func.Call(value, args)
 
+# ------------------------------------ 𝟕.𝟑.𝟏𝟑 𝑪𝒐𝒏𝒔𝒕𝒓𝒖𝒄𝒕 ( 𝑭 [ , 𝒂𝒓𝒈𝒖𝒎𝒆𝒏𝒕𝒔𝑳𝒊𝒔𝒕 [ , 𝒏𝒆𝒘𝑻𝒂𝒓𝒈𝒆𝒕 ]] ) ------------------------------------
 # 7.3.13 Construct ( F [ , argumentsList [ , newTarget ]] )
-def Construct(func, args, newTarget=missing.MISSING):
+def Construct(func, args=[], newTarget=missing.MISSING):
     # The abstract operation Construct is used to call the [[Construct]] internal method of a function object. The operation is
     # called with arguments F, and optionally argumentsList, and newTarget where F is the function object. argumentsList and
     # newTarget are the values to be passed as the corresponding arguments of the internal method. If argumentsList is not
@@ -2419,6 +2423,60 @@ def Construct(func, args, newTarget=missing.MISSING):
     return func.Construct(args, newTarget)
     # NOTE
     # If newTarget is not present, this operation is equivalent to: new F(...argumentsList)
+
+# ------------------------------------ 𝟕.𝟑.𝟏𝟒 𝑺𝒆𝒕𝑰𝒏𝒕𝒆𝒈𝒓𝒊𝒕𝒚𝑳𝒆𝒗𝒆𝒍 ( 𝑶, 𝒍𝒆𝒗𝒆𝒍 ) ------------------------------------
+# 7.3.14 SetIntegrityLevel ( O, level )
+def SetIntegrityLevel(O, level):
+    # The abstract operation SetIntegrityLevel is used to fix the set of own properties of an object. This abstract
+    # operation performs the following steps:
+    #
+    # 1. Assert: Type(O) is Object.
+    # 2. Assert: level is either "sealed" or "frozen".
+    # 3. Let status be ? O.[[PreventExtensions]]().
+    # 4. If status is false, return false.
+    # 5. Let keys be ? O.[[OwnPropertyKeys]]().
+    # 6. If level is "sealed", then
+    #    a. For each element k of keys, do
+    #       i. Perform ? DefinePropertyOrThrow(O, k, PropertyDescriptor { [[Configurable]]: false }).
+    # 7. Else level is "frozen",
+    #    a. For each element k of keys, do
+    #       i. Let currentDesc be ? O.[[GetOwnProperty]](k).
+    #      ii. If currentDesc is not undefined, then
+    #          1. If IsAccessorDescriptor(currentDesc) is true, then
+    #             a. Let desc be the PropertyDescriptor { [[Configurable]]: false }.
+    #          2. Else,
+    #             a. Let desc be the PropertyDescriptor { [[Configurable]]: false, [[Writable]]: false }.
+    #          3. Perform ? DefinePropertyOrThrow(O, k, desc).
+    # 8. Return true.
+    assert isObject(O)
+    assert level in ['sealed', 'frozen']
+    status, ok = ec(O.PreventExtensions())
+    if not ok:
+        return status
+    if not status:
+        return NormalCompletion(False)
+    keys, ok = ec(O.OwnPropertyKeys())
+    if not ok:
+        return keys
+    if level == 'sealed':
+        for k in keys:
+            cr, ok = ec(DefinePropertyOrThrow(O, k, PropertyDescriptor(configurable=False)))
+            if not ok:
+                return cr
+    else:
+        for k in keys:
+            currentDesc, ok = ec(O.GetOwnProperty(k))
+            if not ok:
+                return currentDesc
+            if currentDesc is not None:
+                if IsAccessorDescriptor(currentDesc):
+                    desc = PropertyDescriptor(configurable=False)
+                else:
+                    desc = PropertyDescriptor(writable=False, configurable=False)
+                cr, ok = ec(DefinePropertyOrThrow(O, k, desc))
+                if not ok:
+                    return cr
+    return NormalCompletion(True)
 
 # 7.3.15 TestIntegrityLevel ( O, level )
 def TestIntegrityLevel(o_value, level):
@@ -11916,7 +11974,7 @@ def ObjectMethod_getOwnPropertySymbols(_a, _b, o_value):
     return GetOwnPropertyKeys(o_value, isSymbol)
 
 # 19.1.2.10.1 Runtime Semantics: GetOwnPropertyKeys ( O, Type )
-def GetOwnPropertyKeys(_a, _b, o_value, type_checker):
+def GetOwnPropertyKeys(o_value, type_checker):
     # The abstract operation GetOwnPropertyKeys is called with arguments O and Type where O is an Object and Type is
     # one of the ECMAScript specification types String or Symbol. The following steps are taken:
     #
