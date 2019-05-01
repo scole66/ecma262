@@ -2349,7 +2349,7 @@ def GetMethod(value, propkey):
         return NormalCompletion(None)
     # 4. If IsCallable(func) is false, throw a TypeError exception.
     if not IsCallable(func):
-        return ThrowCompletion(CreateTypeError())
+        return ThrowCompletion(CreateTypeError(f'property \'{propkey}\' is not a method'))
     # 5. Return func.
     return NormalCompletion(func)
 
