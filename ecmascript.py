@@ -3804,13 +3804,13 @@ def CreateIntrinsics(realm_rec):
     # 4. Set intrinsics.[[%ObjectPrototype%]] to objProto.
     intrinsics['%ObjectPrototype%'] = obj_proto
     # 5. Let throwerSteps be the algorithm steps specified in 9.2.9.1 for the %ThrowTypeError% function.
-    thrower_steps = lambda this_value: ThrowCompletion(CreateTypeError())
+    thrower_steps = lambda *args, **kwargs: ThrowCompletion(CreateTypeError('type invalid for operation'))
     # 6. Let thrower be CreateBuiltinFunction(throwerSteps, « », realmRec, null).
     thrower = CreateBuiltinFunction(thrower_steps, [], realm_rec, JSNull.NULL)
     # 7. Set intrinsics.[[%ThrowTypeError%]] to thrower.
     intrinsics['%ThrowTypeError%'] = thrower
     # 8. Let noSteps be an empty sequence of algorithm steps.
-    no_steps = lambda this_value: None
+    no_steps = lambda *args, **kwargs: None
     # 9. Let funcProto be CreateBuiltinFunction(noSteps, « », realmRec, objProto).
     func_proto = CreateBuiltinFunction(no_steps, [], realm_rec, obj_proto)
     # 10. Set intrinsics.[[%FunctionPrototype%]] to funcProto.
@@ -5476,7 +5476,7 @@ def ArrayCreate(length, proto=None):
     return NormalCompletion(A)
 
 # 9.4.2.3 ArraySpeciesCreate ( originalArray, length )
-def ArraySpeciescreate(originalArray, length):
+def ArraySpeciesCreate(originalArray, length):
     # The abstract operation ArraySpeciesCreate with arguments originalArray and length is used to specify the creation of a
     # new Array object using a constructor function that is derived from originalArray. It performs the following steps:
     #
