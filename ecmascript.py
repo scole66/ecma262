@@ -2519,6 +2519,28 @@ def TestIntegrityLevel(o_value, level):
     # 8. Return true.
     return NormalCompletion(True)
 
+# ------------------------------------ 𝟕.𝟑.𝟏𝟔 𝑪𝒓𝒆𝒂𝒕𝒆𝑨𝒓𝒓𝒂𝒚𝑭𝒓𝒐𝒎𝑳𝒊𝒔𝒕 ( 𝒆𝒍𝒆𝒎𝒆𝒏𝒕𝒔 ) ------------------------------------
+# 7.3.16 CreateArrayFromList ( elements )
+def CreateArrayFromList(elements):
+    # The abstract operation CreateArrayFromList is used to create an Array object whose elements are provided by a
+    # List. This abstract operation performs the following steps:
+    #
+    # 1. Assert: elements is a List whose elements are all ECMAScript language values.
+    # 2. Let array be ! ArrayCreate(0).
+    # 3. Let n be 0.
+    # 4. For each element e of elements, do
+    #    a. Let status be CreateDataProperty(array, ! ToString(n), e).
+    #    b. Assert: status is true.
+    #    c. Increment n by 1.
+    # 5. Return array.
+    assert isinstance(elements, list)
+    assert all(isEcmaValue(x) for x in elements)
+    array = nc(ArrayCreate(0))
+    for n, e in enumerate(elements):
+        status = nc(CreateDataProperty(array, nc(ToString(n)), e))
+        assert status
+    return array
+
 # 7.3.18 Invoke ( V, P [ , argumentsList ] )
 def Invoke(v, p, arguments_list=[]):
     # The abstract operation Invoke is used to call a method property of an ECMAScript language value. The operation is
@@ -5456,7 +5478,7 @@ def ArrayCreate(length, proto=None):
         length = 0
     # 3. If length > 2^32-1, throw a RangeError exception.
     if length > 0xffffffff:
-        return ThrowCompletion(CreateRangeError())
+        return ThrowCompletion(CreateRangeError(f'length {length} is too large for array indices'))
     # 4. If proto is not present, set proto to the intrinsic object %ArrayPrototype%.
     if proto is None:
         proto = surrounding_agent.running_ec.realm.intrinsics['%ArrayPrototype%']

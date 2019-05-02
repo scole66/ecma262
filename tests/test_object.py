@@ -1361,3 +1361,14 @@ def test_TestIntegrityLevel_08(obj, mocker, props):
     res = TestIntegrityLevel(obj, 'frozen')
 
     assert res == Completion(NORMAL, True, None)
+
+# 7.3.16 CreateArrayFromList ( elements )
+@pytest.mark.xfail(reason='Waiting for ArrayCreate to work')
+@pytest.mark.parametrize('lst', [ [], [5, 1221, 'boop']])
+def test_CreateArrayFromList_01(realm, lst):
+    ary = CreateArrayFromList(lst)
+
+    assert isinstance(ary, ArrayObject)
+    assert nc(Get(ary, 'length')) == len(lst)
+    for idx, value in enumerate(lst):
+        assert nc(Get(ary, nc(ToString(idx)))) == value
