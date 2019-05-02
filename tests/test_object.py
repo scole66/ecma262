@@ -1280,3 +1280,84 @@ def test_SetIntegrityLevel_09(obj, mocker, props):
         assert (result.Set == inp.Set) if hasattr(inp, 'Set') else True
     # Make sure it didn't get added
     assert nc(OrdinaryGetOwnProperty(obj, 'mystery')) is None
+
+# 7.3.15 TestIntegrityLevel(O, level)
+@pytest.mark.parametrize('level', ['sealed', 'frozen'])
+def test_TestIntegrityLevel_01(obj, mocker, level):
+    # If obj is extensible, we just return False for all levels, and don't actually check any of the properties
+    opk = mocker.patch.object(obj, 'OwnPropertyKeys')
+    gop = mocker.patch.object(obj, 'GetOwnProperty')
+
+    res = TestIntegrityLevel(obj, level)
+    assert res == Completion(NORMAL, False, None)
+    assert opk.not_called()
+    assert gop.not_called()
+
+@pytest.mark.parametrize('level', ['sealed', 'frozen'])
+def test_TestIntegrityLevel_02(obj, props, level):
+    # check actual frozen or sealed.
+    for idx, p in enumerate(props):
+        DefinePropertyOrThrow(obj, f'property_{idx+1}', p)
+    SetIntegrityLevel(obj, level)
+
+    res = TestIntegrityLevel(obj, level)
+    assert res == Completion(NORMAL, True, None)
+
+@pytest.mark.parametrize('level', ['sealed', 'frozen'])
+def test_TestIntegrityLevel_03(obj, props, level):
+    # test not actually frozen or sealed (but not extensible)
+    for idx, p in enumerate(props):
+        DefinePropertyOrThrow(obj, f'property_{idx+1}', p)
+    obj.PreventExtensions()
+
+    res = TestIntegrityLevel(obj, level)
+    assert res == Completion(NORMAL, False, None)
+
+def test_TestIntegrityLevel_04(obj, mocker):
+    # IsExtensible throws
+    mocker.patch('ecmascript.IsExtensible', return_value=Completion(THROW, 'test throw', None))
+    res = TestIntegrityLevel(obj, 'sealed')
+
+    assert res == Completion(THROW, 'test throw', None)
+
+def test_TestIntegrityLevel_05(obj, mocker):
+    # OwnPropertyKeys method throws
+    obj.PreventExtensions()
+    mocker.patch.object(obj, 'OwnPropertyKeys', mocker.Mock(return_value=Completion(THROW, 'test throw', None)))
+
+    res = TestIntegrityLevel(obj, 'sealed')
+
+    assert res == Completion(THROW, 'test throw', None)
+
+def test_TestIntegrityLevel_06(obj, mocker, props):
+    # GetOwnProperty method throws
+    for idx, p in enumerate(props):
+        DefinePropertyOrThrow(obj, f'property_{idx+1}', p)
+    obj.PreventExtensions()
+    mocker.patch.object(obj, 'GetOwnProperty', mocker.Mock(return_value=Completion(THROW, 'test throw', None)))
+
+    res = TestIntegrityLevel(obj, 'sealed')
+
+    assert res == Completion(THROW, 'test throw', None)
+
+def test_TestIntegrityLevel_07(obj, props):
+    # A sealed object is not necessarily frozen
+    for idx, p in enumerate(props):
+        DefinePropertyOrThrow(obj, f'property_{idx+1}', p)
+    SetIntegrityLevel(obj, 'sealed')
+
+    res = TestIntegrityLevel(obj, 'frozen')
+
+    assert res == Completion(NORMAL, False, None)
+
+def test_TestIntegrityLevel_08(obj, mocker, props):
+    # Test a particular branch I'm not sure how to really bring about -- when we can't
+    # actually look up a property even though it's in the keys list, we just skip it.
+    for idx, p in enumerate(props):
+        DefinePropertyOrThrow(obj, f'property_{idx+1}', p)
+    SetIntegrityLevel(obj, 'frozen')
+    mocker.patch.object(obj, 'OwnPropertyKeys', mocker.Mock(side_effect=lambda: ['mystery'] + OrdinaryOwnPropertyKeys(obj)))
+
+    res = TestIntegrityLevel(obj, 'frozen')
+
+    assert res == Completion(NORMAL, True, None)
