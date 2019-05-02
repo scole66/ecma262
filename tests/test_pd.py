@@ -7,13 +7,6 @@ NORMAL = CompletionType.NORMAL
 THROW = CompletionType.THROW
 
 @pytest.fixture
-def realm():
-    InitializeHostDefinedRealm()
-    yield surrounding_agent.running_ec.realm
-    surrounding_agent.ec_stack.pop()
-    surrounding_agent.running_ec = None
-
-@pytest.fixture
 def obj(realm):
     return ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
 

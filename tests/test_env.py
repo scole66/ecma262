@@ -6,13 +6,6 @@ NORMAL = CompletionType.NORMAL
 THROW = CompletionType.THROW
 empty = Empty.EMPTY
 
-@pytest.fixture
-def realm():
-    InitializeHostDefinedRealm()
-    yield surrounding_agent.running_ec.realm
-    surrounding_agent.ec_stack.pop()
-    surrounding_agent.running_ec = None
-
 def test_de_HasBinding():
     # setup
     der = DeclarativeEnvironmentRecord()

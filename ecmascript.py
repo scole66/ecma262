@@ -23,6 +23,8 @@ def CreateTypeError(msg=''):
     return CreateError(msg, '%TypeError%')
 def CreateSyntaxError(msg=''):
     return CreateError(msg, '%SyntaxError%')
+def CreateRangeError(msg=''):
+    return CreateError(msg, '%RangeError%')
 
 class missing(Enum):
     MISSING = auto()
@@ -1580,7 +1582,7 @@ def ToNumber(arg):
     elif isNumber(arg):
         result = arg
     elif isSymbol(arg):
-        return ThrowCompletion(CreateTypeError())
+        return ThrowCompletion(CreateTypeError('symbols cannot be converted to numbers'))
     elif isObject(arg):
         prim_value, ok = ec(ToPrimitive(arg, 'number'))
         if not ok:
@@ -3866,6 +3868,9 @@ def CreateIntrinsics(realm_rec):
     intrinsics['%Number%'] = CreateNumberConstructor(realm_rec)
     intrinsics['%NumberPrototype%'] = CreateNumberPrototype(realm_rec)
     NumberFixups(realm_rec)
+    intrinsics['%String%'] = CreateStringConstructor(realm_rec)
+    intrinsics['%StringPrototype%'] = CreateStringPrototype(realm_rec)
+    StringFixups(realm_rec)
 
     # 14. Return intrinsics.
     return intrinsics
@@ -5555,10 +5560,151 @@ def ArraySpeciesCreate(originalArray, length):
     # compatibility with Web browsers that have historically had that behaviour for the Array.prototype methods that now are
     # defined using ArraySpeciesCreate.
 
+# ------------------------------------ 𝟗.𝟒.𝟑 𝑺𝒕𝒓𝒊𝒏𝒈 𝑬𝒙𝒐𝒕𝒊𝒄 𝑶𝒃𝒋𝒆𝒄𝒕𝒔 ------------------------------------
 # 9.4.3 String Exotic Objects
+# A String object is an exotic object that encapsulates a String value and exposes virtual integer-indexed data
+# properties corresponding to the individual code unit elements of the String value. String exotic objects always
+# have a data property named "length" whose value is the number of code unit elements in the encapsulated String value.
+# Both the code unit data properties and the "length" property are non-writable and non-configurable.
+#
+# String exotic objects have the same internal slots as ordinary objects. They also have a [[StringData]] internal
+# slot.
+#
+# String exotic objects provide alternative definitions for the following internal methods. All of the other String
+# exotic object essential internal methods that are not defined below are as specified in 9.1.
 class StringObject(JSObject):
-    pass
+    def __init__(self, value, prototype):
+        # Essentially, this is all just StringCreate
+        super().__init__()
+        self.StringData = value
+        self.Prototype = prototype
+        self.Extensible = True
+        desc = PropertyDescriptor(value=len(value), writable=False, enumerable=False, configurable=False)
+        nc(DefinePropertyOrThrow(self, 'length', desc))
+    def __repr__(self):
+        return f'String({self.StringData!r})'
 
+    # -------------------------------- 𝟗.𝟒.𝟑.𝟏 [[𝑮𝒆𝒕𝑶𝒘𝒏𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚]] ( 𝑷 ) ------------------------------------
+    # 9.4.3.1 [[GetOwnProperty]] ( P )
+    def GetOwnProperty(self, P):
+        # When the [[GetOwnProperty]] internal method of a String exotic object S is called with property key P, the
+        # following steps are taken:
+        #
+        # 1. Assert: IsPropertyKey(P) is true.
+        # 2. Let desc be OrdinaryGetOwnProperty(S, P).
+        # 3. If desc is not undefined, return desc.
+        # 4. Return ! StringGetOwnProperty(S, P).
+        assert IsPropertyKey(P)
+        desc = OrdinaryGetOwnProperty(self, P)
+        if desc is not None:
+            return NormalCompletion(desc)
+        return NormalCompletion(nc(StringGetOwnProperty(self, P)))
+
+    # -------------------------------- 𝟗.𝟒.𝟑.𝟐 [[𝑫𝒆𝒇𝒊𝒏𝒆𝑶𝒘𝒏𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚]] ( 𝑷, 𝑫𝒆𝒔𝒄 ) ------------------------------------
+    # 9.4.3.2 [[DefineOwnProperty]] ( P, Desc )
+    def DefineOwnProperty(self, P, Desc):
+        # When the [[DefineOwnProperty]] internal method of a String exotic object S is called with property key P, and
+        # Property Descriptor Desc, the following steps are taken:
+        #
+        # 1. Assert: IsPropertyKey(P) is true.
+        # 2. Let stringDesc be ! StringGetOwnProperty(S, P).
+        # 3. If stringDesc is not undefined, then
+        #    a. Let extensible be S.[[Extensible]].
+        #    b. Return ! IsCompatiblePropertyDescriptor(extensible, Desc, stringDesc).
+        # 4. Return ! OrdinaryDefineOwnProperty(S, P, Desc).
+        assert IsPropertyKey(P)
+        stringDesc = nc(StringGetOwnProperty(self, P))
+        if stringDesc is not None:
+            extensible = self.IsExtensible
+            rval = nc(IsCompatiblePropertyDescriptor(extensible, Desc, stringDesc))
+            return NormalCompletion(rval)
+        rval = nc(OrdinaryDefineOwnProperty(self, P, Desc))
+        return NormalCompletion(rval)
+
+    # -------------------------------- 𝟗.𝟒.𝟑.𝟑 [[𝑶𝒘𝒏𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚𝑲𝒆𝒚𝒔]] ( ) ------------------------------------
+    # 9.4.3.3 [[OwnPropertyKeys]] ( )
+    def OwnPropertyKeys(self):
+        # When the [[OwnPropertyKeys]] internal method of a String exotic object O is called, the following steps are
+        # taken:
+        #
+        # 1. Let keys be a new empty List.
+        # 2. Let str be the String value of O.[[StringData]].
+        # 3. Let len be the length of str.
+        # 4. For each integer i starting with 0 such that i < len, in ascending order, do
+        #    a. Add ! ToString(i) as the last element of keys.
+        # 5. For each own property key P of O such that P is an integer index and ToInteger(P) ≥ len, in ascending
+        #    numeric index order, do
+        #    a. Add P as the last element of keys.
+        # 6. For each own property key P of O such that Type(P) is String and P is not an integer index, in ascending
+        #    chronological order of property creation, do
+        #    a. Add P as the last element of keys.
+        # 7. For each own property key P of O such that Type(P) is Symbol, in ascending chronological order of property
+        #    creation, do
+        #    a. Add P as the last element of keys.
+        # 8. Return keys.
+        g1 = (nc(ToString(i)) for i in range(len(self.StringData)))
+        g2 = sorted((key for key in self.properties.keys() if isIntegerIndex(key) and nc(ToInteger(key)) >= len(self.StringData)),
+                    key=lambda x: nc(ToInteger(x)))
+        g3 = (key for key in self.properties.keys() if isString(key) and not isIntegerIndex(key))
+        g4 = (key for key in self.properties.keys() if isSymbol(key))
+        return list(chain(g1, g2, g3, g4))
+
+# ------------------------------------ 𝟗.𝟒.𝟑.𝟒 𝑺𝒕𝒓𝒊𝒏𝒈𝑪𝒓𝒆𝒂𝒕𝒆 ( 𝒗𝒂𝒍𝒖𝒆, 𝒑𝒓𝒐𝒕𝒐𝒕𝒚𝒑𝒆 ) ------------------------------------
+# 9.4.3.4 StringCreate ( value, prototype )
+def StringCreate(value, prototype):
+    # The abstract operation StringCreate with arguments value and prototype is used to specify the creation of new
+    # String exotic objects. It performs the following steps:
+    #
+    # 1. Assert: Type(value) is String.
+    # 2. Let S be a newly created String exotic object.
+    # 3. Set S.[[StringData]] to value.
+    # 4. Set S's essential internal methods to the default ordinary object definitions specified in 9.1.
+    # 5. Set S.[[GetOwnProperty]] as specified in 9.4.3.1.
+    # 6. Set S.[[DefineOwnProperty]] as specified in 9.4.3.2.
+    # 7. Set S.[[OwnPropertyKeys]] as specified in 9.4.3.3.
+    # 8. Set S.[[Prototype]] to prototype.
+    # 9. Set S.[[Extensible]] to true.
+    # 10. Let length be the number of code unit elements in value.
+    # 11. Perform ! DefinePropertyOrThrow(S, "length", PropertyDescriptor { [[Value]]: length, [[Writable]]: false,
+    #     [[Enumerable]]: false, [[Configurable]]: false }).
+    # 12. Return S.
+    assert isString(value)
+    return NormalCompletion(StringObject(value, prototype))
+
+# ------------------------------------ 𝟗.𝟒.𝟑.𝟓 𝑺𝒕𝒓𝒊𝒏𝒈𝑮𝒆𝒕𝑶𝒘𝒏𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚 ( 𝑺, 𝑷 ) ------------------------------------
+# 9.4.3.5 StringGetOwnProperty ( S, P )
+def StringGetOwnProperty(S, P):
+    # The abstract operation StringGetOwnProperty called with arguments S and P performs the following steps:
+    #
+    # 1. Assert: S is an Object that has a [[StringData]] internal slot.
+    # 2. Assert: IsPropertyKey(P) is true.
+    # 3. If Type(P) is not String, return undefined.
+    # 4. Let index be ! CanonicalNumericIndexString(P).
+    # 5. If index is undefined, return undefined.
+    # 6. If IsInteger(index) is false, return undefined.
+    # 7. If index = -0, return undefined.
+    # 8. Let str be the String value of S.[[StringData]].
+    # 9. Let len be the length of str.
+    # 10. If index < 0 or len ≤ index, return undefined.
+    # 11. Let resultStr be the String value of length 1, containing one code unit from str, specifically the code unit
+    #     at index index.
+    # 12. Return a PropertyDescriptor { [[Value]]: resultStr, [[Writable]]: false, [[Enumerable]]: true,
+    #     [[Configurable]]: false }.
+    assert isObject(S) and hasattr(S, 'StringData')
+    assert IsPropertyKey(P)
+    if not isString(P):
+        return NormalCompletion(None)
+    index = nc(CanonicalNumericIndexString(P))
+    if index is None:
+        return NormalCompletion(None)
+    if not IsInteger(index):
+        return NormalCompletion(None)
+    if index == 0 and math.copysign(1.0, index) < 0:
+        return NormalCompletion(None)
+    if index < 0 or len(S.StringData) <= index:
+        return NormalCompletion(None)
+    return NormalCompletion(PropertyDescriptor(value=S.StringData[int(index)], writable=False,
+                                               enumerable=True, configurable=False))
 # 9.4.7 Immutable Prototype Exotic Objects
 #
 # An immutable prototype exotic object is an exotic object that has a [[Prototype]] internal slot that will not change
@@ -12478,6 +12624,21 @@ def BooleanPrototype_valueOf(this_value, _):
     #
     # 1. Return ? thisBooleanValue(this value).
     return thisBooleanValue(this_value)
+##################################################################################################################################################################################
+# ------------------------------------ 𝟏𝟗.𝟒.𝟑.𝟐.𝟏 𝑺𝒚𝒎𝒃𝒐𝒍𝑫𝒆𝒔𝒄𝒓𝒊𝒑𝒕𝒊𝒗𝒆𝑺𝒕𝒓𝒊𝒏𝒈 ( 𝒔𝒚𝒎 ) ------------------------------------
+# 19.4.3.2.1 Runtime Semantics: SymbolDescriptiveString ( sym )
+def SymbolDescriptiveString(sym):
+    # When the abstract operation SymbolDescriptiveString is called with argument sym, the following steps are taken:
+    #
+    # 1. Assert: Type(sym) is Symbol.
+    # 2. Let desc be sym's [[Description]] value.
+    # 3. If desc is undefined, let desc be the empty string.
+    # 4. Assert: Type(desc) is String.
+    # 5. Return the string-concatenation of "Symbol(", desc, and ")".
+    assert isSymbol(sym)
+    desc = sym.description or ''
+    assert isString(desc)
+    return f'Symbol({desc})'
 
 ##################################################################################################################################################################################
 #
@@ -12836,8 +12997,214 @@ def NumberFixups(realm):
         return cr
     return NormalCompletion(None)
 
+# ------------------------------------ 𝟐𝟏 𝑻𝒆𝒙𝒕 𝑷𝒓𝒐𝒄𝒆𝒔𝒔𝒊𝒏𝒈 ------------------------------------
+# ------------------------------------ 𝟐𝟏.𝟏 𝑺𝒕𝒓𝒊𝒏𝒈 𝑶𝒃𝒋𝒆𝒄𝒕𝒔 ------------------------------------
+#######################################################################################################################################################
+#
+#  .d8888b.   d888        d888        .d8888b.  888            d8b                        .d88888b.  888         d8b                   888
+# d88P  Y88b d8888       d8888       d88P  Y88b 888            Y8P                       d88P" "Y88b 888         Y8P                   888
+#        888   888         888       Y88b.      888                                      888     888 888                               888
+#      .d88P   888         888        "Y888b.   888888 888d888 888 88888b.   .d88b.      888     888 88888b.    8888  .d88b.   .d8888b 888888 .d8888b
+#  .od888P"    888         888           "Y88b. 888    888P"   888 888 "88b d88P"88b     888     888 888 "88b   "888 d8P  Y8b d88P"    888    88K
+# d88P"        888         888             "888 888    888     888 888  888 888  888     888     888 888  888    888 88888888 888      888    "Y8888b.
+# 888"         888   d8b   888       Y88b  d88P Y88b.  888     888 888  888 Y88b 888     Y88b. .d88P 888 d88P    888 Y8b.     Y88b.    Y88b.       X88
+# 888888888  8888888 Y8P 8888888      "Y8888P"   "Y888 888     888 888  888  "Y88888      "Y88888P"  88888P"     888  "Y8888   "Y8888P  "Y888  88888P'
+#                                                                                888                             888
+#                                                                           Y8b d88P                            d88P
+#                                                                            "Y88P"                           888P"
+#
+#######################################################################################################################################################
+# ------------------------------------ 𝟐𝟏.𝟏.𝟏 𝑻𝒉𝒆 𝑺𝒕𝒓𝒊𝒏𝒈 𝑪𝒐𝒏𝒔𝒕𝒓𝒖𝒄𝒕𝒐𝒓 ------------------------------------
+# 21.1.1 The String Constructor
+# The String constructor:
+#
+#   * is the intrinsic object %String%.
+#   * is the initial value of the String property of the global object.
+#   * creates and initializes a new String object when called as a constructor.
+#   * performs a type conversion when called as a function rather than as a constructor.
+#   * is designed to be subclassable. It may be used as the value of an extends clause of a class definition. Subclass
+#     constructors that intend to inherit the specified String behaviour must include a super call to the String
+#     constructor to create and initialize the subclass instance with a [[StringData]] internal slot.
+#
+def CreateStringConstructor(realm):
+    obj = CreateBuiltinFunction(StringFunction, ['Construct'], realm=realm)
+    for key, value in [('length', 1), ('name', 'String')]:
+        desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)
+        cr, ok = ec(DefinePropertyOrThrow(obj, key, desc))
+        if not ok:
+            return cr
+    cr, ok = ec(BindBuiltinFunctions(realm, obj, [
+        ('fromCharCode', String_fromCharCode, 1),
+        ('fromCodePoint', String_fromCodePoint, 1),
+    ]))
+    if not ok:
+        return cr
+    return obj
+
+# ------------------------------------ 𝟐𝟏.𝟏.𝟏.𝟏 𝑺𝒕𝒓𝒊𝒏𝒈 ( 𝒗𝒂𝒍𝒖𝒆 ) ------------------------------------
+def StringFunction(this_value, new_target, value=missing.MISSING):
+    # When String is called with argument value, the following steps are taken:
+    #
+    # 1. If no arguments were passed to this function invocation, let s be "".
+    # 2. Else,
+    #    a. If NewTarget is undefined and Type(value) is Symbol, return SymbolDescriptiveString(value).
+    #    b. Let s be ? ToString(value).
+    # 3. If NewTarget is undefined, return s.
+    # 4. Return ? StringCreate(s, ? GetPrototypeFromConstructor(NewTarget, "%StringPrototype%")).
+    if value == missing.MISSING:
+        s = ''
+    else:
+        if new_target is None and isSymbol(value):
+            return NormalCompletion(SymbolDescriptiveString(value))
+        s, ok = ec(ToString(value))
+        if not ok:
+            return s
+    if new_target is None:
+        return NormalCompletion(s)
+    proto, ok = ec(GetPrototypeFromConstructor(new_target, '%StringPrototype%'))
+    if not ok:
+        return proto
+    return StringCreate(s, proto)
+
+# ------------------------------------ 𝟐𝟏.𝟏.𝟐 𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒊𝒆𝒔 𝒐𝒇 𝒕𝒉𝒆 𝑺𝒕𝒓𝒊𝒏𝒈 𝑪𝒐𝒏𝒔𝒕𝒓𝒖𝒄𝒕𝒐𝒓 ------------------------------------
+# 21.1.2 Properties of the String Constructor
+#
+# The String constructor:
+#
+#   * has a [[Prototype]] internal slot whose value is the intrinsic object %FunctionPrototype%.
+#   * has the following properties:
+
+# ------------------------------------ 𝟐𝟏.𝟏.𝟐.𝟏 𝑺𝒕𝒓𝒊𝒏𝒈.𝒇𝒓𝒐𝒎𝑪𝒉𝒂𝒓𝑪𝒐𝒅𝒆 ( ...𝒄𝒐𝒅𝒆𝑼𝒏𝒊𝒕𝒔 ) ------------------------------------
+# 21.1.2.1 String.fromCharCode ( ...codeUnits )
+def String_fromCharCode(this_value, new_target, *codeUnits):
+    # The String.fromCharCode function may be called with any number of arguments which form the rest parameter
+    # codeUnits. The following steps are taken:
+    #
+    # 1. Let codeUnits be a List containing the arguments passed to this function.
+    # 2. Let length be the number of elements in codeUnits.
+    # 3. Let elements be a new empty List.
+    # 4. Let nextIndex be 0.
+    # 5. Repeat, while nextIndex < length
+    #    a. Let next be codeUnits[nextIndex].
+    #    b. Let nextCU be ? ToUint16(next).
+    #    c. Append nextCU to the end of elements.
+    #    d. Let nextIndex be nextIndex + 1.
+    # 6. Return the String value whose elements are, in order, the elements in the List elements. If length is 0, the
+    #    empty string is returned.
+    elements = []
+    for next in codeUnits:
+        codevalue, ok = ec(ToUint16(next))
+        if not ok:
+            return codevalue
+        elements.append(codevalue)
+    return NormalCompletion(''.join(chr(x) for x in elements))
+    # The length property of the fromCharCode function is 1.
+
+# ------------------------------------ 𝟐𝟏.𝟏.𝟐.𝟐 𝑺𝒕𝒓𝒊𝒏𝒈.𝒇𝒓𝒐𝒎𝑪𝒐𝒅𝒆𝑷𝒐𝒊𝒏𝒕 ( ...𝒄𝒐𝒅𝒆𝑷𝒐𝒊𝒏𝒕𝒔 ) ------------------------------------
+# 21.1.2.2 String.fromCodePoint ( ...codePoints )
+def String_fromCodePoint(this_value, new_target, *codePoints):
+    # The String.fromCodePoint function may be called with any number of arguments which form the rest parameter
+    # codePoints. The following steps are taken:
+    #
+    # 1. Let codePoints be a List containing the arguments passed to this function.
+    # 2. Let length be the number of elements in codePoints.
+    # 3. Let elements be a new empty List.
+    # 4. Let nextIndex be 0.
+    # 5. Repeat, while nextIndex < length
+    #    a. Let next be codePoints[nextIndex].
+    #    b. Let nextCP be ? ToNumber(next).
+    #    c. If SameValue(nextCP, ToInteger(nextCP)) is false, throw a RangeError exception.
+    #    d. If nextCP < 0 or nextCP > 0x10FFFF, throw a RangeError exception.
+    #    e. Append the elements of the UTF16Encoding of nextCP to the end of elements.
+    #    f. Let nextIndex be nextIndex + 1.
+    # 6. Return the String value whose elements are, in order, the elements in the List elements. If length is 0, the
+    #    empty string is returned.
+    elements = []
+    for next in codePoints:
+        nextCP, ok = ec(ToNumber(next))
+        if not ok:
+            return nextCP
+        if not SameValue(nextCP, nc(ToInteger(nextCP))):
+            return ThrowCompletion(CreateRangeError('code points must be integers'))
+        if nextCP < 0 or nextCP > 0x10FFFF:
+            return ThrowCompletion(CreateRangeError('code points must be in the range 0x0..0x10ffff'))
+        elements.extend(utf_16_encoding(nextCP))
+    return NormalCompletion(''.join(chr(x) for x in elements))
+    # The length property of the fromCodePoint function is 1.
+
+# ------------------------------------ 𝟐𝟏.𝟏.𝟑 𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒊𝒆𝒔 𝒐𝒇 𝒕𝒉𝒆 𝑺𝒕𝒓𝒊𝒏𝒈 𝑷𝒓𝒐𝒕𝒐𝒕𝒚𝒑𝒆 𝑶𝒃𝒋𝒆𝒄𝒕 ------------------------------------
+# 21.1.3 Properties of the String Prototype Object
+# The String prototype object:
+#
+#   * is the intrinsic object %StringPrototype%.
+#   * is a String exotic object and has the internal methods specified for such objects.
+#   * has a [[StringData]] internal slot whose value is the empty String.
+#   * has a length property whose initial value is 0 and whose attributes are { [[Writable]]: false,
+#     [[Enumerable]]: false, [[Configurable]]: false }.
+#   * has a [[Prototype]] internal slot whose value is the intrinsic object %ObjectPrototype%.
+#
+# Unless explicitly stated otherwise, the methods of the String prototype object defined below are not generic and the
+# this value passed to them must be either a String value or an object that has a [[StringData]] internal slot that has
+# been initialized to a String value.
+def CreateStringPrototype(realm):
+    string_prototype = nc(StringCreate('', realm.intrinsics['%ObjectPrototype%']))
+    cr, ok = ec(BindBuiltinFunctions(realm, string_prototype, [
+        ('toString', StringPrototype_toString, 0),
+        ('valueOf', StringPrototype_valueOf, 0),
+    ]))
+    if not ok:
+        return cr
+    return string_prototype
+
+def thisStringValue(value):
+    # The abstract operation thisStringValue(value) performs the following steps:
+    #
+    # 1. If Type(value) is String, return value.
+    # 2. If Type(value) is Object and value has a [[StringData]] internal slot, then
+    #    a. Assert: value.[[StringData]] is a String value.
+    #    b. Return value.[[StringData]].
+    # 3. Throw a TypeError exception.
+    if isString(value):
+        return NormalCompletion(value)
+    if isObject(value) and hasattr(value, 'StringData'):
+        assert isString(value.StringData)
+        return NormalCompletion(value.StringData)
+    return ThrowCompletion(CreateTypeError('Not a string value'))
+
+# ------------------------------------ 𝟐𝟏.𝟏.𝟑.𝟐𝟓 𝑺𝒕𝒓𝒊𝒏𝒈.𝒑𝒓𝒐𝒕𝒐𝒕𝒚𝒑𝒆.𝒕𝒐𝑺𝒕𝒓𝒊𝒏𝒈 ( ) ------------------------------------
+# 21.1.3.25 String.prototype.toString ( )
+def StringPrototype_toString(this_value, new_target):
+    # When the toString method is called, the following steps are taken:
+    #
+    # 1. Return ? thisStringValue(this value).
+    # NOTE
+    # For a String object, the toString method happens to return the same thing as the valueOf method.
+    return thisStringValue(this_value)
+
+# ------------------------------------ 𝟐𝟏.𝟏.𝟑.𝟐𝟖 𝑺𝒕𝒓𝒊𝒏𝒈.𝒑𝒓𝒐𝒕𝒐𝒕𝒚𝒑𝒆.𝒗𝒂𝒍𝒖𝒆𝑶𝒇 ( ) ------------------------------------
+# 21.1.3.28 String.prototype.valueOf ( )
+def StringPrototype_valueOf(this_value, new_target):
+    # When the valueOf method is called, the following steps are taken:
+    #
+    # 1. Return ? thisStringValue(this value).
+    return thisStringValue(this_value)
+
+def StringFixups(realm):
+    string_constructor = realm.intrinsics['%String%']
+    string_prototype = realm.intrinsics['%StringPrototype%']
+    proto_desc = PropertyDescriptor(value=string_prototype, writable=False, enumerable=False, configurable=False)
+    cr, ok = ec(DefinePropertyOrThrow(string_constructor, 'prototype', proto_desc))
+    if not ok:
+        return cr
+    const_desc = PropertyDescriptor(value=string_constructor, writable=True, enumerable=False, configurable=True)
+    cr, ok = ec(DefinePropertyOrThrow(string_prototype, 'constructor', const_desc))
+    if not ok:
+        return cr
+    return NormalCompletion(None)
+
+#######################################################################################################################################################
 if __name__ == '__main__':
-    rv, ok = ec(RunJobs(scripts=["67 != 89;"]))
+    rv, ok = ec(RunJobs(scripts=["String.fromCharCode();"]))
 
     InitializeHostDefinedRealm()
     if ok:

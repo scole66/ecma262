@@ -8,13 +8,6 @@ NORMAL = CompletionType.NORMAL
 THROW = CompletionType.THROW
 
 @pytest.fixture
-def realm():
-    InitializeHostDefinedRealm()
-    yield surrounding_agent.running_ec.realm
-    surrounding_agent.ec_stack.pop()
-    surrounding_agent.running_ec = None
-
-@pytest.fixture
 def obj(realm):
     return ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
 
@@ -514,7 +507,6 @@ def test_ToObject_05(realm):
     assert hasattr(res.value, 'NumberData')
     assert res.value.NumberData == 34000
 
-@pytest.mark.xfail(reason='Needs String Object Support')
 def test_ToObject_06(realm):
     # String -> Object
     res = ToObject('tricky')
