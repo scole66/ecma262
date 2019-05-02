@@ -2478,6 +2478,7 @@ def SetIntegrityLevel(O, level):
                     return cr
     return NormalCompletion(True)
 
+# ------------------------------------ 𝟕.𝟑.𝟏𝟓 𝑻𝒆𝒔𝒕𝑰𝒏𝒕𝒆𝒈𝒓𝒊𝒕𝒚𝑳𝒆𝒗𝒆𝒍 ( 𝑶, 𝒍𝒆𝒗𝒆𝒍 ) ------------------------------------
 # 7.3.15 TestIntegrityLevel ( O, level )
 def TestIntegrityLevel(o_value, level):
     # The abstract operation TestIntegrityLevel is used to determine if the set of own properties of an object are
@@ -2488,7 +2489,7 @@ def TestIntegrityLevel(o_value, level):
     # 2. Assert: level is either "sealed" or "frozen".
     assert level in ['sealed', 'frozen']
     # 3. Let status be ? IsExtensible(O).
-    status, ok = ec(IsExtensible())
+    status, ok = ec(IsExtensible(o_value))
     if not ok:
         return status
     # 4. If status is true, return false.
