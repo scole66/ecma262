@@ -12,6 +12,8 @@ import random
 import types
 import traceback
 
+surrounding_agent = None
+
 def CreateError(msg, intrinsic):
     error_constructor = surrounding_agent.running_ec.realm.intrinsics[intrinsic]
     errobj = nc(Construct(error_constructor, [msg]))
@@ -7354,7 +7356,7 @@ class PN_CallExpression_CoverCallExpressionAndAsyncArrowHead(PN_CallExpression):
         if not ok:
             return func
         if isinstance(ref, Reference) and not IsPropertyReference(ref) and GetReferencedName(ref) == 'eval':
-            if SameValue(func, surrounding_realm.intrinsics['%eval%']):
+            if SameValue(func, surrounding_agent.running_ec.realm.intrinsics['%eval%']):
                 argList, ok = ec(arguments.ArgumentListEvaluation())
                 if not ok:
                     return argList
@@ -11354,10 +11356,10 @@ class Ecma262Parser(Parser):
         return PN_ArgumentList_DOTDOTDOT_AssignmentExpression(self.context, p)
     @_('ArgumentList COMMA AssignmentExpression_In')
     def ArgumentList(self, p):
-        return PN_ArgumentList_COMMA_AssignmentExpression(self.context, p)
+        return PN_ArgumentList_ArgumentList_COMMA_AssignmentExpression(self.context, p)
     @_('ArgumentList COMMA DOTDOTDOT AssignmentExpression_In')
     def ArgumentList(self, p):
-        return PN_ArgumentList_COMMA_DOTDOTDOT_AssignmentExpression(self.context, p)
+        return PN_ArgumentList_ArgumentList_COMMA_DOTDOTDOT_AssignmentExpression(self.context, p)
     @_('LPAREN RPAREN')
     def Arguments(self, p):
         return PN_Arguments_LPAREN_RPAREN(self.context, p)
@@ -13204,7 +13206,7 @@ def StringFixups(realm):
 
 #######################################################################################################################################################
 if __name__ == '__main__':
-    rv, ok = ec(RunJobs(scripts=["String.fromCharCode();"]))
+    rv, ok = ec(RunJobs(scripts=["String.fromCharCode(65, 66, 67);"]))
 
     InitializeHostDefinedRealm()
     if ok:
