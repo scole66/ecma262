@@ -4529,7 +4529,7 @@ class JSFunction(JSObject):
         self.HomeObject = None
 
     # 9.2.1 [[Call]] ( thisArgument, argumentsList )
-    def Call(thisArgument, argumentsList):
+    def Call(self, thisArgument, argumentsList):
         # The [[Call]] internal method for an ECMAScript function object F is called with parameters thisArgument and
         # argumentsList, a List of ECMAScript language values. The following steps are taken:
         pass                                                      # 1. Assert: F is an ECMAScript function object.
@@ -4611,7 +4611,7 @@ def OrdinaryCallEvaluateBody(F, argumentsList):
     return F.ECMAScriptCode.EvaluateBody(F, argumentsList)
 
 # 9.2.2 [[Construct]] ( argumentsList, newTarget )
-def JSFunction_Construct(self, argumentsList, newTarget):
+def JSFunction_Construct(F, argumentsList, newTarget):
     # The [[Construct]] internal method for an ECMAScript function object F is called with parameters argumentsList and
     # newTarget. argumentsList is a possibly empty List of ECMAScript language values. The following steps are taken:
     #
@@ -5035,7 +5035,7 @@ def FunctionDeclarationInstantiation(func, argumentsList):
             return cr
     # 26. Else,
         # a. Perform ? IteratorBindingInitialization for formals with iteratorRecord and env as arguments.
-        cr, ok = ed(formals.IteratorBindingInitialization(iteratorRecord, env))
+        cr, ok = ec(formals.IteratorBindingInitialization(iteratorRecord, env))
     # 27. If hasParameterExpressions is false, then
     if not hasParameterExpressions:
         # a. NOTE: Only a single lexical environment is needed for the parameters and top-level vars.
@@ -5107,7 +5107,7 @@ def FunctionDeclarationInstantiation(func, argumentsList):
         # a. NOTE: A lexically declared name cannot be the same as a function/generator declaration, formal parameter, or a var
         #          name. Lexically declared names are only instantiated here but not initialized.
         # b. For each element dn of the BoundNames of d, do
-        for dn in BoundNames:
+        for dn in d.BoundNames():
             # i. If IsConstantDeclaration of d is true, then
             if d.IsConstantDeclaration():
                 # 1. Perform ! lexEnvRec.CreateImmutableBinding(dn, true).
@@ -12234,7 +12234,7 @@ def ObjectMethod_preventExtensions(_a, _b, o_value):
     if not isObject(o_value):
         return NormalCompletion(o_value)
     # 2. Let status be ? O.[[PreventExtensions]]().
-    status, ok = ec(obj.PreventExtensions())
+    status, ok = ec(o_value.PreventExtensions())
     if not ok:
         return status
     # 3. If status is false, throw a TypeError exception.
