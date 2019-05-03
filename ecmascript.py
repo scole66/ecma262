@@ -7364,7 +7364,7 @@ class PN_CallExpression_CoverCallExpressionAndAsyncArrowHead(PN_CallExpression):
                     return None
                 evalText = argList[0]
                 strictCaller = self.strict
-                evalRealm = surrounding_realm
+                evalRealm = surrounding_agent.running_ec.realm
                 cr, ok = HostEnsureCanCompileStrings(evalRealm, evalRealm)
                 if not ok:
                     return cr
