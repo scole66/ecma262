@@ -6971,6 +6971,53 @@ def InitializeBoundName(name, value, environment):
     lhs = ResolveBinding(name)
     # b. Return ? PutValue(lhs, value).
     return PutValue(lhs, value)
+
+class PN_LabelIdentifier(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('LabelIdentifier', p)
+class PN_LabelIdentifier_Identifier(PN_LabelIdentifier):
+    @property
+    def Identifier(self):
+        return self.children[0]
+    def EarlyErrors(self):
+        # 12.1.1 Static Semantics: Early Errors
+        #           LabelIdentifier : Identifier
+        # * It is a Syntax Error if this production has a [Yield] parameter and StringValue of Identifier is "yield".
+        # * It is a Syntax Error if this production has an [Await] parameter and StringValue of Identifier is "await".
+        errs = []
+        sv = self.Identifier.StringValue()
+        if self.yield_ and sv == 'yield':
+            errs.append(CreateSyntaxError('\'yield\' may not be used as an identifier in this context'))
+        if self.await_ and sv == 'await':
+            errs.append(CreateSyntaxError('\'await\' may not be used as an identifier in this context'))
+        return errs
+class PN_LabelIdentifier_YIELD(PN_LabelIdentifier):
+    def EarlyErrors(self):
+        # 12.1.1 Static Semantics: Early Errors
+        #           LabelIdentifier : yield
+        # * It is a Syntax Error if the code matched by this production is contained in strict mode code.
+        if self.strict:
+            return [CreateSyntaxError('\'yield\' may not be used as an identifier in strict code mode')]
+        return []
+    def StringValue(self):
+        # 12.1.4 Static Semantics: StringValue
+        #           LabelIdentifier : yield
+        # 1. Return "yield".
+        return 'yield'
+class PN_LabelIdentifier_AWAIT(PN_LabelIdentifier):
+    def EarlyErrors(self):
+        # 12.1.1 Static Semantics: Early Errors
+        #           LabelIdentifier : await
+        # * It is a Syntax Error if the goal symbol of the syntactic grammar is Module.
+        if self.goal == 'Module':
+            return [CreateSyntaxError('\'await\' may not be used as an identifier in a module')]
+        return []
+    def StringValue(self):
+        # 12.1.4 Static Semantics: StringValue
+        #           LabelIdentifier : await
+        # 1. Return "await".
+        return 'await'
+
 class PN_Identifier(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('Identifier', p)
@@ -11592,6 +11639,16 @@ class Ecma262Parser(Parser):
     @_('AWAIT')
     def BindingIdentifier(self, p):
         return PN_BindingIdentifier_AWAIT(self.context, p)
+
+    @_('Identifier')
+    def LabelIdentifier(self, p):
+        return PN_LabelIdentifier_Identifier(self.context, p)
+    @_('YIELD')
+    def LabelIdentifier(self, p):
+        return PN_LabelIdentifier_YIELD(self.context, p)
+    @_('AWAIT')
+    def LabelIdentifier(self, p):
+        return PN_LabelIdentifier_AWAIT(self.context, p)
 
     @_('Identifier', 'ReservedWord')
     def IdentifierName(self, p):
