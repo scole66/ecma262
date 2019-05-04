@@ -10396,6 +10396,77 @@ def CreatePerIterationEnvironment(perIterationBindings):
         surrounding_agent.running_ec.lexical_environment = thisIterationEnv
     return NormalCompletion(None)
 
+class PN_ForDeclaration(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('ForDeclaration', p)
+class PN_ForDeclaration_LetOrConst_ForBinding(PN_ForDeclaration):
+    @property
+    def LetOrConst(self):
+        return self.children[0]
+    @property
+    def ForBinding(self):
+        return self.children[1]
+    def BoundNames(self):
+        # 13.7.5.2 Static Semantics: BoundNames
+        #           ForDeclaration : LetOrConst ForBinding
+        # 1. Return the BoundNames of ForBinding.
+        return self.ForBinding.BoundNames()
+    def IsDestructuring(self):
+        # 13.7.5.6 Static Semantics: IsDestructuring
+        #           ForDeclaration : LetOrConstForBinding
+        # 1. Return IsDestructuring of ForBinding.
+        return self.ForBinding.IsDestructuring()
+    def BindingInitialization(self, value, environment):
+        # 13.7.5.9 Runtime Semantics: BindingInitialization
+        #   With parameters value and environment.
+        #
+        # NOTE
+        # undefined is passed for environment to indicate that a PutValue operation should be used to assign the
+        # initialization value. This is the case for var statements and the formal parameter lists of some non-strict
+        # functions (see 9.2.15). In those cases a lexical binding is hoisted and preinitialized prior to evaluation of
+        # its initializer.
+        #
+        #           ForDeclaration : LetOrConst ForBinding
+        # 1. Return the result of performing BindingInitialization for ForBinding passing value and environment as the
+        #    arguments.
+        return self.ForBinding.BindingInitialization(value, environment)
+    def BindingInstantiation(self, environment):
+        # 13.7.5.10 Runtime Semantics: BindingInstantiation
+        #   With parameter environment.
+        #           ForDeclaration : LetOrConst ForBinding
+        # 1. Let envRec be environment's EnvironmentRecord.
+        # 2. Assert: envRec is a declarative Environment Record.
+        # 3. For each element name of the BoundNames of ForBinding, do
+        #    a. If IsConstantDeclaration of LetOrConst is true, then
+        #       i. Perform ! envRec.CreateImmutableBinding(name, true).
+        #    b. Else,
+        #       i. Perform ! envRec.CreateMutableBinding(name, false).
+        envRec = environment.environment_record
+        assert isinstance(envRec, DeclarativeEnvironmentRecord)
+        for name in self.ForBinding.BoundNames():
+            if self.LetOrConst.IsConstantDeclaration():
+                nc(envRec.CreateImmutableBinding(name, True))
+            else:
+                nc(envRec.CreateMutableBinding(name, False))
+
+class PN_ForBinding(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('ForBinding', p)
+class PN_ForBinding_BindingIdentifier(PN_ForBinding):
+    @property
+    def BindingIdentifier(self):
+        return self.children[0]
+    def IsDestructuring(self):
+        # 13.7.5.6 Static Semantics: IsDestructuring
+        #           ForBinding : BindingIdentifier
+        # 1. Return false.
+        return False
+    def evaluate(self):
+        # 13.7.5.14 Runtime Semantics: Evaluation
+        #           ForBinding : BindingIdentifier
+        # 1. Let bindingId be StringValue of BindingIdentifier.
+        # 2. Return ? ResolveBinding(bindingId).
+        return ResolveBinding(self.BindingIdentifier.StringValue())
 
 class PN_CoverCallExpressionAndAsyncArrowHead(ParseNode):
     def __init__(self, context, p):
