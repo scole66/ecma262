@@ -2950,7 +2950,7 @@ class DeclarativeEnvironmentRecord:
 # Record.
 
 class ObjectEnvironmentRecord:
-    def __init__(self, binding_object, with_environment):
+    def __init__(self, binding_object, with_environment=False):
         self.binding_object = nc(ToObject(binding_object))
         self.with_environment = ToBoolean(with_environment)
 
@@ -3686,7 +3686,7 @@ def NewObjectEnvironment(obj, outer):
     # 1. Let env be a new Lexical Environment.
     env = LexicalEnvironment()
     # 2. Let envRec be a new object Environment Record containing O as the binding object.
-    env_rec = ObjectEnvironmentRecord()
+    env_rec = ObjectEnvironmentRecord(obj)
     # 3. Set env's EnvironmentRecord to envRec.
     env.environment_record = env_rec
     # 4. Set the outer lexical environment reference of env to E.
