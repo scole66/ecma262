@@ -6861,35 +6861,99 @@ class PN_IdentifierReference_YIELD(PN_IdentifierReference):
         return 'yield'
     def evaluate(self):
         return ResolveBinding('yield')
+
 class PN_BindingIdentifier(ParseNode):
-    def __init__(self, ctx, p):
+    def __init__(self, ctx, p, yield_=False, await_=False):
         super().__init__('BindingIdentifier', p)
-        #self.yield_ = yield_
-        #self.await_ = await_
+        self.yield_ = yield_
+        self.await_ = await_
         self.strict = ctx.strict
         self.goal = ctx.goal
 class PN_BindingIdentifier_Identifier(PN_BindingIdentifier):
+    @property
+    def Identifier(self):
+        return self.children[0]
     def EarlyErrors(self):
         # 12.1.1 Static Semantics: Early Errors
         #   BindingIdentifier : Identifier
         #   * It is a Syntax Error if the code matched by this production is contained in strict mode code and the
         #     StringValue of Identifier is  "arguments" or "eval".
-        Identifier = self.children[0]
-        if self.strict and Identifier.StringValue() in ['arguments', 'eval']:
-            return [CreateSyntaxError('In strict mode, an identifier name may be neither \'arguments\' nor \'eval\'.')]
-        return []
+        #   * It is a Syntax Error if this production has a [Yield] parameter and StringValue of Identifier is "yield".
+        #   * It is a Syntax Error if this production has an [Await] parameter and StringValue of Identifier is "await".
+        errs = []
+        sv = self.Identifier.StringValue()
+        if self.strict and sv in ['arguments', 'eval']:
+            errs.append(CreateSyntaxError('In strict mode, an identifier name may be neither \'arguments\' nor \'eval\'.'))
+        if self.yield_ and sv == 'yield':
+            errs.append(CreateSyntaxError('\'yield\' may not be used as an identifier in this context'))
+        if self.await_ and sv == 'await':
+            errs.append(CreateSyntaxError('\'await\' may not be used as an identifier in this context'))
+        return errs
     def BoundNames(self):
         # 12.1.2 Static Semantics: BoundNames
         #   BindingIdentifier : Identifier
         #   1. Return a new List containing the StringValue of Identifier.
-        return [self.children[0].StringValue()]
+        return [self.Identifier.StringValue()]
     def BindingInitialization(self, value, environment):
         # 12.1.5 Runtime Semantics: BindingInitialization
         #   BindingIdentifier : Identifier
         #   1. Let name be StringValue of Identifier.
         #   2. Return ? InitializeBoundName(name, value, environment).
-        return InitializeBoundName(self.children[0].StringValue(), value, environment)
-
+        return InitializeBoundName(self.Identifier.StringValue(), value, environment)
+class PN_BindingIdentifier_YIELD(PN_BindingIdentifier):
+    def EarlyErrors(self):
+        # 12.1.1 Static Semantics: Early Errors
+        #           BindingIdentifier : yield
+        # * It is a Syntax Error if the code matched by this production is contained in strict mode code.
+        # * It is a Syntax Error if this production has a [Yield] parameter.
+        errs = []
+        if self.strict:
+            errs.append(CreateSyntaxError('\'yield\' is an illegal identifier in strict code mode'))
+        if self.yield_:
+            errs.append(CreateSyntaxError('\'yield\' may not be used as an indentifier in this context'))
+    def BoundNames(self):
+        # 12.1.2 Static Semantics: BoundNames
+        #           BindingIdentifier : yield
+        # 1. Return a new List containing "yield".
+        return ['yield']
+    def StringValue(self):
+        # 12.1.4 Static Semantics: StringValue
+        #           BindingIdentifier : yield
+        # 1. Return "yield".
+        return 'yield'
+    def BindingInitialization(self, value, environment):
+        # 12.1.5 Runtime Semantics: BindingInitialization
+        #   With parameters value and environment.
+        #           BindingIdentifier : yield
+        # 1. Return ? InitializeBoundName("yield", value, environment).
+        return InitializeBoundName('yield', value, environment)
+class PN_BindingIdentifier_AWAIT(PN_BindingIdentifier):
+    def EarlyErrors(self):
+        # 12.1.1 Static Semantics: Early Errors
+        #           BindingIdentifier : await
+        # * It is a Syntax Error if the goal symbol of the syntactic grammar is Module.
+        # * It is a Syntax Error if this production has a [Await] parameter.
+        errs = []
+        if self.goal == 'Module':
+            errs.append(CreateSyntaxError('\'await\' is an illegal identifier in modules'))
+        if self.await_:
+            errs.append(CreateSyntaxError('\'await\' may not be used as an indentifier in this context'))
+    def BoundNames(self):
+        # 12.1.2 Static Semantics: BoundNames
+        #           BindingIdentifier : await
+        # 1. Return a new List containing "await".
+        return ['await']
+    def StringValue(self):
+        # 12.1.4 Static Semantics: StringValue
+        #           BindingIdentifier : await
+        # 1. Return "await".
+        return 'await'
+    def BindingInitialization(self, value, environment):
+        # 12.1.5 Runtime Semantics: BindingInitialization
+        #   With parameters value and environment.
+        #           BindingIdentifier : await
+        # 1. Return ? InitializeBoundName("await", value, environment).
+        return InitializeBoundName('await', value, environment)
 # 12.1.5.1 Runtime Semantics: InitializeBoundName ( name, value, environment )
 def InitializeBoundName(name, value, environment):
     # 1. Assert: Type(name) is String.
