@@ -4071,7 +4071,7 @@ def GetActiveScriptOrModule():
         som = surrounding_agent.ec_stack[idx].script_or_module
         if not isNull(som):
             return som
-    return JSNull.null
+    return JSNull.NULL
 
 # 8.3.2 ResolveBinding ( name [ , env ] )
 def ResolveBinding(name, env=None):
@@ -6822,7 +6822,7 @@ class PN_IdentifierReference(ParseNode):
         self.yield_ = yield_
         self.await_ = await_
         self.strict = ctx.strict
-        self.gloal = ctx.goal
+        self.goal = ctx.goal
 class PN_IdentifierReference_Identifier(PN_IdentifierReference):
     def EarlyErrors(self):
         # Early Errors
@@ -6867,7 +6867,7 @@ class PN_BindingIdentifier(ParseNode):
         #self.yield_ = yield_
         #self.await_ = await_
         self.strict = ctx.strict
-        self.gloal = ctx.goal
+        self.goal = ctx.goal
 class PN_BindingIdentifier_Identifier(PN_BindingIdentifier):
     def EarlyErrors(self):
         # 12.1.1 Static Semantics: Early Errors
@@ -6904,7 +6904,7 @@ def InitializeBoundName(name, value, environment):
         return NormalCompletion(None)
     # 3. Else,
     # a. Let lhs be ResolveBinding(name).
-    lhs = ResoveBinding(name)
+    lhs = ResolveBinding(name)
     # b. Return ? PutValue(lhs, value).
     return PutValue(lhs, value)
 class PN_Identifier(ParseNode):
