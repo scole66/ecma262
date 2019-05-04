@@ -4705,7 +4705,7 @@ def FunctionAllocate(functionPrototype, strict, functionKind):
     # 13. Set F.[[Extensible]] to true.
     F.Extensible = True
     # 14. Set F.[[Realm]] to the current Realm Record.
-    F.Realm = surrounding_agent.realm
+    F.Realm = surrounding_agent.running_ec.realm
     # 15. Return F.
     return NormalCompletion(F)
 
@@ -4755,7 +4755,7 @@ def FunctionCreate(kind, ParameterList, Body, Scope, Strict, prototype=missing.M
     # 1. If prototype is not present, then
     if prototype == missing.MISSING:
         # a. Set prototype to the intrinsic object %FunctionPrototype%.
-        prototype = surrounding_agent.realm.intrinsics['%FunctionPrototype%']
+        prototype = surrounding_agent.running_ec.realm.intrinsics['%FunctionPrototype%']
     # 2. If kind is not Normal, let allocKind be "non-constructor".
     if kind != FNKind.NORMAL:
         allocKind = 'non-constructor'
@@ -4774,7 +4774,7 @@ def GeneratorFunctionCreate(kind, ParameterList, Body, Scope, Strict):
     # Scope, and a Boolean flag Strict. GeneratorFunctionCreate performs the following steps:
     #
     # 1. Let functionPrototype be the intrinsic object %Generator%.
-    functionPrototype = surrounding_agent.realm.intrinsics['%Generator%']
+    functionPrototype = surrounding_agent.running_ec.realm.intrinsics['%Generator%']
     # 2. Let F be FunctionAllocate(functionPrototype, Strict, "generator").
     F = nc(FunctionAllocate(functionPrototype, Strict, 'generator'))
     # 3. Return FunctionInitialize(F, kind, ParameterList, Body, Scope).
@@ -4787,7 +4787,7 @@ def AsyncGeneratorFunctionCreate(kind, ParameterList, Body, Scope, Strict):
     # specified by Scope, and a Boolean flag Strict. AsyncGeneratorFunctionCreate performs the following steps:
     #
     # 1. Let functionPrototype be the intrinsic object %AsyncGenerator%.
-    functionPrototype = surrounding_agent.realm.intrinsics['%AsyncGenerator%']
+    functionPrototype = surrounding_agent.running_ec.realm.intrinsics['%AsyncGenerator%']
     # 2. Let F be ! FunctionAllocate(functionPrototype, Strict, "generator").
     F = nc(FunctionAllocate(functionPrototype, Strict, 'generator'))
     # 3. Return ! FunctionInitialize(F, kind, ParameterList, Body, Scope).
@@ -4800,7 +4800,7 @@ def AsyncFunctionCreate(kind, parameters, body, Scope, Strict):
     # by Scope, and a Boolean flag Strict. AsyncFunctionCreate performs the following steps:
     #
     # 1. Let functionPrototype be the intrinsic object %AsyncFunctionPrototype%.
-    functionPrototype = surrounding_agent.realm.intrinsics['%AsyncFunctionPrototype%']
+    functionPrototype = surrounding_agent.running_ec.realm.intrinsics['%AsyncFunctionPrototype%']
     # 2. Let F be ! FunctionAllocate(functionPrototype, Strict, "async").
     F = nc(FunctionAllocate(functionPrototype, Strict, 'async'))
     # 3. Return ! FunctionInitialize(F, kind, parameters, body, Scope).
@@ -4838,7 +4838,7 @@ def MakeConstructor(F, writeablePrototype=True, prototype=missing.MISSING):
     # 5. If prototype is not present, then
     if prototype == missing.MISSING:
         # a. Set prototype to ObjectCreate(%ObjectPrototype%).
-        prototype = nc(ObjectCreate(surrounding_agent.realm.intrinsics['%ObjectPrototype%']))
+        prototype = nc(ObjectCreate(surrounding_agent.running_ec.realm.intrinsics['%ObjectPrototype%']))
         # b. Perform ! DefinePropertyOrThrow(prototype, "constructor", PropertyDescriptor { [[Value]]: F, [[Writable]]: writablePrototype, [[Enumerable]]: false, [[Configurable]]: true }).
         DefinePropertyOrThrow(prototype, 'constructor', PropertyDescriptor(value=F, writable=writeablePrototype, enumerable=False, configurable=True))
     # 6. Perform ! DefinePropertyOrThrow(F, "prototype", PropertyDescriptor { [[Value]]: prototype, [[Writable]]: writablePrototype, [[Enumerable]]: false, [[Configurable]]: false }).
