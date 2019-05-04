@@ -10468,6 +10468,61 @@ class PN_ForBinding_BindingIdentifier(PN_ForBinding):
         # 2. Return ? ResolveBinding(bindingId).
         return ResolveBinding(self.BindingIdentifier.StringValue())
 
+###############################################################################################################################
+#
+#  d888    .d8888b.       .d8888b.      88888888888 888                                              888    d8b                                 .d8888b.  888             888                                             888
+# d8888   d88P  Y88b     d88P  Y88b         888     888                                              888    Y8P                                d88P  Y88b 888             888                                             888
+#   888        .d88P     Y88b. d88P         888     888                                              888                                       Y88b.      888             888                                             888
+#   888       8888"       "Y88888"          888     88888b.   .d88b.       .d8888b  .d88b.  88888b.  888888 888 88888b.  888  888  .d88b.       "Y888b.   888888  8888b.  888888  .d88b.  88888b.d88b.   .d88b.  88888b.  888888
+#   888        "Y8b.     .d8P""Y8b.         888     888 "88b d8P  Y8b     d88P"    d88""88b 888 "88b 888    888 888 "88b 888  888 d8P  Y8b         "Y88b. 888        "88b 888    d8P  Y8b 888 "888 "88b d8P  Y8b 888 "88b 888
+#   888   888    888     888    888         888     888  888 88888888     888      888  888 888  888 888    888 888  888 888  888 88888888           "888 888    .d888888 888    88888888 888  888  888 88888888 888  888 888
+#   888   Y88b  d88P d8b Y88b  d88P         888     888  888 Y8b.         Y88b.    Y88..88P 888  888 Y88b.  888 888  888 Y88b 888 Y8b.         Y88b  d88P Y88b.  888  888 Y88b.  Y8b.     888  888  888 Y8b.     888  888 Y88b.
+# 8888888  "Y8888P"  Y8P  "Y8888P"          888     888  888  "Y8888       "Y8888P  "Y88P"  888  888  "Y888 888 888  888  "Y88888  "Y8888       "Y8888P"   "Y888 "Y888888  "Y888  "Y8888  888  888  888  "Y8888  888  888  "Y888
+#
+###############################################################################################################################
+class PN_ContinueStatement(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('ContinueStatement', p)
+    def EarlyErrors(self):
+        # 13.8.1 Static Semantics: Early Errors
+        #           ContinueStatement : continue ;
+        #           ContinueStatement : continue LabelIdentifier ;
+        #  * It is a Syntax Error if this ContinueStatement is not nested, directly or indirectly (but not crossing
+        #    function boundaries), within an IterationStatement.
+        # ... I'm not actually sure how to test that. Probably need to add a marker function to the __init__ function
+        # of IterationStatement that scans children for continues, and doesn't enter functions.
+        return []
+class PN_ContinueStatement_CONTINUE_SEMICOLON(PN_ContinueStatement):
+    def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
+        # 13.8.2 Static Semantics: ContainsUndefinedContinueTarget
+        #   With parameters iterationSet and labelSet.
+        #           ContinueStatement : continue;
+        # 1. Return false.
+        return False
+    def evaluate(self):
+        # 13.8.3 Runtime Semantics: Evaluation
+        #           ContinueStatement : continue ;
+        # 1. Return Completion { [[Type]]: continue, [[Value]]: empty, [[Target]]: empty }.
+        return Completion(CompletionType.CONTINUE, Empty.EMPTY, Empty.EMPTY)
+class PN_ContinueStatement_CONTINUE_LabelIdentifier_SEMICOLON(PN_ContinueStatement):
+    @property
+    def LabelIdentifier(self):
+        return self.children[1]
+    def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
+        # 13.8.2 Static Semantics: ContainsUndefinedContinueTarget
+        #   With parameters iterationSet and labelSet.
+        #           ContinueStatement : continue LabelIdentifier ;
+        # 1. If the StringValue of LabelIdentifier is not an element of iterationSet, return true.
+        # 2. Return false.
+        return self.LabelIdentifier.StringValue() not in iterationSet
+    def evaluate(self):
+        # 13.8.3 Runtime Semantics: Evaluation
+        #           ContinueStatement : continue LabelIdentifier ;
+        # 1. Let label be the StringValue of LabelIdentifier.
+        # 2. Return Completion { [[Type]]: continue, [[Value]]: empty, [[Target]]: label }.
+        return Completion(CompletionType.CONTINUE, Empty.EMPTY, self.LabelIdentifier.StringValue())
+
+###############################################################################################################################
 class PN_CoverCallExpressionAndAsyncArrowHead(ParseNode):
     def __init__(self, context, p):
         super().__init__('CoverCallExpressionAndAsyncArrowHead', p)
@@ -10650,6 +10705,23 @@ class Ecma262Parser(Parser):
     @_('MemberExpression Arguments')
     def CoverCallExpressionAndAsyncArrowHead(self, p):
         return PN_CoverCallExpressionAndAsyncArrowHead_MemberExpression_Arguments(self.context, p)
+    ########################################################################################################################
+
+    ########################################################################################################################
+    # 13.8 The continue statement
+    #
+    # Syntax
+    #
+    # ContinueStatement[Yield, Await] :
+    #               continue ;
+    #               continue [no LineTerminator here] LabelIdentifier[?Yield, ?Await] ;
+    #
+    @_('CONTINUE SEMICOLON')
+    def ContinueStatement(self, p):
+        return PN_ContinueStatement_CONTINUE_SEMICOLON(self.context, p)
+    @_('CONTINUE LabelIdentifier SEMICOLON')
+    def ContinueStatement(self, p):
+        return PN_ContinueStatement_CONTINUE_LabelIdentifier_SEMICOLON(self.context, p)
     ########################################################################################################################
 
     # LPAREN_  ---   ( [lookahead ∉ { let [ }]
