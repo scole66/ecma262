@@ -23,8 +23,7 @@ def test_reference_repr_02():
     assert 'S' not in val
 
 def test_reference_repr_03():
-    ref = Reference('base', 'super', False)
-    ref.this_value = 67
+    ref = SuperReference('base', 'super', False, 67)
     val = repr(ref)
     assert val.startswith('SuperReference(')
     assert 'thisValue=67' in val

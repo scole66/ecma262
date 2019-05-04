@@ -1029,9 +1029,13 @@ class Reference:
         self.name = name
         self.strict = strict
     def __repr__(self):
-        if hasattr(self, 'this_value'):
-            return f'SuperReference({"S " if self.strict else ""}{self.name!r}, base={self.base!r}, thisValue={self.this_value!r})'
         return f'Reference({"S " if self.strict else ""}{self.name!r}, base={self.base!r})'
+class SuperReference(Reference):
+    def __init__(self, base, name, strict, this_value):
+        super().__init__(base, name, strict)
+        self.this_value = this_value
+    def __repr__(self):
+        return f'SuperReference({"S " if self.strict else ""}{self.name!r}, base={self.base!r}, thisValue={self.this_value!r})'
 
 # 6.2.4.1 GetBase ( V )
 def GetBase(value):
