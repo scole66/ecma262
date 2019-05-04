@@ -7151,9 +7151,7 @@ class PN_CoverParenthesizedExpressionAndArrowParameterList(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('CoverParenthesizedExpressionAndArrowParameterList', p)
     def CoveredParenthesizedExpression(self):
-        if hasattr(self, 'covered_production'):
-            return self.covered_production
-        return None
+        return getattr(self, 'covered_production', None)
 class PN_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_RPAREN(PN_CoverParenthesizedExpressionAndArrowParameterList):
     pass
 class PN_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_COMMA_RPAREN(PN_CoverParenthesizedExpressionAndArrowParameterList):
@@ -8341,6 +8339,11 @@ class PN_ShiftExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('ShiftExpression', p)
 class PN_ShiftExpression_S_op_A(PN_ShiftExpression):
+    @property
+    def lval_is_signed(self):
+        raise NotImplementedError('Abstract Class should not be instantiated')
+    def operate(self, lnum, shiftcount):
+        raise NotImplementedError('Abstract Class should not be instantiated')
     # 12.9.1 Static Semantics: IsFunctionDefinition
     def IsFunctionDefinition(self):
         # 1. Return false.
@@ -8417,6 +8420,8 @@ class PN_RelationalExpression(ParseNode):
 class PN_RelationalExpression_ShiftExpression(PN_RelationalExpression):
     pass # Nothing more for the pass-thru production
 class PN_RelationalExpression_R_op_S(PN_RelationalExpression):
+    def operate(self, lval, rval):
+        raise NotImplementedError('Abstract Class should not be instantiated')
     # 12.10.1 Static Semantics: IsFunctionDefinition
     def IsFunctionDefinition(self):
         # 1. Return false.
@@ -8550,6 +8555,8 @@ class PN_EqualityExpression(ParseNode):
 class PN_EqualityExpression_RelationalExpression(PN_EqualityExpression):
     pass # Nothing extra for the pass-thru case
 class PN_EqualityExpression_E_op_R(PN_EqualityExpression):
+    def operation(self, lval, rval):
+        raise NotImplementedError('Abstract Class should not be instantiated')
     # 12.11.1 Static Semantics: IsFunctionDefinition
     def IsFunctionDefinition(self):
         # 1. Return false.
@@ -8623,6 +8630,8 @@ class PN_EqualityExpression_EqualityExpression_BANGEQEQ_RelationalExpression(PN_
 ###################################################################################################################################################################################################################################################
 # 12.12 Binary Bitwise Operators
 class PN_BitwiseExpression(ParseNode):
+    def operate(self, lnum, rnum):
+        raise NotImplementedError('Abstract Class should not be instantiated')
     # 12.12.1 Static Semantics: IsFunctionDefinition
     def IsFunctionDefinition(self):
         # 1. Return false.
@@ -9616,6 +9625,9 @@ class PN_BindingList_BindingList_COMMA_LexicalBinding(PN_BindingList):
 class PN_LexicalBinding(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('LexicalBinding', p)
+    @property
+    def BindingIdentifier(self):
+        raise NotImplementedError('Abstract classes cannot be instantiated')
     def BoundNames(self):
         # 13.3.1.2 Static Semantics: BoundNames
         #           LexicalBinding : BindingIdentifier Initializer
@@ -9653,6 +9665,9 @@ class PN_LexicalBinding_BindingIdentifier_Initializer(PN_LexicalBinding):
                 SetFunctionName(value, bindingId)
         return InitializeReferencedBinding(lhs, value)
 class PN_LexicalBinding_BindingIdentifier(PN_LexicalBinding):
+    def __init__(self, ctx, p):
+        super().__init__(ctx, p)
+        self.parent_declaration = None # Set by parent parse node
     @property
     def BindingIdentifier(self):
         return self.children[0]
