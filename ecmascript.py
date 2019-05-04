@@ -7642,7 +7642,7 @@ class PN_ArgumentList_ArgumentList_COMMA_DOTDOTDOT_AssignmentExpression(PN_Argum
             if not ok:
                 return nxt
             if not nxt:
-                return prededingArgs
+                return precedingArgs
             nextArg, ok = ec(IteratorValue(nxt))
             if not ok:
                 return nextArg
