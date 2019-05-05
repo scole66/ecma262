@@ -2549,6 +2549,7 @@ def CreateArrayFromList(elements):
         assert status
     return array
 
+# ------------------------------------ 𝟕.𝟑.𝟏𝟖 𝑰𝒏𝒗𝒐𝒌𝒆 ( 𝑽, 𝑷 [ , 𝒂𝒓𝒈𝒖𝒎𝒆𝒏𝒕𝒔𝑳𝒊𝒔𝒕 ] ) ------------------------------------
 # 7.3.18 Invoke ( V, P [ , argumentsList ] )
 def Invoke(v, p, arguments_list=[]):
     # The abstract operation Invoke is used to call a method property of an ECMAScript language value. The operation is
