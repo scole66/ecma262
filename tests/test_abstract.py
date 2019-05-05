@@ -923,3 +923,17 @@ def test_AbstractEqualityComparison_06(obj, mocker):
     mocker.patch('ecmascript.ToPrimitive', side_effect=lambda a: ThrowCompletion('test'))
     res = AbstractEqualityComparison(99, obj)
     assert res == Completion(THROW, 'test', None)
+
+# 7.3.18 Invoke ( V, P [ , argumentsList ] )
+def test_Invoke_01(realm):
+    # Something simple. ToString on a number perhaps.
+    res = Invoke(67, 'toString')
+    assert res == Completion(NORMAL, '67', None)
+
+def test_Invoke_02(realm):
+    # When GetV throws, we pass the exception along.
+    res = Invoke(None, 'toString')
+    assert isinstance(res, Completion)
+    assert res.ctype == THROW
+    assert res.target is None
+    assert nc(ToString(res.value)).startswith('TypeError: ')
