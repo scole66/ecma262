@@ -108,10 +108,11 @@ def cleanup():
     ("y=''; for (x=0; x<10; x++) { y += x; }", '0123456789'),
     ("var mystr=''; for (var x=0, y=0; x<15; x++,y--) {if (x%2) {mystr += x;} else {mystr += y;}}; mystr;", '01-23-45-67-89-1011-1213-14'),
     ('String.fromCharCode(65, 66, 67);', 'ABC'),
+    ("for (i=0, m=''; i<23; i++){ if (i%2 == 0) { continue; }; m += i + '-'; };", '1-3-5-7-9-11-13-15-17-19-21-'),
 ])
 def test_scripts_01(cleanup, script, result):
     rv = RunJobs(scripts=[script])
-    assert rv == Completion(NORMAL, result, None)
+    assert rv == result
 
 @pytest.mark.parametrize('script', [
     'NaN + 3;',
@@ -122,6 +123,4 @@ def test_scripts_01(cleanup, script, result):
 def test_scripts_02(cleanup, script):
     # Check for those expressions that return NaN.
     rv = RunJobs(scripts=[script])
-    assert rv.ctype == NORMAL
-    assert rv.target is None
-    assert math.isnan(rv.value)
+    assert math.isnan(rv)

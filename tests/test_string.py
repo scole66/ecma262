@@ -1,8 +1,6 @@
 import pytest
 
 import ecmascript as e
-NORMAL = e.CompletionType.NORMAL
-THROW = e.CompletionType.THROW
 
 def test_StringObjectInit_01(realm):
     proto = realm.intrinsics['%ObjectPrototype%']
@@ -10,8 +8,8 @@ def test_StringObjectInit_01(realm):
     str = e.StringObject('test value', proto)
 
     assert e.isObject(str)
-    assert e.nc(str.IsExtensible())
-    assert e.nc(str.GetPrototypeOf()) == proto
+    assert str.IsExtensible()
+    assert str.GetPrototypeOf() == proto
     assert f'{str!r}' == "String('test value')"
 
 def test_StringCreate_01(realm):
@@ -19,33 +17,30 @@ def test_StringCreate_01(realm):
 
     res = e.StringCreate('test value', proto)
 
-    assert isinstance(res, e.Completion)
-    assert res.ctype == NORMAL
-    assert res.target is None
-    assert e.isObject(res.value)
-    assert isinstance(res.value, e.StringObject)
-    assert hasattr(res.value, 'StringData')
-    assert res.value.StringData == 'test value'
+    assert e.isObject(res)
+    assert isinstance(res, e.StringObject)
+    assert hasattr(res, 'StringData')
+    assert res.StringData == 'test value'
 
 @pytest.mark.parametrize('inp', [e.wks_search, '000003', '23.5', '-0', '-10', '100000'])
 def test_StringGetOwnProperty_01(realm, inp):
     # All the many ways this returns None...
     proto = realm.intrinsics['%ObjectPrototype%']
-    str = e.nc(e.StringCreate('test_value', proto))
+    str = e.StringCreate('test_value', proto)
 
     desc = e.StringGetOwnProperty(str, inp)
-    assert desc == e.Completion(NORMAL, None, None)
+    assert desc is None
 
 def test_StringGetOwnProperty_02(realm):
     # Check the props for the character positions
     proto = realm.intrinsics['%ObjectPrototype%']
     test_str = 'I am a test string.'
-    str = e.nc(e.StringCreate(test_str, proto))
+    str = e.StringCreate(test_str, proto)
 
     for idx, ch in enumerate(test_str):
-        desc = e.StringGetOwnProperty(str, e.nc(e.ToString(idx)))
-        result = (desc.ctype, desc.value.value, desc.value.writable, desc.value.enumerable, desc.value.configurable, desc.target)
-        expected = (NORMAL, ch, False, True, False, None)
+        desc = e.StringGetOwnProperty(str, e.ToString(idx))
+        result = (desc.value, desc.writable, desc.enumerable, desc.configurable)
+        expected = (ch, False, True, False)
         assert result == expected
 
 @pytest.mark.parametrize('inp, expected', [
@@ -58,15 +53,12 @@ def test_StringGetOwnPropertyMethod_01(realm, inp, expected):
     str = e.StringObject('test value', proto)
 
     res = str.GetOwnProperty(inp)
-    assert isinstance(res, e.Completion)
 
     if expected is None:
-        assert res == e.Completion(NORMAL, None, None)
+        assert res is None
     else:
-        assert res.ctype == NORMAL
-        assert res.target is None
-        assert isinstance(res.value, e.PropertyDescriptor)
-        assert res.value.value == expected
+        assert isinstance(res, e.PropertyDescriptor)
+        assert res.value == expected
 
 @pytest.mark.parametrize('inp, expected', [
     ('', ['length']),
@@ -98,7 +90,7 @@ def test_CreateStringConstructor_01(realm):
     sc = realm.intrinsics['%String%']
 
     # Check the prototype property. (Not the [[Prototype]] property.)
-    p = e.nc(sc.GetOwnProperty('prototype'))
+    p = sc.GetOwnProperty('prototype')
     assert p.value == realm.intrinsics['%StringPrototype%']
     assert p.writable == False
     assert p.enumerable == False
@@ -112,14 +104,14 @@ def test_CreateStringConstructor_01(realm):
 def test_CreateStringConstructor_02(realm, fname, fcn, length):
     sc = realm.intrinsics['%String%']
     # Check for the constructor functions
-    p = e.nc(sc.GetOwnProperty(fname))
+    p = sc.GetOwnProperty(fname)
     assert p is not None
     assert p.configurable == True
     assert p.writable == True
     assert p.enumerable == False
     assert isinstance(p.value, e.BuiltinFunction)
     assert p.value.steps == getattr(e, fcn)
-    assert e.nc(e.Get(p.value, 'length')) == length
+    assert e.Get(p.value, 'length') == length
 
 def test_CreateStringConstructor_03(realm):
     # The constructor's [[Prototype]] object should be %FunctionPrototype%
@@ -130,31 +122,27 @@ def test_CreateStringConstructor_03(realm):
 def test_String_fromCharCode_01(realm):
     # Calling fromCharCode with no args should return the empty string
     res = e.String_fromCharCode(None, None)
-    assert res == e.Completion(NORMAL, '', None)
+    assert res == ''
 
 def test_String_fromCharCode_02(realm):
     # Calling fromCharCode with actual args should give us back a string
     res = e.String_fromCharCode(None, None, 65, 66, 67, 68)
-    assert res == e.Completion(NORMAL, 'ABCD', None)
+    assert res == 'ABCD'
 
 def test_String_fromCharCode_03(realm):
-    res = e.String_fromCharCode(None, None, 65, e.wks_search, 66)
-    assert isinstance(res, e.Completion)
-    assert res.ctype == THROW
-    assert res.target is None
-    assert e.nc(e.ToString(res.value)).startswith('TypeError: ')
+    with pytest.raises(e.ESTypeError):
+        e.String_fromCharCode(None, None, 65, e.wks_search, 66)
 
 # 21.1.2.2 String.fromCodePoint ( ...codePoints )
 def test_String_fromCodePoint_01(realm):
     # Calling with no args gets the empty string
     res = e.String_fromCodePoint(None, None)
-    assert res == e.Completion(NORMAL, '', None)
+    assert res == ''
 
 def test_String_fromCodePoint_02(realm):
     # Actual args gets a string with content, and might get UTF-16 encoded pairs
     res = e.String_fromCodePoint(None, None, 65, 0x10232, 67, 68)
-
-    assert res == e.Completion(NORMAL, 'A\ud800\ude32CD', None)
+    assert res == 'A\ud800\ude32CD'
 
 @pytest.mark.parametrize('val, errortype', [
     (e.wks_search, 'TypeError'),
@@ -164,11 +152,8 @@ def test_String_fromCodePoint_02(realm):
 ])
 def test_String_fromCodePoint_04(realm, val, errortype):
     # Error condition 2: code point isn't an integer
-    res = e.String_fromCodePoint(None, None, val)
-    assert isinstance(res, e.Completion)
-    assert res.ctype == THROW
-    assert res.target is None
-    assert e.nc(e.ToString(res.value)).startswith(f'{errortype}: ')
+    with pytest.raises(e.ESError, match=errortype):
+        e.String_fromCodePoint(None, None, val)
 
 # 21.1.3 Properties of the String Prototype Object
 def test_CreateStringPrototype_01(realm):
@@ -181,12 +166,12 @@ def test_CreateStringPrototype_01(realm):
 
 def test_CreateStringPrototype_02(realm):
     sp = realm.intrinsics['%StringPrototype%']
-    desc = e.nc(sp.GetOwnProperty('length'))
+    desc = sp.GetOwnProperty('length')
     assert (desc.value, desc.writable, desc.enumerable, desc.configurable) == (0, False, False, False)
 
 def test_CreateStringPrototype_03(realm):
     sp = realm.intrinsics['%StringPrototype%']
-    desc = e.nc(sp.GetOwnProperty('constructor'))
+    desc = sp.GetOwnProperty('constructor')
     assert (desc.value, desc.writable, desc.enumerable, desc.configurable) == (realm.intrinsics['%String%'], True, False, True)
 
 @pytest.mark.parametrize('fname, fcn, length', [
@@ -222,39 +207,33 @@ def test_CreateStringPrototype_03(realm):
 def test_CreateStringPrototype_04(realm, fname, fcn, length):
     sp = realm.intrinsics['%StringPrototype%']
     # Check for the prototype functions
-    p = e.nc(sp.GetOwnProperty(fname))
+    p = sp.GetOwnProperty(fname)
     assert p is not None
     assert p.configurable == True
     assert p.writable == True
     assert p.enumerable == False
     assert isinstance(p.value, e.BuiltinFunction)
     assert p.value.steps == getattr(e, fcn)
-    assert e.nc(e.Get(p.value, 'length')) == length
+    assert e.Get(p.value, 'length') == length
 
 def test_thisStringValue_01(realm):
     # String values just come back
     res = e.thisStringValue('just come back')
-    assert res == e.Completion(NORMAL, 'just come back', None)
+    assert res == 'just come back'
 
 def test_thisStringValue_02(realm):
     # String objects just hand over their string data.
-    mystring = e.nc(e.StringCreate('object string', realm.intrinsics['%StringPrototype%']))
+    mystring = e.StringCreate('object string', realm.intrinsics['%StringPrototype%'])
     res = e.thisStringValue(mystring)
-    assert res == e.Completion(NORMAL, 'object string', None)
+    assert res == 'object string'
 
 def test_thisStringValue_03(realm):
     # Non-string values throw a type error
-    res = e.thisStringValue(67)
-    assert isinstance(res, e.Completion)
-    assert res.ctype == THROW
-    assert res.target is None
-    assert e.nc(e.ToString(res.value)).startswith('TypeError: ')
+    with pytest.raises(e.ESTypeError):
+        e.thisStringValue(67)
 
 def test_thisStringValue_04(realm):
     # Non-string object throws a type errror
     obj = e.ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
-    res = e.thisStringValue(obj)
-    assert isinstance(res, e.Completion)
-    assert res.ctype == THROW
-    assert res.target is None
-    assert e.nc(e.ToString(res.value)).startswith('TypeError: ')
+    with pytest.raises(e.ESTypeError):
+        e.thisStringValue(obj)

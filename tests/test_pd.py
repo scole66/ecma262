@@ -1,10 +1,8 @@
+# pylint: disable=unused-wildcard-import
 import pytest
 
 import ecmascript    # We need to do the import for the mocker plugin to work
 from ecmascript import *
-
-NORMAL = CompletionType.NORMAL
-THROW = CompletionType.THROW
 
 @pytest.fixture
 def obj(realm):
@@ -261,35 +259,33 @@ def test_FromPropertyDescriptor_01():
 def test_FromPropertyDescriptor_02(realm):
     res = FromPropertyDescriptor(PropertyDescriptor(value=777, writable=True, enumerable=False, configurable=True))
     assert isObject(res)
-    assert nc(HasOwnProperty(res, 'value'))
-    assert nc(HasOwnProperty(res, 'writable'))
-    assert nc(HasOwnProperty(res, 'enumerable'))
-    assert nc(HasOwnProperty(res, 'configurable'))
-    assert not nc(HasOwnProperty(res, 'set'))
-    assert not nc(HasOwnProperty(res, 'get'))
-    assert nc(Get(res, 'value')) == 777
-    assert nc(Get(res, 'writable')) == True
-    assert nc(Get(res, 'enumerable')) == False
-    assert nc(Get(res, 'configurable')) == True
+    assert HasOwnProperty(res, 'value')
+    assert HasOwnProperty(res, 'writable')
+    assert HasOwnProperty(res, 'enumerable')
+    assert HasOwnProperty(res, 'configurable')
+    assert not HasOwnProperty(res, 'set')
+    assert not HasOwnProperty(res, 'get')
+    assert Get(res, 'value') == 777
+    assert Get(res, 'writable') == True
+    assert Get(res, 'enumerable') == False
+    assert Get(res, 'configurable') == True
 
 def test_FromPropertyDescriptor_03(realm):
     res = FromPropertyDescriptor(PropertyDescriptor(Set=None, Get=None))
     assert isObject(res)
-    assert not nc(HasOwnProperty(res, 'value'))
-    assert not nc(HasOwnProperty(res, 'writable'))
-    assert not nc(HasOwnProperty(res, 'enumerable'))
-    assert not nc(HasOwnProperty(res, 'configurable'))
-    assert nc(HasOwnProperty(res, 'set'))
-    assert nc(HasOwnProperty(res, 'get'))
-    assert nc(Get(res, 'set')) is None
-    assert nc(Get(res, 'get')) is None
+    assert not HasOwnProperty(res, 'value')
+    assert not HasOwnProperty(res, 'writable')
+    assert not HasOwnProperty(res, 'enumerable')
+    assert not HasOwnProperty(res, 'configurable')
+    assert HasOwnProperty(res, 'set')
+    assert HasOwnProperty(res, 'get')
+    assert Get(res, 'set') is None
+    assert Get(res, 'get') is None
 
 def test_ToPropertyDescriptor_01(realm):
     # Can't make a descriptor out of a non-object.
-    res = ToPropertyDescriptor(88)
-    assert res.ctype == THROW
-    assert nc(ToString(res.value)).startswith('TypeError')
-    assert res.target is None
+    with pytest.raises(ESTypeError):
+        ToPropertyDescriptor(88)
 
 def test_ToPropertyDescriptor_02(obj):
     # Make a data descriptor:
@@ -299,19 +295,17 @@ def test_ToPropertyDescriptor_02(obj):
     Set(obj, 'configurable', True, False)
 
     res = ToPropertyDescriptor(obj)
-    assert res.ctype == NORMAL
-    assert res.target is None
-    assert (res.value.value, res.value.writable, res.value.enumerable, res.value.configurable) == (100, True, True, True)
-    assert not hasattr(res.value, 'Get')
-    assert not hasattr(res.value, 'Set')
+    assert (res.value, res.writable, res.enumerable, res.configurable) == (100, True, True, True)
+    assert not hasattr(res, 'Get')
+    assert not hasattr(res, 'Set')
 
 def test_ToPropertyDescriptor_03(obj):
     # Make an accessor descriptor
     def getter(this_value, new_target, propkey, receiver):
-        return NormalCompletion(f'I got asked for a property named {propkey!r}.')
+        return f'I got asked for a property named {propkey!r}.'
     def setter(this_value, new_target, propkey, value, receiver):
-        print(f'Got asked to store {nc(ToString(value))} in property {propkey!r}')
-        return NormalCompletion(True)
+        print(f'Got asked to store {ToString(value)} in property {propkey!r}')
+        return True
     getter_fcn = CreateBuiltinFunction(getter, [])
     setter_fcn = CreateBuiltinFunction(setter, [])
 
@@ -321,47 +315,17 @@ def test_ToPropertyDescriptor_03(obj):
     Set(obj, 'get', getter_fcn, False)
 
     res = ToPropertyDescriptor(obj)
-    assert res.ctype == NORMAL
-    assert res.target is None
-    assert (res.value.Get, res.value.Set, res.value.enumerable, res.value.configurable) == (getter_fcn, setter_fcn, True, True)
-    assert not hasattr(res.value, 'value')
-    assert not hasattr(res.value, 'writable')
-
-@pytest.mark.parametrize('field', ['enumerable', 'value', 'writable', 'configurable', 'get', 'set'])
-def test_ToPropertyDescriptor_04(mocker, obj, field):
-    # Errors thrown from HasProperty. We use the "mocker" plugin to enable thowing at just the right time.
-    def gen_patch_fcn(field):
-        return lambda a, b: Completion(THROW, 'test throw', None) if b == field else False
-    mocker.patch('ecmascript.HasProperty', side_effect=gen_patch_fcn(field))
-
-    res = ToPropertyDescriptor(obj)
-    assert res == Completion(THROW, 'test throw', None)
-
-@pytest.mark.parametrize('field', ['enumerable', 'value', 'writable', 'configurable', 'get', 'set'])
-def test_ToPropertyDescriptor_05(mocker, obj, field):
-    # Errors thrown from Get. We use the "mocker" plugin to enable thowing at just the right time.
-    def gen_patch_fcn(field):
-        return lambda a, b: Completion(THROW, 'test throw', None) if b == field else None
-    mocker.patch('ecmascript.Get', side_effect=gen_patch_fcn(field))
-
-    Set(obj, 'value', 10, False)
-    Set(obj, 'writable', True, False)
-    Set(obj, 'enumerable', True, False)
-    Set(obj, 'configurable', True, False)
-    Set(obj, 'get', None, False)
-    Set(obj, 'set', None, False)
-    res = ToPropertyDescriptor(obj)
-    assert res == Completion(THROW, 'test throw', None)
+    assert (res.Get, res.Set, res.enumerable, res.configurable) == (getter_fcn, setter_fcn, True, True)
+    assert not hasattr(res, 'value')
+    assert not hasattr(res, 'writable')
 
 @pytest.mark.parametrize('field', ['get', 'set'])
 def test_ToPropertyDescriptor_06(obj, field):
     # When the getter/setter is something that's not callable.
     Set(obj, field, 102, False)
 
-    res = ToPropertyDescriptor(obj)
-    assert res.ctype == THROW
-    assert nc(ToString(res.value)).startswith('TypeError')
-    assert res.target is None
+    with pytest.raises(ESTypeError):
+        ToPropertyDescriptor(obj)
 
 @pytest.mark.parametrize('fields',
                          [ ['get', 'value'],
@@ -378,7 +342,5 @@ def test_ToPropertyDescriptor_17(obj, fields):
     # When there's an accessor/declarative mismatch.
     for f in fields:
         Set(obj, f, None, False)
-    res = ToPropertyDescriptor(obj)
-    assert res.ctype == THROW
-    assert nc(ToString(res.value)).startswith('TypeError')
-    assert res.target is None
+    with pytest.raises(ESTypeError):
+        ToPropertyDescriptor(obj)
