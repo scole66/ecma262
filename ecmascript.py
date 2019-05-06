@@ -1100,7 +1100,7 @@ def GetValue(value):
     base = GetBase(value)
     # 4. If IsUnresolvableReference(V) is true, throw a ReferenceError exception.
     if IsUnresolvableReference(value):
-        return ThrowCompletion(CreateReferenceError())
+        return ThrowCompletion(CreateReferenceError(f'\'{GetReferencedName(value)}\': unknown'))
     # 5. If IsPropertyReference(V) is true, then
     if IsPropertyReference(value):
         # a. If HasPrimitiveBase(V) is true, then
@@ -4393,7 +4393,7 @@ def RunJobs(scripts=[], modules=[]):
         result, ok = ec((next_pending.job)(*next_pending.arguments))
         # l. If result is an abrupt completion, perform HostReportErrors(« result.[[Value]] »).
         if not ok:
-            HostReportErrors([result])
+            HostReportErrors([result.value])
     return NormalCompletion(result)
 
 # 8.7 Agents
@@ -6856,7 +6856,7 @@ class ParseNode:
         # Subclasses need to override this, or we'll throw an AttributeError when we hit a terminal.
         return self.defer_target().evaluate()
 
-######################################################################################################################
+#######################################################################################################################
 #
 #  d888    .d8888b.       d888       8888888      888                   888    d8b  .d888 d8b
 # d8888   d88P  Y88b     d8888         888        888                   888    Y8P d88P"  Y8P
@@ -6867,7 +6867,7 @@ class ParseNode:
 #   888   888"       d8b   888         888   Y88b 888 Y8b.     888  888 Y88b.  888 888    888 Y8b.     888          X88
 # 8888888 888888888  Y8P 8888888     8888888  "Y88888  "Y8888  888  888  "Y888 888 888    888  "Y8888  888      88888P'
 #
-######################################################################################################################
+#######################################################################################################################
 class PN_IdentifierReference(ParseNode):
     def __init__(self, ctx, p, yield_=False, await_=False):
         super().__init__('IdentifierReference', p)
@@ -7226,31 +7226,156 @@ class PN_ParenthesizedExpression_LPAREN_Expression_RPAREN(PN_ParenthesizedExpres
         # this is so that operators such as delete and typeof may be applied to parenthesized expressions.
         return self.Expression.evaluate()
 
+# ------------------------------------ 𝟏𝟐.𝟐.𝟒 𝑳𝒊𝒕𝒆𝒓𝒂𝒍𝒔 ------------------------------------
+class PN_Literal(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('Literal', p)
+class PN_Literal_NULL(PN_Literal):
+    def evaluate(self):
+        return JSNull.NULL
+class PN_Literal_BOOLEAN(PN_Literal):
+    def evaluate(self):
+        return self.children[0].value == 'true'
+class PN_Literal_NUMERIC(PN_Literal):
+    def evaluate(self):
+        return self.children[0].value
+class PN_Literal_STRING(PN_Literal):
+    def evaluate(self):
+        return self.children[0].value
+
+# ------------------------------------ 𝟏𝟐.𝟐.𝟓 𝑨𝒓𝒓𝒂𝒚 𝑰𝒏𝒊𝒕𝒊𝒂𝒍𝒊𝒛𝒆𝒓 ------------------------------------
+class PN_Elision(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('Elision', p)
+class PN_Elision_COMMA(PN_Elision):
+    def ElisionWidth(self):
+        # 12.2.5.1 Static Semantics: ElisionWidth
+        #           Elision : ,
+        # 1. Return the numeric value 1.
+        return 1
+class PN_Elision_Elision_COMMA(PN_Elision):
+    @property
+    def Elision(self):
+        return self.children[0]
+    def ElisionWidth(self):
+        # 12.2.5.1 Static Semantics: ElisionWidth
+        #           Elision : Elision ,
+        # 1. Let preceding be the ElisionWidth of Elision.
+        # 2. Return preceding+1.
+        return 1 + self.Elision.ElisionWidth()
+
+# ------------------------------------ 𝟏𝟐.𝟐.𝟔 𝑶𝒃𝒋𝒆𝒄𝒕 𝑰𝒏𝒊𝒕𝒊𝒂𝒍𝒊𝒛𝒆𝒓 ------------------------------------
+class PN_PropertyName(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('PropertyName', p)
+class PN_PropertyName_LiteralPropertyName(PN_PropertyName):
+    @property
+    def LiteralPropertyName(self):
+        return self.children[0]
+    def ComputedPropertyContains(self, symbol):
+        # 12.2.6.2 Static Semantics: ComputedPropertyContains
+        #   With parameter symbol.
+        #           PropertyName : LiteralPropertyName
+        # 1. Return false.
+        return False
+    def IsComputedPropertyName(self):
+        # 12.2.6.4 Static Semantics: IsComputedPropertyKey
+        #           PropertyName : LiteralPropertyName
+        # 1. Return false.
+        return False
+class PN_PropertyName_ComputedPropertyName(PN_PropertyName):
+    @property
+    def ComputedPropertyName(self):
+        return self.children[0]
+    def ComputedPropertyContains(self, symbol):
+        # 12.2.6.2 Static Semantics: ComputedPropertyContains
+        #   With parameter symbol.
+        #           PropertyName : ComputedPropertyName
+        # 1. Return the result of ComputedPropertyName Contains symbol.
+        return self.ComputedPropertyName.Contains(symbol)
+    def IsComputedPropertyName(self):
+        # 12.2.6.4 Static Semantics: IsComputedPropertyKey
+        #           PropertyName : ComputedPropertyName
+        # 1. Return true.
+        return True
+
+class PN_LiteralPropertyName(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('LiteralProperty', p)
+class PN_LiteralPropertyName_IdentifierName(PN_LiteralPropertyName):
+    @property
+    def IdentifierName(self):
+        return self.children[0]
+    def Contains(self, symbol):
+        # 12.2.6.3 Static Semantics: Contains
+        #   With parameter symbol.
+        #           LiteralPropertyName : IdentifierName
+        # 1. If symbol is a ReservedWord, return false.
+        # 2. If symbol is an Identifier and StringValue of symbol is the same value as the StringValue of
+        #    IdentifierName, return true.
+        # 3. Return false.
+        return symbol.name == 'Identifier' and symbol.StringValue() == self.IdentifierName.StringValue()
+    def PropName(self):
+        # 12.2.6.5 Static Semantics: PropName
+        #           LiteralPropertyName : IdentifierName
+        # 1. Return StringValue of IdentifierName.
+        return self.IdentifierName.StringValue()
+    def evaluate(self):
+        return self.PropName()
+class PN_LiteralPropertyName_StringLiteral(PN_LiteralPropertyName):
+    @property
+    def StringLiteral(self):
+        return self.children[0]
+    def PropName(self):
+        # 12.2.6.5 Static Semantics: PropName
+        #           LiteralPropertyName : StringLiteral
+        # 1. Return the String value whose code units are the SV of the StringLiteral.
+        return self.StringLiteral.value
+    def evaluate(self):
+        return self.PropName()
+class PN_LiteralPropertyName_NumericLiteral(PN_LiteralPropertyName):
+    @property
+    def NumericLiteral(self):
+        return self.children[0]
+    def PropName(self):
+        # 12.2.6.5 Static Semantics: PropName
+        #           LiteralPropertyName : StringLiteral
+        # 1. Let nbr be the result of forming the value of the NumericLiteral.
+        # 2. Return ! ToString(nbr).
+        return nc(ToString(self.NumericLiteral.value))
+    def evaluate(self):
+        return self.PropName()
+
+class PN_ComputedPropertyName(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('ComputedPropertyName', p)
+class PN_ComputedPropertyName_LBRACKET_AssignmentExpression_RBRACKET(PN_ComputedPropertyName):
+    @property
+    def AssignmentExpression(self):
+        return self.children[1]
+    def PropName(self):
+        # 12.2.6.5 Static Semantics: PropName
+        #           ComputedPropertyName : [ AssignmentExpression ]
+        # 1. Return empty.
+        return Empty.EMPTY
+    def evaluate(self):
+        # 12.2.6.7 Runtime Semantics: Evaluation
+        #           ComputedPropertyName : [ AssignmentExpression ]
+        # 1. Let exprValue be the result of evaluating AssignmentExpression.
+        # 2. Let propName be ? GetValue(exprValue).
+        # 3. Return ? ToPropertyKey(propName).
+        exprValue = self.AssignmentExpression.evaluate()
+        propName, ok = ec(GetValue(exprValue))
+        if not ok:
+            return propName
+        return ToPropertyKey(propName)
+
 class PN_Initializer(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('Initializer', p)
 class PN_Initializer_EQUALS_AssignmentExpression(PN_Initializer):
     pass
-class PN_Literal_NULL(ParseNode):
-    def __init__(self, ctx, p):
-        super().__init__('Literal', p)
-    def evaluate(self):
-        return JSNull.NULL
-class PN_Literal_BOOLEAN(ParseNode):
-    def __init__(self, ctx, p):
-        super().__init__('Literal', p)
-    def evaluate(self):
-        return self.children[0].value == 'true'
-class PN_Literal_NUMERIC(ParseNode):
-    def __init__(self, ctx, p):
-        super().__init__('Literal', p)
-    def evaluate(self):
-        return self.children[0].value
-class PN_Literal_STRING(ParseNode):
-    def __init__(self, ctx, p):
-        super().__init__('Literal', p)
-    def evaluate(self):
-        return self.children[0].value
+
 ################################################################################################################################################################################################
 #
 #  d888    .d8888b.       .d8888b.      888                .d888 888           888    888                        888         .d8888b.  d8b      888
@@ -9225,6 +9350,13 @@ class PN_Statement_IfStatement(PN_Statement):
     pass
 class PN_Statement_BreakableStatement(PN_Statement):
     pass
+class PN_Statement_ContinueStatement(PN_Statement):
+    def ContainsUndefinedBreakTarget(self, labelSet):
+        return False
+    def VarDeclaredNames(self):
+        return []
+    def VarScopedDeclarations(self):
+        return []
 
 class PN_BreakableStatement(ParseNode):
     def __init__(self, ctx, p):
@@ -9299,6 +9431,25 @@ class PN_Declaration_LexicalDeclaration(PN_Declaration):
         #           Declaration : LexicalDeclaration
         # 1. Return LexicalDeclaration.
         return self.LexicalDeclaration
+class PN_Declaration_HoistableDeclaration(PN_Declaration):
+    @property
+    def HoistableDeclaration(self):
+        return self.children[0]
+
+class PN_HoistableDeclaration(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('HoistableDeclaration', p)
+class PN_HoistableDeclaration_FunctionDeclaration(PN_HoistableDeclaration):
+    @property
+    def FunctionDeclaration(self):
+        return self.children[0]
+    def DeclarationPart(self):
+        return self.FunctionDeclaration
+    #def evaluate(self):
+    #    # 13.1.8 Runtime Semantics: Evaluation
+    #    #           HoistableDeclaration : FunctionDeclaration
+    #    # 1. Return the result of evaluating FunctionDeclaration.
+    # wtf? This happens by default.
 ##########################################################################################################################
 #
 #  d888    .d8888b.       .d8888b.      888888b.   888                   888
@@ -9743,6 +9894,32 @@ class PN_LexicalBinding_BindingIdentifier(PN_LexicalBinding):
         # A static semantics rule ensures that this form of LexicalBinding never occurs in a const declaration.
         lhs = ResolveBinding(self.BindingIdentifier.StringValue())
         return InitializeReferencedBinding(lhs, None)
+class PN_LexicalBinding_BindingPattern_Initializer(PN_LexicalBinding):
+    @property
+    def BindingPattern(self):
+        return self.children[0]
+    @property
+    def Initializer(self):
+        return self.children[1]
+    def BoundNames(self):
+        # 13.3.1.2 Static Semantics: BoundNames
+        #           LexicalBinding : BindingPattern Initializer
+        # 1. Return the BoundNames of BindingPattern.
+        return self.BindingPattern.BoundNames()
+    def evaluate(self):
+        # 13.3.1.4 Runtime Semantics: Evaluation
+        #           LexicalBinding : BindingPattern Initializer
+        # 1. Let rhs be the result of evaluating Initializer.
+        # 2. Let value be ? GetValue(rhs).
+        # 3. Let env be the running execution context's LexicalEnvironment.
+        # 4. Return the result of performing BindingInitialization for BindingPattern using value and env as the
+        #    arguments.
+        rhs = self.Initializer.evaluate()
+        value, ok = ec(GetValue(rhs))
+        if not ok:
+            return value
+        env = surrounding_agent.running_ec.LexicalEnvironment
+        return self.BindingPattern.BindingInitialization(value, env)
 #######################################################################################################################
 #
 #  d888    .d8888b.       .d8888b.       .d8888b.      888     888                  d8b          888      888
@@ -9821,6 +9998,8 @@ class PN_VariableDeclarationList_VariableDeclarationList_COMMA_VariableDeclarati
         if not ok:
             return next
         return self.children[2].evaluate()
+
+# ------------------------------------ 𝑽𝒂𝒓𝒊𝒂𝒃𝒍𝒆𝑫𝒆𝒄𝒍𝒂𝒓𝒂𝒕𝒊𝒐𝒏 ------------------------------------
 class PN_VariableDeclaration(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('VariableDeclaration', p)
@@ -9831,12 +10010,17 @@ class PN_VariableDeclaration_BindingIdentifier(PN_VariableDeclaration):
         #   1. Return NormalCompletion(empty).
         return NormalCompletion(Empty.EMPTY)
 class PN_VariableDeclaration_BindingIdentifier_Initializer(PN_VariableDeclaration):
+    @property
+    def BindingIdentifier(self):
+        return self.children[0]
+    @property
+    def Initializer(self):
+        return self.children[1]
     def BoundNames(self):
         # 13.3.2.1 Static Semantics: BoundNames
         #   VariableDeclaration : BindingIdentifier Initializer
         #   1. Return the BoundNames of BindingIdentifier.
-        BindingIdentifier = self.children[0]
-        return BindingIdentifier.BoundNames()
+        return self.BindingIdentifier.BoundNames()
     def evaluate(self):
         # 13.3.2.4 Runtime Semantics: Evaluation
         #       VariableDeclaration : BindingIdentifier Initializer
@@ -9848,24 +10032,1098 @@ class PN_VariableDeclaration_BindingIdentifier_Initializer(PN_VariableDeclaratio
         #       a. Let hasNameProperty be ? HasOwnProperty(value, "name").
         #       b. If hasNameProperty is false, perform SetFunctionName(value, bindingId).
         #   6. Return ? PutValue(lhs, value).
-        BindingIdentifier = self.children[0]
-        Initializer = self.children[1]
-        bindingId = BindingIdentifier.StringValue()
+        bindingId = self.BindingIdentifier.StringValue()
         lhs, ok = ec(ResolveBinding(bindingId))
         if not ok:
             return lhs
-        rhs = Initializer.evaluate()
+        rhs = self.Initializer.evaluate()
         value, ok = ec(GetValue(rhs))
         if not ok:
             return value
-        if IsAnonymousFunctionDefinition(Initializer):
+        if IsAnonymousFunctionDefinition(self.Initializer):
             hasNameProperty, ok = ec(HasOwnProperty(value, 'name'))
             if not ok:
                 return hasNameProperty
             if not hasNameProperty:
                 SetFunctionName(value, bindingId)
         return PutValue(lhs, value)
+class PN_VariableDeclaration_BindingPattern_Initializer(PN_VariableDeclaration):
+    @property
+    def BindingPattern(self):
+        return self.children[0]
+    @property
+    def Initializer(self):
+        return self.children[1]
+    def BoundNames(self):
+        # 13.3.2.1 Static Semantics: BoundNames
+        # VariableDeclaration : BindingPattern Initializer
+        #       1. Return the BoundNames of BindingPattern.
+        return self.BindingPattern.BoundNames()
+    def evaluate(self):
+        # 13.3.2.4 Runtime Semantics: Evaluation
+        # VariableDeclaration : BindingPattern Initializer
+        #       1. Let rhs be the result of evaluating Initializer.
+        #       2. Let rval be ? GetValue(rhs).
+        #       3. Return the result of performing BindingInitialization for BindingPattern passing rval and undefined
+        #          as arguments.
+        rhs = self.Initializer.evaluate()
+        rval, ok = ec(GetValue(rhs))
+        if not ok:
+            return rval
+        return self.BindingPattern.BindingInitialization(rval, None)
+#######################################################################################################################################################################################################################################################################################################
+#
+#  d888    .d8888b.       .d8888b.       .d8888b.      8888888b.                    888                              888                     d8b                       888888b.   d8b               888 d8b                       8888888b.           888    888
+# d8888   d88P  Y88b     d88P  Y88b     d88P  Y88b     888  "Y88b                   888                              888                     Y8P                       888  "88b  Y8P               888 Y8P                       888   Y88b          888    888
+#   888        .d88P          .d88P          .d88P     888    888                   888                              888                                               888  .88P                    888                           888    888          888    888
+#   888       8888"          8888"          8888"      888    888  .d88b.  .d8888b  888888 888d888 888  888  .d8888b 888888 888  888 888d888 888 88888b.   .d88b.      8888888K.  888 88888b.   .d88888 888 88888b.   .d88b.      888   d88P  8888b.  888888 888888  .d88b.  888d888 88888b.  .d8888b
+#   888        "Y8b.          "Y8b.          "Y8b.     888    888 d8P  Y8b 88K      888    888P"   888  888 d88P"    888    888  888 888P"   888 888 "88b d88P"88b     888  "Y88b 888 888 "88b d88" 888 888 888 "88b d88P"88b     8888888P"      "88b 888    888    d8P  Y8b 888P"   888 "88b 88K
+#   888   888    888     888    888     888    888     888    888 88888888 "Y8888b. 888    888     888  888 888      888    888  888 888     888 888  888 888  888     888    888 888 888  888 888  888 888 888  888 888  888     888        .d888888 888    888    88888888 888     888  888 "Y8888b.
+#   888   Y88b  d88P d8b Y88b  d88P d8b Y88b  d88P     888  .d88P Y8b.          X88 Y88b.  888     Y88b 888 Y88b.    Y88b.  Y88b 888 888     888 888  888 Y88b 888     888   d88P 888 888  888 Y88b 888 888 888  888 Y88b 888     888        888  888 Y88b.  Y88b.  Y8b.     888     888  888      X88
+# 8888888  "Y8888P"  Y8P  "Y8888P"  Y8P  "Y8888P"      8888888P"   "Y8888   88888P'  "Y888 888      "Y88888  "Y8888P  "Y888  "Y88888 888     888 888  888  "Y88888     8888888P"  888 888  888  "Y88888 888 888  888  "Y88888     888        "Y888888  "Y888  "Y888  "Y8888  888     888  888  88888P'
+#                                                                                                                                                              888                                                        888
+#                                                                                                                                                         Y8b d88P                                                   Y8b d88P
+#                                                                                                                                                          "Y88P"                                                     "Y88P"
+#
+#######################################################################################################################################################################################################################################################################################################
+# ------------------------------------ 𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑷𝒂𝒕𝒕𝒆𝒓𝒏 ------------------------------------
+class PN_BindingPattern(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('BindingPattern', p)
+class PN_BindingPattern_ArrayBindingPattern(PN_BindingPattern):
+    # -------------------------------- 𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑷𝒂𝒕𝒕𝒆𝒓𝒏 : 𝑨𝒓𝒓𝒂𝒚𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑷𝒂𝒕𝒕𝒆𝒓𝒏 --------------------------------
+    @property
+    def ArrayBindingPattern(self):
+        return self.children[0]
+    def BindingInitialization(self, value, environment):
+        # 13.3.3.5 Runtime Semantics: BindingInitialization
+        #   With parameters value and environment.
+        #           BindingPattern : ArrayBindingPattern
+        #
+        # NOTE
+        # When undefined is passed for environment it indicates that a PutValue operation should be used to assign the
+        # initialization value. This is the case for formal parameter lists of non-strict functions. In that case the
+        # formal parameter bindings are preinitialized in order to deal with the possibility of multiple parameters
+        # with the same name.
+        #
+        # 1. Let iteratorRecord be ? GetIterator(value).
+        # 2. Let result be IteratorBindingInitialization for ArrayBindingPattern using iteratorRecord and environment as arguments.
+        # 3. If iteratorRecord.[[Done]] is false, return ? IteratorClose(iteratorRecord, result).
+        # 4. Return result.
+        iteratorRecord, ok = ec(GetIterator(value))
+        if not ok:
+            return iteratorRecord
+        result = self.ArrayBindingPattern.IteratorBindingInitialization(iteratorRecord, environment)
+        if not iteratorRecord.Done:
+            return IteratorClose(iteratorRecord, result)
+        return result
+class PN_BindingPattern_ObjectBindingPattern(PN_BindingPattern):
+    # -------------------------------- 𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑷𝒂𝒕𝒕𝒆𝒓𝒏 : 𝑶𝒃𝒋𝒆𝒄𝒕𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑷𝒂𝒕𝒕𝒆𝒓𝒏 --------------------------------
+    @property
+    def ObjectBindingPattern(self):
+        return self.children[0]
+    def BindingInitialization(self, value, environment):
+        # 13.3.3.5 Runtime Semantics: BindingInitialization
+        #   With parameters value and environment.
+        #           BindingPattern : ObjectBindingPattern
+        #
+        # NOTE
+        # When undefined is passed for environment it indicates that a PutValue operation should be used to assign the
+        # initialization value. This is the case for formal parameter lists of non-strict functions. In that case the
+        # formal parameter bindings are preinitialized in order to deal with the possibility of multiple parameters
+        # with the same name.
+        #
+        # 1. Perform ? RequireObjectCoercible(value).
+        # 2. Return the result of performing BindingInitialization for ObjectBindingPattern using value and environment
+        #    as arguments.
+        cr, ok = ec(RequireObjectCoercible(value))
+        if not ok:
+            return cr
+        return self.ObjectBindingPattern.BindingInitialization(value, environment)
 
+# ------------------------------------ 𝑶𝒃𝒋𝒆𝒄𝒕𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑷𝒂𝒕𝒕𝒆𝒓𝒏 ------------------------------------
+class PN_ObjectBindingPattern(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('ObjectBindingPattern', p)
+class PN_ObjectBindingPattern_LCURLY_RCURLY(PN_ObjectBindingPattern):
+    # -------------------------------- 𝑶𝒃𝒋𝒆𝒄𝒕𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑷𝒂𝒕𝒕𝒆𝒓𝒏 : { } --------------------------------
+    def BoundNames(self):
+        # 13.3.3.1 Static Semantics: BoundNames
+        #           ObjectBindingPattern : { }
+        # 1. Return a new empty List.
+        return []
+    def ContainsExpression(self):
+        # 13.3.3.2 Static Semantics: ContainsExpression
+        #           ObjectBindingPattern : { }
+        # 1. Return false.
+        return False
+    def BindingInitialization(self, value, environment):
+        # 13.3.3.5 Runtime Semantics: BindingInitialization
+        #   With parameters value and environment.
+        #           ObjectBindingPattern : { }
+        # 1. Return NormalCompletion(empty).
+        return NormalCompletion(Empty.EMPTY)
+class PN_ObjectBindingPattern_LCURLY_BindingRestProperty_RCURLY(PN_ObjectBindingPattern):
+    # -------------------------------- 𝑶𝒃𝒋𝒆𝒄𝒕𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑷𝒂𝒕𝒕𝒆𝒓𝒏 : { 𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑹𝒆𝒔𝒕𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚 } --------------------------------
+    @property
+    def BindingRestProperty(self):
+        return self.children[1]
+    def BindingInitialization(self, value, environment):
+        # 13.3.3.5 Runtime Semantics: BindingInitialization
+        #   With parameters value and environment.
+        #           ObjectBindingPattern : { BindingRestProperty }
+        # 1. Let excludedNames be a new empty List.
+        # 2. Return the result of performing RestBindingInitialization of BindingRestProperty with value, environment,
+        #    and excludedNames as the arguments.
+        return self.BindingRestProperty.RestBindingInitialization(value, environment, [])
+class PN_ObjectBindingPattern_LCURLY_BindingPropertyList_RCURLY(PN_ObjectBindingPattern):
+    # -------------------------------- 𝑶𝒃𝒋𝒆𝒄𝒕𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑷𝒂𝒕𝒕𝒆𝒓𝒏 : { 𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚𝑳𝒊𝒔𝒕 } --------------------------------
+    @property
+    def BindingPropertyList(self):
+        return self.children[1]
+    def BindingInitialization(self, value, environment):
+        # 13.3.3.5 Runtime Semantics: BindingInitialization
+        #   With parameters value and environment.
+        #           ObjectBindingPattern : { BindingPropertyList }
+        # 1. Perform ? PropertyBindingInitialization for BindingPropertyList using value and environment as the arguments.
+        # 2. Return NormalCompletion(empty).
+        cr, ok = ec(self.BindingPropertyList.PropertyBindingInitialization(value, environment))
+        if not ok:
+            return cr
+        return NormalCompletion(Empty.EMPTY)
+class PN_ObjectBindingPattern_LCURLY_BindingPropertyList_COMMA_RCURLY(PN_ObjectBindingPattern):
+    @property
+    def BindingPropertyList(self):
+        return self.children[1]
+    def BindingInitialization(self, value, environment):
+        # 13.3.3.5 Runtime Semantics: BindingInitialization
+        #   With parameters value and environment.
+        #           ObjectBindingPattern : { BindingPropertyList , }
+        # 1. Perform ? PropertyBindingInitialization for BindingPropertyList using value and environment as the arguments.
+        # 2. Return NormalCompletion(empty).
+        cr, ok = ec(self.BindingPropertyList.PropertyBindingInitialization(value, environment))
+        if not ok:
+            return cr
+        return NormalCompletion(Empty.EMPTY)
+class PN_ObjectBindingPattern_LCURLY_BindingPropertyList_COMMA_BindingRestProperty_RCURLY(PN_ObjectBindingPattern):
+    @property
+    def BindingPropertyList(self):
+        return self.children[1]
+    @property
+    def BindingRestProperty(self):
+        return self.children[3]
+    def BindingInitialization(self, value, environment):
+        # 13.3.3.5 Runtime Semantics: BindingInitialization
+        #   With parameters value and environment.
+        #           ObjectBindingPattern : { BindingPropertyList , BindingRestProperty }
+        # 1. Let excludedNames be the result of performing ? PropertyBindingInitialization of BindingPropertyList using
+        #    value and environment as arguments.
+        # 2. Return the result of performing RestBindingInitialization of BindingRestProperty with value, environment,
+        #    and excludedNames as the arguments.
+        excludedNames, ok = ec(self.BindingPropertyList.PropertyBindingInitialization(value, environment))
+        if not ok:
+            return excludedNames
+        return self.BindingRestProperty.RestBindingInitialization(value, environment, excludedNames)
+
+# ------------------------------------ 𝑨𝒓𝒓𝒂𝒚𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑷𝒂𝒕𝒕𝒆𝒓𝒏 ------------------------------------
+class PN_ArrayBindingPattern(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('ArrayBindingPattern', p)
+    @property
+    def BindingRestElement(self):
+        raise NotImplementedError('Abstract classes cannot be instantiated')
+    @property
+    def BindingElementList(self):
+        raise NotImplementedError('Abstract classes cannot be instantiated')
+    def BoundNames(self):
+        # 13.3.3.1 Static Semantics: BoundNames
+        #           ArrayBindingPattern : [ Elision ]
+        # 1. Return a new empty List.
+        #           ArrayBindingPattern : [ Elision BindingRestElement ]
+        # 1. Return the BoundNames of BindingRestElement.
+        #           ArrayBindingPattern : [ BindingElementList , Elision ]
+        # 1. Return the BoundNames of BindingElementList.
+        #           ArrayBindingPattern : [ BindingElementList , Elision BindingRestElement ]
+        # 1. Let names be BoundNames of BindingElementList.
+        # 2. Append to names the elements of BoundNames of BindingRestElement.
+        # 3. Return names.
+        class NoBoundNames:
+            def BoundNames(self):
+                return []
+        names = (self.BindingElementList or NoBoundNames()).BoundNames()
+        names.extend((self.BindingRestElement or NoBoundNames()).BoundNames())
+        return names
+    def ContainsExpression(self):
+        # 13.3.3.2 Static Semantics: ContainsExpression
+        #           ArrayBindingPattern : [ Elision ]
+        # 1. Return false.
+        #           ArrayBindingPattern : [ Elision BindingRestElement ]
+        # 1. Return ContainsExpression of BindingRestElement.
+        #           ArrayBindingPattern : [ BindingElementList , Elision ]
+        # 1. Return ContainsExpression of BindingElementList.
+        #           ArrayBindingPattern : [ BindingElementList , Elision BindingRestElement ]
+        # 1. Let has be ContainsExpression of BindingElementList.
+        # 2. If has is true, return true.
+        # 3. Return ContainsExpression of BindingRestElement.
+        return (self.BindingElementList is not None and self.BindingElementList.ContainsExpression()
+                or
+                self.BindingRestElement is not None and self.BindingRestElement.ContainsExpression())
+class PN_ArrayBindingPattern_LBRACKET_RBRACKET(PN_ArrayBindingPattern):
+    @property
+    def BindingRestElement(self):
+        return None
+    @property
+    def BindingElementList(self):
+        return None
+    def IteratorBindingInitialization(self, iteratorRecord, environment):
+        # 13.3.3.8 Runtime Semantics: IteratorBindingInitialization
+        #   With parameters iteratorRecord and environment.
+        # ArrayBindingPattern : [ ]
+        #       1. Return NormalCompletion(empty).
+        return NormalCompletion(Empty.EMPTY)
+class PN_ArrayBindingPattern_LBRACKET_Elision_RBRACKET(PN_ArrayBindingPattern):
+    @property
+    def Elision(self):
+        return self.children[1]
+    @property
+    def BindingRestElement(self):
+        return None
+    @property
+    def BindingElementList(self):
+        return None
+    def IteratorBindingInitialization(self, iteratorRecord, environment):
+        # 13.3.3.8 Runtime Semantics: IteratorBindingInitialization
+        #   With parameters iteratorRecord and environment.
+        # ArrayBindingPattern : [ Elision ]
+        #       1. Return the result of performing IteratorDestructuringAssignmentEvaluation of Elision with
+        #          iteratorRecord as the argument.
+        return self.Elision.IteratorDestructuringAssignmentEvaluation(iteratorRecord)
+class PN_ArrayBindingPattern_LBRACKET_BindingRestElement_RBRACKET(PN_ArrayBindingPattern):
+    @property
+    def BindingRestElement(self):
+        return self.children[1]
+    @property
+    def BindingElementList(self):
+        return None
+    def IteratorBindingInitialization(self, iteratorRecord, environment):
+        # 13.3.3.8 Runtime Semantics: IteratorBindingInitialization
+        #   With parameters iteratorRecord and environment.
+        # ArrayBindingPattern : [ BindingRestElement ]
+        #       1. Return the result of performing IteratorBindingInitialization for BindingRestElement with
+        #          iteratorRecord and environment as arguments.
+        return self.BindingRestElement.IteratorBindingInitialization(iteratorRecord, environment)
+class PN_ArrayBindingPattern_LBRACKET_Elision_BindingRestElement_RBRACKET(PN_ArrayBindingPattern):
+    @property
+    def Elision(self):
+        return self.children[1]
+    @property
+    def BindingRestElement(self):
+        return self.children[2]
+    @property
+    def BindingElementList(self):
+        return None
+    def IteratorBindingInitialization(self, iteratorRecord, environment):
+        # 13.3.3.8 Runtime Semantics: IteratorBindingInitialization
+        #   With parameters iteratorRecord and environment.
+        # ArrayBindingPattern : [ Elision BindingRestElement ]
+        #       1. Perform ? IteratorDestructuringAssignmentEvaluation of Elision with iteratorRecord as the argument.
+        #       2. Return the result of performing IteratorBindingInitialization for BindingRestElement with
+        #          iteratorRecord and environment as arguments.
+        cr, ok = ec(self.Elision.IteratorDestructuringAssignmentEvaluation(iteratorRecord))
+        if not ok:
+            return cr
+        return self.BindingRestElement.IteratorBindingInitialization(iteratorRecord, environment)
+class PN_ArrayBindingPattern_LBRACKET_BindingElementList_RBRACKET(PN_ArrayBindingPattern):
+    @property
+    def BindingElementList(self):
+        return self.children[1]
+    @property
+    def BindingRestElement(self):
+        return None
+    def IteratorBindingInitialization(self, iteratorRecord, environment):
+        # 13.3.3.8 Runtime Semantics: IteratorBindingInitialization
+        #   With parameters iteratorRecord and environment.
+        # ArrayBindingPattern : [ BindingElementList ]
+        #       1. Return the result of performing IteratorBindingInitialization for BindingElementList with
+        #          iteratorRecord and environment as arguments.
+        return self.BindingElementList.IteratorBindingInitialization(iteratorRecord, environment)
+class PN_ArrayBindingPattern_LBRACKET_BindingElementList_COMMA_RBRACKET(PN_ArrayBindingPattern):
+    @property
+    def BindingElementList(self):
+        return self.children[1]
+    @property
+    def BindingRestElement(self):
+        return None
+    def IteratorBindingInitialization(self, iteratorRecord, environment):
+        # 13.3.3.8 Runtime Semantics: IteratorBindingInitialization
+        #   With parameters iteratorRecord and environment.
+        # ArrayBindingPattern : [ BindingElementList , ]
+        #       1. Return the result of performing IteratorBindingInitialization for BindingElementList with
+        #          iteratorRecord and environment as arguments.
+        return self.BindingElementList.IteratorBindingInitialization(iteratorRecord, environment)
+class PN_ArrayBindingPattern_LBRACKET_BindingElementList_COMMA_Elision_RBRACKET(PN_ArrayBindingPattern):
+    @property
+    def BindingElementList(self):
+        return self.children[1]
+    @property
+    def Elision(self):
+        return self.children[3]
+    @property
+    def BindingRestElement(self):
+        return None
+    def IteratorBindingInitialization(self, iteratorRecord, environment):
+        # 13.3.3.8 Runtime Semantics: IteratorBindingInitialization
+        #   With parameters iteratorRecord and environment.
+        # ArrayBindingPattern : [ BindingElementList , Elision ]
+        #       1. Perform ? IteratorBindingInitialization for BindingElementList with iteratorRecord and environment
+        #          as arguments.
+        #       2. Return the result of performing IteratorDestructuringAssignmentEvaluation of Elision with
+        #          iteratorRecord as the argument.
+        cr, ok = ec(self.BindingElementList.IteratorBindingInitialization(iteratorRecord, environment))
+        if not ok:
+            return cr
+        return self.Elision.IteratorDestructuringAssignmentEvaluation(iteratorRecord)
+class PN_ArrayBindingPattern_LBRACKET_BindingElementList_COMMA_BindingRestElement_RBRACKET(PN_ArrayBindingPattern):
+    @property
+    def BindingElementList(self):
+        return self.children[1]
+    @property
+    def BindingRestElement(self):
+        return self.children[3]
+    def IteratorBindingInitialization(self, iteratorRecord, environment):
+        # 13.3.3.8 Runtime Semantics: IteratorBindingInitialization
+        #   With parameters iteratorRecord and environment.
+        # ArrayBindingPattern : [ BindingElementList , BindingRestElement ]
+        #       1. Perform ? IteratorBindingInitialization for BindingElementList with iteratorRecord and environment
+        #          as arguments.
+        #       2. Return the result of performing IteratorBindingInitialization for BindingRestElement with
+        #          iteratorRecord and environment as arguments.
+        cr, ok = ec(self.BindingElementList.IteratorBindingInitialization(iteratorRecord, environment))
+        if not ok:
+            return cr
+        return self.BindingRestElement.IteratorBindingInitialization(iteratorRecord, environment)
+class PN_ArrayBindingPattern_LBRACKET_BindingElementList_COMMA_Elision_BindingRestElement_RBRACKET(PN_ArrayBindingPattern):
+    @property
+    def BindingElementList(self):
+        return self.children[1]
+    @property
+    def Elision(self):
+        return self.children[3]
+    @property
+    def BindingRestElement(self):
+        return self.children[4]
+    def IteratorBindingInitialization(self, iteratorRecord, environment):
+        # 13.3.3.8 Runtime Semantics: IteratorBindingInitialization
+        #   With parameters iteratorRecord and environment.
+        # ArrayBindingPattern : [ BindingElementList , Elision BindingRestElement ]
+        #       1. Perform ? IteratorBindingInitialization for BindingElementList with iteratorRecord and environment
+        #          as arguments.
+        #       2. Perform ? IteratorDestructuringAssignmentEvaluation of Elision with iteratorRecord as the argument.
+        #       3. Return the result of performing IteratorBindingInitialization for BindingRestElement with
+        #          iteratorRecord and environment as arguments.
+        cr, ok = ec(self.BindingElementList.IteratorBindingInitialization(iteratorRecord, environment))
+        if not ok:
+            return cr
+        cr, ok = ec(self.Elision.IteratorDestructuringAssignmentEvaluation(iteratorRecord))
+        if not ok:
+            return cr
+        return self.BindingRestElement.IteratorBindingInitialization(iteratorRecord, environment)
+
+# ------------------------------------ 𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑹𝒆𝒔𝒕𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚 ------------------------------------
+class PN_BindingRestProperty(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('BindingRestProperty', p)
+class PN_BindingRestProperty_DOTDOTDOT_BindingIdentifier(PN_BindingRestProperty):
+    @property
+    def BindingIdentifier(self):
+        return self.children[1]
+    def RestBindingInitialization(self, value, environment, excludedNames):
+        # 13.3.3.7 Runtime Semantics: RestBindingInitialization
+        #       With parameters value, environment, and excludedNames.
+        # BindingRestProperty : ... BindingIdentifier
+        #       1. Let lhs be ? ResolveBinding(StringValue of BindingIdentifier, environment).
+        #       2. Let restObj be ObjectCreate(%ObjectPrototype%).
+        #       3. Perform ? CopyDataProperties(restObj, value, excludedNames).
+        #       4. If environment is undefined, return PutValue(lhs, restObj).
+        #       5. Return InitializeReferencedBinding(lhs, restObj).
+        lhs, ok = ec(ResolveBinding(self.BindingIdentifier.StringValue(), environment))
+        if not ok:
+            return lhs
+        restObj = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics['%ObjectPrototype%'])
+        cr, ok = ec(CopyDataProperties(restObj, value, excludedNames))
+        if not ok:
+            return cr
+        if environment is None:
+            return PutValue(lhs, restObj)
+        return InitializeReferencedBinding(lhs, restObj)
+
+# ------------------------------------ 𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚𝑳𝒊𝒔𝒕 ------------------------------------
+class PN_BindingPropertyList(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('BindingPropertyList', p)
+class PN_BindingPropertyList_BindingProperty(PN_BindingPropertyList):
+    @property
+    def BindingProperty(self):
+        return self.children[0]
+class PN_BindingPropertyList_BindingPropertyList_COMMA_BindingProperty(PN_BindingPropertyList):
+    @property
+    def BindingPropertyList(self):
+        return self.children[0]
+    @property
+    def BindingProperty(self):
+        return self.children[2]
+    def BoundNames(self):
+        # 13.3.3.1 Static Semantics: BoundNames
+        # BindingPropertyList : BindingPropertyList , BindingProperty
+        #       1. Let names be BoundNames of BindingPropertyList.
+        #       2. Append to names the elements of BoundNames of BindingProperty.
+        #       3. Return names.
+        names = self.BindingPropertyList.BoundNames()
+        names.extend(self.BindingProperty.BoundNames())
+        return names
+    def ContainsExpression(self):
+        # 13.3.3.2 Static Semantics: ContainsExpression
+        # BindingPropertyList : BindingPropertyList , BindingProperty
+        #       1. Let has be ContainsExpression of BindingPropertyList.
+        #       2. If has is true, return true.
+        #       3. Return ContainsExpression of BindingProperty.
+        return self.BindingPropertyList.ContainsExpression() or self.BindingProperty.ContainsExpression()
+    def PropertyBindingInitialization(self, value, environment):
+        # 13.3.3.6 Runtime Semantics: PropertyBindingInitialization
+        #   With parameters value and environment.
+        #
+        # NOTE
+        # These collect a list of all bound property names rather than just empty completion.
+        #
+        # BindingPropertyList : BindingPropertyList , BindingProperty
+        #       1. Let boundNames be the result of performing ? PropertyBindingInitialization for BindingPropertyList
+        #          using value and environment as arguments.
+        #       2. Let nextNames be the result of performing ? PropertyBindingInitialization for BindingProperty using
+        #          value and environment as arguments.
+        #       3. Append each item in nextNames to the end of boundNames.
+        #       4. Return boundNames.
+        boundNames, ok = ec(self.BindingPropertyList.PropertyBindingInitialization(value, environment))
+        if not ok:
+            return boundNames
+        nextNames, ok = ec(self.BindingProperty.PropertyBindingInitialization(value, environment))
+        if not ok:
+            return nextNames
+        boundNames.extend(nextNames)
+        return boundNames
+
+# ------------------------------------ 𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑬𝒍𝒆𝒎𝒆𝒏𝒕𝑳𝒊𝒔𝒕 ------------------------------------
+class PN_BindingElementList(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('BindingElementList', p)
+class PN_BindingElementList_BindingElisionElement(PN_BindingElementList):
+    @property
+    def BindingElisionElement(self):
+        return self.children[0]
+    def IteratorBindingInitialization(self, iteratorRecord, environment):
+        # 13.3.3.8 Runtime Semantics: IteratorBindingInitialization
+        #   With parameters iteratorRecord and environment.
+        # BindingElementList : BindingElisionElement
+        #       1. Return the result of performing IteratorBindingInitialization for BindingElisionElement with
+        #          iteratorRecord and environment as arguments.
+        return self.BindingElisionElement.IteratorBindingInitialization(iteratorRecord, environment)
+class PN_BindingElementList_BindingElementList_COMMA_BindingElisionElement(PN_BindingElementList):
+    @property
+    def BindingElementList(self):
+        return self.children[0]
+    @property
+    def BindingElisionElement(self):
+        return self.children[2]
+    def BoundNames(self):
+        # 13.3.3.1 Static Semantics: BoundNames
+        # BindingElementList : BindingElementList , BindingElisionElement
+        #       1. Let names be BoundNames of BindingElementList.
+        #       2. Append to names the elements of BoundNames of BindingElisionElement.
+        #       3. Return names.
+        names = self.BindingElementList.BoundNames()
+        names.extend(self.BindingElisionElement.BoundNames())
+        return names
+    def ContainsExpression(self):
+        # 13.3.3.2 Static Semantics: ContainsExpression
+        # BindingElementList : BindingElementList , BindingElisionElement
+        #       1. Let has be ContainsExpression of BindingElementList.
+        #       2. If has is true, return true.
+        #       3. Return ContainsExpression of BindingElisionElement.
+        return self.BindingElementList.ContainsExpression() or self.BindingElisionElement.ContainsExpression()
+    def IteratorBindingInitialization(self, iteratorRecord, environment):
+        # 13.3.3.8 Runtime Semantics: IteratorBindingInitialization
+        #   With parameters iteratorRecord and environment.
+        # BindingElementList : BindingElementList , BindingElisionElement
+        #       1. Perform ? IteratorBindingInitialization for BindingElementList with iteratorRecord and environment
+        #          as arguments.
+        #       2. Return the result of performing IteratorBindingInitialization for BindingElisionElement using
+        #          iteratorRecord and environment as arguments.
+        cr, ok = ec(self.BindingElementList.IteratorBindingInitialization(iteratorRecord, environment))
+        if not ok:
+            return cr
+        return self.BindingElisionElement.IteratorBindingInitialization(iteratorRecord, environment)
+
+# ------------------------------------ 𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑬𝒍𝒊𝒔𝒊𝒐𝒏𝑬𝒍𝒆𝒎𝒆𝒏𝒕 ------------------------------------
+class PN_BindingElisionElement(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('BindingElisionElement', p)
+class PN_BindingElisionElement_BindingElement(PN_BindingElisionElement):
+    @property
+    def BindingElement(self):
+        return self.children[0]
+    def IteratorBindingInitialization(self, iteratorRecord, environment):
+        # 13.3.3.8 Runtime Semantics: IteratorBindingInitialization
+        #       With parameters iteratorRecord and environment.
+        # BindingElisionElement : BindingElement
+        #       1. Return the result of performing IteratorBindingInitialization of BindingElement with iteratorRecord
+        #          and environment as the arguments.
+        return self.BindingElement.IteratorBindingInitialization(iteratorRecord, environment)
+class PN_BindingElisionElement_Elision_BindingElement(PN_BindingElisionElement):
+    @property
+    def Elision(self):
+        return self.children[0]
+    @property
+    def BindingElement(self):
+        return self.children[1]
+    def BoundNames(self):
+        # 13.3.3.1 Static Semantics: BoundNames
+        # BindingElisionElement: Elsision BindingElement
+        #       Return BoundNames of BindingElement.
+        return self.BindingElement.BoundNames()
+    def ContainsExpression(self):
+        # 13.3.3.2 Static Semantics: ContainsExpression
+        # BindingElisionElement: Elsision BindingElement
+        #       1. Return ContainsExpression of BindingElement.
+        return self.BindingElement.ContainsExpression()
+    def IteratorBindingInitialization(self, iteratorRecord, environment):
+        # 13.3.3.8 Runtime Semantics: IteratorBindingInitialization
+        #       With parameters iteratorRecord and environment.
+        # BindingElisionElement: Elsision BindingElement
+        #       1. Perform ? IteratorDestructuringAssignmentEvaluation of Elision with iteratorRecord as the argument.
+        #       2. Return the result of performing IteratorBindingInitialization of BindingElement with iteratorRecord
+        #          and environment as the arguments.
+        cr, ok = ec(self.Elision.IteratorDestructuringAssignmentEvaluation(iteratorRecord))
+        if not ok:
+            return cr
+        return self.BindingElement.IteratorBindingInitialization(iteratorRecord, environment)
+
+# ------------------------------------ 𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚 ------------------------------------
+class PN_BindingProperty(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('BindingProperty', p)
+class PN_BindingProperty_SingleNameBinding(PN_BindingProperty):
+    @property
+    def SingleNameBinding(self):
+        return self.children[0]
+    def PropertyBindingInitialization(self, value, environment):
+        # 13.3.3.6 Runtime Semantics: PropertyBindingInitialization
+        #   With parameters value and environment.
+        # BindingProperty : SingleNameBinding
+        #       1. Let name be the string that is the only element of BoundNames of SingleNameBinding.
+        #       2. Perform ? KeyedBindingInitialization for SingleNameBinding using value, environment, and name as
+        #          the arguments.
+        #       3. Return a new List containing name.
+        name = self.SingleNameBinding.BoundNames()[0]
+        cr, ok = ec(self.SingleNameBinding.KeyedBindingInitialization(value, environment, name))
+        if not ok:
+            return cr
+        return [name]
+class PN_BindingProperty_PropertyName_COLON_BindingElement(PN_BindingProperty):
+    @property
+    def PropertyName(self):
+        return self.children[0]
+    @property
+    def BindingElement(self):
+        return self.children[2]
+    def BoundNames(self):
+        # 13.3.3.1 Static Semantics: BoundNames
+        # BindingProperty : PropertyName : BindingElement
+        #       1. Return the BoundNames of BindingElement.
+        return self.BindingElement.BoundNames()
+    def ContainsExpression(self):
+        # 13.3.3.2 Static Semantics: ContainsExpression
+        # BindingProperty : PropertyName : BindingElement
+        #       1. Let has be IsComputedPropertyKey of PropertyName.
+        #       2. If has is true, return true.
+        #       3. Return ContainsExpression of BindingElement.
+        return self.PropertyName.IsComputedPropertyKey() or self.BindingElement.ContainsExpression()
+    def PropertyBindingInitialization(self, value, environment):
+        # 13.3.3.6 Runtime Semantics: PropertyBindingInitialization
+        #   With parameters value and environment.
+        # BindingProperty : PropertyName : BindingElement
+        #       1. Let P be the result of evaluating PropertyName.
+        #       2. ReturnIfAbrupt(P).
+        #       3. Perform ? KeyedBindingInitialization of BindingElement with value, environment, and P as the arguments.
+        #       4. Return a new List containing P.
+        P, ok = ec(self.PropertyName.evaluate())
+        if not ok:
+            return P
+        cr, ok = ec(self.BindingElement.KeyedBindingInitialization(value, environment, P))
+        if not ok:
+            return cr
+        return [P]
+
+# ------------------------------------ 𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑬𝒍𝒆𝒎𝒆𝒏𝒕 ------------------------------------
+class PN_BindingElement(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('BindingElement', p)
+class PN_BindingElement_SingleNameBinding(PN_BindingElement):
+    @property
+    def SingleNameBinding(self):
+        return self.children[0]
+    def IteratorBindingInitialization(self, iteratorRecord, environment):
+        # 13.3.3.8 Runtime Semantics: IteratorBindingInitialization
+        #   With parameters iteratorRecord and environment.
+        # BindingElement : SingleNameBinding
+        #       1. Return the result of performing IteratorBindingInitialization for SingleNameBinding with
+        #          iteratorRecord and environment as the arguments.
+        return self.SingleNameBinding.IteratorBindingInitialization(iteratorRecord, environment)
+class PN_BindingElement_BindingPattern(PN_BindingElement):
+    @property
+    def BindingPattern(self):
+        return self.children[0]
+    def HasInitializer(self):
+        # 13.3.3.3 Static Semantics: HasInitializer
+        # BindingElement : BindingPattern
+        #       1. Return false.
+        return False
+    def IsSimpleParameterList(self):
+        # 13.3.3.4 Static Semantics: IsSimpleParameterList
+        # BindingElement : BindingPattern
+        #       1. Return false.
+        return False
+    def IteratorBindingInitialization(self, iteratorRecord, environment):
+        # 13.3.3.8 Runtime Semantics: IteratorBindingInitialization
+        #   With parameters iteratorRecord and environment.
+        # BindingElement : BindingPattern
+        #       1. If iteratorRecord.[[Done]] is false, then
+        #          a. Let next be IteratorStep(iteratorRecord).
+        #          b. If next is an abrupt completion, set iteratorRecord.[[Done]] to true.
+        #          c. ReturnIfAbrupt(next).
+        #          d. If next is false, set iteratorRecord.[[Done]] to true.
+        #          e. Else,
+        #             i. Let v be IteratorValue(next).
+        #            ii. If v is an abrupt completion, set iteratorRecord.[[Done]] to true.
+        #           iii. ReturnIfAbrupt(v).
+        #       2. If iteratorRecord.[[Done]] is true, let v be undefined.
+        #       3. Return the result of performing BindingInitialization of BindingPattern with v and environment as
+        #          the arguments.)
+        if not iteratorRecord.Done:
+            next = IteratorStep(iteratorRecord)
+            if next.ctype != CompletionType.NORMAL:
+                iteratorRecord.Done = True
+            next, ok = ec(next)
+            if not ok:
+                return next
+            if not next:
+                iteratorRecord.Done = True
+            else:
+                v = IteratorValue(next)
+                if v.ctype != CompletionType.NORMAL:
+                    iteratorRecord.Done = True
+                v, ok = ec(v)
+                if not ok:
+                    return v
+        if iteratorRecord.Done:
+            v = None
+        return self.BindingPattern.BindingInitialization(v, environment)
+    def KeyedBindingInitialization(self, value, environment, propertyName):
+        # 13.3.3.9 Runtime Semantics: KeyedBindingInitialization
+        #   With parameters value, environment, and propertyName.
+        # BindingElement : BindingPattern
+        #       1. Let v be ? GetV(value, propertyName).
+        #       2. Return the result of performing BindingInitialization for BindingPattern passing v and environment
+        #          as arguments.
+        v, ok = ec(GetV(value, propertyName))
+        if not ok:
+            return v
+        return self.BindingPattern.BindingInitialization(v, environment)
+class PN_BindingElement_BindingPattern_Initializer(PN_BindingElement):
+    @property
+    def BindingPattern(self):
+        return self.children[0]
+    @property
+    def Initializer(self):
+        return self.children[1]
+    def BoundNames(self):
+        # 13.3.3.1 Static Semantics: BoundNames
+        # BindingElement : BindingPattern Initializer
+        #       1. Return the BoundNames of BindingPattern.
+        return self.BindingPattern.BoundNames()
+    def ContainsExpression(self):
+        # 13.3.3.2 Static Semantics: ContainsExpression
+        # BindingElement : BindingPattern Initializer
+        #       1. Return true.
+        return True
+    def HasInitializer(self):
+        # 13.3.3.3 Static Semantics: HasInitializer
+        # BindingElement : BindingPattern Initializer
+        #       1. Return true.
+        return True
+    def IsSimpleParameterList(self):
+        # 13.3.3.4 Static Semantics: IsSimpleParameterList
+        # BindingElement : BindingPattern Initializer
+        #       1. Return false.
+        return False
+    def IteratorBindingInitialization(self, iteratorRecord, environment):
+        # 13.3.3.8 Runtime Semantics: IteratorBindingInitialization
+        #   With parameters iteratorRecord and environment.
+        # BindingElement : BindingPattern Initializer
+        #       1. If iteratorRecord.[[Done]] is false, then
+        #          a. Let next be IteratorStep(iteratorRecord).
+        #          b. If next is an abrupt completion, set iteratorRecord.[[Done]] to true.
+        #          c. ReturnIfAbrupt(next).
+        #          d. If next is false, set iteratorRecord.[[Done]] to true.
+        #          e. Else,
+        #             i. Let v be IteratorValue(next).
+        #            ii. If v is an abrupt completion, set iteratorRecord.[[Done]] to true.
+        #           iii. ReturnIfAbrupt(v).
+        #       2. If iteratorRecord.[[Done]] is true, let v be undefined.
+        #       3. If v is undefined, then
+        #          a. Let defaultValue be the result of evaluating Initializer.
+        #          b. Set v to ? GetValue(defaultValue).
+        #       4. Return the result of performing BindingInitialization of BindingPattern with v and environment as
+        #          the arguments.)
+        if not iteratorRecord.Done:
+            next = IteratorStep(iteratorRecord)
+            if next.ctype != CompletionType.NORMAL:
+                iteratorRecord.Done = True
+            next, ok = ec(next)
+            if not ok:
+                return next
+            if not next:
+                iteratorRecord.Done = True
+            else:
+                v = IteratorValue(next)
+                if v.ctype != CompletionType.NORMAL:
+                    iteratorRecord.Done = True
+                v, ok = ec(v)
+                if not ok:
+                    return v
+        if iteratorRecord.Done:
+            v = None
+        if v is None:
+            defaultValue = self.Initializer.evaluate()
+            v, ok = ec(GetValue(defaultValue))
+            if not ok:
+                return v
+        return self.BindingPattern.BindingInitialization(v, environment)
+    def KeyedBindingInitialization(self, value, environment, propertyName):
+        # 13.3.3.9 Runtime Semantics: KeyedBindingInitialization
+        #   With parameters value, environment, and propertyName.
+        # BindingElement : BindingPattern Initializer
+        #       1. Let v be ? GetV(value, propertyName).
+        #       2. If v is undefined, then
+        #          a. Let defaultValue be the result of evaluating Initializer.
+        #          b. Set v to ? GetValue(defaultValue).
+        #       3. Return the result of performing BindingInitialization for BindingPattern passing v and environment
+        #          as arguments.
+        v, ok = ec(GetV(value, propertyName))
+        if not ok:
+            return v
+        if v is None:
+            defaultValue = self.Initializer.evaluate()
+            v, ok = ec(GetValue(defaultValue))
+            if not ok:
+                return v
+        return self.BindingPattern.BindingInitialization(v, environment)
+
+# ------------------------------------ 𝑺𝒊𝒏𝒈𝒍𝒆𝑵𝒂𝒎𝒆𝑩𝒊𝒏𝒅𝒊𝒏𝒈 ------------------------------------
+class PN_SingleNameBinding(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('SingleNameBinding', p)
+class PN_SingleNameBinding_BindingIdentifier(PN_SingleNameBinding):
+    @property
+    def BindingIdentifier(self):
+        return self.children[0]
+    def ContainsExpression(self):
+        # 13.3.3.2 Static Semantics: ContainsExpression
+        # SingleNameBinding : BindingIdentifier
+        #       1. Return false.
+        return False
+    def HasInitializer(self):
+        # 13.3.3.3 Static Semantics: HasInitializer
+        # SingleNameBinding : BindingIdentifier
+        #       1. Return false.
+        return False
+    def IsSimpleParameterList(self):
+        # 13.3.3.4 Static Semantics: IsSimpleParameterList
+        # SingleNameBinding : BindingIdentifier
+        #       1. Return true.
+        return True
+    def IteratorBindingInitialization(self, iteratorRecord, environment):
+        # 13.3.3.8 Runtime Semantics: IteratorBindingInitialization
+        #   With parameters iteratorRecord and environment.
+        # SingleNameBinding : BindingIdentifier
+        #       1. Let bindingId be StringValue of BindingIdentifier.
+        #       2. Let lhs be ? ResolveBinding(bindingId, environment).
+        #       3. If iteratorRecord.[[Done]] is false, then
+        #           a. Let next be IteratorStep(iteratorRecord).
+        #           b. If next is an abrupt completion, set iteratorRecord.[[Done]] to true.
+        #           c. ReturnIfAbrupt(next).
+        #           d. If next is false, set iteratorRecord.[[Done]] to true.
+        #           e. Else,
+        #               i. Let v be IteratorValue(next).
+        #               ii. If v is an abrupt completion, set iteratorRecord.[[Done]] to true.
+        #               iii. ReturnIfAbrupt(v).
+        #       4. If iteratorRecord.[[Done]] is true, let v be undefined.
+        #       5. If environment is undefined, return ? PutValue(lhs, v).
+        #       6. Return InitializeReferencedBinding(lhs, v).
+        bindingId = self.BindingIdentifier.StringValue()
+        lhs, ok = ec(ResolveBinding(bindingId, environment))
+        if not ok:
+            return lhs
+        if not iteratorRecord.Done:
+            next, ok = ec(IteratorStep(iteratorRecord))
+            if not ok:
+                iteratorRecord.Done = True
+                return next
+            if not next:
+                iteratorRecord.Done = True
+            else:
+                v, ok = ec(IteratorValue(next))
+                if not ok:
+                    iteratorRecord.Done = True
+                    return v
+        if iteratorRecord.Done:
+            v = None
+        if environment is None:
+            return PutValue(lhs, v)
+        return InitializeReferencedBinding(lhs, v)
+    def KeyedBindingInitialization(self, value, environment, propertyName):
+        # 13.3.3.9 Runtime Semantics: KeyedBindingInitialization
+        #   With parameters value, environment, and propertyName.
+        # SingleNameBinding : BindingIdentifier
+        #       1. Let bindingId be StringValue of BindingIdentifier.
+        #       2. Let lhs be ? ResolveBinding(bindingId, environment).
+        #       3. Let v be ? GetV(value, propertyName).
+        #       4. If environment is undefined, return ? PutValue(lhs, v).
+        #       5. Return InitializeReferencedBinding(lhs, v).
+        bindingId = self.BindingIdentifier.StringValue()
+        lhs, ok = ec(ResolveBinding(bindingId, environment))
+        if not ok:
+            return lhs
+        v, ok = ec(GetV(value, propertyName))
+        if not ok:
+            return v
+        if environment is None:
+            return PutValue(lhs, v)
+        return InitializeReferencedBinding(lhs, v)
+class PN_SingleNameBinding_BindingIdentifier_Initializer(PN_SingleNameBinding):
+    @property
+    def BindingIdentifier(self):
+        return self.children[0]
+    @property
+    def Initializer(self):
+        return self.children[1]
+    def BoundNames(self):
+        # 13.3.3.1 Static Semantics: BoundNames
+        # SingleNameBinding : BindingIdentifier Initializer
+        #       1. Return the BoundNames of BindingIdentifier.
+        return self.BindingIdentifier.BoundNames()
+    def ContainsExpression(self):
+        # 13.3.3.2 Static Semantics: ContainsExpression
+        # SingleNameBinding : BindingIdentifier Initializer
+        #       1. Return true.
+        return True
+    def HasInitializer(self):
+        # 13.3.3.3 Static Semantics: HasInitializer
+        # SingleNameBinding : BindingIdentifier Initializer
+        #       1. Return true.
+        return True
+    def IsSimpleParameterList(self):
+        # 13.3.3.4 Static Semantics: IsSimpleParameterList
+        # SingleNameBinding : BindingIdentifier Initializer
+        #       1. Return false.
+        return False
+    def IteratorBindingInitialization(self, iteratorRecord, environment):
+        # 13.3.3.8 Runtime Semantics: IteratorBindingInitialization
+        #   With parameters iteratorRecord and environment.
+        # SingleNameBinding : BindingIdentifier Initializer
+        #       1. Let bindingId be StringValue of BindingIdentifier.
+        #       2. Let lhs be ? ResolveBinding(bindingId, environment).
+        #       3. If iteratorRecord.[[Done]] is false, then
+        #           a. Let next be IteratorStep(iteratorRecord).
+        #           b. If next is an abrupt completion, set iteratorRecord.[[Done]] to true.
+        #           c. ReturnIfAbrupt(next).
+        #           d. If next is false, set iteratorRecord.[[Done]] to true.
+        #           e. Else,
+        #               i. Let v be IteratorValue(next).
+        #               ii. If v is an abrupt completion, set iteratorRecord.[[Done]] to true.
+        #               iii. ReturnIfAbrupt(v).
+        #       4. If iteratorRecord.[[Done]] is true, let v be undefined.
+        #       5. If v is undefined, then
+        #           a. Let defaultValue be the result of evaluating Initializer.
+        #           b. Set v to ? GetValue(defaultValue).
+        #           c. If IsAnonymousFunctionDefinition(Initializer) is true, then
+        #               i. Let hasNameProperty be ? HasOwnProperty(v, "name").
+        #               ii. If hasNameProperty is false, perform SetFunctionName(v, bindingId).
+        #       6. If environment is undefined, return ? PutValue(lhs, v).
+        #       7. Return InitializeReferencedBinding(lhs, v).
+        bindingId = self.BindingIdentifier.StringValue()
+        lhs, ok = ec(ResolveBinding(bindingId, environment))
+        if not ok:
+            return lhs
+        if not iteratorRecord.Done:
+            next, ok = ec(IteratorStep(iteratorRecord))
+            if not ok:
+                iteratorRecord.Done = True
+                return next
+            if not next:
+                iteratorRecord.Done = True
+            else:
+                v, ok = ec(IteratorValue(next))
+                if not ok:
+                    iteratorRecord.Done = True
+                    return v
+        if iteratorRecord.Done:
+            v = None
+        if v is None:
+            defaultValue = self.Initializer.evaluate()
+            v, ok = ec(GetValue(defaultValue))
+            if not ok:
+                return v
+            if IsAnonymousFunctionDefinition(self.Initializer):
+                hasNameProperty, ok = ec(HasOwnProperty(v, 'name'))
+                if not ok:
+                    return hasNameProperty
+                if not hasNameProperty:
+                    SetFunctionName(v, bindingId)
+        if environment is None:
+            return PutValue(lhs, v)
+        return InitializeReferencedBinding(lhs, v)
+    def KeyedBindingInitialization(self, value, environment, propertyName):
+        # 13.3.3.9 Runtime Semantics: KeyedBindingInitialization
+        #   With parameters value, environment, and propertyName.
+        # SingleNameBinding : BindingIdentifier Initializer
+        #       1. Let bindingId be StringValue of BindingIdentifier.
+        #       2. Let lhs be ? ResolveBinding(bindingId, environment).
+        #       3. Let v be ? GetV(value, propertyName).
+        #       4. If v is undefined, then
+        #           a. Let defaultValue be the result of evaluating Initializer.
+        #           b. Set v to ? GetValue(defaultValue).
+        #           c. If IsAnonymousFunctionDefinition(Initializer) is true, then
+        #               i. Let hasNameProperty be ? HasOwnProperty(v, "name").
+        #               ii. If hasNameProperty is false, perform SetFunctionName(v, bindingId).
+        #       5. If environment is undefined, return ? PutValue(lhs, v).
+        #       6. Return InitializeReferencedBinding(lhs, v).
+        bindingId = self.BindingIdentifier.StringValue()
+        lhs, ok = ec(ResolveBinding(bindingId, environment))
+        if not ok:
+            return lhs
+        v, ok = ec(GetV(value, propertyName))
+        if not ok:
+            return v
+        if v is None:
+            defaultValue = self.Initializer.evaluate()
+            v, ok = ec(GetValue(defaultValue))
+            if not ok:
+                return v
+            if IsAnonymousFunctionDefinition(self.Initializer):
+                hasNameProperty, ok = ec(HasOwnProperty(v, 'name'))
+                if not ok:
+                    return hasNameProperty
+                if not hasNameProperty:
+                    SetFunctionName(v, bindingId)
+        if environment is None:
+            return PutValue(lhs, v)
+        return InitializeReferencedBinding(lhs, v)
+
+# ------------------------------------ 𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑹𝒆𝒔𝒕𝑬𝒍𝒆𝒎𝒆𝒏𝒕 ------------------------------------
+class PN_BindingRestElement(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('BindingRestElement', p)
+class PN_BindingRestElement_DOTDOTDOT_BindingIdentifier(PN_BindingRestElement):
+    @property
+    def BindingIdentifier(self):
+        return self.children[1]
+    def ContainsExpression(self):
+        return False
+    def IteratorBindingInitialization(self, value, environment):
+        #       1. Let lhs be ? ResolveBinding(StringValue of BindingIdentifier, environment).
+        #       2. Let A be ! ArrayCreate(0).
+        #       3. Let n be 0.
+        #       4. Repeat,
+        #           a. If iteratorRecord.[[Done]] is false, then
+        #               i. Let next be IteratorStep(iteratorRecord).
+        #               ii. If next is an abrupt completion, set iteratorRecord.[[Done]] to true.
+        #               iii. ReturnIfAbrupt(next).
+        #               iv. If next is false, set iteratorRecord.[[Done]] to true.
+        #           b. If iteratorRecord.[[Done]] is true, then
+        #               i. If environment is undefined, return ? PutValue(lhs, A).
+        #               ii. Return InitializeReferencedBinding(lhs, A).
+        #           c. Let nextValue be IteratorValue(next).
+        #           d. If nextValue is an abrupt completion, set iteratorRecord.[[Done]] to true.
+        #           e. ReturnIfAbrupt(nextValue).
+        #           f. Let status be CreateDataProperty(A, ! ToString(n), nextValue).
+        #           g. Assert: status is true.
+        #           h. Increment n by 1.
+        lhs, ok = ec(ResolveBinding(self.BindingIdentifier.StringValue(), environment))
+        if not ok:
+            return lhs
+        A = nc(ArrayCreate(0))
+        n = 0
+        while 1:
+            if not iteratorRecord.Done:
+                next, ok = ec(IteratorStep(iteratorRecord))
+                if not ok:
+                    iteratorRecord.Done = True
+                    return next
+                if not next:
+                    iteratorRecord.Done = True
+            if iteratorRecord.Done:
+                if environment is None:
+                    return PutValue(lhs, A)
+                return InitializeReferencedBinding(lhs, A)
+            nextValue, ok = ec(IteratorValue(next))
+            if not ok:
+                iteratorRecord.Done = True
+                return nextValue
+            status = CreateDataProperty(A, nc(ToString(n)), nextValue)
+            assert status
+            n += 1
+class PN_BindingRestElement_DOTDOTDOT_BindingPattern(PN_BindingRestElement):
+    @property
+    def BindingPattern(self):
+        return self.children[1]
+    def ContainsExpression(self):
+        return self.BindingPattern.ContainsExpression()
+    def IteratorBindingInitialization(self, value, environment):
+        #       1. Let A be ! ArrayCreate(0).
+        #       2. Let n be 0.
+        #       3. Repeat,
+        #           a. If iteratorRecord.[[Done]] is false, then
+        #               i. Let next be IteratorStep(iteratorRecord).
+        #               ii. If next is an abrupt completion, set iteratorRecord.[[Done]] to true.
+        #               iii. ReturnIfAbrupt(next).
+        #               iv. If next is false, set iteratorRecord.[[Done]] to true.
+        #           b. If iteratorRecord.[[Done]] is true, then
+        #               i. Return the result of performing BindingInitialization of BindingPattern with A and
+        #                  environment as the arguments.
+        #           c. Let nextValue be IteratorValue(next).
+        #           d. If nextValue is an abrupt completion, set iteratorRecord.[[Done]] to true.
+        #           e. ReturnIfAbrupt(nextValue).
+        #           f. Let status be CreateDataProperty(A, ! ToString(n), nextValue).
+        #           g. Assert: status is true.
+        #           h. Increment n by 1.
+        A = nc(ArrayCreate(0))
+        n = 0
+        while 1:
+            if not iteratorRecord.Done:
+                next, ok = ec(IteratorStep(iteratorRecord))
+                if not ok:
+                    iteratorRecord.Done = True
+                    return next
+                if not next:
+                    iteratorRecrod.Done = True
+            if iteratorRecord.Done:
+                return self.BindingPattern.BindingInitialization(A, environment)
+            nextValue, ok = ec(IteratorValue(next))
+            if not ok:
+                iteratorRecord.Done = True
+                return nextValue
+            status = CreateDataProperty(A, nc(ToString(n)), nextValue)
+            assert status
+            n += 1
 ###########################################################################################################################################################################
 #
 #  d888    .d8888b.       .d8888b.      88888888888 888                   d8b  .d888      .d8888b.  888             888                                             888
@@ -10516,6 +11774,7 @@ class PN_ForDeclaration_LetOrConst_ForBinding(PN_ForDeclaration):
             else:
                 nc(envRec.CreateMutableBinding(name, False))
 
+# ------------------------------------ 𝑭𝒐𝒓𝑩𝒊𝒏𝒅𝒊𝒏𝒈 ------------------------------------
 class PN_ForBinding(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('ForBinding', p)
@@ -10534,6 +11793,16 @@ class PN_ForBinding_BindingIdentifier(PN_ForBinding):
         # 1. Let bindingId be StringValue of BindingIdentifier.
         # 2. Return ? ResolveBinding(bindingId).
         return ResolveBinding(self.BindingIdentifier.StringValue())
+class PN_ForBinding_BindingPattern(PN_ForBinding):
+    @property
+    def BindingPattern(self):
+        return self.children[0]
+    def IsDestructuring(self):
+        # 13.7.5.6 Static Semantics: IsDestructuring
+        #           ForBinding : BindingPattern
+        # 1. Return true.
+        return True
+
 
 ###############################################################################################################################
 #
@@ -10605,7 +11874,7 @@ def IsAnonymousFunctionDefinition(expr):
     # 2. Let hasName be the result of HasName of expr.
     # 3. If hasName is true, return false.
     # 4. Return true.
-    return not (expr.IsFunctionDefinition() and expr.HasName())
+    return expr.IsFunctionDefinition() and not expr.HasName()
 ###############################################################################################################################
 #
 #  d888   888888888       d888        .d8888b.                   d8b          888
@@ -10776,6 +12045,86 @@ class Ecma262Parser(Parser):
     ########################################################################################################################
 
     ########################################################################################################################
+    # 14.1 Function Definitions
+    #
+    # Syntax
+    #
+    # FunctionDeclaration[Yield, Await, Default] :
+    #           function BindingIdentifier[?Yield, ?Await] ( FormalParameters[~Yield, ~Await] ) { FunctionBody[~Yield, ~Await] }
+    #           [+Default] function ( FormalParameters[~Yield, ~Await] ) { FunctionBody[~Yield, ~Await] }
+    @_('FUNCTION BindingIdentifier LPAREN FormalParameters RPAREN LBRACKET FunctionBody RBRACKET')  # pylint: disable=undefined-variable
+    def FunctionDeclaration(self, p):
+        return PN_FUNCTION_BindingIdentifier_LPAREN_FormalParameters_RPAREN_LBRACKET_FunctionBody_RBRACKET(self.context, p)
+    #
+    # FunctionExpression :
+    #           function BindingIdentifier[~Yield, ~Await] ( FormalParameters[~Yield, ~Await] ) { FunctionBody[~Yield, ~Await] }
+    #           function ( FormalParameters[~Yield, ~Await] ) { FunctionBody[~Yield, ~Await] }
+    #
+    # UniqueFormalParameters[Yield, Await] :
+    #           FormalParameters[?Yield, ?Await]
+    #
+    # FormalParameters[Yield, Await] :
+    #           [empty]
+    #           FunctionRestParameter[?Yield, ?Await]
+    #           FormalParameterList[?Yield, ?Await]
+    #           FormalParameterList[?Yield, ?Await] ,
+    #           FormalParameterList[?Yield, ?Await] , FunctionRestParameter[?Yield, ?Await]
+    @_('empty')  # pylint: disable=undefined-variable
+    def FormalParameters(self, p):
+        return PN_FormalParameters_empty(self.context, p)
+    @_('FunctionRestParameter')  # pylint: disable=undefined-variable
+    def FormalParameters(self, p):
+        return PN_FormalParameters_FunctionRestParameter(self.context, p)
+    @_('FormalParameterList')  # pylint: disable=undefined-variable
+    def FormalParameters(self, p):
+        return PN_FormalParameters_FormalParameterList(self.context, p)
+    @_('FormalParameterList COMMA')  # pylint: disable=undefined-variable
+    def FormalParameters(self, p):
+        return PN_FormalParameters_FormalParameterList_COMMA(self.context, p)
+    @_('FormalParameterList COMMA FunctionRestParameter')  # pylint: disable=undefined-variable
+    def FormalParameters(self, p):
+        return PN_FormalParameters_FormalParameterList_COMMA_FunctionRestParameter(self.context, p)
+    #
+    # FormalParameterList[Yield, Await] :
+    #           FormalParameter[?Yield, ?Await]
+    #           FormalParameterList[?Yield, ?Await] , FormalParameter[?Yield, ?Await]
+    @_('FormalParameter')  # pylint: disable=undefined-variable
+    def FormalParameterList(self, p):
+        return PN_FormalParameterList_FormalParameter(self.context, p)
+    @_('FormalParameterList COMMA FormalParameter')  # pylint: disable=undefined-variable
+    def FormalParameterList(self, p):
+        return PN_FormalParameterList_FormalParameterList_COMMA_FormalParameter(self.context, p)
+    #
+    # FunctionRestParameter[Yield, Await] :
+    #           BindingRestElement[?Yield, ?Await]
+    @_('BindingRestElement')  # pylint: disable=undefined-variable
+    def FunctionRestParameter(self, p):
+        return PN_FunctionRestParameter_BindingRestElement(self.context, p)
+    #
+    # FormalParameter[Yield, Await] :
+    #           BindingElement[?Yield, ?Await]
+    @_('BindingElement')  # pylint: disable=undefined-variable
+    def FormalParameter(self, p):
+        return PN_FormalParameter_BindingElement(self.context, p)
+    #
+    # FunctionBody[Yield, Await] :
+    #           FunctionStatementList[?Yield, ?Await]
+    @_('FunctionStatementList')  # pylint: disable=undefined-variable
+    def FunctionBody(self, p):
+        return PN_FunctionBody_FunctionStatementList(self.context, p)
+    #
+    # FunctionStatementList[Yield, Await] :
+    #           [empty]
+    #           StatementList[?Yield, ?Await, +Return]
+    @_('empty')  # pylint: disable=undefined-variable
+    def FunctionStatementList(self, p):
+        return PN_FunctionStatementList_empty(self.context, p)
+    @_('StatementList_Return')  # pylint: disable=undefined-variable
+    def FunctionStatementList(self, p):
+        return PN_FunctionStatementList_StatementList(self.context, p)
+    ########################################################################################################################
+
+    ########################################################################################################################
     # 13.8 The continue statement
     #
     # Syntax
@@ -10933,6 +12282,97 @@ class Ecma262Parser(Parser):
     def IterationStatement(self, p):
         return PN_IterationStatement_FOR_LPAREN_ForDeclaration_OF_AssignmentExpression_RPAREN_Statement(self.context, p)
 
+    @_('DO Statement_Return WHILE LPAREN Expression_In RPAREN SEMICOLON')  # pylint: disable=undefined-variable
+    def IterationStatement_Return(self, p):
+        return PN_IterationStatement_DO_Statement_WHILE_LPAREN_Expression_RPAREN_SEMICOLON(self.context, p)
+    @_('WHILE LPAREN Expression_In RPAREN Statement_Return')  # pylint: disable=undefined-variable
+    def IterationStatement_Return(self, p):
+        return PN_IterationStatement_WHILE_LPAREN_Expression_RPAREN_Statement(self.context, p)
+    @_('FOR LPAREN_ Expression SEMICOLON Expression_In SEMICOLON Expression_In RPAREN Statement_Return')  # pylint: disable=undefined-variable
+    def IterationStatement_Return(self, p):
+        return PN_IterationStatement_FOR_LPAREN_Expression_SEMICOLON_Expression_SEMICOLON_Expression_RPAREN_Statement(self.context, p)
+    @_('FOR LPAREN_ Expression SEMICOLON Expression_In SEMICOLON RPAREN Statement_Return')  # pylint: disable=undefined-variable
+    def IterationStatement_Return(self, p):
+        return PN_IterationStatement_FOR_LPAREN_Expression_SEMICOLON_Expression_SEMICOLON_RPAREN_Statement(self.context, p)
+    @_('FOR LPAREN_ Expression SEMICOLON SEMICOLON Expression_In RPAREN Statement_Return')  # pylint: disable=undefined-variable
+    def IterationStatement_Return(self, p):
+        return PN_IterationStatement_FOR_LPAREN_Expression_SEMICOLON_SEMICOLON_Expression_RPAREN_Statement(self.context, p)
+    @_('FOR LPAREN_ Expression SEMICOLON SEMICOLON RPAREN Statement_Return')  # pylint: disable=undefined-variable
+    def IterationStatement_Return(self, p):
+        return PN_IterationStatement_FOR_LPAREN_Expression_SEMICOLON_SEMICOLON_RPAREN_Statement(self.context, p)
+    # for ( [lookahead ∉ { let [ }] ; Expression[+In, ?Yield, ?Await] ; Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN_ SEMICOLON Expression_In SEMICOLON Expression_In RPAREN Statement_Return')  # pylint: disable=undefined-variable
+    def IterationStatement_Return(self, p):
+        return PN_IterationStatement_FOR_LPAREN_SEMICOLON_Expression_SEMICOLON_Expression_RPAREN_Statement(self.context, p)
+    # for ( [lookahead ∉ { let [ }] ; Expression[+In, ?Yield, ?Await] ; ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN_ SEMICOLON Expression_In SEMICOLON RPAREN Statement_Return')  # pylint: disable=undefined-variable
+    def IterationStatement_Return(self, p):
+        return PN_IterationStatement_FOR_LPAREN_SEMICOLON_Expression_SEMICOLON_RPAREN_Statement(self.context, p)
+    # for ( [lookahead ∉ { let [ }] ; ; Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN_ SEMICOLON SEMICOLON Expression_In RPAREN Statement_Return')  # pylint: disable=undefined-variable
+    def IterationStatement_Return(self, p):
+        return PN_IterationStatement_FOR_LPAREN_SEMICOLON_SEMICOLON_Expression_RPAREN_Statement(self.context, p)
+    # for ( [lookahead ∉ { let [ }] ; ; ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN_ SEMICOLON SEMICOLON RPAREN Statement_Return')  # pylint: disable=undefined-variable
+    def IterationStatement_Return(self, p):
+        return PN_IterationStatement_FOR_LPAREN_SEMICOLON_SEMICOLON_RPAREN_Statement(self.context, p)
+    #           for ( var VariableDeclarationList[~In, ?Yield, ?Await] ; Expression[+In, ?Yield, ?Await] ; Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN VAR VariableDeclarationList SEMICOLON Expression_In SEMICOLON Expression_In RPAREN Statement_Return')  # pylint: disable=undefined-variable
+    def IterationStatement_Return(self, p):
+        return PN_IterationStatement_FOR_LPAREN_VAR_VariableDeclarationList_SEMICOLON_Expression_SEMICOLON_Expression_RPAREN_Statement(self.context, p)
+    #           for ( var VariableDeclarationList[~In, ?Yield, ?Await] ; ; Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN VAR VariableDeclarationList SEMICOLON SEMICOLON Expression_In RPAREN Statement_Return')  # pylint: disable=undefined-variable
+    def IterationStatement_Return(self, p):
+        return PN_IterationStatement_FOR_LPAREN_VAR_VariableDeclarationList_SEMICOLON_SEMICOLON_Expression_RPAREN_Statement(self.context, p)
+    #           for ( var VariableDeclarationList[~In, ?Yield, ?Await] ; Expression[+In, ?Yield, ?Await] ; ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN VAR VariableDeclarationList SEMICOLON Expression_In SEMICOLON RPAREN Statement_Return')  # pylint: disable=undefined-variable
+    def IterationStatement_Return(self, p):
+        return PN_IterationStatement_FOR_LPAREN_VAR_VariableDeclarationList_SEMICOLON_Expression_SEMICOLON_RPAREN_Statement(self.context, p)
+    #           for ( var VariableDeclarationList[~In, ?Yield, ?Await] ; ; ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN VAR VariableDeclarationList SEMICOLON SEMICOLON RPAREN Statement_Return')  # pylint: disable=undefined-variable
+    def IterationStatement_Return(self, p):
+        return PN_IterationStatement_FOR_LPAREN_VAR_VariableDeclarationList_SEMICOLON_SEMICOLON_RPAREN_Statement(self.context, p)
+    #           for ( LexicalDeclaration[~In, ?Yield, ?Await] Expression[+In, ?Yield, ?Await] ; Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN LexicalDeclaration Expression_In SEMICOLON Expression_In RPAREN Statement_Return')  # pylint: disable=undefined-variable
+    def IterationStatement_Return(self, p):
+        return PN_IterationStatement_FOR_LPAREN_LexicalDeclaration_Expression_SEMICOLON_Expression_RPAREN_Statement(self.context, p)
+    #           for ( LexicalDeclaration[~In, ?Yield, ?Await] ; Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN LexicalDeclaration SEMICOLON Expression_In RPAREN Statement_Return')  # pylint: disable=undefined-variable
+    def IterationStatement_Return(self, p):
+        return PN_IterationStatement_FOR_LPAREN_LexicalDeclaration_SEMICOLON_Expression_RPAREN_Statement(self.context, p)
+    #           for ( LexicalDeclaration[~In, ?Yield, ?Await] Expression[+In, ?Yield, ?Await] ; ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN LexicalDeclaration Expression_In SEMICOLON RPAREN Statement_Return')  # pylint: disable=undefined-variable
+    def IterationStatement_Return(self, p):
+        return PN_IterationStatement_FOR_LPAREN_LexicalDeclaration_Expression_SEMICOLON_RPAREN_Statement(self.context, p)
+    #           for ( LexicalDeclaration[~In, ?Yield, ?Await] ; ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN LexicalDeclaration SEMICOLON RPAREN Statement_Return')  # pylint: disable=undefined-variable
+    def IterationStatement_Return(self, p):
+        return PN_IterationStatement_FOR_LPAREN_LexicalDeclaration_SEMICOLON_RPAREN_Statement(self.context, p)
+    #           for ( [lookahead ∉ { let [ }] LeftHandSideExpression[?Yield, ?Await] in Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN_ LeftHandSideExpression IN Expression_In RPAREN Statement_Return')  # pylint: disable=undefined-variable
+    def IterationStatement_Return(self, p):
+        return PN_IterationStatement_FOR_LPAREN_LeftHandSideExpression_IN_Expression_RPAREN_Statement(self.context, p)
+    #           for ( var ForBinding[?Yield, ?Await] in Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN VAR ForBinding IN Expression_In RPAREN Statement_Return')  # pylint: disable=undefined-variable
+    def IterationStatement_Return(self, p):
+        return PN_IterationStatement_FOR_LPAREN_VAR_ForBinding_IN_Expression_RPAREN_Statement(self.context, p)
+    #           for ( ForDeclaration[?Yield, ?Await] in Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN ForDeclaration IN Expression_In RPAREN Statement_Return')  # pylint: disable=undefined-variable
+    def IterationStatement_Return(self, p):
+        return PN_IterationStatement_FOR_LPAREN_VAR_ForBinding_IN_Expression_RPAREN_Statement(self.context, p)
+    #           for ( [lookahead ≠ let] LeftHandSideExpression[?Yield, ?Await] of AssignmentExpression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN_NOTLET LeftHandSideExpression OF AssignmentExpression_In RPAREN Statement_Return')  # pylint: disable=undefined-variable
+    def IterationStatement_Return(self, p):
+        return PN_IterationStatement_FOR_LPAREN_LeftHandSideExpression_OF_AssignmentExpression_RPAREN_Statement(self.context, p)
+    #           for ( var ForBinding[?Yield, ?Await] of AssignmentExpression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN VAR ForBinding OF AssignmentExpression_In RPAREN Statement_Return')  # pylint: disable=undefined-variable
+    def IterationStatement_Return(self, p):
+        return PN_IterationStatement_FOR_LPAREN_VAR_ForBinding_OF_AssignmentExpression_RPAREN_Statement(self.context, p)
+    #           for ( ForDeclaration[?Yield, ?Await] of AssignmentExpression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    @_('FOR LPAREN ForDeclaration OF AssignmentExpression_In RPAREN Statement_Return')  # pylint: disable=undefined-variable
+    def IterationStatement_Return(self, p):
+        return PN_IterationStatement_FOR_LPAREN_ForDeclaration_OF_AssignmentExpression_RPAREN_Statement(self.context, p)
+
     @_('LetOrConst ForBinding')  # pylint: disable=undefined-variable
     def ForDeclaration(self, p):
         return PN_ForDeclaration_LetOrConst_ForBinding(self.context, p)
@@ -10940,9 +12380,9 @@ class Ecma262Parser(Parser):
     @_('BindingIdentifier')  # pylint: disable=undefined-variable
     def ForBinding(self, p):
         return PN_ForBinding_BindingIdentifier(self.context, p)
-    #@_('BindingPattern')  # pylint: disable=undefined-variable
-    #def ForBinding(self, p):
-    #    return PN_ForBinding_BindingPattern(self.context, p)
+    @_('BindingPattern')  # pylint: disable=undefined-variable
+    def ForBinding(self, p):
+        return PN_ForBinding_BindingPattern(self.context, p)
     ########################################################################################################################
     # 13.6 The if Statement
     #
@@ -10961,6 +12401,12 @@ class Ecma262Parser(Parser):
     @_('IF LPAREN Expression_In RPAREN Statement')  # pylint: disable=undefined-variable
     def IfStatement(self, p):
         return PN_IfStatement_IF_LPAREN_Expression_RPAREN_Statement(self.context, p)
+    @_('IF LPAREN Expression_In RPAREN Statement_Return ELSE Statement_Return')  # pylint: disable=undefined-variable
+    def IfStatement_Return(self, p):
+        return PN_IfStatement_IF_LPAREN_Expression_RPAREN_Statement_ELSE_Statement(self.context, p)
+    @_('IF LPAREN Expression_In RPAREN Statement_Return')  # pylint: disable=undefined-variable
+    def IfStatement_Return(self, p):
+        return PN_IfStatement_IF_LPAREN_Expression_RPAREN_Statement(self.context, p)
     ########################################################################################################################
 
     ########################################################################################################################
@@ -10974,6 +12420,162 @@ class Ecma262Parser(Parser):
     @_('SEMICOLON')  # pylint: disable=undefined-variable
     def EmptyStatement(self, p):
         return PN_EmptyStatement_SEMICOLON(self.context, p)
+    ########################################################################################################################
+
+    ########################################################################################################################
+    # 13.3.3 Destructuring Binding Patterns
+    #
+    # Syntax
+    #
+    # BindingPattern[Yield, Await] :
+    #           ObjectBindingPattern[?Yield, ?Await]
+    #           ArrayBindingPattern[?Yield, ?Await]
+    @_('ObjectBindingPattern')  # pylint: disable=undefined-variable
+    def BindingPattern(self, p):
+        return PN_BindingPattern_ObjectBindingPattern(self.context, p)
+    @_('ArrayBindingPattern')  # pylint: disable=undefined-variable
+    def BindingPattern(self, p):
+        return PN_BindingPattern_ArrayBindingPattern(self.context, p)
+    #
+    # ObjectBindingPattern[Yield, Await] :
+    #           { }
+    #           { BindingRestProperty[?Yield, ?Await] }
+    #           { BindingPropertyList[?Yield, ?Await] }
+    #           { BindingPropertyList[?Yield, ?Await] , }
+    #           { BindingPropertyList[?Yield, ?Await] , BindingRestProperty[?Yield, ?Await] }
+    @_('LCURLY RCURLY')  # pylint: disable=undefined-variable
+    def ObjectBindingPattern(self, p):
+        return PN_ObjectBindingPattern_LCURLY_RCURLY(self.context, p)
+    @_('LCURLY BindingRestProperty RCURLY')  # pylint: disable=undefined-variable
+    def ObjectBindingPattern(self, p):
+        return PN_ObjectBindingPattern_LCURLY_BindingRestProperty_RCURLY(self.context, p)
+    @_('LCURLY BindingPropertyList RCURLY')  # pylint: disable=undefined-variable
+    def ObjectBindingPattern(self, p):
+        return PN_ObjectBindingPattern_LCURLY_BindingPropertyList_RCURLY(self.context, p)
+    @_('LCURLY BindingPropertyList COMMA RCURLY')  # pylint: disable=undefined-variable
+    def ObjectBindingPattern(self, p):
+        return PN_ObjectBindingPattern_LCURLY_BindingPropertyList_COMMA_RCURLY(self.context, p)
+    @_('LCURLY BindingPropertyList COMMA BindingRestProperty RCURLY')  # pylint: disable=undefined-variable
+    def ObjectBindingPattern(self, p):
+        return PN_ObjectBindingPattern_LCURLY_BindingPropertyList_COMMA_BindingRestProperty_RCURLY(self.context, p)
+    #
+    # ArrayBindingPattern[Yield, Await] :
+    #           [ ]
+    #           [ Elision ]
+    #           [ BindingRestElement[?Yield, ?Await] ]
+    #           [ Elision BindingRestElement[?Yield, ?Await] ]
+    #           [ BindingElementList[?Yield, ?Await] ]
+    #           [ BindingElementList[?Yield, ?Await] , ]
+    #           [ BindingElementList[?Yield, ?Await] , Elision ]
+    #           [ BindingElementList[?Yield, ?Await] , BindingRestElement[?Yield, ?Await] ]
+    #           [ BindingElementList[?Yield, ?Await] , Elision BindingRestElement[?Yield, ?Await] ]
+    @_('LBRACKET RBRACKET')  # pylint: disable=undefined-variable
+    def ArrayBindingPattern(self, p):
+        return PN_ArrayBindingPattern_LBRACKET_RBRACKET(self.context, p)
+    @_('LBRACKET Elision RBRACKET')  # pylint: disable=undefined-variable
+    def ArrayBindingPattern(self, p):
+        return PN_ArrayBindingPattern_LBRACKET_Elision_RBRACKET(self.context, p)
+    @_('LBRACKET BindingRestElement RBRACKET')  # pylint: disable=undefined-variable
+    def ArrayBindingPattern(self, p):
+        return PN_ArrayBindingPattern_LBRACKET_BindingRestElement_RBRACKET(self.context, p)
+    @_('LBRACKET Elision BindingRestElement RBRACKET')  # pylint: disable=undefined-variable
+    def ArrayBindingPattern(self, p):
+        return PN_ArrayBindingPattern_LBRACKET_Elision_BindingRestElement_RBRACKET(self.context, p)
+    @_('LBRACKET BindingElementList RBRACKET')  # pylint: disable=undefined-variable
+    def ArrayBindingPattern(self, p):
+        return PN_ArrayBindingPattern_LBRACKET_BindingElementList_RBRACKET(self.context, p)
+    @_('LBRACKET BindingElementList COMMA RBRACKET')  # pylint: disable=undefined-variable
+    def ArrayBindingPattern(self, p):
+        return PN_ArrayBindingPattern_LBRACKET_BindingElementList_COMMA_RBRACKET(self.context, p)
+    @_('LBRACKET BindingElementList COMMA Elision RBRACKET')  # pylint: disable=undefined-variable
+    def ArrayBindingPattern(self, p):
+        return PN_ArrayBindingPattern_LBRACKET_BindingElementList_COMMA_Elision_RBRACKET(self.context, p)
+    @_('LBRACKET BindingElementList COMMA BindingRestElement RBRACKET')  # pylint: disable=undefined-variable
+    def ArrayBindingPattern(self, p):
+        return PN_ArrayBindingPattern_LBRACKET_BindingElementList_COMMA_BindingRestElement_RBRACKET(self.context, p)
+    @_('LBRACKET BindingElementList COMMA Elision BindingRestElement RBRACKET')  # pylint: disable=undefined-variable
+    def ArrayBindingPattern(self, p):
+        return PN_ArrayBindingPattern_LBRACKET_BindingElementList_COMMA_Elision_BindingRestElement_RBRACKET(self.context, p)
+    #
+    # BindingRestProperty[Yield, Await] :
+    #           ... BindingIdentifier[?Yield, ?Await]
+    @_('DOTDOTDOT BindingIdentifier')  # pylint: disable=undefined-variable
+    def BindingRestProperty(self, p):
+        return PN_BindingRestProperty_DOTDOTDOT_BindingIdentifier(self.context, p)
+    #
+    # BindingPropertyList[Yield, Await] :
+    #           BindingProperty[?Yield, ?Await]
+    #           BindingPropertyList[?Yield, ?Await] , BindingProperty[?Yield, ?Await]
+    @_('BindingProperty')  # pylint: disable=undefined-variable
+    def BindingPropertyList(self, p):
+        return PN_BindingPropertyList_BindingProperty(self.context, p)
+    @_('BindingPropertyList COMMA BindingProperty')  # pylint: disable=undefined-variable
+    def BindingPropertyList(self, p):
+        return PN_BindingPropertyList_BindingPropertyList_COMMA_BindingProperty(self.context, p)
+    #
+    # BindingElementList[Yield, Await] :
+    #           BindingElisionElement[?Yield, ?Await]
+    #           BindingElementList[?Yield, ?Await] , BindingElisionElement[?Yield, ?Await]
+    @_('BindingElisionElement')  # pylint: disable=undefined-variable
+    def BindingElementList(self, p):
+        return PN_BindingElementList_BindingElisionElement(self.context, p)
+    @_('BindingElementList COMMA BindingElisionElement')  # pylint: disable=undefined-variable
+    def BindingElementList(self, p):
+        return PN_BindingElementList_BindingElementList_COMMA_BindingElisionElement(self.context, p)
+    #
+    # BindingElisionElement[Yield, Await] :
+    #           BindingElement[?Yield, ?Await]
+    #           Elision BindingElement[?Yield, ?Await]
+    @_('BindingElement')  # pylint: disable=undefined-variable
+    def BindingElisionElement(self, p):
+        return PN_BindingElisionElement_BindingElement(self.context, p)
+    @_('Elision BindingElement')  # pylint: disable=undefined-variable
+    def BindingElisionElement(self, p):
+        return PN_BindingElisionElement_Elision_BindingElement(self.context, p)
+    #
+    # BindingProperty[Yield, Await] :
+    #           SingleNameBinding[?Yield, ?Await]
+    #           PropertyName[?Yield, ?Await] : BindingElement[?Yield, ?Await]
+    @_('SingleNameBinding')  # pylint: disable=undefined-variable
+    def BindingProperty(self, p):
+        return PN_BindingProperty_SingleNameBinding(self.context, p)
+    @_('PropertyName COLON BindingElement')  # pylint: disable=undefined-variable
+    def BindingProperty(self, p):
+        return PN_BindingProperty_PropertyName_COLON_BindingElement(self.context, p)
+    #
+    # BindingElement[Yield, Await] :
+    #           SingleNameBinding[?Yield, ?Await]
+    #           BindingPattern[?Yield, ?Await]
+    #           BindingPattern[?Yield, ?Await] Initializer[+In, ?Yield, ?Await]
+    @_('SingleNameBinding')  # pylint: disable=undefined-variable
+    def BindingElement(self, p):
+        return PN_BindingElement_SingleNameBinding(self.context, p)
+    @_('BindingPattern')  # pylint: disable=undefined-variable
+    def BindingElement(self, p):
+        return PN_BindingElement_BindingPattern(self.context, p)
+    @_('BindingPattern Initializer_In')  # pylint: disable=undefined-variable
+    def BindingElement(self, p):
+        return PN_BindingElement_BindingPattern_Initializer(self.context, p)
+    #
+    # SingleNameBinding[Yield, Await] :
+    #           BindingIdentifier[?Yield, ?Await]
+    #           BindingIdentifier[?Yield, ?Await] Initializer[+In, ?Yield, ?Await]
+    @_('BindingIdentifier')  # pylint: disable=undefined-variable
+    def SingleNameBinding(self, p):
+        return PN_SingleNameBinding_BindingIdentifier(self.context, p)
+    @_('BindingIdentifier Initializer_In')  # pylint: disable=undefined-variable
+    def SingleNameBinding(self, p):
+        return PN_SingleNameBinding_BindingIdentifier_Initializer(self.context, p)
+    #
+    # BindingRestElement[Yield, Await] :
+    #           ... BindingIdentifier[?Yield, ?Await]
+    #           ... BindingPattern[?Yield, ?Await]
+    @_('DOTDOTDOT BindingIdentifier')  # pylint: disable=undefined-variable
+    def BindingRestElement(self, p):
+        return PN_BindingRestElement_DOTDOTDOT_BindingIdentifier(self.context, p)
+    @_('DOTDOTDOT BindingPattern')  # pylint: disable=undefined-variable
+    def BindingRestElement(self, p):
+        return PN_BindingRestElement_DOTDOTDOT_BindingPattern(self.context, p)
     ########################################################################################################################
 
     ########################################################################################################################
@@ -11021,18 +12623,18 @@ class Ecma262Parser(Parser):
     @_('BindingIdentifier Initializer_In')  # pylint: disable=undefined-variable
     def VariableDeclaration_In(self, p):
         return PN_VariableDeclaration_BindingIdentifier_Initializer(self.context, p)
-    #@_('BindingPattern Initializer_In')  # pylint: disable=undefined-variable
-    #def VariableDeclaration_In(self, p):
-    #    return PN_VariableDeclaration_BindingPattern_Initializer(self.context, p)
+    @_('BindingPattern Initializer_In')  # pylint: disable=undefined-variable
+    def VariableDeclaration_In(self, p):
+        return PN_VariableDeclaration_BindingPattern_Initializer(self.context, p)
     @_('BindingIdentifier')  # pylint: disable=undefined-variable
     def VariableDeclaration(self, p):
         return PN_VariableDeclaration_BindingIdentifier(self.context, p)
     @_('BindingIdentifier Initializer')  # pylint: disable=undefined-variable
     def VariableDeclaration(self, p):
         return PN_VariableDeclaration_BindingIdentifier_Initializer(self.context, p)
-    #@_('BindingPattern Initializer')  # pylint: disable=undefined-variable
-    #def VariableDeclaration(self, p):
-    #    return PN_VariableDeclaration_BindingPattern_Initializer(self.context, p)
+    @_('BindingPattern Initializer')  # pylint: disable=undefined-variable
+    def VariableDeclaration(self, p):
+        return PN_VariableDeclaration_BindingPattern_Initializer(self.context, p)
     ########################################################################################################################
 
     # 13.3.1
@@ -11085,18 +12687,18 @@ class Ecma262Parser(Parser):
     @_('BindingIdentifier')  # pylint: disable=undefined-variable
     def LexicalBinding(self, p):
         return PN_LexicalBinding_BindingIdentifier(self.context, p)
-    #@_('BindingPattern Initializer')  # pylint: disable=undefined-variable
-    #def LexicalBinding(self, p):
-    #    return PN_LexicalBinding_BindingPattern_Initializer(self.context, p)
+    @_('BindingPattern Initializer')  # pylint: disable=undefined-variable
+    def LexicalBinding(self, p):
+        return PN_LexicalBinding_BindingPattern_Initializer(self.context, p)
     @_('BindingIdentifier Initializer_In')  # pylint: disable=undefined-variable
     def LexicalBinding_In(self, p):
         return PN_LexicalBinding_BindingIdentifier_Initializer(self.context, p)
     @_('BindingIdentifier')  # pylint: disable=undefined-variable
     def LexicalBinding_In(self, p):
         return PN_LexicalBinding_BindingIdentifier(self.context, p)
-    #@_('BindingPattern Initializer_In')  # pylint: disable=undefined-variable
-    #def LexicalBinding_In(self, p):
-    #    return PN_LexicalBinding_BindingPattern_Initializer(self.context, p)
+    @_('BindingPattern Initializer_In')  # pylint: disable=undefined-variable
+    def LexicalBinding_In(self, p):
+        return PN_LexicalBinding_BindingPattern_Initializer(self.context, p)
     ########################################################################################################################
     # 13.2 Block
     # Syntax
@@ -11119,23 +12721,47 @@ class Ecma262Parser(Parser):
     @_('Block')  # pylint: disable=undefined-variable
     def BlockStatement(self, p):
         return PN_BlockStatement_Block(self.context, p)
+    @_('Block_Return')  # pylint: disable=undefined-variable
+    def BlockStatement_Return(self, p):
+        return PN_BlockStatement_Block(self.context, p)
+
     @_('LCURLY RCURLY')  # pylint: disable=undefined-variable
     def Block(self, p):
         return PN_Block_LCURLY_RCURLY(self.context, p)
     @_('LCURLY StatementList RCURLY')  # pylint: disable=undefined-variable
     def Block(self, p):
         return PN_Block_LCURLY_StatementList_RCURLY(self.context, p)
+    @_('LCURLY RCURLY')  # pylint: disable=undefined-variable
+    def Block_Return(self, p):
+        return PN_Block_LCURLY_RCURLY(self.context, p)
+    @_('LCURLY StatementList_Return RCURLY')  # pylint: disable=undefined-variable
+    def Block_Return(self, p):
+        return PN_Block_LCURLY_StatementList_RCURLY(self.context, p)
+
     @_('StatementListItem')  # pylint: disable=undefined-variable
     def StatementList(self, p):
         return PN_StatementList_StatementListItem(self.context, p)
     @_('StatementList StatementListItem')  # pylint: disable=undefined-variable
     def StatementList(self, p):
         return PN_StatementList_StatementList_StatementListItem(self.context, p)
+    @_('StatementListItem_Return')  # pylint: disable=undefined-variable
+    def StatementList_Return(self, p):
+        return PN_StatementList_StatementListItem(self.context, p)
+    @_('StatementList_Return StatementListItem_Return')  # pylint: disable=undefined-variable
+    def StatementList_Return(self, p):
+        return PN_StatementList_StatementList_StatementListItem(self.context, p)
+
     @_('Statement')  # pylint: disable=undefined-variable
     def StatementListItem(self, p):
         return PN_StatementListItem_Statement(self.context, p)
     @_('Declaration')  # pylint: disable=undefined-variable
     def StatementListItem(self, p):
+        return PN_StatementListItem_Declaration(self.context, p)
+    @_('Statement_Return')  # pylint: disable=undefined-variable
+    def StatementListItem_Return(self, p):
+        return PN_StatementListItem_Statement(self.context, p)
+    @_('Declaration')  # pylint: disable=undefined-variable
+    def StatementListItem_Return(self, p):
         return PN_StatementListItem_Declaration(self.context, p)
     ########################################################################################################################
     # 13 ECMAScript Language: Statements and Declarations
@@ -11191,16 +12817,53 @@ class Ecma262Parser(Parser):
     @_('BreakableStatement')  # pylint: disable=undefined-variable
     def Statement(self, p):
         return PN_Statement_BreakableStatement(self.context, p)
+    @_('ContinueStatement')  # pylint: disable=undefined-variable
+    def Statement(self, p):
+        return PN_Statement_ContinueStatement(self.context, p)
+    @_('BlockStatement_Return')  # pylint: disable=undefined-variable
+    def Statement_Return(self, p):
+        return PN_Statement_BlockStatement(self.context, p)
+    @_('VariableStatement')  # pylint: disable=undefined-variable
+    def Statement_Return(self, p):
+        return PN_Statement_VariableStatement(self.context, p)
+    @_('ExpressionStatement')  # pylint: disable=undefined-variable
+    def Statement_Return(self, p):
+        return PN_Statement_ExpressionStatement(self.context, p)
+    @_('EmptyStatement')  # pylint: disable=undefined-variable
+    def Statement_Return(self, p):
+        return PN_Statement_EmptyStatement(self.context, p)
+    @_('IfStatement_Return')  # pylint: disable=undefined-variable
+    def Statement_Return(self, p):
+        return PN_Statement_IfStatement(self.context, p)
+    @_('BreakableStatement_Return')  # pylint: disable=undefined-variable
+    def Statement_Return(self, p):
+        return PN_Statement_BreakableStatement(self.context, p)
+    @_('ContinueStatement')  # pylint: disable=undefined-variable
+    def Statement_Return(self, p):
+        return PN_Statement_ContinueStatement(self.context, p)
 
     @_('LexicalDeclaration_In')  # pylint: disable=undefined-variable
     def Declaration(self, p):
         return PN_Declaration_LexicalDeclaration(self.context, p)
+    @_('HoistableDeclaration')  # pylint: disable=undefined-variable
+    def Declaration(self, p):
+        return PN_Declaration_HoistableDeclaration(self.context, p)
+
+    @_('FunctionDeclaration')  # pylint: disable=undefined-variable
+    def HoistableDeclaration(self, p):
+        return PN_HoistableDeclaration_FunctionDeclaration(self.context, p)
 
     @_('IterationStatement')  # pylint: disable=undefined-variable
     def BreakableStatement(self, p):
         return PN_BreakableStatement_IterationStatement(self.context, p)
     #@_('SwitchStatement')  # pylint: disable=undefined-variable
     #def BreakableStatement(self, p):
+    #    return PN_BreakableStatement_SwitchStatement(self.context, p)
+    @_('IterationStatement_Return')  # pylint: disable=undefined-variable
+    def BreakableStatement_Return(self, p):
+        return PN_BreakableStatement_IterationStatement(self.context, p)
+    #@_('SwitchStatement_Return')  # pylint: disable=undefined-variable
+    #def BreakableStatement_Return(self, p):
     #    return PN_BreakableStatement_SwitchStatement(self.context, p)
     ########################################################################################################################
 
@@ -11716,6 +13379,131 @@ class Ecma262Parser(Parser):
     ########################################################################################################################
 
     ########################################################################################################################
+    # 12.2.6 Object Initializer
+    #
+    # NOTE 1
+    # An object initializer is an expression describing the initialization of an Object, written in a form resembling
+    # a literal. It is a list of zero or more pairs of property keys and associated values, enclosed in curly brackets.
+    # The values need not be literals; they are evaluated each time the object initializer is evaluated.
+    #
+    # Syntax
+    #
+    # ObjectLiteral[Yield, Await] :
+    #           { }
+    #           { PropertyDefinitionList[?Yield, ?Await] }
+    #           { PropertyDefinitionList[?Yield, ?Await] , }
+    #
+    # PropertyDefinitionList[Yield, Await] :
+    #           PropertyDefinition[?Yield, ?Await]
+    #           PropertyDefinitionList[?Yield, ?Await] , PropertyDefinition[?Yield, ?Await]
+    #
+    # PropertyDefinition[Yield, Await]:
+    #           IdentifierReference[?Yield, ?Await]
+    #           CoverInitializedName[?Yield, ?Await]
+    #           PropertyName[?Yield, ?Await] : AssignmentExpression[+In, ?Yield, ?Await]
+    #           MethodDefinition[?Yield, ?Await]
+    #           ... AssignmentExpression[+In, ?Yield, ?Await]
+    #
+    # PropertyName[Yield, Await] :
+    #           LiteralPropertyName
+    #           ComputedPropertyName[?Yield, ?Await]
+    @_('LiteralPropertyName')  # pylint: disable=undefined-variable
+    def PropertyName(self, p):
+        return PN_PropertyName_LiteralPropertyName(self.context, p)
+    @_('ComputedPropertyName')  # pylint: disable=undefined-variable
+    def PropertyName(self, p):
+        return PN_PropertyName_ComputedPropertyName(self.context, p)
+    #
+    # LiteralPropertyName:
+    #           IdentifierName
+    #           StringLiteral
+    #           NumericLiteral
+    @_('IdentifierName')  # pylint: disable=undefined-variable
+    def LiteralPropertyName(self, p):
+        return PN_LiteralPropertyName_IdentifierName(self.context, p)
+    @_('STRING')  # pylint: disable=undefined-variable
+    def LiteralPropertyName(self, p):
+        return PN_LiteralPropertyName_StringLiteral(self.context, p)
+    @_('NUMERIC')  # pylint: disable=undefined-variable
+    def LiteralPropertyName(self, p):
+        return PN_LiteralPropertyName_NumericLiteral(self.context, p)
+    #
+    # ComputedPropertyName[Yield, Await] :
+    #           [ AssignmentExpression[+In, ?Yield, ?Await] ]
+    @_('LBRACKET AssignmentExpression_In RBRACKET')  # pylint: disable=undefined-variable
+    def ComputedPropertyName(self, p):
+        return PN_ComputedPropertyName_LBRACKET_AssignmentExpression_RBRACKET(self.context, p)
+    #
+    # CoverInitializedName[Yield, Await] :
+    #           IdentifierReference[?Yield, ?Await] Initializer[+In, ?Yield, ?Await]
+    #
+    # Initializer[In, Yield, Await] :
+    #           = AssignmentExpression[?In, ?Yield, ?Await]
+    @_('EQUALS AssignmentExpression_In')  # pylint: disable=undefined-variable
+    def Initializer_In(self, p):
+        return PN_Initializer_EQUALS_AssignmentExpression(self.context, p)
+    @_('EQUALS AssignmentExpression')  # pylint: disable=undefined-variable
+    def Initializer(self, p):
+        return PN_Initializer_EQUALS_AssignmentExpression(self.context, p)
+    #
+    # NOTE 2
+    # MethodDefinition is defined in 14.3.
+    #
+    # NOTE 3
+    # In certain contexts, ObjectLiteral is used as a cover grammar for a more restricted secondary grammar. The
+    # CoverInitializedName production is necessary to fully cover these secondary grammars. However, use of this
+    # production results in an early Syntax Error in normal contexts where an actual ObjectLiteral is expected.
+    ########################################################################################################################
+
+    ########################################################################################################################
+    # 12.2.5 Array Initializer
+    #
+    # NOTE
+    # An ArrayLiteral is an expression describing the initialization of an Array object, using a list, of zero or more
+    # expressions each of which represents an array element, enclosed in square brackets. The elements need not be
+    # literals; they are evaluated each time the array initializer is evaluated.
+    #
+    # Array elements may be elided at the beginning, middle or end of the element list. Whenever a comma in the element
+    # list is not preceded by an AssignmentExpression (i.e., a comma at the beginning or after another comma), the
+    # missing array element contributes to the length of the Array and increases the index of subsequent elements.
+    # Elided array elements are not defined. If an element is elided at the end of an array, that element does not
+    # contribute to the length of the Array.
+    #
+    # Syntax
+    #
+    # ArrayLiteral[Yield, Await] :
+    #           [ ]
+    #           [ Elision ]
+    #           [ ElementList[?Yield, ?Await] ]
+    #           [ ElementList[?Yield, ?Await] , ]
+    #           [ ElementList[?Yield, ?Await] , Elision ]
+    #
+    # ElementList[Yield, Await] :
+    #           AssignmentExpression[+In, ?Yield, ?Await]
+    #           Elision AssignmentExpression[+In, ?Yield, ?Await]
+    #           SpreadElement[?Yield, ?Await]
+    #           Elision SpreadElement[?Yield, ?Await]
+    #           ElementList[?Yield, ?Await] , AssignmentExpression[+In, ?Yield, ?Await]
+    #           ElementList[?Yield, ?Await] , Elision AssignmentExpression[+In, ?Yield, ?Await]
+    #           ElementList[?Yield, ?Await] , SpreadElement[?Yield, ?Await]
+    #           ElementList[?Yield, ?Await] , Elisionopt SpreadElement[?Yield, ?Await]
+    #
+    # Elision :
+    #           ,
+    #           Elision ,
+    @_('COMMA')  # pylint: disable=undefined-variable
+    def Elision(self, p):
+        return PN_Elision_COMMA(self.context, p)
+    @_('Elision COMMA')  # pylint: disable=undefined-variable
+    def Elision(self, p):
+        return PN_Elision_Elision_COMMA(self.context, p)
+    #
+    # SpreadElement[Yield, Await] :
+    #           ... AssignmentExpression[+In, ?Yield, ?Await]
+    ########################################################################################################################
+
+
+    ########################################################################################################################
     # 12.2 Primary Expression
     #
     # Syntax
@@ -11772,21 +13560,6 @@ class Ecma262Parser(Parser):
     @_('LPAREN Expression_In RPAREN')  # pylint: disable=undefined-variable
     def ParenthesizedExpression(self, p):
         return PN_ParenthesizedExpression_LPAREN_Expression_RPAREN(self.context, p)
-    ########################################################################################################################
-    # 12.2.6 Object Initializer
-    #
-    # Syntax
-    #
-    # Initializer[In, Yield, Await] :
-    #       = AssignmentExpression[?In, ?Yield, ?Await]
-    ########################################################################################################################
-    @_('EQUALS AssignmentExpression_In')  # pylint: disable=undefined-variable
-    def Initializer_In(self, p):
-        return PN_Initializer_EQUALS_AssignmentExpression(self.context, p)
-    @_('EQUALS AssignmentExpression')  # pylint: disable=undefined-variable
-    def Initializer(self, p):
-        return PN_Initializer_EQUALS_AssignmentExpression(self.context, p)
-    ########################################################################################################################
 
     ########################################################################################################################
     # 12.1 Identifiers
@@ -11889,20 +13662,6 @@ class Ecma262Parser(Parser):
     @_('STRING')  # pylint: disable=undefined-variable
     def Literal(self, p):
         return PN_Literal_STRING(self.context, p)
-
-# 14.1.10 Static Semantics: IsAnonymousFunctionDefinition ( expr )
-def IsAnonymousFunctionDefinition(expr):
-    # The abstract operation IsAnonymousFunctionDefinition determines if its argument is a function definition that does not
-    # bind a name. The argument expr is the result of parsing an AssignmentExpression or Initializer. The following steps are
-    # taken:
-    #
-    # 1. If IsFunctionDefinition of expr is false, return false.
-    if not expr.IsFunctionDefinition():
-        return False
-    # 2. Let hasName be the result of HasName of expr.
-    # 3. If hasName is true, return false.
-    # 4. Return true.
-    return not expr.HasName()
 
 # 15.1.8 Script Records
 class ScriptRecord(Record):
@@ -12319,7 +14078,7 @@ def ObjectMethod_defineProperties(_a, _b, o_value, properties):
     return ObjectDefineProperties(o_value, properties)
 
 # 19.1.2.3.1 Runtime Semantics: ObjectDefineProperties ( O, Properties )
-def ObjectDefineProperties(_a, _b, o_value, properties):
+def ObjectDefineProperties(o_value, properties):
     # The abstract operation ObjectDefineProperties with arguments O and Properties performs the following steps:
     #
     # 1. If Type(O) is not Object, throw a TypeError exception.
@@ -12558,7 +14317,7 @@ def ObjectMethod_keys(_a, _b, o_value):
     if not ok:
         return obj
     # 2. Let nameList be ? EnumerableOwnPropertyNames(obj, "key").
-    name_list, ok = ec(EnumerableOwnProperetyNames(obj, 'key'))
+    name_list, ok = ec(EnumerableOwnPropertyNames(obj, 'key'))
     if not ok:
         return name_list
     # 3. Return CreateArrayFromList(nameList).
@@ -13542,7 +15301,8 @@ def StringFixups(realm):
 
 #######################################################################################################################################################
 if __name__ == '__main__':
-    rv, ok = ec(RunJobs(scripts=["String.fromCharCode(65, 66, 67);"]))
+    #rv, ok = ec(RunJobs(scripts=["var greg = { 'propA': 88, 'propB': true, 'henry': 'and june' }; greg;"]))
+    rv, ok = ec(RunJobs(scripts=["var x=0;"]))
 
     InitializeHostDefinedRealm()
     if ok:
