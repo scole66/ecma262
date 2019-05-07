@@ -5684,7 +5684,7 @@ def ArraySetLength(A, Desc):
     else:
         newWritable = False
         newLenDesc.writable = True # Need to defer setting [[Writable]] in case any elements cannot be deleted
-    succeeded = nc(OrdinarydefineOwnProperty(A, 'length', newLenDesc))
+    succeeded = nc(OrdinaryDefineOwnProperty(A, 'length', newLenDesc))
     if not succeeded:
         return NormalCompletion(False)
     while newLen < oldLen:
@@ -11124,7 +11124,7 @@ class PN_BindingRestElement_DOTDOTDOT_BindingIdentifier(PN_BindingRestElement):
         return self.children[1]
     def ContainsExpression(self):
         return False
-    def IteratorBindingInitialization(self, value, environment):
+    def IteratorBindingInitialization(self, iteratorRecord, environment):
         #       1. Let lhs be ? ResolveBinding(StringValue of BindingIdentifier, environment).
         #       2. Let A be ! ArrayCreate(0).
         #       3. Let n be 0.
@@ -11173,7 +11173,7 @@ class PN_BindingRestElement_DOTDOTDOT_BindingPattern(PN_BindingRestElement):
         return self.children[1]
     def ContainsExpression(self):
         return self.BindingPattern.ContainsExpression()
-    def IteratorBindingInitialization(self, value, environment):
+    def IteratorBindingInitialization(self, iteratorRecord, environment):
         #       1. Let A be ! ArrayCreate(0).
         #       2. Let n be 0.
         #       3. Repeat,
@@ -11200,7 +11200,7 @@ class PN_BindingRestElement_DOTDOTDOT_BindingPattern(PN_BindingRestElement):
                     iteratorRecord.Done = True
                     return next
                 if not next:
-                    iteratorRecrod.Done = True
+                    iteratorRecord.Done = True
             if iteratorRecord.Done:
                 return self.BindingPattern.BindingInitialization(A, environment)
             nextValue, ok = ec(IteratorValue(next))
