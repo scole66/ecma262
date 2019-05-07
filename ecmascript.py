@@ -7025,8 +7025,12 @@ def InitializeBoundName(name, value, environment):
     return PutValue(lhs, value)
 
 class PN_LabelIdentifier(ParseNode):
-    def __init__(self, ctx, p):
+    def __init__(self, ctx, p, yield_=False, await_=False):
         super().__init__('LabelIdentifier', p)
+        self.yield_ = yield_
+        self.await_ = await_
+        self.goal = ctx.goal
+        self.strict = ctx.strict
 class PN_LabelIdentifier_Identifier(PN_LabelIdentifier):
     @property
     def Identifier(self):
@@ -11407,6 +11411,9 @@ def LoopContinues(completion, labelSet):
     return (completion.ctype == CompletionType.NORMAL or
             (completion.ctype == CompletionType.CONTINUE and (completion.target == Empty.EMPTY or completion.target in labelSet)))
 class PN_IterationStatement_For_Expressions(PN_IterationStatement):
+    @property
+    def Statement(self):
+        raise NotImplementedError('Abstract classes cannot be instantiated')
     # This is for the for statements with simple-ish expresions (no "in" or "of")
     def ContainsDuplicateLabels(self, labelSet):
         # 13.7.4.2 Static Semantics: ContainsDuplicateLabels
@@ -11436,6 +11443,15 @@ class PN_IterationStatement_For_Expressions(PN_IterationStatement):
         # 1. Return ContainsUndefinedContinueTarget of Statement with arguments iterationSet and « ».
         return self.Statement.ContainsUndefinedContinueTarget(iterationSet, [])
 class PN_IterationStatement_For_Expressions_only(PN_IterationStatement_For_Expressions):
+    @property
+    def Expression1(self):
+        raise NotImplementedError('Abstract classes cannot be instantiated')
+    @property
+    def Expression2(self):
+        raise NotImplementedError('Abstract classes cannot be instantiated')
+    @property
+    def Expression3(self):
+        raise NotImplementedError('Abstract classes cannot be instantiated')
     def VarDeclaredNames(self):
         # 13.7.4.5 Static Semantics: VarDeclaredNames
         #           IterationStatement : for ( Expression ; Expression ; Expression ) Statement
@@ -11564,6 +11580,13 @@ class PN_IterationStatement_FOR_LPAREN_SEMICOLON_SEMICOLON_RPAREN_Statement(PN_I
     def Expression3(self):
         return None
 class PN_IterationStatement_For_varlist(PN_IterationStatement_For_Expressions):
+    @property
+    def VariableDeclarationList(self):
+        raise NotImplementedError('Abstract classes cannot be instantiated')
+    def Expression1(self):
+        raise NotImplementedError('Abstract classes cannot be instantiated')
+    def Expression2(self):
+        raise NotImplementedError('Abstract classes cannot be instantiated')
     def VarDeclaredNames(self):
         # 13.7.4.5 Static Semantics: VarDeclaredNames
         #           IterationStatement : for ( var VariableDeclarationList ; Expression ; Expression ) Statement
@@ -11721,6 +11744,7 @@ def CreatePerIterationEnvironment(perIterationBindings):
         surrounding_agent.running_ec.lexical_environment = thisIterationEnv
     return NormalCompletion(None)
 
+# ------------------------------------ 𝑭𝒐𝒓𝑫𝒆𝒄𝒍𝒂𝒓𝒂𝒕𝒊𝒐𝒏 ------------------------------------
 class PN_ForDeclaration(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('ForDeclaration', p)
