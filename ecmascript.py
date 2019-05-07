@@ -10675,15 +10675,16 @@ class Ecma262Parser(Parser):
         super().__init__()
         self.context = self.ParseContext(self.start, strict, source_text)
 
-    @_('GOAL_SCRIPT Script')
+    # pylint: disable=function-redefined
+    @_('GOAL_SCRIPT Script')  # pylint: disable=undefined-variable
     def SpecialStart(self, p):
         # The goal target for this parse is 'Script'
         return p[1]
-    @_('GOAL_CALLMEMBEREXPRESSION CallMemberExpression')
+    @_('GOAL_CALLMEMBEREXPRESSION CallMemberExpression')  # pylint: disable=undefined-variable
     def SpecialStart(self, p):
         # The goal target for this parse is 'CallMemberExpression'
         return p[1]
-    @_('GOAL_PARENTHESIZEDEXPRESSION ParenthesizedExpression')
+    @_('GOAL_PARENTHESIZEDEXPRESSION ParenthesizedExpression')  # pylint: disable=undefined-variable
     def SpecialStart(self, p):
         return p[1]
     ########################################################################################################################
@@ -10695,16 +10696,16 @@ class Ecma262Parser(Parser):
     # ScriptBody :
     #       StatementList[~Yield, ~Await, ~Return]
     #
-    @_('ScriptBody')
+    @_('ScriptBody')  # pylint: disable=undefined-variable
     def Script(self, p):
         return PN_Script_ScriptBody(self.context, p)
-    @_('empty')
+    @_('empty')  # pylint: disable=undefined-variable
     def Script(self, p):
         return PN_Script_empty(self.context, p)
-    @_('')
+    @_('')  # pylint: disable=undefined-variable
     def empty(self, p):
         pass
-    @_('StatementList')
+    @_('StatementList')  # pylint: disable=undefined-variable
     def ScriptBody(self, p):
         return PN_ScriptBody_StatementList(self.context, p)
     ########################################################################################################################
@@ -10718,7 +10719,7 @@ class Ecma262Parser(Parser):
     #
     # CoverCallExpressionAndAsyncArrowHead[Yield, Await] :
     #               MemberExpression[?Yield, ?Await] Arguments[?Yield, ?Await]
-    @_('MemberExpression Arguments')
+    @_('MemberExpression Arguments')  # pylint: disable=undefined-variable
     def CoverCallExpressionAndAsyncArrowHead(self, p):
         return PN_CoverCallExpressionAndAsyncArrowHead_MemberExpression_Arguments(self.context, p)
     ########################################################################################################################
@@ -10732,10 +10733,10 @@ class Ecma262Parser(Parser):
     #               continue ;
     #               continue [no LineTerminator here] LabelIdentifier[?Yield, ?Await] ;
     #
-    @_('CONTINUE SEMICOLON')
+    @_('CONTINUE SEMICOLON')  # pylint: disable=undefined-variable
     def ContinueStatement(self, p):
         return PN_ContinueStatement_CONTINUE_SEMICOLON(self.context, p)
-    @_('CONTINUE LabelIdentifier SEMICOLON')
+    @_('CONTINUE LabelIdentifier SEMICOLON')  # pylint: disable=undefined-variable
     def ContinueStatement(self, p):
         return PN_ContinueStatement_CONTINUE_LabelIdentifier_SEMICOLON(self.context, p)
     ########################################################################################################################
@@ -10743,10 +10744,10 @@ class Ecma262Parser(Parser):
     # LPAREN_  ---   ( [lookahead ∉ { let [ }]
     # LPAREN_LET --- ( [lookahead = let ]
     # LPAREN_LBRACKET --- ( [lookahead = [ ]
-    @_('LPAREN_', 'LPAREN_LET', 'LPAREN_LBRACKET')
+    @_('LPAREN_', 'LPAREN_LET', 'LPAREN_LBRACKET')  # pylint: disable=undefined-variable
     def LPAREN(self, p):    # LPAREN --- (
         return p[0]
-    @_('LPAREN_', 'LPAREN_LBRACKET') # --- ( [lookahead != let ]
+    @_('LPAREN_', 'LPAREN_LBRACKET') # --- ( [lookahead != let ]  # pylint: disable=undefined-variable
     def LPAREN_NOTLET(self, p):
         return p[0]
     ########################################################################################################################
@@ -10790,105 +10791,105 @@ class Ecma262Parser(Parser):
     #           BindingIdentifier[?Yield, ?Await]
     #           BindingPattern[?Yield, ?Await]
     #
-    @_('DO Statement WHILE LPAREN Expression_In RPAREN SEMICOLON')
+    @_('DO Statement WHILE LPAREN Expression_In RPAREN SEMICOLON')  # pylint: disable=undefined-variable
     def IterationStatement(self, p):
         return PN_IterationStatement_DO_Statement_WHILE_LPAREN_Expression_RPAREN_SEMICOLON(self.context, p)
-    @_('WHILE LPAREN Expression_In RPAREN Statement')
+    @_('WHILE LPAREN Expression_In RPAREN Statement')  # pylint: disable=undefined-variable
     def IterationStatement(self, p):
         return PN_IterationStatement_WHILE_LPAREN_Expression_RPAREN_Statement(self.context, p)
-    @_('FOR LPAREN_ Expression SEMICOLON Expression_In SEMICOLON Expression_In RPAREN Statement')
+    @_('FOR LPAREN_ Expression SEMICOLON Expression_In SEMICOLON Expression_In RPAREN Statement')  # pylint: disable=undefined-variable
     def IterationStatement(self, p):
         return PN_IterationStatement_FOR_LPAREN_Expression_SEMICOLON_Expression_SEMICOLON_Expression_RPAREN_Statement(self.context, p)
-    @_('FOR LPAREN_ Expression SEMICOLON Expression_In SEMICOLON RPAREN Statement')
+    @_('FOR LPAREN_ Expression SEMICOLON Expression_In SEMICOLON RPAREN Statement')  # pylint: disable=undefined-variable
     def IterationStatement(self, p):
         return PN_IterationStatement_FOR_LPAREN_Expression_SEMICOLON_Expression_SEMICOLON_RPAREN_Statement(self.context, p)
-    @_('FOR LPAREN_ Expression SEMICOLON SEMICOLON Expression_In RPAREN Statement')
+    @_('FOR LPAREN_ Expression SEMICOLON SEMICOLON Expression_In RPAREN Statement')  # pylint: disable=undefined-variable
     def IterationStatement(self, p):
         return PN_IterationStatement_FOR_LPAREN_Expression_SEMICOLON_SEMICOLON_Expression_RPAREN_Statement(self.context, p)
-    @_('FOR LPAREN_ Expression SEMICOLON SEMICOLON RPAREN Statement')
+    @_('FOR LPAREN_ Expression SEMICOLON SEMICOLON RPAREN Statement')  # pylint: disable=undefined-variable
     def IterationStatement(self, p):
         return PN_IterationStatement_FOR_LPAREN_Expression_SEMICOLON_SEMICOLON_RPAREN_Statement(self.context, p)
     # for ( [lookahead ∉ { let [ }] ; Expression[+In, ?Yield, ?Await] ; Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
-    @_('FOR LPAREN_ SEMICOLON Expression_In SEMICOLON Expression_In RPAREN Statement')
+    @_('FOR LPAREN_ SEMICOLON Expression_In SEMICOLON Expression_In RPAREN Statement')  # pylint: disable=undefined-variable
     def IterationStatement(self, p):
         return PN_IterationStatement_FOR_LPAREN_SEMICOLON_Expression_SEMICOLON_Expression_RPAREN_Statement(self.context, p)
     # for ( [lookahead ∉ { let [ }] ; Expression[+In, ?Yield, ?Await] ; ) Statement[?Yield, ?Await, ?Return]
-    @_('FOR LPAREN_ SEMICOLON Expression_In SEMICOLON RPAREN Statement')
+    @_('FOR LPAREN_ SEMICOLON Expression_In SEMICOLON RPAREN Statement')  # pylint: disable=undefined-variable
     def IterationStatement(self, p):
         return PN_IterationStatement_FOR_LPAREN_SEMICOLON_Expression_SEMICOLON_RPAREN_Statement(self.context, p)
     # for ( [lookahead ∉ { let [ }] ; ; Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
-    @_('FOR LPAREN_ SEMICOLON SEMICOLON Expression_In RPAREN Statement')
+    @_('FOR LPAREN_ SEMICOLON SEMICOLON Expression_In RPAREN Statement')  # pylint: disable=undefined-variable
     def IterationStatement(self, p):
         return PN_IterationStatement_FOR_LPAREN_SEMICOLON_SEMICOLON_Expression_RPAREN_Statement(self.context, p)
     # for ( [lookahead ∉ { let [ }] ; ; ) Statement[?Yield, ?Await, ?Return]
-    @_('FOR LPAREN_ SEMICOLON SEMICOLON RPAREN Statement')
+    @_('FOR LPAREN_ SEMICOLON SEMICOLON RPAREN Statement')  # pylint: disable=undefined-variable
     def IterationStatement(self, p):
         return PN_IterationStatement_FOR_LPAREN_SEMICOLON_SEMICOLON_RPAREN_Statement(self.context, p)
     #           for ( var VariableDeclarationList[~In, ?Yield, ?Await] ; Expression[+In, ?Yield, ?Await] ; Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
-    @_('FOR LPAREN VAR VariableDeclarationList SEMICOLON Expression_In SEMICOLON Expression_In RPAREN Statement')
+    @_('FOR LPAREN VAR VariableDeclarationList SEMICOLON Expression_In SEMICOLON Expression_In RPAREN Statement')  # pylint: disable=undefined-variable
     def IterationStatement(self, p):
         return PN_IterationStatement_FOR_LPAREN_VAR_VariableDeclarationList_SEMICOLON_Expression_SEMICOLON_Expression_RPAREN_Statement(self.context, p)
     #           for ( var VariableDeclarationList[~In, ?Yield, ?Await] ; ; Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
-    @_('FOR LPAREN VAR VariableDeclarationList SEMICOLON SEMICOLON Expression_In RPAREN Statement')
+    @_('FOR LPAREN VAR VariableDeclarationList SEMICOLON SEMICOLON Expression_In RPAREN Statement')  # pylint: disable=undefined-variable
     def IterationStatement(self, p):
         return PN_IterationStatement_FOR_LPAREN_VAR_VariableDeclarationList_SEMICOLON_SEMICOLON_Expression_RPAREN_Statement(self.context, p)
     #           for ( var VariableDeclarationList[~In, ?Yield, ?Await] ; Expression[+In, ?Yield, ?Await] ; ) Statement[?Yield, ?Await, ?Return]
-    @_('FOR LPAREN VAR VariableDeclarationList SEMICOLON Expression_In SEMICOLON RPAREN Statement')
+    @_('FOR LPAREN VAR VariableDeclarationList SEMICOLON Expression_In SEMICOLON RPAREN Statement')  # pylint: disable=undefined-variable
     def IterationStatement(self, p):
         return PN_IterationStatement_FOR_LPAREN_VAR_VariableDeclarationList_SEMICOLON_Expression_SEMICOLON_RPAREN_Statement(self.context, p)
     #           for ( var VariableDeclarationList[~In, ?Yield, ?Await] ; ; ) Statement[?Yield, ?Await, ?Return]
-    @_('FOR LPAREN VAR VariableDeclarationList SEMICOLON SEMICOLON RPAREN Statement')
+    @_('FOR LPAREN VAR VariableDeclarationList SEMICOLON SEMICOLON RPAREN Statement')  # pylint: disable=undefined-variable
     def IterationStatement(self, p):
         return PN_IterationStatement_FOR_LPAREN_VAR_VariableDeclarationList_SEMICOLON_SEMICOLON_RPAREN_Statement(self.context, p)
     #           for ( LexicalDeclaration[~In, ?Yield, ?Await] Expression[+In, ?Yield, ?Await] ; Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
-    @_('FOR LPAREN LexicalDeclaration Expression_In SEMICOLON Expression_In RPAREN Statement')
+    @_('FOR LPAREN LexicalDeclaration Expression_In SEMICOLON Expression_In RPAREN Statement')  # pylint: disable=undefined-variable
     def IterationStatement(self, p):
         return PN_IterationStatement_FOR_LPAREN_LexicalDeclaration_Expression_SEMICOLON_Expression_RPAREN_Statement(self.context, p)
     #           for ( LexicalDeclaration[~In, ?Yield, ?Await] ; Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
-    @_('FOR LPAREN LexicalDeclaration SEMICOLON Expression_In RPAREN Statement')
+    @_('FOR LPAREN LexicalDeclaration SEMICOLON Expression_In RPAREN Statement')  # pylint: disable=undefined-variable
     def IterationStatement(self, p):
         return PN_IterationStatement_FOR_LPAREN_LexicalDeclaration_SEMICOLON_Expression_RPAREN_Statement(self.context, p)
     #           for ( LexicalDeclaration[~In, ?Yield, ?Await] Expression[+In, ?Yield, ?Await] ; ) Statement[?Yield, ?Await, ?Return]
-    @_('FOR LPAREN LexicalDeclaration Expression_In SEMICOLON RPAREN Statement')
+    @_('FOR LPAREN LexicalDeclaration Expression_In SEMICOLON RPAREN Statement')  # pylint: disable=undefined-variable
     def IterationStatement(self, p):
         return PN_IterationStatement_FOR_LPAREN_LexicalDeclaration_Expression_SEMICOLON_RPAREN_Statement(self.context, p)
     #           for ( LexicalDeclaration[~In, ?Yield, ?Await] ; ) Statement[?Yield, ?Await, ?Return]
-    @_('FOR LPAREN LexicalDeclaration SEMICOLON RPAREN Statement')
+    @_('FOR LPAREN LexicalDeclaration SEMICOLON RPAREN Statement')  # pylint: disable=undefined-variable
     def IterationStatement(self, p):
         return PN_IterationStatement_FOR_LPAREN_LexicalDeclaration_SEMICOLON_RPAREN_Statement(self.context, p)
     #           for ( [lookahead ∉ { let [ }] LeftHandSideExpression[?Yield, ?Await] in Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
-    @_('FOR LPAREN_ LeftHandSideExpression IN Expression_In RPAREN Statement')
+    @_('FOR LPAREN_ LeftHandSideExpression IN Expression_In RPAREN Statement')  # pylint: disable=undefined-variable
     def IterationStatement(self, p):
         return PN_IterationStatement_FOR_LPAREN_LeftHandSideExpression_IN_Expression_RPAREN_Statement(self.context, p)
     #           for ( var ForBinding[?Yield, ?Await] in Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
-    @_('FOR LPAREN VAR ForBinding IN Expression_In RPAREN Statement')
+    @_('FOR LPAREN VAR ForBinding IN Expression_In RPAREN Statement')  # pylint: disable=undefined-variable
     def IterationStatement(self, p):
         return PN_IterationStatement_FOR_LPAREN_VAR_ForBinding_IN_Expression_RPAREN_Statement(self.context, p)
     #           for ( ForDeclaration[?Yield, ?Await] in Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
-    @_('FOR LPAREN ForDeclaration IN Expression_In RPAREN Statement')
+    @_('FOR LPAREN ForDeclaration IN Expression_In RPAREN Statement')  # pylint: disable=undefined-variable
     def IterationStatement(self, p):
         return PN_IterationStatement_FOR_LPAREN_VAR_ForBinding_IN_Expression_RPAREN_Statement(self.context, p)
     #           for ( [lookahead ≠ let] LeftHandSideExpression[?Yield, ?Await] of AssignmentExpression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
-    @_('FOR LPAREN_NOTLET LeftHandSideExpression OF AssignmentExpression_In RPAREN Statement')
+    @_('FOR LPAREN_NOTLET LeftHandSideExpression OF AssignmentExpression_In RPAREN Statement')  # pylint: disable=undefined-variable
     def IterationStatement(self, p):
         return PN_IterationStatement_FOR_LPAREN_LeftHandSideExpression_OF_AssignmentExpression_RPAREN_Statement(self.context, p)
     #           for ( var ForBinding[?Yield, ?Await] of AssignmentExpression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
-    @_('FOR LPAREN VAR ForBinding OF AssignmentExpression_In RPAREN Statement')
+    @_('FOR LPAREN VAR ForBinding OF AssignmentExpression_In RPAREN Statement')  # pylint: disable=undefined-variable
     def IterationStatement(self, p):
         return PN_IterationStatement_FOR_LPAREN_VAR_ForBinding_OF_AssignmentExpression_RPAREN_Statement(self.context, p)
     #           for ( ForDeclaration[?Yield, ?Await] of AssignmentExpression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
-    @_('FOR LPAREN ForDeclaration OF AssignmentExpression_In RPAREN Statement')
+    @_('FOR LPAREN ForDeclaration OF AssignmentExpression_In RPAREN Statement')  # pylint: disable=undefined-variable
     def IterationStatement(self, p):
         return PN_IterationStatement_FOR_LPAREN_ForDeclaration_OF_AssignmentExpression_RPAREN_Statement(self.context, p)
 
-    @_('LetOrConst ForBinding')
+    @_('LetOrConst ForBinding')  # pylint: disable=undefined-variable
     def ForDeclaration(self, p):
         return PN_ForDeclaration_LetOrConst_ForBinding(self.context, p)
 
-    @_('BindingIdentifier')
+    @_('BindingIdentifier')  # pylint: disable=undefined-variable
     def ForBinding(self, p):
         return PN_ForBinding_BindingIdentifier(self.context, p)
-    #@_('BindingPattern')
+    #@_('BindingPattern')  # pylint: disable=undefined-variable
     #def ForBinding(self, p):
     #    return PN_ForBinding_BindingPattern(self.context, p)
     ########################################################################################################################
@@ -10903,10 +10904,10 @@ class Ecma262Parser(Parser):
     # Each else for which the choice of associated if is ambiguous shall be associated with the nearest possible if
     # that would otherwise have no corresponding else.
     ########################################################################################################################
-    @_('IF LPAREN Expression_In RPAREN Statement ELSE Statement')
+    @_('IF LPAREN Expression_In RPAREN Statement ELSE Statement')  # pylint: disable=undefined-variable
     def IfStatement(self, p):
         return PN_IfStatement_IF_LPAREN_Expression_RPAREN_Statement_ELSE_Statement(self.context, p)
-    @_('IF LPAREN Expression_In RPAREN Statement')
+    @_('IF LPAREN Expression_In RPAREN Statement')  # pylint: disable=undefined-variable
     def IfStatement(self, p):
         return PN_IfStatement_IF_LPAREN_Expression_RPAREN_Statement(self.context, p)
     ########################################################################################################################
@@ -10919,7 +10920,7 @@ class Ecma262Parser(Parser):
     # EmptyStatement :
     #       ;
     #
-    @_('SEMICOLON')
+    @_('SEMICOLON')  # pylint: disable=undefined-variable
     def EmptyStatement(self, p):
         return PN_EmptyStatement_SEMICOLON(self.context, p)
     ########################################################################################################################
@@ -10948,37 +10949,37 @@ class Ecma262Parser(Parser):
     #       BindingIdentifier[?Yield, ?Await] Initializer[?In, ?Yield, ?Await]
     #       BindingPattern[?Yield, ?Await] Initializer[?In, ?Yield, ?Await]
     #
-    @_('VAR VariableDeclarationList_In SEMICOLON')
+    @_('VAR VariableDeclarationList_In SEMICOLON')  # pylint: disable=undefined-variable
     def VariableStatement(self, p):
         return PN_VariableStatement_VAR_VariableDeclarationList(self.context, p)
-    @_('VariableDeclaration_In')
+    @_('VariableDeclaration_In')  # pylint: disable=undefined-variable
     def VariableDeclarationList_In(self, p):
         return PN_VariableDeclarationList_VariableDeclaration(self.context, p)
-    @_('VariableDeclaration')
+    @_('VariableDeclaration')  # pylint: disable=undefined-variable
     def VariableDeclarationList(self, p):
         return PN_VariableDeclarationList_VariableDeclaration(self.context, p)
-    @_('VariableDeclarationList_In COMMA VariableDeclaration_In')
+    @_('VariableDeclarationList_In COMMA VariableDeclaration_In')  # pylint: disable=undefined-variable
     def VariableDeclarationList_In(self, p):
         return PN_VariableDeclarationList_VariableDeclarationList_COMMA_VariableDeclaration(self.context, p)
-    @_('VariableDeclarationList COMMA VariableDeclaration')
+    @_('VariableDeclarationList COMMA VariableDeclaration')  # pylint: disable=undefined-variable
     def VariableDeclarationList(self, p):
         return PN_VariableDeclarationList_VariableDeclarationList_COMMA_VariableDeclaration(self.context, p)
-    @_('BindingIdentifier')
+    @_('BindingIdentifier')  # pylint: disable=undefined-variable
     def VariableDeclaration_In(self, p):
         return PN_VariableDeclaration_BindingIdentifier(self.context, p)
-    @_('BindingIdentifier Initializer_In')
+    @_('BindingIdentifier Initializer_In')  # pylint: disable=undefined-variable
     def VariableDeclaration_In(self, p):
         return PN_VariableDeclaration_BindingIdentifier_Initializer(self.context, p)
-    #@_('BindingPattern Initializer_In')
+    #@_('BindingPattern Initializer_In')  # pylint: disable=undefined-variable
     #def VariableDeclaration_In(self, p):
     #    return PN_VariableDeclaration_BindingPattern_Initializer(self.context, p)
-    @_('BindingIdentifier')
+    @_('BindingIdentifier')  # pylint: disable=undefined-variable
     def VariableDeclaration(self, p):
         return PN_VariableDeclaration_BindingIdentifier(self.context, p)
-    @_('BindingIdentifier Initializer')
+    @_('BindingIdentifier Initializer')  # pylint: disable=undefined-variable
     def VariableDeclaration(self, p):
         return PN_VariableDeclaration_BindingIdentifier_Initializer(self.context, p)
-    #@_('BindingPattern Initializer')
+    #@_('BindingPattern Initializer')  # pylint: disable=undefined-variable
     #def VariableDeclaration(self, p):
     #    return PN_VariableDeclaration_BindingPattern_Initializer(self.context, p)
     ########################################################################################################################
@@ -11000,49 +11001,49 @@ class Ecma262Parser(Parser):
     #           BindingIdentifier[?Yield, ?Await]
     #           BindingPattern[?Yield, ?Await] Initializer[?In, ?Yield, ?Await]
     #
-    @_('LetOrConst BindingList SEMICOLON')
+    @_('LetOrConst BindingList SEMICOLON')  # pylint: disable=undefined-variable
     def LexicalDeclaration(self, p):
         return PN_LexicalDeclaration_LetOrConst_BindingList_SEMICOLON(self.context, p)
-    @_('LetOrConst BindingList_In SEMICOLON')
+    @_('LetOrConst BindingList_In SEMICOLON')  # pylint: disable=undefined-variable
     def LexicalDeclaration_In(self, p):
         return PN_LexicalDeclaration_LetOrConst_BindingList_SEMICOLON(self.context, p)
 
-    @_('LET')
+    @_('LET')  # pylint: disable=undefined-variable
     def LetOrConst(self, p):
         return PN_LetOrConst_LET(self.context, p)
-    @_('CONST')
+    @_('CONST')  # pylint: disable=undefined-variable
     def LetOrConst(self, p):
         return PN_LetOrConst_CONST(self.context, p)
 
-    @_('LexicalBinding')
+    @_('LexicalBinding')  # pylint: disable=undefined-variable
     def BindingList(self, p):
         return PN_BindingList_LexicalBinding(self.context, p)
-    @_('BindingList COMMA LexicalBinding')
+    @_('BindingList COMMA LexicalBinding')  # pylint: disable=undefined-variable
     def BindingList(self, p):
         return PN_BindingList_BindingList_COMMA_LexicalBinding(self.context, p)
-    @_('LexicalBinding_In')
+    @_('LexicalBinding_In')  # pylint: disable=undefined-variable
     def BindingList_In(self, p):
         return PN_BindingList_LexicalBinding(self.context, p)
-    @_('BindingList_In COMMA LexicalBinding_In')
+    @_('BindingList_In COMMA LexicalBinding_In')  # pylint: disable=undefined-variable
     def BindingList_In(self, p):
         return PN_BindingList_BindingList_COMMA_LexicalBinding(self.context, p)
 
-    @_('BindingIdentifier Initializer')
+    @_('BindingIdentifier Initializer')  # pylint: disable=undefined-variable
     def LexicalBinding(self, p):
         return PN_LexicalBinding_BindingIdentifier_Initializer(self.context, p)
-    @_('BindingIdentifier')
+    @_('BindingIdentifier')  # pylint: disable=undefined-variable
     def LexicalBinding(self, p):
         return PN_LexicalBinding_BindingIdentifier(self.context, p)
-    #@_('BindingPattern Initializer')
+    #@_('BindingPattern Initializer')  # pylint: disable=undefined-variable
     #def LexicalBinding(self, p):
     #    return PN_LexicalBinding_BindingPattern_Initializer(self.context, p)
-    @_('BindingIdentifier Initializer_In')
+    @_('BindingIdentifier Initializer_In')  # pylint: disable=undefined-variable
     def LexicalBinding_In(self, p):
         return PN_LexicalBinding_BindingIdentifier_Initializer(self.context, p)
-    @_('BindingIdentifier')
+    @_('BindingIdentifier')  # pylint: disable=undefined-variable
     def LexicalBinding_In(self, p):
         return PN_LexicalBinding_BindingIdentifier(self.context, p)
-    #@_('BindingPattern Initializer_In')
+    #@_('BindingPattern Initializer_In')  # pylint: disable=undefined-variable
     #def LexicalBinding_In(self, p):
     #    return PN_LexicalBinding_BindingPattern_Initializer(self.context, p)
     ########################################################################################################################
@@ -11064,25 +11065,25 @@ class Ecma262Parser(Parser):
     #       Statement[?Yield, ?Await, ?Return]
     #       Declaration[?Yield, ?Await]
     #
-    @_('Block')
+    @_('Block')  # pylint: disable=undefined-variable
     def BlockStatement(self, p):
         return PN_BlockStatement_Block(self.context, p)
-    @_('LCURLY RCURLY')
+    @_('LCURLY RCURLY')  # pylint: disable=undefined-variable
     def Block(self, p):
         return PN_Block_LCURLY_RCURLY(self.context, p)
-    @_('LCURLY StatementList RCURLY')
+    @_('LCURLY StatementList RCURLY')  # pylint: disable=undefined-variable
     def Block(self, p):
         return PN_Block_LCURLY_StatementList_RCURLY(self.context, p)
-    @_('StatementListItem')
+    @_('StatementListItem')  # pylint: disable=undefined-variable
     def StatementList(self, p):
         return PN_StatementList_StatementListItem(self.context, p)
-    @_('StatementList StatementListItem')
+    @_('StatementList StatementListItem')  # pylint: disable=undefined-variable
     def StatementList(self, p):
         return PN_StatementList_StatementList_StatementListItem(self.context, p)
-    @_('Statement')
+    @_('Statement')  # pylint: disable=undefined-variable
     def StatementListItem(self, p):
         return PN_StatementListItem_Statement(self.context, p)
-    @_('Declaration')
+    @_('Declaration')  # pylint: disable=undefined-variable
     def StatementListItem(self, p):
         return PN_StatementListItem_Declaration(self.context, p)
     ########################################################################################################################
@@ -11121,84 +11122,84 @@ class Ecma262Parser(Parser):
     #       IterationStatement[?Yield, ?Await, ?Return]
     #       SwitchStatement[?Yield, ?Await, ?Return]
     #
-    @_('BlockStatement')
+    @_('BlockStatement')  # pylint: disable=undefined-variable
     def Statement(self, p):
         return PN_Statement_BlockStatement(self.context, p)
-    @_('VariableStatement')
+    @_('VariableStatement')  # pylint: disable=undefined-variable
     def Statement(self, p):
         return PN_Statement_VariableStatement(self.context, p)
-    @_('ExpressionStatement')
+    @_('ExpressionStatement')  # pylint: disable=undefined-variable
     def Statement(self, p):
         return PN_Statement_ExpressionStatement(self.context, p)
-    @_('EmptyStatement')
+    @_('EmptyStatement')  # pylint: disable=undefined-variable
     def Statement(self, p):
         return PN_Statement_EmptyStatement(self.context, p)
-    @_('IfStatement')
+    @_('IfStatement')  # pylint: disable=undefined-variable
     def Statement(self, p):
         return PN_Statement_IfStatement(self.context, p)
-    @_('BreakableStatement')
+    @_('BreakableStatement')  # pylint: disable=undefined-variable
     def Statement(self, p):
         return PN_Statement_BreakableStatement(self.context, p)
 
-    @_('LexicalDeclaration_In')
+    @_('LexicalDeclaration_In')  # pylint: disable=undefined-variable
     def Declaration(self, p):
         return PN_Declaration_LexicalDeclaration(self.context, p)
 
-    @_('IterationStatement')
+    @_('IterationStatement')  # pylint: disable=undefined-variable
     def BreakableStatement(self, p):
         return PN_BreakableStatement_IterationStatement(self.context, p)
-    #@_('SwitchStatement')
+    #@_('SwitchStatement')  # pylint: disable=undefined-variable
     #def BreakableStatement(self, p):
     #    return PN_BreakableStatement_SwitchStatement(self.context, p)
     ########################################################################################################################
 
     ########################################################################################################################
-    @_('Expression_In SEMICOLON')
+    @_('Expression_In SEMICOLON')  # pylint: disable=undefined-variable
     def ExpressionStatement(self, p):
         return PN_ExpressionStatement_Expression(self.context, p)
-    @_('AssignmentExpression')
+    @_('AssignmentExpression')  # pylint: disable=undefined-variable
     def Expression(self, p):
         return PN_Expression_AssignmentExpression(self.context, p)
-    @_('Expression COMMA AssignmentExpression')
+    @_('Expression COMMA AssignmentExpression')  # pylint: disable=undefined-variable
     def Expression(self, p):
         return PN_Expression_Expression_COMMA_AssignmentExpression(self.context, p)
-    @_('AssignmentExpression_In')
+    @_('AssignmentExpression_In')  # pylint: disable=undefined-variable
     def Expression_In(self, p):
         return PN_Expression_AssignmentExpression(self.context, p)
-    @_('Expression_In COMMA AssignmentExpression_In')
+    @_('Expression_In COMMA AssignmentExpression_In')  # pylint: disable=undefined-variable
     def Expression_In(self, p):
         return PN_Expression_Expression_COMMA_AssignmentExpression(self.context, p)
-    @_('ConditionalExpression')
+    @_('ConditionalExpression')  # pylint: disable=undefined-variable
     def AssignmentExpression(self, p):
         return PN_AssignmentExpression_ConditionalExpression(self.context, p)
-    @_('LeftHandSideExpression EQUALS AssignmentExpression')
+    @_('LeftHandSideExpression EQUALS AssignmentExpression')  # pylint: disable=undefined-variable
     def AssignmentExpression(self, p):
         return PN_AssignmentExpression_LeftHandSideExpression_EQUALS_AssignmentExpression(self.context, p)
-    @_('LeftHandSideExpression AssignmentOperator AssignmentExpression')
+    @_('LeftHandSideExpression AssignmentOperator AssignmentExpression')  # pylint: disable=undefined-variable
     def AssignmentExpression(self, p):
         return PN_AssignmentExpression_LeftHandSideExpression_AssignmentOperator_AssignmentExpression(self.context, p)
-    @_('ConditionalExpression_In')
+    @_('ConditionalExpression_In')  # pylint: disable=undefined-variable
     def AssignmentExpression_In(self, p):
         return PN_AssignmentExpression_ConditionalExpression(self.context, p)
-    @_('LeftHandSideExpression EQUALS AssignmentExpression_In')
+    @_('LeftHandSideExpression EQUALS AssignmentExpression_In')  # pylint: disable=undefined-variable
     def AssignmentExpression_In(self, p):
         return PN_AssignmentExpression_LeftHandSideExpression_EQUALS_AssignmentExpression(self.context, p)
-    @_('LeftHandSideExpression AssignmentOperator AssignmentExpression_In')
+    @_('LeftHandSideExpression AssignmentOperator AssignmentExpression_In')  # pylint: disable=undefined-variable
     def AssignmentExpression_In(self, p):
         return PN_AssignmentExpression_LeftHandSideExpression_AssignmentOperator_AssignmentExpression(self.context, p)
-    @_('STAREQ', 'DIVEQ', 'PERCENTEQ', 'PLUSEQ', 'MINUSEQ', 'LTLE', 'GTGE', 'GTGTGE', 'AMPEQ', 'XOREQ', 'PIPEEQ', 'STARSTAREQ')
+    @_('STAREQ', 'DIVEQ', 'PERCENTEQ', 'PLUSEQ', 'MINUSEQ', 'LTLE', 'GTGE', 'GTGTGE', 'AMPEQ', 'XOREQ', 'PIPEEQ', 'STARSTAREQ')  # pylint: disable=undefined-variable
     def AssignmentOperator(self, p):
         return PN_AssignmentOperator(self.context, p)
-    @_('LogicalORExpression')
+    @_('LogicalORExpression')  # pylint: disable=undefined-variable
     def ConditionalExpression(self, p):
         return PN_ConditionalExpression_LogicalORExpression(self.context, p)
-    @_('LogicalORExpression QUESTION AssignmentExpression_In COLON AssignmentExpression')
+    @_('LogicalORExpression QUESTION AssignmentExpression_In COLON AssignmentExpression')  # pylint: disable=undefined-variable
     def ConditionalExpression(self, p):
         return PN_ConditionalExpression_QUESTION_AssignmentExpression_COLON_AssignmentExpression(self.context, p)
-    @_('LogicalORExpression_In')
+    @_('LogicalORExpression_In')  # pylint: disable=undefined-variable
     def ConditionalExpression_In(self, p):
         return PN_ConditionalExpression_LogicalORExpression(self.context, p)
-    @_('LogicalORExpression_In QUESTION AssignmentExpression_In COLON AssignmentExpression_In')
+    @_('LogicalORExpression_In QUESTION AssignmentExpression_In COLON AssignmentExpression_In')  # pylint: disable=undefined-variable
     def ConditionalExpression_In(self, p):
         return PN_ConditionalExpression_QUESTION_AssignmentExpression_COLON_AssignmentExpression(self.context, p)
 
@@ -11208,32 +11209,32 @@ class Ecma262Parser(Parser):
     # LogicalANDExpression[In, Yield, Await]:
     #                 BitwiseORExpression[?In, ?Yield, ?Await]
     #                 LogicalANDExpression[?In, ?Yield, ?Await] && BitwiseORExpression[?In, ?Yield, ?Await]
-    @_('BitwiseORExpression')
+    @_('BitwiseORExpression')  # pylint: disable=undefined-variable
     def LogicalANDExpression(self, p):
         return PN_LogicalANDExpression_BitwiseORExpression(self.context, p)
-    @_('LogicalANDExpression AMPAMP BitwiseORExpression')
+    @_('LogicalANDExpression AMPAMP BitwiseORExpression')  # pylint: disable=undefined-variable
     def LogicalANDExpression(self, p):
         return PN_LogicalANDExpression_LogicalANDExpression_AMPAMP_BitwiseORExpression(self.context, p)
-    @_('BitwiseORExpression_In')
+    @_('BitwiseORExpression_In')  # pylint: disable=undefined-variable
     def LogicalANDExpression_In(self, p):
         return PN_LogicalANDExpression_BitwiseORExpression(self.context, p)
-    @_('LogicalANDExpression_In AMPAMP BitwiseORExpression_In')
+    @_('LogicalANDExpression_In AMPAMP BitwiseORExpression_In')  # pylint: disable=undefined-variable
     def LogicalANDExpression_In(self, p):
         return PN_LogicalANDExpression_LogicalANDExpression_AMPAMP_BitwiseORExpression(self.context, p)
     #
     # LogicalORExpression[In, Yield, Await]:
     #                 LogicalANDExpression[?In, ?Yield, ?Await]
     #                 LogicalORExpression[?In, ?Yield, ?Await] || LogicalANDExpression[?In, ?Yield, ?Await]
-    @_('LogicalANDExpression')
+    @_('LogicalANDExpression')  # pylint: disable=undefined-variable
     def LogicalORExpression(self, p):
         return PN_LogicalORExpression_LogicalANDExpression(self.context, p)
-    @_('LogicalORExpression PIPEPIPE LogicalANDExpression')
+    @_('LogicalORExpression PIPEPIPE LogicalANDExpression')  # pylint: disable=undefined-variable
     def LogicalORExpression(self, p):
         return PN_LogicalORExpression_LogicalORExpression_PIPEPIPE_LogicalANDExpression(self.context, p)
-    @_('LogicalANDExpression_In')
+    @_('LogicalANDExpression_In')  # pylint: disable=undefined-variable
     def LogicalORExpression_In(self, p):
         return PN_LogicalORExpression_LogicalANDExpression(self.context, p)
-    @_('LogicalORExpression_In PIPEPIPE LogicalANDExpression_In')
+    @_('LogicalORExpression_In PIPEPIPE LogicalANDExpression_In')  # pylint: disable=undefined-variable
     def LogicalORExpression_In(self, p):
         return PN_LogicalORExpression_LogicalORExpression_PIPEPIPE_LogicalANDExpression(self.context, p)
     # NOTE
@@ -11247,48 +11248,48 @@ class Ecma262Parser(Parser):
     # BitwiseANDExpression[In, Yield, Await]:
     #                 EqualityExpression[?In, ?Yield, ?Await]
     #                 BitwiseANDExpression[?In, ?Yield, ?Await] & EqualityExpression[?In, ?Yield, ?Await]
-    @_('EqualityExpression')
+    @_('EqualityExpression')  # pylint: disable=undefined-variable
     def BitwiseANDExpression(self, p):
         return PN_BitwiseANDExpression_EqualityExpression(self.context, p)
-    @_('BitwiseANDExpression AMP EqualityExpression')
+    @_('BitwiseANDExpression AMP EqualityExpression')  # pylint: disable=undefined-variable
     def BitwiseANDExpression(self, p):
         return PN_BitwiseANDExpression_BitwiseANDExpression_AMP_EqualityExpression(self.context, p)
-    @_('EqualityExpression_In')
+    @_('EqualityExpression_In')  # pylint: disable=undefined-variable
     def BitwiseANDExpression_In(self, p):
         return PN_BitwiseANDExpression_EqualityExpression(self.context, p)
-    @_('BitwiseANDExpression_In AMP EqualityExpression_In')
+    @_('BitwiseANDExpression_In AMP EqualityExpression_In')  # pylint: disable=undefined-variable
     def BitwiseANDExpression_In(self, p):
         return PN_BitwiseANDExpression_BitwiseANDExpression_AMP_EqualityExpression(self.context, p)
     #
     # BitwiseXORExpression[In, Yield, Await]:
     #                 BitwiseANDExpression[?In, ?Yield, ?Await]
     #                 BitwiseXORExpression[?In, ?Yield, ?Await] ^ BitwiseANDExpression[?In, ?Yield, ?Await]
-    @_('BitwiseANDExpression')
+    @_('BitwiseANDExpression')  # pylint: disable=undefined-variable
     def BitwiseXORExpression(self, p):
         return PN_BitwiseXORExpression_BitwiseANDExpression(self.context, p)
-    @_('BitwiseXORExpression XOR BitwiseANDExpression')
+    @_('BitwiseXORExpression XOR BitwiseANDExpression')  # pylint: disable=undefined-variable
     def BitwiseXORExpression(self, p):
         return PN_BitwiseXORExpression_BitwiseXORExpression_XOR_BitwiseANDExpression(self.context, p)
-    @_('BitwiseANDExpression_In')
+    @_('BitwiseANDExpression_In')  # pylint: disable=undefined-variable
     def BitwiseXORExpression_In(self, p):
         return PN_BitwiseXORExpression_BitwiseANDExpression(self.context, p)
-    @_('BitwiseXORExpression_In XOR BitwiseANDExpression_In')
+    @_('BitwiseXORExpression_In XOR BitwiseANDExpression_In')  # pylint: disable=undefined-variable
     def BitwiseXORExpression_In(self, p):
         return PN_BitwiseXORExpression_BitwiseXORExpression_XOR_BitwiseANDExpression(self.context, p)
     #
     # BitwiseORExpression[In, Yield, Await]:
     #                 BitwiseXORExpression[?In, ?Yield, ?Await]
     #                 BitwiseORExpression[?In, ?Yield, ?Await] | BitwiseXORExpression[?In, ?Yield, ?Await]
-    @_('BitwiseXORExpression')
+    @_('BitwiseXORExpression')  # pylint: disable=undefined-variable
     def BitwiseORExpression(self, p):
         return PN_BitwiseORExpression_BitwiseXORExpression(self.context, p)
-    @_('BitwiseORExpression PIPE BitwiseXORExpression')
+    @_('BitwiseORExpression PIPE BitwiseXORExpression')  # pylint: disable=undefined-variable
     def BitwiseORExpression(self, p):
         return PN_BitwiseORExpression_BitwiseORExpression_PIPE_BitwiseXORExpression(self.context, p)
-    @_('BitwiseXORExpression_In')
+    @_('BitwiseXORExpression_In')  # pylint: disable=undefined-variable
     def BitwiseORExpression_In(self, p):
         return PN_BitwiseORExpression_BitwiseXORExpression(self.context, p)
-    @_('BitwiseORExpression_In PIPE BitwiseXORExpression_In')
+    @_('BitwiseORExpression_In PIPE BitwiseXORExpression_In')  # pylint: disable=undefined-variable
     def BitwiseORExpression_In(self, p):
         return PN_BitwiseORExpression_BitwiseORExpression_PIPE_BitwiseXORExpression(self.context, p)
     ########################################################################################################################
@@ -11306,34 +11307,34 @@ class Ecma262Parser(Parser):
     #                 EqualityExpression[?In, ?Yield, ?Await] != RelationalExpression[?In, ?Yield, ?Await]
     #                 EqualityExpression[?In, ?Yield, ?Await] === RelationalExpression[?In, ?Yield, ?Await]
     #                 EqualityExpression[?In, ?Yield, ?Await] !== RelationalExpression[?In, ?Yield, ?Await]
-    @_('RelationalExpression')
+    @_('RelationalExpression')  # pylint: disable=undefined-variable
     def EqualityExpression(self, p):
         return PN_EqualityExpression_RelationalExpression(self.context, p)
-    @_('EqualityExpression EQEQ RelationalExpression')
+    @_('EqualityExpression EQEQ RelationalExpression')  # pylint: disable=undefined-variable
     def EqualityExpression(self, p):
         return PN_EqualityExpression_EqualityExpression_EQEQ_RelationalExpression(self.context, p)
-    @_('EqualityExpression BANGEQ RelationalExpression')
+    @_('EqualityExpression BANGEQ RelationalExpression')  # pylint: disable=undefined-variable
     def EqualityExpression(self, p):
         return PN_EqualityExpression_EqualityExpression_BANGEQ_RelationalExpression(self.context, p)
-    @_('EqualityExpression EQEQEQ RelationalExpression')
+    @_('EqualityExpression EQEQEQ RelationalExpression')  # pylint: disable=undefined-variable
     def EqualityExpression(self, p):
         return PN_EqualityExpression_EqualityExpression_EQEQEQ_RelationalExpression(self.context, p)
-    @_('EqualityExpression BANGEQEQ RelationalExpression')
+    @_('EqualityExpression BANGEQEQ RelationalExpression')  # pylint: disable=undefined-variable
     def EqualityExpression(self, p):
         return PN_EqualityExpression_EqualityExpression_BANGEQEQ_RelationalExpression(self.context, p)
-    @_('RelationalExpression_In')
+    @_('RelationalExpression_In')  # pylint: disable=undefined-variable
     def EqualityExpression_In(self, p):
         return PN_EqualityExpression_RelationalExpression(self.context, p)
-    @_('EqualityExpression_In EQEQ RelationalExpression_In')
+    @_('EqualityExpression_In EQEQ RelationalExpression_In')  # pylint: disable=undefined-variable
     def EqualityExpression_In(self, p):
         return PN_EqualityExpression_EqualityExpression_EQEQ_RelationalExpression(self.context, p)
-    @_('EqualityExpression_In BANGEQ RelationalExpression_In')
+    @_('EqualityExpression_In BANGEQ RelationalExpression_In')  # pylint: disable=undefined-variable
     def EqualityExpression_In(self, p):
         return PN_EqualityExpression_EqualityExpression_BANGEQ_RelationalExpression(self.context, p)
-    @_('EqualityExpression_In EQEQEQ RelationalExpression_In')
+    @_('EqualityExpression_In EQEQEQ RelationalExpression_In')  # pylint: disable=undefined-variable
     def EqualityExpression_In(self, p):
         return PN_EqualityExpression_EqualityExpression_EQEQEQ_RelationalExpression(self.context, p)
-    @_('EqualityExpression_In BANGEQEQ RelationalExpression_In')
+    @_('EqualityExpression_In BANGEQEQ RelationalExpression_In')  # pylint: disable=undefined-variable
     def EqualityExpression_In(self, p):
         return PN_EqualityExpression_EqualityExpression_BANGEQEQ_RelationalExpression(self.context, p)
     ########################################################################################################################
@@ -11359,43 +11360,43 @@ class Ecma262Parser(Parser):
     # The [In] grammar parameter is needed to avoid confusing the in operator in a relational expression with the in operator
     # in a for statement.
     #
-    @_('ShiftExpression')
+    @_('ShiftExpression')  # pylint: disable=undefined-variable
     def RelationalExpression(self, p):
         return PN_RelationalExpression_ShiftExpression(self.context, p)
-    @_('RelationalExpression LT ShiftExpression')
+    @_('RelationalExpression LT ShiftExpression')  # pylint: disable=undefined-variable
     def RelationalExpression(self, p):
         return PN_RelationalExpression_RelationalExpression_LT_ShiftExpression(self.context, p)
-    @_('RelationalExpression GT ShiftExpression')
+    @_('RelationalExpression GT ShiftExpression')  # pylint: disable=undefined-variable
     def RelationalExpression(self, p):
         return PN_RelationalExpression_RelationalExpression_GT_ShiftExpression(self.context, p)
-    @_('RelationalExpression LE ShiftExpression')
+    @_('RelationalExpression LE ShiftExpression')  # pylint: disable=undefined-variable
     def RelationalExpression(self, p):
         return PN_RelationalExpression_RelationalExpression_LE_ShiftExpression(self.context, p)
-    @_('RelationalExpression GE ShiftExpression')
+    @_('RelationalExpression GE ShiftExpression')  # pylint: disable=undefined-variable
     def RelationalExpression(self, p):
         return PN_RelationalExpression_RelationalExpression_GE_ShiftExpression(self.context, p)
-    @_('RelationalExpression INSTANCEOF ShiftExpression')
+    @_('RelationalExpression INSTANCEOF ShiftExpression')  # pylint: disable=undefined-variable
     def RelationalExpression(self, p):
         return PN_RelationalExpression_RelationalExpression_INSTANCEOF_ShiftExpression(self.context, p)
-    @_('ShiftExpression')
+    @_('ShiftExpression')  # pylint: disable=undefined-variable
     def RelationalExpression_In(self, p):
         return PN_RelationalExpression_ShiftExpression(self.context, p)
-    @_('RelationalExpression_In LT ShiftExpression')
+    @_('RelationalExpression_In LT ShiftExpression')  # pylint: disable=undefined-variable
     def RelationalExpression_In(self, p):
         return PN_RelationalExpression_RelationalExpression_LT_ShiftExpression(self.context, p)
-    @_('RelationalExpression_In GT ShiftExpression')
+    @_('RelationalExpression_In GT ShiftExpression')  # pylint: disable=undefined-variable
     def RelationalExpression_In(self, p):
         return PN_RelationalExpression_RelationalExpression_GT_ShiftExpression(self.context, p)
-    @_('RelationalExpression_In LE ShiftExpression')
+    @_('RelationalExpression_In LE ShiftExpression')  # pylint: disable=undefined-variable
     def RelationalExpression_In(self, p):
         return PN_RelationalExpression_RelationalExpression_LE_ShiftExpression(self.context, p)
-    @_('RelationalExpression_In GE ShiftExpression')
+    @_('RelationalExpression_In GE ShiftExpression')  # pylint: disable=undefined-variable
     def RelationalExpression_In(self, p):
         return PN_RelationalExpression_RelationalExpression_GE_ShiftExpression(self.context, p)
-    @_('RelationalExpression_In INSTANCEOF ShiftExpression')
+    @_('RelationalExpression_In INSTANCEOF ShiftExpression')  # pylint: disable=undefined-variable
     def RelationalExpression_In(self, p):
         return PN_RelationalExpression_RelationalExpression_INSTANCEOF_ShiftExpression(self.context, p)
-    @_('RelationalExpression_In IN ShiftExpression')
+    @_('RelationalExpression_In IN ShiftExpression')  # pylint: disable=undefined-variable
     def RelationalExpression_In(self, p):
         return PN_RelationalExpression_RelationalExpression_IN_ShiftExpression(self.context, p)
     ########################################################################################################################
@@ -11411,16 +11412,16 @@ class Ecma262Parser(Parser):
     #              ShiftExpression[?Yield, ?Await] >> AdditiveExpression[?Yield, ?Await]
     #              ShiftExpression[?Yield, ?Await] >>> AdditiveExpression[?Yield, ?Await]
     #
-    @_('AdditiveExpression')
+    @_('AdditiveExpression')  # pylint: disable=undefined-variable
     def ShiftExpression(self, p):
         return PN_ShiftExpression_AdditiveExpression(self.context, p)
-    @_('ShiftExpression LTLT AdditiveExpression')
+    @_('ShiftExpression LTLT AdditiveExpression')  # pylint: disable=undefined-variable
     def ShiftExpression(self, p):
         return PN_ShiftExpression_LTLT_AdditiveExpression(self.context, p)
-    @_('ShiftExpression GTGT AdditiveExpression')
+    @_('ShiftExpression GTGT AdditiveExpression')  # pylint: disable=undefined-variable
     def ShiftExpression(self, p):
         return PN_ShiftExpression_GTGT_AdditiveExpression(self.context, p)
-    @_('ShiftExpression GTGTGT AdditiveExpression')
+    @_('ShiftExpression GTGTGT AdditiveExpression')  # pylint: disable=undefined-variable
     def ShiftExpression(self, p):
         return PN_ShiftExpression_GTGTGT_AdditiveExpression(self.context, p)
     ########################################################################################################################
@@ -11435,13 +11436,13 @@ class Ecma262Parser(Parser):
     #               AdditiveExpression[?Yield, ?Await] + MultiplicativeExpression[?Yield, ?Await]
     #               AdditiveExpression[?Yield, ?Await] - MultiplicativeExpression[?Yield, ?Await]
     #
-    @_('MultiplicativeExpression')
+    @_('MultiplicativeExpression')  # pylint: disable=undefined-variable
     def AdditiveExpression(self, p):
         return PN_AdditiveExpression_MultiplicativeExpression(self.context, p)
-    @_('AdditiveExpression PLUS MultiplicativeExpression')
+    @_('AdditiveExpression PLUS MultiplicativeExpression')  # pylint: disable=undefined-variable
     def AdditiveExpression(self, p):
         return PN_AdditiveExpression_AdditiveExpression_PLUS_MultiplicativeExpression(self.context, p)
-    @_('AdditiveExpression MINUS MultiplicativeExpression')
+    @_('AdditiveExpression MINUS MultiplicativeExpression')  # pylint: disable=undefined-variable
     def AdditiveExpression(self, p):
         return PN_AdditiveExpression_AdditiveExpression_MINUS_MultiplicativeExpression(self.context, p)
     ########################################################################################################################
@@ -11458,13 +11459,13 @@ class Ecma262Parser(Parser):
     # MultiplicativeOperator : one of
     #               * / %
     #
-    @_('ExponentiationExpression')
+    @_('ExponentiationExpression')  # pylint: disable=undefined-variable
     def MultiplicativeExpression(self, p):
         return PN_MultiplicativeExpression_ExponentiationExpression(self.context, p)
-    @_('MultiplicativeExpression MultiplicativeOperator ExponentiationExpression')
+    @_('MultiplicativeExpression MultiplicativeOperator ExponentiationExpression')  # pylint: disable=undefined-variable
     def MultiplicativeExpression(self, p):
         return PN_MultiplicativeExpression_MultiplicativeOperator_ExponentiationExpression(self.context, p)
-    @_('STAR', 'DIV', 'PERCENT')
+    @_('STAR', 'DIV', 'PERCENT')  # pylint: disable=undefined-variable
     def MultiplicativeOperator(self, p):
         return PN_MultiplicativeOperator(self.context, p)
     ########################################################################################################################
@@ -11478,10 +11479,10 @@ class Ecma262Parser(Parser):
     #           UnaryExpression[?Yield, ?Await]
     #           UpdateExpression[?Yield, ?Await] ** ExponentiationExpression[?Yield, ?Await]
     #
-    @_('UnaryExpression')
+    @_('UnaryExpression')  # pylint: disable=undefined-variable
     def ExponentiationExpression(self, p):
         return PN_ExponentiationExpression_UnaryExpression(self.context, p)
-    @_('UpdateExpression STARSTAR ExponentiationExpression')
+    @_('UpdateExpression STARSTAR ExponentiationExpression')  # pylint: disable=undefined-variable
     def ExponentiationExpression(self, p):
         return PN_ExponentiationExpression_UpdateExpression_STARSTAR_ExponentiationExpression(self.context, p)
     ########################################################################################################################
@@ -11501,25 +11502,25 @@ class Ecma262Parser(Parser):
     #           ~ UnaryExpression[?Yield, ?Await]
     #           ! UnaryExpression[?Yield, ?Await]
     #           [+Await]AwaitExpression[?Yield]
-    @_('UpdateExpression')
+    @_('UpdateExpression')  # pylint: disable=undefined-variable
     def UnaryExpression(self, p):
         return PN_UnaryExpression_UpdateExpression(self.context, p)
-    @_('DELETE UnaryExpression')
+    @_('DELETE UnaryExpression')  # pylint: disable=undefined-variable
     def UnaryExpression(self, p):
         return PN_UnaryExpression_DELETE_UnaryExpression(self.context, p)
-    @_('TYPEOF UnaryExpression')
+    @_('TYPEOF UnaryExpression')  # pylint: disable=undefined-variable
     def UnaryExpression(self, p):
         return PN_UnaryExpression_TYPEOF_UnaryExpression(self.context, p)
-    @_('PLUS UnaryExpression')
+    @_('PLUS UnaryExpression')  # pylint: disable=undefined-variable
     def UnaryExpression(self, p):
         return PN_UnaryExpression_PLUS_UnaryExpression(self.context, p)
-    @_('MINUS UnaryExpression')
+    @_('MINUS UnaryExpression')  # pylint: disable=undefined-variable
     def UnaryExpression(self, p):
         return PN_UnaryExpression_MINUS_UnaryExpression(self.context, p)
-    @_('TILDE UnaryExpression')
+    @_('TILDE UnaryExpression')  # pylint: disable=undefined-variable
     def UnaryExpression(self, p):
         return PN_UnaryExpression_TILDE_UnaryExpression(self.context, p)
-    @_('BANG UnaryExpression')
+    @_('BANG UnaryExpression')  # pylint: disable=undefined-variable
     def UnaryExpression(self, p):
         return PN_UnaryExpression_BANG_UnaryExpression(self.context, p)
     ########################################################################################################################
@@ -11536,19 +11537,19 @@ class Ecma262Parser(Parser):
     #           ++ UnaryExpression[?Yield, ?Await]
     #           -- UnaryExpression[?Yield, ?Await]
     #
-    @_('LeftHandSideExpression')
+    @_('LeftHandSideExpression')  # pylint: disable=undefined-variable
     def UpdateExpression(self, p):
         return PN_UpdateExpression_LeftHandSideExpression(self.context, p)
-    @_('LeftHandSideExpression PLUSPLUS')
+    @_('LeftHandSideExpression PLUSPLUS')  # pylint: disable=undefined-variable
     def UpdateExpression(self, p):
         return PN_UpdateExpression_LeftHandSideExpression_PLUSPLUS(self.context, p)
-    @_('LeftHandSideExpression MINUSMINUS')
+    @_('LeftHandSideExpression MINUSMINUS')  # pylint: disable=undefined-variable
     def UpdateExpression(self, p):
         return PN_UpdateExpression_LeftHandSideExpression_MINUSMINUS(self.context, p)
-    @_('PLUSPLUS UnaryExpression')
+    @_('PLUSPLUS UnaryExpression')  # pylint: disable=undefined-variable
     def UpdateExpression(self, p):
         return PN_UpdateExpression_PLUSPLUS_UnaryExpression(self.context, p)
-    @_('MINUSMINUS UnaryExpression')
+    @_('MINUSMINUS UnaryExpression')  # pylint: disable=undefined-variable
     def UpdateExpression(self, p):
         return PN_UpdateExpression_MINUSMINUS_UnaryExpression(self.context, p)
     ########################################################################################################################
@@ -11607,58 +11608,58 @@ class Ecma262Parser(Parser):
     #           NewExpression[?Yield, ?Await]
     #           CallExpression[?Yield, ?Await]
     #
-    @_('NewExpression')
+    @_('NewExpression')  # pylint: disable=undefined-variable
     def LeftHandSideExpression(self, p):
         return PN_LeftHandSideExpression_NewExpression(self.context, p)
-    @_('CallExpression')
+    @_('CallExpression')  # pylint: disable=undefined-variable
     def LeftHandSideExpression(self, p):
         return PN_LeftHandSideExpression_CallExpression(self.context, p)
-    @_('CoverCallExpressionAndAsyncArrowHead')
+    @_('CoverCallExpressionAndAsyncArrowHead')  # pylint: disable=undefined-variable
     def CallExpression(self, p):
         return PN_CallExpression_CoverCallExpressionAndAsyncArrowHead(self.context, p)
-    @_('CallExpression Arguments')
+    @_('CallExpression Arguments')  # pylint: disable=undefined-variable
     def CallExpression(self, p):
         return PN_CallExpression_CallExpression_Arguments(self.context, p)
-    @_('MemberExpression Arguments')
+    @_('MemberExpression Arguments')  # pylint: disable=undefined-variable
     def CallMemberExpression(self, p):
         return PN_CallMemberExpression_MemberExpression_Arguments(self.context, p)
-    @_('AssignmentExpression_In')
+    @_('AssignmentExpression_In')  # pylint: disable=undefined-variable
     def ArgumentList(self, p):
         return PN_ArgumentList_AssignmentExpression(self.context, p)
-    @_('DOTDOTDOT AssignmentExpression_In')
+    @_('DOTDOTDOT AssignmentExpression_In')  # pylint: disable=undefined-variable
     def ArgumentList(self, p):
         return PN_ArgumentList_DOTDOTDOT_AssignmentExpression(self.context, p)
-    @_('ArgumentList COMMA AssignmentExpression_In')
+    @_('ArgumentList COMMA AssignmentExpression_In')  # pylint: disable=undefined-variable
     def ArgumentList(self, p):
         return PN_ArgumentList_ArgumentList_COMMA_AssignmentExpression(self.context, p)
-    @_('ArgumentList COMMA DOTDOTDOT AssignmentExpression_In')
+    @_('ArgumentList COMMA DOTDOTDOT AssignmentExpression_In')  # pylint: disable=undefined-variable
     def ArgumentList(self, p):
         return PN_ArgumentList_ArgumentList_COMMA_DOTDOTDOT_AssignmentExpression(self.context, p)
-    @_('LPAREN RPAREN')
+    @_('LPAREN RPAREN')  # pylint: disable=undefined-variable
     def Arguments(self, p):
         return PN_Arguments_LPAREN_RPAREN(self.context, p)
-    @_('LPAREN ArgumentList RPAREN')
+    @_('LPAREN ArgumentList RPAREN')  # pylint: disable=undefined-variable
     def Arguments(self, p):
         return PN_Arguments_LPAREN_ArgumentList_RPAREN(self.context, p)
-    @_('LPAREN ArgumentList COMMA RPAREN')
+    @_('LPAREN ArgumentList COMMA RPAREN')  # pylint: disable=undefined-variable
     def Arguments(self, p):
         return PN_Arguments_LPAREN_ArgumentList_COMMA_RPAREN(self.context, p)
-    @_('MemberExpression')
+    @_('MemberExpression')  # pylint: disable=undefined-variable
     def NewExpression(self, p):
         return PN_NewExpression_MemberExpression(self.context, p)
-    @_('NEW NewExpression')
+    @_('NEW NewExpression')  # pylint: disable=undefined-variable
     def NewExpression(self, p):
         return PN_NewExpression_NEW_NewExpression(self.context, p)
-    @_('PrimaryExpression')
+    @_('PrimaryExpression')  # pylint: disable=undefined-variable
     def MemberExpression(self, p):
         return PN_MemberExpression_PrimaryExpression(self.context, p)
-    @_('NEW MemberExpression Arguments')
+    @_('NEW MemberExpression Arguments')  # pylint: disable=undefined-variable
     def MemberExpression(self, p):
         return PN_MemberExpression_NEW_MemberExpression_Arguments(self.context, p)
-    @_('MemberExpression LBRACKET Expression_In RBRACKET')
+    @_('MemberExpression LBRACKET Expression_In RBRACKET')  # pylint: disable=undefined-variable
     def MemberExpression(self, p):
         return PN_MemberExpression_MemberExpression_LBRACKET_Expression_RBRACKET(self.context, p)
-    @_('MemberExpression PERIOD  IdentifierName')
+    @_('MemberExpression PERIOD  IdentifierName')  # pylint: disable=undefined-variable
     def MemberExpression(self, p):
         return PN_MemberExpression_MemberExpression_DOT_IdentifierName(self.context, p)
     ########################################################################################################################
@@ -11694,30 +11695,30 @@ class Ecma262Parser(Parser):
     #
     # ParenthesizedExpression[Yield, Await] :
     #           ( Expression[+In, ?Yield, ?Await] )
-    @_('THIS')
+    @_('THIS')  # pylint: disable=undefined-variable
     def PrimaryExpression(self, p):
         return PN_PrimaryExpression_THIS(self.context, p)
-    @_('IdentifierReference')
+    @_('IdentifierReference')  # pylint: disable=undefined-variable
     def PrimaryExpression(self, p):
         return PN_PrimaryExpression_IdentifierReference(self.context, p)
-    @_('Literal')
+    @_('Literal')  # pylint: disable=undefined-variable
     def PrimaryExpression(self, p):
         return PN_PrimaryExpression_Literal(self.context, p)
-    @_('CoverParenthesizedExpressionAndArrowParameterList')
+    @_('CoverParenthesizedExpressionAndArrowParameterList')  # pylint: disable=undefined-variable
     def PrimaryExpression(self, p):
         return PN_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(self.context, p)
 
-    @_('LPAREN Expression_In RPAREN')
+    @_('LPAREN Expression_In RPAREN')  # pylint: disable=undefined-variable
     def CoverParenthesizedExpressionAndArrowParameterList(self, p):
         return PN_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_RPAREN(self.context, p)
-    @_('LPAREN Expression_In COMMA RPAREN')
+    @_('LPAREN Expression_In COMMA RPAREN')  # pylint: disable=undefined-variable
     def CoverParenthesizedExpressionAndArrowParameterList(self, p):
         return PN_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_COMMA_RPAREN(self.context, p)
-    @_('LPAREN RPAREN')
+    @_('LPAREN RPAREN')  # pylint: disable=undefined-variable
     def CoverParenthesizedExpressionAndArrowParameterList(self, p):
         return PN_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_RPAREN(self.context, p)
 
-    @_('LPAREN Expression_In RPAREN')
+    @_('LPAREN Expression_In RPAREN')  # pylint: disable=undefined-variable
     def ParenthesizedExpression(self, p):
         return PN_ParenthesizedExpression_LPAREN_Expression_RPAREN(self.context, p)
     ########################################################################################################################
@@ -11728,10 +11729,10 @@ class Ecma262Parser(Parser):
     # Initializer[In, Yield, Await] :
     #       = AssignmentExpression[?In, ?Yield, ?Await]
     ########################################################################################################################
-    @_('EQUALS AssignmentExpression_In')
+    @_('EQUALS AssignmentExpression_In')  # pylint: disable=undefined-variable
     def Initializer_In(self, p):
         return PN_Initializer_EQUALS_AssignmentExpression(self.context, p)
-    @_('EQUALS AssignmentExpression')
+    @_('EQUALS AssignmentExpression')  # pylint: disable=undefined-variable
     def Initializer(self, p):
         return PN_Initializer_EQUALS_AssignmentExpression(self.context, p)
     ########################################################################################################################
@@ -11764,55 +11765,55 @@ class Ecma262Parser(Parser):
     #       Identifier
     #       ReservedWord
     #
-    @_('Identifier')
+    @_('Identifier')  # pylint: disable=undefined-variable
     def IdentifierReference(self, p):
         return PN_IdentifierReference_Identifier(self.context, p)
-    @_('AWAIT')
+    @_('AWAIT')  # pylint: disable=undefined-variable
     def IdentifierReference(self, p):
         return PN_IdentifierReference_AWAIT(self.context, p)
-    @_('YIELD')
+    @_('YIELD')  # pylint: disable=undefined-variable
     def IdentifierReference(self, p):
         return PN_IdentifierReference_YIELD(self.context, p)
-    @_('Identifier')
+    @_('Identifier')  # pylint: disable=undefined-variable
     def IdentifierReference_Yield(self, p):
         return PN_IdentifierReference_Identifier(self.context, p, yield_=True)
-    @_('AWAIT')
+    @_('AWAIT')  # pylint: disable=undefined-variable
     def IdentifierReference_Yield(self, p):
         return PN_IdentifierReference_AWAIT(self.context, p, yield_=True)
-    @_('Identifier')
+    @_('Identifier')  # pylint: disable=undefined-variable
     def IdentifierReference_Await(self, p):
         return PN_IdentifierReference_Identifier(self.context, p, await_=True)
-    @_('YIELD')
+    @_('YIELD')  # pylint: disable=undefined-variable
     def IdentifierReference_Await(self, p):
         return PN_IdentifierReference_YIELD(self.context, p, await_=True)
-    @_('Identifier')
+    @_('Identifier')  # pylint: disable=undefined-variable
     def IdentifierReference_Yield_Await(self, p):
         return PN_IdentifierReference_Identifier(self.context, p, yield_=True, await_=True)
 
-    @_('Identifier')
+    @_('Identifier')  # pylint: disable=undefined-variable
     def BindingIdentifier(self, p):
         return PN_BindingIdentifier_Identifier(self.context, p)
-    @_('YIELD')
+    @_('YIELD')  # pylint: disable=undefined-variable
     def BindingIdentifier(self, p):
         return PN_BindingIdentifier_YIELD(self.context, p)
-    @_('AWAIT')
+    @_('AWAIT')  # pylint: disable=undefined-variable
     def BindingIdentifier(self, p):
         return PN_BindingIdentifier_AWAIT(self.context, p)
 
-    @_('Identifier')
+    @_('Identifier')  # pylint: disable=undefined-variable
     def LabelIdentifier(self, p):
         return PN_LabelIdentifier_Identifier(self.context, p)
-    @_('YIELD')
+    @_('YIELD')  # pylint: disable=undefined-variable
     def LabelIdentifier(self, p):
         return PN_LabelIdentifier_YIELD(self.context, p)
-    @_('AWAIT')
+    @_('AWAIT')  # pylint: disable=undefined-variable
     def LabelIdentifier(self, p):
         return PN_LabelIdentifier_AWAIT(self.context, p)
 
-    @_('Identifier', 'ReservedWord')
+    @_('Identifier', 'ReservedWord')  # pylint: disable=undefined-variable
     def IdentifierName(self, p):
         return PN_IdentifierName(self.context, p)
-    @_('AWAIT', 'BREAK', 'CASE', 'CATCH', 'CLASS', 'CONST', 'CONTINUE',
+    @_('AWAIT', 'BREAK', 'CASE', 'CATCH', 'CLASS', 'CONST', 'CONTINUE',  # pylint: disable=undefined-variable
        'DEBUGGER', 'DEFAULT', 'DELETE', 'DO', 'ELSE', 'EXPORT', 'EXTENDS',
         'FINALLY', 'FOR', 'FUNCTION', 'IF', 'IMPORT', 'IN', 'INSTANCEOF',
         'NEW', 'RETURN', 'SUPER', 'SWITCH', 'THIS', 'THROW', 'TRY', 'TYPEOF',
@@ -11821,20 +11822,20 @@ class Ecma262Parser(Parser):
     def ReservedWord(self, p):
         return PN_ReservedWord(self.context, p)
 
-    @_('IDENTIFIER', 'OF', 'LET')
+    @_('IDENTIFIER', 'OF', 'LET')  # pylint: disable=undefined-variable
     def Identifier(self, p):
         return PN_Identifier(self.context, p)
 
-    @_('NULL')
+    @_('NULL')  # pylint: disable=undefined-variable
     def Literal(self, p):
         return PN_Literal_NULL(self.context, p)
-    @_('TRUE', 'FALSE')
+    @_('TRUE', 'FALSE')  # pylint: disable=undefined-variable
     def Literal(self, p):
         return PN_Literal_BOOLEAN(self.context, p)
-    @_('NUMERIC')
+    @_('NUMERIC')  # pylint: disable=undefined-variable
     def Literal(self, p):
         return PN_Literal_NUMERIC(self.context, p)
-    @_('STRING')
+    @_('STRING')  # pylint: disable=undefined-variable
     def Literal(self, p):
         return PN_Literal_STRING(self.context, p)
 
