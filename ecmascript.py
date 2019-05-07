@@ -3,6 +3,7 @@ Scole's ECMAScript 9 system
 """
 from enum import Enum, unique, auto
 from collections import namedtuple, deque
+from copy import copy
 import re
 import math
 from itertools import chain
@@ -5617,6 +5618,87 @@ def ArraySpeciesCreate(originalArray, length):
     # running execution context, then a new Array is created using the realm of the running execution context. This maintains
     # compatibility with Web browsers that have historically had that behaviour for the Array.prototype methods that now are
     # defined using ArraySpeciesCreate.
+
+# 9.4.2.4 ArraySetLength ( A, Desc )
+def ArraySetLength(A, Desc):
+    # When the abstract operation ArraySetLength is called with an Array exotic object A, and Property Descriptor Desc,
+    # the following steps are taken:
+    #
+    #   1. If Desc.[[Value]] is absent, then
+    #       a. Return OrdinaryDefineOwnProperty(A, "length", Desc).
+    #   2. Let newLenDesc be a copy of Desc.
+    #   3. Let newLen be ? ToUint32(Desc.[[Value]]).
+    #   4. Let numberLen be ? ToNumber(Desc.[[Value]]).
+    #   5. If newLen ≠ numberLen, throw a RangeError exception.
+    #   6. Set newLenDesc.[[Value]] to newLen.
+    #   7. Let oldLenDesc be OrdinaryGetOwnProperty(A, "length").
+    #   8. Assert: oldLenDesc will never be undefined or an accessor descriptor because Array objects are created with
+    #      a length data property that cannot be deleted or reconfigured.
+    #   9. Let oldLen be oldLenDesc.[[Value]].
+    #   10. If newLen ≥ oldLen, then
+    #       a. Return OrdinaryDefineOwnProperty(A, "length", newLenDesc).
+    #   11. If oldLenDesc.[[Writable]] is false, return false.
+    #   12. If newLenDesc.[[Writable]] is absent or has the value true, let newWritable be true.
+    #   13. Else,
+    #       a. Need to defer setting the [[Writable]] attribute to false in case any elements cannot be deleted.
+    #       b. Let newWritable be false.
+    #       c. Set newLenDesc.[[Writable]] to true.
+    #   14. Let succeeded be ! OrdinaryDefineOwnProperty(A, "length", newLenDesc).
+    #   15. If succeeded is false, return false.
+    #   16. Repeat, while newLen < oldLen,
+    #       a. Set oldLen to oldLen - 1.
+    #       b. Let deleteSucceeded be ! A.[[Delete]](! ToString(oldLen)).
+    #       c. If deleteSucceeded is false, then
+    #           i. Set newLenDesc.[[Value]] to oldLen + 1.
+    #           ii. If newWritable is false, set newLenDesc.[[Writable]] to false.
+    #           iii. Perform ! OrdinaryDefineOwnProperty(A, "length", newLenDesc).
+    #           iv. Return false.
+    #   17. If newWritable is false, then
+    #       a. Return OrdinaryDefineOwnProperty(A, "length", PropertyDescriptor { [[Writable]]: false }). This call
+    #          will always return true.
+    #   18. Return true.
+    # NOTE
+    # In steps 3 and 4, if Desc.[[Value]] is an object then its valueOf method is called twice. This is legacy
+    # behaviour that was specified with this effect starting with the 2nd Edition of this specification.
+    if not hasattr(Desc, 'value'):
+        return OrdinaryDefineOwnProperty(A, 'length', Desc)
+    newLenDesc = copy(Desc)
+    newLen, ok = ec(ToUint32(Desc.value))
+    if not ok:
+        return newLen
+    numberLen, ok = ec(ToNumber(Desc.value))
+    if not ok:
+        return numberLen
+    if newLen != numberLen:
+        return ThrowCompletion(CreateRangeError(f'Array length {nc(ToString(Desc.value))} is invalid'))
+    newLenDesc.value = newLen
+    oldLenDesc = OrdinaryGetOwnProperty(A, 'length')
+    assert oldLenDesc is not None and not oldLenDesc.IsAccessorDescriptor()
+    oldLen = oldLenDesc.value
+    if newLen >= oldLen:
+        return OrdinaryDefineOwnProperty(A, 'length', newLenDesc)
+    if not oldLenDesc.writable:
+        return NormalCompletion(False)
+    if getattr(newLenDesc, 'writable', True):
+        newWritable = True
+    else:
+        newWritable = False
+        newLenDesc.writable = True # Need to defer setting [[Writable]] in case any elements cannot be deleted
+    succeeded = nc(OrdinarydefineOwnProperty(A, 'length', newLenDesc))
+    if not succeeded:
+        return NormalCompletion(False)
+    while newLen < oldLen:
+        oldLen -= 1
+        deleteSucceeded = nc(A.Delete(nc(ToString(oldLen))))
+        if not deleteSucceeded:
+            newLenDesc.value = oldLen + 1
+            if not newWritable:
+                newLenDesc.writable = False
+            nc(OrdinaryDefineOwnProperty(A, 'length', newLenDesc))
+            return NormalCompletion(False)
+    if not newWritable:
+        return OrdinaryDefineOwnProperty(A, 'length', PropertyDescriptor(writable=False))
+    return NormalCompletion(True)
 
 # ------------------------------------ 𝟗.𝟒.𝟑 𝑺𝒕𝒓𝒊𝒏𝒈 𝑬𝒙𝒐𝒕𝒊𝒄 𝑶𝒃𝒋𝒆𝒄𝒕𝒔 ------------------------------------
 # 9.4.3 String Exotic Objects
