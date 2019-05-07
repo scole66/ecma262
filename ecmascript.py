@@ -5673,7 +5673,7 @@ def ArraySetLength(A, Desc):
         return ThrowCompletion(CreateRangeError(f'Array length {nc(ToString(Desc.value))} is invalid'))
     newLenDesc.value = newLen
     oldLenDesc = OrdinaryGetOwnProperty(A, 'length')
-    assert oldLenDesc is not None and not oldLenDesc.IsAccessorDescriptor()
+    assert oldLenDesc is not None and not oldLenDesc.is_accessor_descriptor()
     oldLen = oldLenDesc.value
     if newLen >= oldLen:
         return OrdinaryDefineOwnProperty(A, 'length', newLenDesc)
