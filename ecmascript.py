@@ -2605,6 +2605,57 @@ def OrdinaryHasInstance(C, O):
         if SameValue(P, O):
             return NormalCompletion(True)
 
+# ------------------------------------ 𝟕.𝟑.𝟐𝟏 𝑬𝒏𝒖𝒎𝒆𝒓𝒂𝒃𝒍𝒆𝑶𝒘𝒏𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚𝑵𝒂𝒎𝒆𝒔 ( 𝑶, 𝒌𝒊𝒏𝒅 ) ------------------------------------
+# 7.3.21 EnumerableOwnPropertyNames ( O, kind )
+def EnumerableOwnPropertyNames(O, kind):
+    # When the abstract operation EnumerableOwnPropertyNames is called with Object O and String kind the following
+    # steps are taken:
+    #
+    #   1. Assert: Type(O) is Object.
+    #   2. Let ownKeys be ? O.[[OwnPropertyKeys]]().
+    #   3. Let properties be a new empty List.
+    #   4. For each element key of ownKeys in List order, do
+    #       a. If Type(key) is String, then
+    #           i. Let desc be ? O.[[GetOwnProperty]](key).
+    #           ii. If desc is not undefined and desc.[[Enumerable]] is true, then
+    #               1. If kind is "key", append key to properties.
+    #               2. Else,
+    #                   a. Let value be ? Get(O, key).
+    #                   b. If kind is "value", append value to properties.
+    #                   c. Else,
+    #                       i. Assert: kind is "key+value".
+    #                       ii. Let entry be CreateArrayFromList(« key, value »).
+    #                       iii. Append entry to properties.
+    #   5. Order the elements of properties so they are in the same relative order as would be produced by the Iterator
+    #      that would be returned if the EnumerateObjectProperties internal method were invoked with O.
+    #   6. Return properties.
+    assert isObject(O)
+    ownKeys, ok = ec(O.OwnPropertyKeys())
+    if not ok:
+        return ownKeys
+    properties = []
+    for key in ownKeys:
+        if isString(key):
+            desc, ok = ec(O.GetOwnProperty(key))
+            if not ok:
+                return desc
+            if desc is not None and desc.enumerable:
+                if kind == 'key':
+                    properties.append(key)
+                else:
+                    value, ok = ec(Get(O, key))
+                    if not ok:
+                        return value
+                    if kind == 'value':
+                        properties.append(value)
+                    else:
+                        assert kind == 'key+value'
+                        entry = CreateArrayFromList([key, value])
+                        properties.append(entry)
+    # The ordering rule is just to ensure the two functions are consistent, not that there's a particular order the
+    # spec provides. We're good, because the true ordering is already done in OwnPropertyKeys.
+    return properties
+
 # 7.3.22 GetFunctionRealm ( obj )
 def GetFunctionRealm(obj):
     # The abstract operation GetFunctionRealm with argument obj performs the following steps:
