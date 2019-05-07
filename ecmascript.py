@@ -4679,7 +4679,7 @@ def JSFunction_Construct(F, argumentsList, newTarget):
     # 2. Assert: Type(newTarget) is Object.
     assert isObject(newTarget)
     # 3. Let callerContext be the running execution context.
-    callerContext = surrounding_agent.running_ec
+    #callerContext = surrounding_agent.running_ec
     # 4. Let kind be F.[[ConstructorKind]].
     kind = F.ConstructorKind
     # 5. If kind is "base", then
@@ -7745,7 +7745,7 @@ class PN_CallExpression_CoverCallExpressionAndAsyncArrowHead(PN_CallExpression):
                 if not ok:
                     return cr
                 return PerformEval(evalText, evalRealm, strictCaller, True)
-        thisCall = self
+        #thisCall = self
         tailCall = False #IsInTailPosition(thisCall)
         return EvaluateCall(func, ref, arguments, tailCall)
 class PN_CallMemberExpression_MemberExpression_Arguments(ParseNode):
