@@ -11,36 +11,41 @@ THROW = CompletionType.THROW
 def obj(realm):
     return ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
 
+def make_thrower(msg):
+    def thrower(*args, **kwargs):
+        raise ESTypeError(msg)
+    return thrower
 @pytest.fixture
 def some_objects(realm):
     # A plain object.
     plain = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
-    # An object with a [[Get]] method that throws an exception with the value 'I am EvilGet'
+    # An object with a [[Get]] method that throws an exception with a TypeError and the message 'I am EvilGet'
     evil_get = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
-    evil_get.Get = types.MethodType(lambda _a, _b, _c: ThrowCompletion('I am EvilGet'), 'Get')
+    evil_get.Get = types.MethodType(make_thrower('I am EvilGet'), 'Get')
     # An object with a "toString" method that throws an exception with the value 'I am evil tostring'
+
     evil_tostring = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
     CreateMethodPropertyOrThrow(evil_tostring, 'toString',
-                                CreateBuiltinFunction(lambda _a, _b: ThrowCompletion('I am evil tostring'),
+                                CreateBuiltinFunction(make_thrower('I am evil tostring'),
                                                       [], realm, JSNull.NULL))
     # An object whose "toString" and "toValue" methods both produce objects.
     bad_primitives = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
     objfunc = CreateBuiltinFunction(
-        lambda _a, _b: NormalCompletion(ObjectCreate(realm.intrinsics['%ObjectPrototype%'])),
+        lambda _a, _b: ObjectCreate(realm.intrinsics['%ObjectPrototype%']),
         [], realm, JSNull.NULL)
     CreateMethodPropertyOrThrow(bad_primitives, 'toString', objfunc)
     CreateMethodPropertyOrThrow(bad_primitives, 'toValue', objfunc)
     # An object whose "toString" method returns 'You found the treasure', and whose 'valueOf' method returns 42
     treasure = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
-    objfunc = CreateBuiltinFunction(lambda _a, _b: NormalCompletion('You found the treasure'), [], realm,
+    objfunc = CreateBuiltinFunction(lambda _a, _b: 'You found the treasure', [], realm,
                                     JSNull.NULL)
     CreateMethodPropertyOrThrow(treasure, 'toString', objfunc)
-    objfunc = CreateBuiltinFunction(lambda _a, _b: NormalCompletion(42), [], realm, JSNull.NULL)
+    objfunc = CreateBuiltinFunction(lambda _a, _b: 42, [], realm, JSNull.NULL)
     CreateMethodPropertyOrThrow(treasure, 'valueOf', objfunc)
     # An object whose valueOf method isn't actually a function.
     no_value = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
     Set(no_value, 'valueOf', 67, False)
-    objfunc = CreateBuiltinFunction(lambda _a, _b: NormalCompletion('The no_value object'), [], realm, JSNull.NULL)
+    objfunc = CreateBuiltinFunction(lambda _a, _b: 'The no_value object', [], realm, JSNull.NULL)
     CreateMethodProperty(no_value, 'toString', objfunc)
 
     return {
@@ -52,51 +57,51 @@ def some_objects(realm):
         'no_value': no_value,
         }
 
-@pytest.mark.parametrize('objname, cnvtype, result_val, result_type', [
-    ('plain', 'string', '[object Object]', NORMAL),
-    ('plain', 'number', '[object Object]', NORMAL),
-    ('evil_get', 'string', 'I am EvilGet', THROW),
-    ('evil_tostring', 'string', 'I am evil tostring', THROW),
-    ('bad_primitives', 'string', 'TypeError', THROW),
-    ('treasure', 'string', 'You found the treasure', NORMAL),
-    ('treasure', 'number', 42, NORMAL),
-    ('no_value', 'number', 'The no_value object', NORMAL),
+@pytest.mark.parametrize('objname, cnvtype, result_val', [
+    ('plain', 'string', '[object Object]'),
+    ('plain', 'number', '[object Object]'),
+    ('treasure', 'string', 'You found the treasure'),
+    ('treasure', 'number', 42),
+    ('no_value', 'number', 'The no_value object'),
 ])
-def test_OrdinaryToPrimitive(some_objects, objname, cnvtype, result_val, result_type):
+def test_OrdinaryToPrimitive_01(some_objects, objname, cnvtype, result_val):
     cr = OrdinaryToPrimitive(some_objects[objname], cnvtype)
-    if result_type == THROW and result_val == 'TypeError':
-        assert isinstance(cr, Completion)
-        assert cr.ctype == THROW
-        assert nc(ToString(cr.value)).startswith('TypeError')
-        assert cr.target is None
-    else:
-        assert cr == Completion(ctype=result_type, value=result_val, target=None)
+    assert cr == result_val
+@pytest.mark.parametrize('objname, cnvtype, result_val', [
+    ('evil_get', 'string', 'I am EvilGet'),
+    ('evil_tostring', 'string', 'I am evil tostring'),
+    ('bad_primitives', 'string', ''),
+])
+def test_OrdinaryToPrimitive_02(some_objects, objname, cnvtype, result_val):
+    with pytest.raises(ESTypeError, match=f'TypeError: {result_val}'):
+        OrdinaryToPrimitive(some_objects[objname], cnvtype)
 
 def test_ToPrimitive_notobj():
     # Need the object inputs, in the future!!
     cr = ToPrimitive('string')
-    assert cr == Completion(ctype=NORMAL, value='string', target=None)
+    assert cr == 'string'
 
-@pytest.mark.parametrize('objname, cnvtype, result_val, result_type',
+@pytest.mark.parametrize('objname, cnvtype, result_val',
 [
-    ('plain', 'string', '[object Object]', NORMAL),
-    ('plain', 'number', '[object Object]', NORMAL),
-    ('evil_get', 'string', 'I am EvilGet', THROW),
-    ('evil_tostring', 'string', 'I am evil tostring', THROW),
-    ('bad_primitives', 'string', TypeError(), THROW),
-    ('treasure', 'string', 'You found the treasure', NORMAL),
-    ('treasure', 'number', 42, NORMAL),
-    ('treasure', 'default', 42, NORMAL)
+    ('plain', 'string', '[object Object]'),
+    ('plain', 'number', '[object Object]'),
+    ('treasure', 'string', 'You found the treasure'),
+    ('treasure', 'number', 42),
+    ('treasure', 'default', 42),
 ])
-def test_ToPrimitive(some_objects, objname, cnvtype, result_val, result_type):
+def test_ToPrimitive_01(some_objects, objname, cnvtype, result_val):
     cr = ToPrimitive(some_objects[objname], cnvtype)
-    if result_type == THROW and isinstance(result_val, TypeError):
-        assert isinstance(cr, Completion)
-        assert cr.ctype == THROW
-        assert nc(ToString(cr.value)).startswith('TypeError')
-        assert cr.target is None
-    else:
-        assert cr == Completion(ctype=result_type, value=result_val, target=None)
+    assert cr == result_val
+
+@pytest.mark.parametrize('objname, cnvtype, result_val',
+[
+    ('evil_get', 'string', 'I am EvilGet'),
+    ('evil_tostring', 'string', 'I am evil tostring'),
+    ('bad_primitives', 'string', ''),
+])
+def test_ToPrimitive_02(some_objects, objname, cnvtype, result_val):
+    with pytest.raises(ESTypeError, match=f'TypeError: {result_val}'):
+        ToPrimitive(some_objects[objname], cnvtype)
 
 def test_ToPrimitive_GetMethodThrows(realm):
     # If an object has a @@toPrimitive property, the ToPrimitive routine tries to use as a conversion method.
@@ -104,45 +109,39 @@ def test_ToPrimitive_GetMethodThrows(realm):
     obj = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
     CreateDataProperty(obj, wks_to_primitive, 100)
 
-    cr = ToPrimitive(obj, 'number')
-    assert isinstance(cr, Completion)
-    assert cr.ctype == THROW
-    assert nc(ToString(cr.value)).startswith('TypeError')
-    assert cr.target is None
+    with pytest.raises(ESTypeError):
+        ToPrimitive(obj, 'number')
 
 @pytest.mark.parametrize('input,expected', [('number', 'I was passed number.'), ('string', 'I was passed string.')])
 def test_ToPrimitive_exotictoprim(realm, input, expected):
     # If an object has a @@toPrimitive method, ToPrimitive should use it.
     obj = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
     def exotic_to_primitive(self, new_target, hint):
-        return NormalCompletion('I was passed %s.' % hint)
+        return 'I was passed %s.' % hint
     CreateMethodProperty(obj, wks_to_primitive, CreateBuiltinFunction(exotic_to_primitive, [], realm))
 
     cr = ToPrimitive(obj, input)
-    assert cr == Completion(NORMAL, expected, None)
+    assert cr == expected
 
 def test_ToPrimitive_exoticthrows(realm):
     # If an object's @@toPrimitive throws an error, it's not ignored.
     obj = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
     def exotic_to_primitive(self, new_target, hint):
-        return ThrowCompletion('I am evil.')
+        raise ESTypeError('I am evil.')
     CreateMethodProperty(obj, wks_to_primitive, CreateBuiltinFunction(exotic_to_primitive, [], realm))
 
-    cr = ToPrimitive(obj, 'string')
-    assert cr == Completion(THROW, 'I am evil.', None)
+    with pytest.raises(ESTypeError, match='I am evil\\.'):
+        ToPrimitive(obj, 'string')
 
 def test_ToPrimitive_exoticreturnsobj(realm):
     # If an object's @@toPrimitive returns an Object, ToPrimitive throws a TypeError
     obj = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
     def exotic_to_primitive(self, new_target, hint):
-        return NormalCompletion(obj)
+        return obj
     CreateMethodProperty(obj, wks_to_primitive, CreateBuiltinFunction(exotic_to_primitive, [], realm))
 
-    cr = ToPrimitive(obj, 'string')
-    assert isinstance(cr, Completion)
-    assert cr.ctype == THROW
-    assert nc(ToString(cr.value)).startswith('TypeError')
-    assert cr.target is None
+    with pytest.raises(ESTypeError):
+        ToPrimitive(obj, 'string')
 
 @pytest.mark.parametrize('input,expected', [
     (None, False),
@@ -196,7 +195,10 @@ def test_to_boolean(input, expected):
     ])
 def test_ToNumber_01(input, expected):
     cr = ToNumber(input)
-    assert cr == Completion(ctype=NORMAL, value=expected, target=None)
+    if math.isnan(expected):
+        assert math.isnan(cr)
+    else:
+        assert cr == expected
 
 @pytest.mark.parametrize('input,expected', [
     ('-0', '-0.0'),
@@ -204,43 +206,38 @@ def test_ToNumber_01(input, expected):
     ('-0.0', '-0.0')])
 def test_ToNumber_negative_zero(input, expected):
     cr = ToNumber(input)
-    cr2 = Completion(ctype=cr.ctype, value=str(cr.value), target=cr.target)
-    assert cr2 == Completion(ctype=NORMAL, value=expected, target=None)
+    assert str(cr) == expected
 
 def test_ToNumber_symbol(realm):
-    cr = ToNumber(wks_to_primitive)
-    assert cr.ctype == THROW
-    assert cr.target is None
-    assert nc(ToString(cr.value)).startswith('TypeError')
+    with pytest.raises(ESTypeError):
+        ToNumber(wks_to_primitive)
 
 def test_ToNumber_04(obj):
     # Success: Calls ToPrimitive on the object, then ToNumber on the primitive
     def valueOf(self, new_target):
-        return NormalCompletion(76)
+        return 76
     fcn = CreateBuiltinFunction(valueOf, [])
     CreateMethodPropertyOrThrow(obj, 'valueOf', fcn)
 
     res = ToNumber(obj)
-    assert res == Completion(NORMAL, 76, None)
+    assert res == 76
 
 def test_ToNumber_05(obj, mocker):
     # When ToPrimitive throws an error
-    mocker.patch('ecmascript.ToPrimitive', return_value=Completion(THROW, 'throw test', None))
+    mocker.patch('ecmascript.ToPrimitive', side_effect=ESTypeError('throw test'))
 
-    res = ToNumber(obj)
-    assert res == Completion(THROW, 'throw test', None)
+    with pytest.raises(ESTypeError):
+        ToNumber(obj)
 
 def test_ToNumber_06(obj):
     # When ToNumber throws an error in the recursive call when getting the value of an object.
     def valueOf(self, new_target):
-        return NormalCompletion(wks_to_primitive)
+        return wks_to_primitive
     fcn = CreateBuiltinFunction(valueOf, [])
     CreateMethodPropertyOrThrow(obj, 'valueOf', fcn)
 
-    res = ToNumber(obj)
-    assert res.ctype == THROW
-    assert nc(ToString(res.value)).startswith('TypeError')
-    assert res.target is None
+    with pytest.raises(ESTypeError):
+        ToNumber(obj)
 
 @pytest.mark.parametrize('input,expected', [
     ('goblin', 0),
@@ -251,18 +248,15 @@ def test_ToNumber_06(obj):
     (-23.3, -23.0)])
 def test_to_integer(input, expected):
     cr = ToInteger(input)
-    assert cr == Completion(ctype=NORMAL, value=expected, target=None)
+    assert cr == expected
 
 def test_to_integer_negative_zero():
     cr = ToInteger(-0.0)
-    cr2 = Completion(ctype=cr.ctype, value=str(cr.value), target=cr.target)
-    assert cr2 == Completion(ctype=NORMAL, value='-0.0', target=None)
+    assert str(cr) == '-0.0'
 
 def test_to_integer_symbol(realm):
-    cr = ToInteger(wks_to_primitive)
-    assert cr.ctype == THROW
-    assert cr.target is None
-    assert nc(ToString(cr.value)).startswith('TypeError')
+    with pytest.raises(ESTypeError):
+        ToInteger(wks_to_primitive)
 
 @pytest.mark.parametrize('input,expected', [
     (math.nan, 0),
@@ -275,19 +269,16 @@ def test_to_integer_symbol(realm):
     (-56, -56)])
 def test_to_int32(input, expected):
     cr = ToInt32(input)
-    assert cr == Completion(ctype=NORMAL, value=expected, target=None)
-    assert cr.value == ToInt32(cr.value).value  # Idempotentcy check
+    assert cr == expected
+    assert cr == ToInt32(cr)  # Idempotentcy check
 
 def test_to_int32_neg_zero():
     cr = ToInt32(-0.0)
-    cr2 = Completion(ctype=cr.ctype, value=str(cr.value), target=cr.target)
-    assert cr2 == Completion(ctype=NORMAL, value='0', target=None)
+    assert str(cr) == '0'
 
 def test_to_int32_symbol(realm):
-    cr = ToInt32(wks_to_primitive)
-    assert cr.ctype == THROW
-    assert cr.target is None
-    assert nc(ToString(cr.value)).startswith('TypeError')
+    with pytest.raises(ESTypeError):
+        ToInt32(wks_to_primitive)
 
 @pytest.mark.parametrize('input,expected', [
     (math.nan, 0),
@@ -300,13 +291,11 @@ def test_to_int32_symbol(realm):
     (-56, 0xffffffc8)])
 def test_to_uint32(input, expected):
     cr = ToUint32(input)
-    assert cr == Completion(ctype=NORMAL, value=expected, target=None)
+    assert cr == expected
 
 def test_to_uint32_symbol(realm):
-    cr = ToUint32(wks_to_primitive)
-    assert cr.ctype == THROW
-    assert cr.target is None
-    assert nc(ToString(cr.value)).startswith('TypeError')
+    with pytest.raises(ESTypeError):
+        ToUint32(wks_to_primitive)
 
 @pytest.mark.parametrize('input,expected', [
     (math.nan, 0),
@@ -319,12 +308,10 @@ def test_to_uint32_symbol(realm):
     (-56, -56)])
 def test_to_int16(input, expected):
     cr = ToInt16(input)
-    assert cr == Completion(ctype=NORMAL, value=expected, target=None)
+    assert cr == expected
 def test_to_int16_symbol(realm):
-    cr = ToInt16(wks_to_primitive)
-    assert cr.ctype == THROW
-    assert cr.target is None
-    assert nc(ToString(cr.value)).startswith('TypeError')
+    with pytest.raises(ESTypeError):
+        ToInt16(wks_to_primitive)
 
 @pytest.mark.parametrize('input,expected', [
     (math.nan, 0),
@@ -337,13 +324,11 @@ def test_to_int16_symbol(realm):
     (-56, 0xffc8)])
 def test_to_uint16(input, expected):
     cr = ToUint16(input)
-    assert cr == Completion(ctype=NORMAL, value=expected, target=None)
+    assert cr == expected
 
 def test_to_uint16_symbol(realm):
-    cr = ToUint16(wks_to_primitive)
-    assert cr.ctype == THROW
-    assert cr.target is None
-    assert nc(ToString(cr.value)).startswith('TypeError')
+    with pytest.raises(ESTypeError):
+        ToUint16(wks_to_primitive)
 
 @pytest.mark.parametrize('input,expected', [
     (math.nan, 0),
@@ -356,12 +341,10 @@ def test_to_uint16_symbol(realm):
     (-56, -56)])
 def test_to_int8(input, expected):
     cr = ToInt8(input)
-    assert cr == Completion(ctype=NORMAL, value=expected, target=None)
+    assert cr == expected
 def test_to_int8_symbol(realm):
-    cr = ToInt8(wks_to_primitive)
-    assert cr.ctype == THROW
-    assert cr.target is None
-    assert nc(ToString(cr.value)).startswith('TypeError')
+    with pytest.raises(ESTypeError):
+        ToInt8(wks_to_primitive)
 
 @pytest.mark.parametrize('input,expected', [
     (math.nan, 0),
@@ -374,13 +357,11 @@ def test_to_int8_symbol(realm):
     (-56, 0xc8)])
 def test_to_uint8(input, expected):
     cr = ToUint8(input)
-    assert cr == Completion(ctype=NORMAL, value=expected, target=None)
+    assert cr == expected
 
 def test_to_uint8_symbol(realm):
-    cr = ToUint8(wks_to_primitive)
-    assert cr.ctype == THROW
-    assert cr.target is None
-    assert nc(ToString(cr.value)).startswith('TypeError')
+    with pytest.raises(ESTypeError):
+        ToUint8(wks_to_primitive)
 
 @pytest.mark.parametrize('input,expected', [
     ('goblin', 0),
@@ -396,12 +377,10 @@ def test_to_uint8_symbol(realm):
     (18.5, 18)])
 def test_to_uint8_clamp(input, expected):
     cr = ToUint8Clamp(input)
-    assert cr == Completion(ctype=NORMAL, value=expected, target=None)
+    assert cr == expected
 def test_to_uint8_clamp_symbol(realm):
-    cr = ToUint8Clamp(wks_to_primitive)
-    assert cr.ctype == THROW
-    assert cr.target is None
-    assert nc(ToString(cr.value)).startswith('TypeError')
+    with pytest.raises(ESTypeError):
+        ToUint8Clamp(wks_to_primitive)
 
 @pytest.mark.parametrize('input,expected', [
     (None, 'undefined'),
@@ -422,23 +401,21 @@ def test_to_uint8_clamp_symbol(realm):
 ])
 def test_ToString_01(input, expected):
     cr = ToString(input)
-    assert cr == Completion(ctype=NORMAL, value=expected, target=None)
+    assert cr == expected
 def test_ToString_symbol(realm):
-    cr = ToString(wks_to_primitive)
-    assert cr.ctype == THROW
-    assert cr.target is None
-    assert nc(ToString(cr.value)).startswith('TypeError')
+    with pytest.raises(ESTypeError):
+        ToString(wks_to_primitive)
 def test_ToString_03(mocker, obj):
     # Input is an object, and ToPrimitive throws.
-    mocker.patch('ecmascript.ToPrimitive', side_effect=lambda a, b: ThrowCompletion('test throw'))
-    res = ToString(obj)
-    assert res == Completion(THROW, 'test throw', None)
+    mocker.patch('ecmascript.ToPrimitive', side_effect=ESTypeError)
+    with pytest.raises(ESTypeError):
+        ToString(obj)
 def test_ToString_04(obj):
     # Input is an object, and it has a valid toString method.
     fcn = CreateBuiltinFunction(lambda thisvalue, newtarget: 'test object string', [])
     CreateMethodProperty(obj, 'toString', fcn)
     res = ToString(obj)
-    assert res == Completion(NORMAL, 'test object string', None)
+    assert res == 'test object string'
 
 @pytest.mark.parametrize('arg,expected', [(math.nan, 'NaN'),
     (0.0, '0'),
@@ -473,58 +450,46 @@ def test_NumberToString_01(arg, expected):
 def test_ToObject_01(obj):
     # Object -> Object
     cr = ToObject(obj)
-    assert cr == Completion(ctype=NORMAL, value=obj, target=None)
+    assert cr == obj
 
 def test_ToObject_02(realm):
     # Boolean -> Object
     res = ToObject(True)
-    assert res.ctype == NORMAL
-    assert res.target is None
-    assert isObject(res.value)
-    assert hasattr(res.value, 'BooleanData')
-    assert res.value.BooleanData
+    assert isObject(res)
+    assert hasattr(res, 'BooleanData')
+    assert res.BooleanData
 
 def test_ToObject_03(realm):
     # Null -> Error
-    res = ToObject(JSNull.NULL)
-    assert res.ctype == THROW
-    assert res.target is None
-    assert nc(ToString(res.value)).startswith('TypeError')
+    with pytest.raises(ESTypeError):
+        ToObject(JSNull.NULL)
 
 def test_ToObject_04(realm):
     # Undefined -> Error
-    res = ToObject(None)
-    assert res.ctype == THROW
-    assert res.target is None
-    assert nc(ToString(res.value)).startswith('TypeError')
+    with pytest.raises(ESTypeError):
+        ToObject(None)
 
 def test_ToObject_05(realm):
     # Number -> Object
     res = ToObject(34000)
-    assert res.ctype == NORMAL
-    assert res.target is None
-    assert isObject(res.value)
-    assert hasattr(res.value, 'NumberData')
-    assert res.value.NumberData == 34000
+    assert isObject(res)
+    assert hasattr(res, 'NumberData')
+    assert res.NumberData == 34000
 
 def test_ToObject_06(realm):
     # String -> Object
     res = ToObject('tricky')
-    assert res.ctype == NORMAL
-    assert res.target is None
-    assert isObject(res.value)
-    assert hasattr(res.value, 'StringData')
-    assert res.value.StringData == 'tricky'
+    assert isObject(res)
+    assert hasattr(res, 'StringData')
+    assert res.StringData == 'tricky'
 
 @pytest.mark.xfail(reason='Needs Symbol Object Support')
 def test_ToObject_07(realm):
     # Symbol -> Object
     res = ToObject(wks_to_primitive)
-    assert res.ctype == NORMAL
-    assert res.target is None
-    assert isObject(res.value)
-    assert hasattr(res.value, 'SymbolData')
-    assert res.value.SymbooData == wks_to_primitive
+    assert isObject(res)
+    assert hasattr(res, 'SymbolData')
+    assert res.SymbolData == wks_to_primitive
 
 @pytest.mark.parametrize('arg,expected', [
     ('1', 1),
@@ -599,7 +564,7 @@ def test_IsCallable_02(obj):
 
 def test_IsCallable_03(realm):
     # An object with a [[Call]] slot
-    fcn_obj = CreateBuiltinFunction(lambda self, new_target: NormalCompletion(None), [])
+    fcn_obj = CreateBuiltinFunction(lambda self, new_target: None, [])
     res = IsCallable(fcn_obj)
     assert res
 
@@ -638,7 +603,7 @@ def test_IsExtensible_01(obj, mocker):
     # All this is doing is deferring to its object's method. So that's all we should confirm here.
     ie = mocker.Mock(return_value=True)
     obj.IsExtensible = ie
-    res = IsExtensible(obj)
+    IsExtensible(obj)
     ie.assert_called_once_with()
 
 # 7.1.14 ToPropertyKey ( argument )
@@ -651,16 +616,16 @@ def test_IsExtensible_01(obj, mocker):
 # 3. Return ! ToString(key).
 def test_ToPropertyKey_01():
     res = ToPropertyKey(69)
-    assert res == Completion(NORMAL, '69', None)
+    assert res == '69'
 
 def test_ToPropertyKey_02():
     res = ToPropertyKey(wks_to_primitive)
-    assert res == Completion(NORMAL, wks_to_primitive, None)
+    assert res == wks_to_primitive
 
-def test_ToPropertyKey_03(mocker):
-    mocker.patch('ecmascript.ToPrimitive', return_value=Completion(THROW, 'throw test', None))
-    res = ToPropertyKey('a')
-    assert res == Completion(THROW, 'throw test', None)
+def test_ToPropertyKey_03(realm, mocker):
+    mocker.patch('ecmascript.ToPrimitive', side_effect=ESTypeError)
+    with pytest.raises(ESTypeError):
+        ToPropertyKey('a')
 
 # 7.2.1 RequireObjectCoercible ( argument )
 #
@@ -682,21 +647,19 @@ def test_ToPropertyKey_03(mocker):
 @pytest.mark.parametrize('inp', [None, JSNull.NULL])
 def test_RequireObjectCoercible_01(realm, inp):
     # The "I throw a type error exception" case.
-    res = RequireObjectCoercible(inp)
-    assert res.ctype == THROW
-    assert res.target is None
-    assert nc(ToString(res.value)).startswith('TypeError')
+    with pytest.raises(ESTypeError):
+        RequireObjectCoercible(inp)
 
 @pytest.mark.parametrize('inp', [True, 10, 'flower', wks_to_primitive])
 def test_RequireObjectCoercible_02(inp):
     # Boolean, Number, String, and Symbol values
     res = RequireObjectCoercible(inp)
-    assert res == Completion(NORMAL, inp, None)
+    assert res == inp
 
 def test_RequireObjectCoercible_03(obj):
     # An Object value
     res = RequireObjectCoercible(obj)
-    assert res == Completion(NORMAL, obj, None)
+    assert res == obj
 
 # 7.2.2 IsArray ( argument )
 #
@@ -712,30 +675,28 @@ def test_RequireObjectCoercible_03(obj):
 def test_IsArray_01(realm):
     # arg isn't an object.
     res = IsArray('foo')
-    assert res == Completion(NORMAL, False, None)
+    assert res == False
 
 def test_IsArray_02(realm):
     # arg is an array.
-    arg = nc(ArrayCreate(10, realm.intrinsics['%ObjectPrototype%']))
+    arg = ArrayCreate(10, realm.intrinsics['%ObjectPrototype%'])
     res = IsArray(arg)
-    assert res == Completion(NORMAL, True, None)
+    assert res == True
 
 def test_IsArray_03(realm):
     # arg is a busted proxy object.
     arg = ProxyObject()
     arg.ProxyHandler = JSNull.NULL
-    res = IsArray(arg)
-    assert res.ctype == THROW
-    assert res.target is None
-    assert nc(ToString(res.value)).startswith('TypeError')
+    with pytest.raises(ESTypeError):
+        IsArray(arg)
 
 def test_IsArray_04(realm):
     # arg is a proxy object with a proxy target that's an array.
     arg = ProxyObject()
     arg.ProxyHandler = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
-    arg.ProxyTarget = nc(ArrayCreate(10, realm.intrinsics['%ObjectPrototype%']))
+    arg.ProxyTarget = ArrayCreate(10, realm.intrinsics['%ObjectPrototype%'])
     res = IsArray(arg)
-    assert res == Completion(NORMAL, True, None)
+    assert res == True
 
 def test_IsArray_05(realm):
     # arg is a proxy object with a proxy target that isn't an array.
@@ -743,12 +704,12 @@ def test_IsArray_05(realm):
     arg.ProxyHandler = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
     arg.ProxyTarget = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
     res = IsArray(arg)
-    assert res == Completion(NORMAL, False, None)
+    assert res == False
 
 def test_IsArray_06(obj):
     # An object that's not an array
     res = IsArray(obj)
-    assert res == Completion(NORMAL, False, None)
+    assert res == False
 
 # 7.2.13 Abstract Relational Comparison
 # The comparison x < y, where x and y are values, produces true, false, or undefined (which indicates that at least one
@@ -808,7 +769,7 @@ def test_AbstractRelationalComparison_01(mocker):
     # assert the order
     ecmascript.ToPrimitive.assert_has_calls([call(10, 'number'), call(20, 'number')])
     # and check the result, just because
-    assert res == Completion(NORMAL, True, None)
+    assert res == True
 
 def test_AbstractRelationalComparison_02(mocker):
     # LeftFirst False: make sure we evaluate the right arg before the left arg
@@ -817,7 +778,7 @@ def test_AbstractRelationalComparison_02(mocker):
 
     # assert the order
     ecmascript.ToPrimitive.assert_has_calls([call(20, 'number'), call(10, 'number')])
-    assert res == Completion(NORMAL, True, None)
+    assert res == True
 
 @pytest.mark.parametrize('left, right, expected', [
     ('th', 'thing', True), # Left is a substring of Right (3b)
@@ -839,7 +800,7 @@ def test_AbstractRelationalComparison_02(mocker):
 ])
 def test_AbstractRelationalComparison_03(realm, left, right, expected):
     res = AbstractRelationalComparison(left, right, True)
-    assert res == Completion(NORMAL, expected, None)
+    assert res == expected
 
 @pytest.mark.parametrize('left, right, lrf', [
     (20, 10, True),
@@ -849,9 +810,14 @@ def test_AbstractRelationalComparison_03(realm, left, right, expected):
 ] )
 def test_AbstractRelationalComparison_04(realm, mocker, left, right, lrf):
     # The ToPrimitive error paths
-    mocker.patch('ecmascript.ToPrimitive', side_effect=lambda a, b: 10 if a == 10 else ThrowCompletion('err thrown'))
-    res = AbstractRelationalComparison(left, right, lrf)
-    assert res == Completion(THROW, 'err thrown', None)
+    def mocked_tp(a, b):
+        if a == 10:
+            return 10
+        else:
+            raise ESTypeError('err thrown')
+    mocker.patch('ecmascript.ToPrimitive', side_effect=mocked_tp)
+    with pytest.raises(ESTypeError):
+        AbstractRelationalComparison(left, right, lrf)
 
 @pytest.mark.parametrize('left, right', [
     (10, 20),
@@ -859,12 +825,15 @@ def test_AbstractRelationalComparison_04(realm, mocker, left, right, lrf):
 ])
 def test_AbstractRelationalComparison_05(realm, mocker, left, right):
     # The ToNumber error paths
-    mocker.patch('ecmascript.ToNumber', side_effect=lambda a: 10 if a == 10 else ThrowCompletion('err thrown'))
-    res = AbstractRelationalComparison(left, right, True)
-    assert res == Completion(THROW, 'err thrown', None)
+    def mocked_tn(a):
+        if a == 10:
+            return 10
+        raise ESTypeError('err thrown')
+    mocker.patch('ecmascript.ToNumber', side_effect=mocked_tn)
+    with pytest.raises(ESTypeError):
+        AbstractRelationalComparison(left, right, True)
 
 # 7.2.14 Abstract Equality Comparison
-
 @pytest.mark.parametrize('left, right', [
     (None, None),
     (JSNull.NULL, JSNull.NULL),
@@ -896,7 +865,7 @@ def test_AbstractEqualityComparsion_01(realm, mocker, left, right):
 ])
 def test_AbstractEqualityComparsion_02(realm, left, right, expected):
     res = AbstractEqualityComparison(left, right)
-    assert res == Completion(NORMAL, expected, None)
+    assert res == expected
 
 @pytest.mark.parametrize('nonobj, expected', [
     (55, False),
@@ -904,7 +873,7 @@ def test_AbstractEqualityComparsion_02(realm, left, right, expected):
 ])
 def test_AbstractEqualityComparsion_03(obj, nonobj, expected):
     res = AbstractEqualityComparison(nonobj, obj)
-    assert res == Completion(NORMAL, expected, None)
+    assert res == expected
 
 @pytest.mark.parametrize('nonobj, expected', [
     (55, False),
@@ -912,28 +881,25 @@ def test_AbstractEqualityComparsion_03(obj, nonobj, expected):
 ])
 def test_AbstractEqualityComparsion_04(obj, nonobj, expected):
     res = AbstractEqualityComparison(obj, nonobj)
-    assert res == Completion(NORMAL, expected, None)
+    assert res == expected
 
 def test_AbstractEqualityComparison_05(obj, mocker):
-    mocker.patch('ecmascript.ToPrimitive', side_effect=lambda a: ThrowCompletion('test'))
-    res = AbstractEqualityComparison(obj, 67)
-    assert res == Completion(THROW, 'test', None)
+    mocker.patch('ecmascript.ToPrimitive', side_effect=ESTypeError)
+    with pytest.raises(ESTypeError):
+        AbstractEqualityComparison(obj, 67)
 
 def test_AbstractEqualityComparison_06(obj, mocker):
-    mocker.patch('ecmascript.ToPrimitive', side_effect=lambda a: ThrowCompletion('test'))
-    res = AbstractEqualityComparison(99, obj)
-    assert res == Completion(THROW, 'test', None)
+    mocker.patch('ecmascript.ToPrimitive', side_effect=ESTypeError)
+    with pytest.raises(ESTypeError):
+        AbstractEqualityComparison(99, obj)
 
 # 7.3.18 Invoke ( V, P [ , argumentsList ] )
 def test_Invoke_01(realm):
     # Something simple. ToString on a number perhaps.
     res = Invoke(67, 'toString')
-    assert res == Completion(NORMAL, '67', None)
+    assert res == '67'
 
 def test_Invoke_02(realm):
     # When GetV throws, we pass the exception along.
-    res = Invoke(None, 'toString')
-    assert isinstance(res, Completion)
-    assert res.ctype == THROW
-    assert res.target is None
-    assert nc(ToString(res.value)).startswith('TypeError: ')
+    with pytest.raises(ESTypeError):
+        Invoke(None, 'toString')

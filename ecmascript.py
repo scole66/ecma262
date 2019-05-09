@@ -15,19 +15,66 @@ import traceback
 
 surrounding_agent = None
 
-def CreateError(msg, intrinsic):
+@unique
+class Empty(Enum):
+    EMPTY = auto()
+
+@unique
+class CompletionType(Enum):
+    NORMAL = auto()
+    BREAK = auto()
+    CONTINUE = auto()
+    RETURN = auto()
+    THROW = auto()
+
+Completion = namedtuple('Completion', ['ctype', 'value', 'target'])
+
+
+def CreateErrorObject(msg, intrinsic):
     error_constructor = surrounding_agent.running_ec.realm.intrinsics[intrinsic]
-    errobj = nc(Construct(error_constructor, [msg]))
+    errobj = Construct(error_constructor, [msg])
     Set(errobj, 'stack', ''.join(traceback.format_stack()[:-2]), False)
     return errobj
 def CreateReferenceError(msg=''):
-    return CreateError(msg, '%ReferenceError%')
+    return CreateErrorObject(msg, '%ReferenceError%')
 def CreateTypeError(msg=''):
-    return CreateError(msg, '%TypeError%')
+    return CreateErrorObject(msg, '%TypeError%')
 def CreateSyntaxError(msg=''):
-    return CreateError(msg, '%SyntaxError%')
+    return CreateErrorObject(msg, '%SyntaxError%')
 def CreateRangeError(msg=''):
-    return CreateError(msg, '%RangeError%')
+    return CreateErrorObject(msg, '%RangeError%')
+
+class ESError(BaseException):
+    def __init__(self, object):
+        self.ecma_object = object
+    def __str__(self):
+        return ToString(self.ecma_object)
+    def __repr__(self):
+        return f'ESError({self.ecma_object!r})'
+class ESReferenceError(ESError):
+    def __init__(self, msg=''):
+        super().__init__(CreateReferenceError(msg))
+class ESTypeError(ESError):
+    def __init__(self, msg=''):
+        super().__init__(CreateTypeError(msg))
+class ESSyntaxError(ESError):
+    def __init__(self, msg=''):
+        super().__init__(CreateSyntaxError(msg))
+class ESRangeError(ESError):
+    def __init__(self, msg=''):
+        super().__init__(CreateRangeError(msg))
+class ESAbrupt(BaseException):
+    def __init__(self, ctype=CompletionType.THROW, value=Empty.EMPTY, target=Empty.EMPTY):
+        self.completion = Completion(ctype, value, target)
+class ESBreak(ESAbrupt):
+    def __init__(self, value=Empty.EMPTY, target=Empty.EMPTY):
+        super().__init__(ctype=CompletionType.BREAK, value=value, target=target)
+class ESContinue(ESAbrupt):
+    def __init__(self, value=Empty.EMPTY, target=Empty.EMPTY):
+        super().__init__(ctype=CompletionType.CONTINUE, value=value, target=target)
+class ESReturn(ESAbrupt):
+    def __init__(self, value=Empty.EMPTY, target=Empty.EMPTY):
+        super().__init__(ctype=CompletionType.RETURN, value=value, target=target)
 
 class missing(Enum):
     MISSING = auto()
@@ -272,7 +319,7 @@ class JSObject:
         """Determine the object that provides inherited properties for this object. A null value indicates that there are no
            inherited properties."""
         # 1. Return O.[[Prototype]].
-        return NormalCompletion(self.Prototype)
+        return self.Prototype
 
     # 9.1.2 [[SetPrototypeOf]] ( V )
     def SetPrototypeOf(self, value):
@@ -289,10 +336,10 @@ class JSObject:
         current = self.Prototype
         # 4. If SameValue(V, current) is true, return true.
         if SameValue(value, current):
-            return NormalCompletion(True)
+            return True
         # 5. If extensible is false, return false.
         if not extensible:
-            return NormalCompletion(False)
+            return False
         # 6. Let p be V.
         p = value
         # 7. Let done be false.
@@ -304,7 +351,7 @@ class JSObject:
                 done = True
             # b. Else if SameValue(p, O) is true, return false.
             elif SameValue(p, self):
-                return NormalCompletion(False)
+                return False
             # c. Else,
             else:
                 # i. If p.[[GetPrototypeOf]] is not the ordinary object internal method defined in 9.1.1, set done to
@@ -320,7 +367,7 @@ class JSObject:
         # 9. Set O.[[Prototype]] to V.
         self.Prototype = value
         # 10. Return true.
-        return NormalCompletion(True)
+        return True
         # NOTE
         # The loop in step 8 guarantees that there will be no circularities in any prototype chain that only includes
         # objects that use the ordinary object definitions for [[GetPrototypeOf]] and [[SetPrototypeOf]].
@@ -329,7 +376,7 @@ class JSObject:
     def IsExtensible(self):
         """Determine whether it is permitted to add additional properties to this object."""
         # 1. Return O.[[Extensible]].
-        return NormalCompletion(self.Extensible)
+        return self.Extensible
 
     # 9.1.4 [[PreventExtensions]] ( )
     def PreventExtensions(self):
@@ -338,13 +385,13 @@ class JSObject:
         # 1. Set O.[[Extensible]] to false.
         self.Extensible = False
         # 2. Return true.
-        return NormalCompletion(True)
+        return True
 
     # 9.1.5 [[GetOwnProperty]] ( P )
     def GetOwnProperty(self, propkey):
         """Return a Property Descriptor for the own property of this object whose key is propertyKey, or undefined if no such
            property exists."""
-        return NormalCompletion(OrdinaryGetOwnProperty(self, propkey))
+        return OrdinaryGetOwnProperty(self, propkey)
 
     # 9.1.6 [[DefineOwnProperty]] ( P, Desc )
     def DefineOwnProperty(self, propkey, desc):
@@ -360,22 +407,16 @@ class JSObject:
         # 1. Assert: IsPropertyKey(P) is true.
         assert IsPropertyKey(propkey)
         # 2. Let hasOwn be ? O.[[GetOwnProperty]](P).
-        has_own, ok = ec(self.GetOwnProperty(propkey))
-        if not ok:
-            return has_own
+        has_own = self.GetOwnProperty(propkey)
         # 3. If hasOwn is not undefined, return true.
         if has_own is not None:
-            return NormalCompletion(True)
+            return True
         # 4. Let parent be ? O.[[GetPrototypeOf]]().
-        parent, ok = ec(self.GetPrototypeOf())
-        if not ok:
-            return parent
+        parent = self.GetPrototypeOf()
         # 5. If parent is not null, then
         #    a. Return ? parent.[[HasProperty]](P).
         # 6. Return false.
-        if isNull(parent):
-            return NormalCompletion(False)
-        return parent.HasProperty(propkey)
+        return not isNull(parent) and parent.HasProperty(propkey)
 
     # 9.1.8 [[Get]] ( P, Receiver )
     def Get(self, propkey, receiver):
@@ -387,30 +428,26 @@ class JSObject:
         # 1. Assert: IsPropertyKey(P) is true.
         assert IsPropertyKey(propkey)
         # 2. Let desc be ? O.[[GetOwnProperty]](P).
-        desc, ok = ec(self.GetOwnProperty(propkey))
-        if not ok:
-            return desc
+        desc = self.GetOwnProperty(propkey)
         # 3. If desc is undefined, then
         if desc is None:
             # a. Let parent be ? O.[[GetPrototypeOf]]().
-            parent, ok = ec(self.GetPrototypeOf())
-            if not ok:
-                return parent
+            parent = self.GetPrototypeOf()
             # b. If parent is null, return undefined.
             if isNull(parent):
-                return NormalCompletion(None)
+                return None
             # c. Return ? parent.[[Get]](P, Receiver).
             return parent.Get(propkey, receiver)
         # 4. If IsDataDescriptor(desc) is true, return desc.[[Value]].
         if desc.is_data_descriptor():
-            return NormalCompletion(desc.value)
+            return desc.value
         # 5. Assert: IsAccessorDescriptor(desc) is true.
         assert desc.is_accessor_descriptor()
         # 6. Let getter be desc.[[Get]].
         getter = desc.Get
         # 7. If getter is undefined, return undefined.
         if getter is None:
-            return NormalCompletion(None)
+            return None
         # 8. Return ? Call(getter, Receiver).
         return Call(getter, receiver)
 
@@ -440,7 +477,7 @@ class JSObject:
         # When the [[OwnPropertyKeys]] internal method of O is called, the following steps are taken:
         #
         # 1. Return ! OrdinaryOwnPropertyKeys(O).
-        return NormalCompletion(nc(OrdinaryOwnPropertyKeys(self)))
+        return OrdinaryOwnPropertyKeys(self)
 
 # 9.1.6.3 ValidateAndApplyPropertyDescriptor ( O, P, extensible, Desc, current )
 def ValidateAndApplyPropertyDescriptor(obj, propkey, extensible, desc, current):
@@ -456,7 +493,7 @@ def ValidateAndApplyPropertyDescriptor(obj, propkey, extensible, desc, current):
     if current is None:
         # a. If extensible is false, return false.
         if not extensible:
-            return NormalCompletion(False)
+            return False
         # b. Assert: extensible is true.
         # c. If IsGenericDescriptor(Desc) is true or IsDataDescriptor(Desc) is true, then
         if IsDataDescriptor(desc) or IsGenericDescriptor(desc):
@@ -485,19 +522,19 @@ def ValidateAndApplyPropertyDescriptor(obj, propkey, extensible, desc, current):
                     configurable = desc.configurable if hasattr(desc, 'configurable') else False)
                 obj.properties[propkey] = newprop
         # e. Return true.
-        return NormalCompletion(True)
+        return True
     # 3. If every field in Desc is absent, return true.
     if not any(hasattr(desc, field) for field in ['value', 'writable', 'Get', 'Set', 'enumerable', 'configurable']):
-        return NormalCompletion(True)
+        return True
     # 4. If current.[[Configurable]] is false, then
     if not current.configurable:
         # a. If Desc.[[Configurable]] is present and its value is true, return false.
         if hasattr(desc, 'configurable') and desc.configurable:
-            return NormalCompletion(False)
+            return False
         # b. If Desc.[[Enumerable]] is present and the [[Enumerable]] fields of current and Desc are the Boolean
         #    negation of each other, return false.
         if hasattr(desc, 'enumerable') and desc.enumerable != current.enumerable:
-            return NormalCompletion(False)
+            return False
     # 5. If IsGenericDescriptor(Desc) is true, no further validation is required.
     if IsGenericDescriptor(desc):
         pass
@@ -505,7 +542,7 @@ def ValidateAndApplyPropertyDescriptor(obj, propkey, extensible, desc, current):
     elif IsDataDescriptor(current) != IsDataDescriptor(desc):
         # a. If current.[[Configurable]] is false, return false.
         if not current.configurable:
-            return NormalCompletion(False)
+            return False
         # b. If IsDataDescriptor(current) is true, then
         if IsDataDescriptor(current):
             # i. If O is not undefined, convert the property named P of object O from a data property to an accessor
@@ -532,24 +569,24 @@ def ValidateAndApplyPropertyDescriptor(obj, propkey, extensible, desc, current):
         if not current.configurable and not current.writable:
             # i. If Desc.[[Writable]] is present and Desc.[[Writable]] is true, return false.
             if hasattr(desc, 'writable') and desc.writable:
-                return NormalCompletion(False)
+                return False
             # ii. If Desc.[[Value]] is present and SameValue(Desc.[[Value]], current.[[Value]]) is false, return false.
             if hasattr(desc, 'value') and not SameValue(desc.value, current.value):
-                return NormalCompletion(False)
+                return False
             # iii. Return true.
-            return NormalCompletion(True)
+            return True
     # 8. Else IsAccessorDescriptor(current) and IsAccessorDescriptor(Desc) are both true,
     else:
         # a. If current.[[Configurable]] is false, then
         if not current.configurable:
             # i. If Desc.[[Set]] is present and SameValue(Desc.[[Set]], current.[[Set]]) is false, return false.
             if hasattr(desc, 'Set') and not SameValue(desc.Set, current.Set):
-                return NormalCompletion(False)
+                return False
             # ii. If Desc.[[Get]] is present and SameValue(Desc.[[Get]], current.[[Get]]) is false, return false.
             if hasattr(desc, 'Get') and not SameValue(desc.Get, current.Get):
-                return NormalCompletion(False)
+                return False
             # iii. Return true.
-            return NormalCompletion(True)
+            return True
     # 9. If O is not undefined, then
     if obj is not None:
         # a. For each field of Desc that is present, set the corresponding attribute of the property named P of object
@@ -558,7 +595,7 @@ def ValidateAndApplyPropertyDescriptor(obj, propkey, extensible, desc, current):
                           if hasattr(desc, f)):
             setattr(obj.properties[propkey], fieldname, getattr(desc, fieldname))
     # 10. Return true.
-    return NormalCompletion(True)
+    return True
 
 # 9.1.9.1 OrdinarySet ( O, P, V, Receiver )
 def OrdinarySet(obj, propkey, value, receiver):
@@ -568,9 +605,7 @@ def OrdinarySet(obj, propkey, value, receiver):
     # 1. Assert: IsPropertyKey(P) is true.
     assert IsPropertyKey(propkey)
     # 2. Let ownDesc be ? O.[[GetOwnProperty]](P).
-    own_desc, ok = ec(obj.GetOwnProperty(propkey))
-    if not ok:
-        return own_desc
+    own_desc = obj.GetOwnProperty(propkey)
     # 3. Return OrdinarySetWithOwnDescriptor(O, P, V, Receiver, ownDesc).
     return OrdinarySetWithOwnDescriptor(obj, propkey, value, receiver, own_desc)
 
@@ -585,9 +620,7 @@ def OrdinarySetWithOwnDescriptor(obj, propkey, value, receiver, own_desc):
     # 2. If ownDesc is undefined, then
     if own_desc is None:
         # a. Let parent be ? O.[[GetPrototypeOf]]().
-        parent, ok = ec(obj.GetPrototypeOf())
-        if not ok:
-            return parent
+        parent = obj.GetPrototypeOf()
         # b. If parent is not null, then
         if not isNull(parent):
             # i. Return ? parent.[[Set]](P, V, Receiver).
@@ -605,22 +638,20 @@ def OrdinarySetWithOwnDescriptor(obj, propkey, value, receiver, own_desc):
     if own_desc.is_data_descriptor():
         # a. If ownDesc.[[Writable]] is false, return false.
         if not own_desc.writable:
-            return NormalCompletion(False)
+            return False
         # b. If Type(Receiver) is not Object, return false.
         if not isObject(receiver):
-            return NormalCompletion(False)
+            return False
         # c. Let existingDescriptor be ? Receiver.[[GetOwnProperty]](P).
-        existing_descriptor, ok = ec(receiver.GetOwnProperty(propkey))
-        if not ok:
-            return existing_descriptor
+        existing_descriptor = receiver.GetOwnProperty(propkey)
         # d. If existingDescriptor is not undefined, then
         if existing_descriptor is not None:
             # i. If IsAccessorDescriptor(existingDescriptor) is true, return false.
             if existing_descriptor.is_accessor_descriptor():
-                return NormalCompletion(False)
+                return False
             # ii. If existingDescriptor.[[Writable]] is false, return false.
             if not existing_descriptor.writable:
-                return NormalCompletion(False)
+                return False
             # iii. Let valueDesc be the PropertyDescriptor { [[Value]]: V }.
             value_desc = PropertyDescriptor()
             value_desc.value = value
@@ -636,13 +667,11 @@ def OrdinarySetWithOwnDescriptor(obj, propkey, value, receiver, own_desc):
     setter = own_desc.Set
     # 6. If setter is undefined, return false.
     if setter is None:
-        return NormalCompletion(False)
+        return False
     # 7. Perform ? Call(setter, Receiver, « V »).
-    result, ok = ec(Call(setter, receiver, [value]))
-    if not ok:
-        return result
+    Call(setter, receiver, [value])
     # 8. Return true.
-    return NormalCompletion(True)
+    return True
 
 # 9.1.10.1 OrdinaryDelete ( O, P )
 def OrdinaryDelete(obj, propkey):
@@ -650,15 +679,13 @@ def OrdinaryDelete(obj, propkey):
     # taken:
     #
     assert IsPropertyKey(propkey)                           # 1. Assert: IsPropertyKey(P) is true.
-    desc, ok = ec(obj.GetOwnProperty(propkey))              # 2. Let desc be ? O.[[GetOwnProperty]](P).
-    if not ok:                                              #
-        return desc                                         #
+    desc = obj.GetOwnProperty(propkey)                      # 2. Let desc be ? O.[[GetOwnProperty]](P).
     if desc is None:                                        # 3. If desc is undefined, return true.
-        return NormalCompletion(True)                       #
+        return True                                         #
     if desc.configurable:                                   # 4. If desc.[[Configurable]] is true, then
         del obj.properties[propkey]                         #    a. Remove the own property with name P from O.
-        return NormalCompletion(True)                       #    b. Return true.
-    return NormalCompletion(False)                          # 5. Return false.
+        return True                                         #    b. Return true.
+    return False                                            # 5. Return false.
 
 def isIntegerIndex(key):
     # An integer index is a String-valued property key that is a canonical numeric String (see 7.1.16) and whose
@@ -777,11 +804,9 @@ def OrdinaryCreateFromConstructor(constructor, intrinsic_default_proto, internal
     # 1. Assert: intrinsicDefaultProto is a String value that is this specification's name of an intrinsic object. The
     #    corresponding object must be an intrinsic that is intended to be used as the [[Prototype]] value of an object.
     # 2. Let proto be ? GetPrototypeFromConstructor(constructor, intrinsicDefaultProto).
-    proto, ok = ec(GetPrototypeFromConstructor(constructor, intrinsic_default_proto))
-    if not ok:
-        return proto
+    proto = GetPrototypeFromConstructor(constructor, intrinsic_default_proto)
     # 3. Return ObjectCreate(proto, internalSlotsList).
-    return NormalCompletion(ObjectCreate(proto, internal_slots_list))
+    return ObjectCreate(proto, internal_slots_list)
 
 # 9.1.14 GetPrototypeFromConstructor ( constructor, intrinsicDefaultProto )
 def GetPrototypeFromConstructor(constructor, intrinsic_default_proto):
@@ -815,24 +840,18 @@ def GetPrototypeFromConstructor(constructor, intrinsic_default_proto):
     # 2. Assert: IsCallable(constructor) is true.
     assert IsCallable(constructor)
     # 3. Let proto be ? Get(constructor, "prototype").
-    proto, ok = ec(Get(constructor, 'prototype'))
-    if not ok:
-        return proto
+    proto = Get(constructor, 'prototype')
     # 4. If Type(proto) is not Object, then
     if not isObject(proto):
         # a. Let realm be ? GetFunctionRealm(constructor).
-        realm, ok = ec(GetFunctionRealm(constructor))
-        if not ok:
-            return realm
+        realm = GetFunctionRealm(constructor)
         # b. Set proto to realm's intrinsic object named intrinsicDefaultProto.
         proto = realm.intrinsics[intrinsic_default_proto]
     # 5. Return proto.
-    return NormalCompletion(proto)
+    return proto
     # NOTE
     # If constructor does not supply a [[Prototype]] value, the default value that is used is obtained from the realm of
     # the constructor function rather than from the running execution context.
-
-
 
 def isObject(arg):
     return isinstance(arg, JSObject)
@@ -911,100 +930,24 @@ class Record:
 
 # The term "abrupt completion" refers to any completion with a [[Type]] value other than normal.
 
-@unique
-class Empty(Enum):
-    EMPTY = auto()
-
-@unique
-class CompletionType(Enum):
-    NORMAL = auto()
-    BREAK = auto()
-    CONTINUE = auto()
-    RETURN = auto()
-    THROW = auto()
-
-Completion = namedtuple('Completion', ['ctype', 'value', 'target'])
-
-# 6.2.3.2 NormalCompletion
-
-def NormalCompletion(arg):
-    # The abstract operation NormalCompletion with a single argument, such as:
-    #
-    # 1. Return NormalCompletion(argument).
-    #
-    # Is a shorthand that is defined as follows:
-    #
-    # 1. Return Completion { [[Type]]: normal, [[Value]]: argument, [[Target]]: empty }.
-    if isinstance(arg, Completion):
-        return arg
-    return Completion(ctype=CompletionType.NORMAL, value=arg, target=None)
-
-# 6.2.3.3 ThrowCompletion
-def ThrowCompletion(arg):
-    # The abstract operation ThrowCompletion with a single argument, such as:
-    #
-    # 1. Return ThrowCompletion(argument).
-    #
-    # Is a shorthand that is defined as follows:
-    #
-    # 1. Return Completion { [[Type]]: throw, [[Value]]: argument, [[Target]]: empty }.
-    return Completion(ctype=CompletionType.THROW, value=arg, target=None)
-
 # 6.3.2.4 UpdateEmpty
 def UpdateEmpty(cr, value):
     # The abstract operation UpdateEmpty with arguments completionRecord and value performs the following steps:
 
     # 1. Assert: If completionRecord.[[Type]] is either return or throw, then completionRecord.[[Value]] is not empty.
-    assert cr.value != Empty.EMPTY if cr.ctype in [CompletionType.RETURN, CompletionType.THROW] else True
+    #assert cr.value != Empty.EMPTY if cr.ctype in [CompletionType.RETURN, CompletionType.THROW] else True
 
     # 2. If completionRecord.[[Value]] is not empty, return Completion(completionRecord).
-    if cr.value != Empty.EMPTY:
-        return Completion(cr.ctype, cr.value, cr.target)
+    #if cr.value != Empty.EMPTY:
+    #    return Completion(cr.ctype, cr.value, cr.target)
 
     # 3. Return Completion { [[Type]]: completionRecord.[[Type]], [[Value]]: value,
     #                        [[Target]]: completionRecord.[[Target]] }.
-    return Completion(cr.ctype, value, cr.target)
+    #return Completion(cr.ctype, value, cr.target)
+    if cr != Empty.EMPTY:
+        return cr
+    return value
 
-# 5.2.3.3 ReturnIfAbrupt
-# So I'm adding a lot of boilerplate to each function to handle this, and I'd like to simplify that.
-#
-# Old Way:
-# obj = ? someroutine()
-#
-# would be written
-#
-# obj = someroutine()
-# if obj.ctype != CompletionType.NORMAL:
-#    return obj
-# obj = obj.value
-#
-# Which is a lot of lines. And I realize I'm not doing the isinstance check there, which I really should be.
-#
-# How about instead:
-#
-# obj, ok = ec(someroutine())
-# if not ok:
-#    return obj
-#
-# (ec shorthand for "error check")
-def ec(val):
-    """ErrorCheck:
-       Check val for an abrupt completion, returning "not ok" if that's the case. Else unwrap the Completion and return
-       the actual value. Just respond with the value itself, if this isn't a completion record."""
-    if isinstance(val, Completion):
-        if val.ctype != CompletionType.NORMAL:
-            return (val, False)
-        val = val.value
-    return (val, True)
-
-def nc(val):
-    """NeverCheck:
-       Assert that if the val is a Completion Record, that the completion type is Normal. Then just return the value.
-       """
-    if isinstance(val, Completion):
-        assert val.ctype == CompletionType.NORMAL
-        val = val.value
-    return val
 
 # Section 6.2.4
 #
@@ -1091,17 +1034,14 @@ def IsSuperReference(value):
 # 6.2.4.8 GetValue ( V )
 def GetValue(value):
     # 1. ReturnIfAbrupt(V).
-    value, ok = ec(value)
-    if not ok:
-        return value
     # 2. If Type(V) is not Reference, return V.
     if not isinstance(value, Reference):
-        return NormalCompletion(value)
+        return value
     # 3. Let base be GetBase(V).
     base = GetBase(value)
     # 4. If IsUnresolvableReference(V) is true, throw a ReferenceError exception.
     if IsUnresolvableReference(value):
-        return ThrowCompletion(CreateReferenceError(f'\'{GetReferencedName(value)}\': unknown'))
+        raise ESReferenceError(f'\'{GetReferencedName(value)}\': unknown')
     # 5. If IsPropertyReference(V) is true, then
     if IsPropertyReference(value):
         # a. If HasPrimitiveBase(V) is true, then
@@ -1109,7 +1049,7 @@ def GetValue(value):
             # i. Assert: In this case, base will never be undefined or null.
             assert base is not None and not isNull(base)
             # ii. Set base to ! ToObject(base).
-            base = nc(ToObject(base))
+            base = ToObject(base)
         # b. Return ? base.[[Get]](GetReferencedName(V), GetThisValue(V)).
         return base.Get(GetReferencedName(value), GetThisValue(value))
     # 6. Else base must be an Environment Record,
@@ -1123,16 +1063,10 @@ def GetValue(value):
 # 6.2.4.9 PutValue ( V, W )
 def PutValue(ref, value):
     # 1. ReturnIfAbrupt(V).
-    ref, ok = ec(ref)
-    if not ok:
-        return ref
     # 2. ReturnIfAbrupt(W).
-    value, ok = ec(value)
-    if not ok:
-        return value
     # 3. If Type(V) is not Reference, throw a ReferenceError exception.
     if not isinstance(ref, Reference):
-        return ThrowCompletion(CreateReferenceError())
+        raise ESReferenceError(f'Bad Reference: {ref!r}')
     # 4. Let base be GetBase(V).
     base = GetBase(ref)
     # 5. If IsUnresolvableReference(V) is true, then
@@ -1140,7 +1074,7 @@ def PutValue(ref, value):
         # a. If IsStrictReference(V) is true, then
         if IsStrictReference(ref):
             # i. Throw a ReferenceError exception.
-            return ThrowCompletion(CreateReferenceError())
+            raise ESReferenceError(f'Cannot create {GetReferencedName(ref)} in strict context')
         # b. Let globalObj be GetGlobalObject().
         global_obj = GetGlobalObject()
         # c. Return ? Set(globalObj, GetReferencedName(V), W, false).
@@ -1152,16 +1086,14 @@ def PutValue(ref, value):
             # i. Assert: In this case, base will never be undefined or null.
             assert base is not None and not isNull(base)
             # ii. Set base to ! ToObject(base).
-            base = nc(ToObject(base))
+            base = ToObject(base)
         # b. Let succeeded be ? base.[[Set]](GetReferencedName(V), W, GetThisValue(V)).
-        succeeded, ok = ec(base.Set(GetReferencedName(ref), value, GetThisValue(ref)))
-        if not ok:
-            return succeeded
+        succeeded = base.Set(GetReferencedName(ref), value, GetThisValue(ref))
         # c. If succeeded is false and IsStrictReference(V) is true, throw a TypeError exception.
         if not succeeded and IsStrictReference(ref):
-            return ThrowCompletion(CreateTypeError())
+            raise ESTypeError(f'Unable to write to {GetReferencedName(ref)}')
         # d. Return.
-        return NormalCompletion(None)
+        return None
     # 7. Else base must be an Environment Record,
     # a. Return ? base.SetMutableBinding(GetReferencedName(V), W, IsStrictReference(V)) (see 8.1.1).
     return base.SetMutableBinding(GetReferencedName(ref), value, IsStrictReference(ref))
@@ -1183,13 +1115,7 @@ def GetThisValue(ref):
 # 6.2.4.11 InitializeReferencedBinding ( V, W )
 def InitializeReferencedBinding(ref, value):
     # 1. ReturnIfAbrupt(V).
-    ref, ok = ec(ref)
-    if not ok:
-        return ref
     # 2. ReturnIfAbrupt(W).
-    value, ok = ec(value)
-    if not ok:
-        return value
     # 3. Assert: Type(V) is Reference.
     assert isinstance(ref, Reference)
     # 4. Assert: IsUnresolvableReference(V) is false.
@@ -1199,7 +1125,6 @@ def InitializeReferencedBinding(ref, value):
     # 6. Assert: base is an Environment Record.
     # 7. Return base.InitializeBinding(GetReferencedName(V), W).
     return base.InitializeBinding(GetReferencedName(ref), value)
-
 
 # 6.2.5 The Property Descriptor Specification Type
 #
@@ -1311,38 +1236,32 @@ def FromPropertyDescriptor(desc):
     obj = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics['%ObjectPrototype%'])
     # 3. Assert: obj is an extensible ordinary object with no own properties.
     # 4. If Desc has a [[Value]] field, then
-    crs = []
+    cr = True
     if hasattr(desc, 'value'):
         # a. Perform CreateDataProperty(obj, "value", Desc.[[Value]]).
-        cr = CreateDataProperty(obj, 'value', desc.value)
-        crs.append(cr)
+        cr = CreateDataProperty(obj, 'value', desc.value) and cr
     # 5. If Desc has a [[Writable]] field, then
     if hasattr(desc, 'writable'):
         # a. Perform CreateDataProperty(obj, "writable", Desc.[[Writable]]).
-        cr = CreateDataProperty(obj, 'writable', desc.writable)
-        crs.append(cr)
+        cr = CreateDataProperty(obj, 'writable', desc.writable) and cr
     # 6. If Desc has a [[Get]] field, then
     if hasattr(desc, 'Get'):
         # a. Perform CreateDataProperty(obj, "get", Desc.[[Get]]).
-        cr = CreateDataProperty(obj, 'get', desc.Get)
-        crs.append(cr)
+        cr = CreateDataProperty(obj, 'get', desc.Get) and cr
     # 7. If Desc has a [[Set]] field, then
     if hasattr(desc, 'Set'):
         # a. Perform CreateDataProperty(obj, "set", Desc.[[Set]]).
-        cr = CreateDataProperty(obj, 'set', desc.Set)
-        crs.append(cr)
+        cr = CreateDataProperty(obj, 'set', desc.Set) and cr
     # 8. If Desc has an [[Enumerable]] field, then
     if hasattr(desc, 'enumerable'):
         # a. Perform CreateDataProperty(obj, "enumerable", Desc.[[Enumerable]]).
-        cr = CreateDataProperty(obj, 'enumerable', desc.enumerable)
-        crs.append(cr)
+        cr = CreateDataProperty(obj, 'enumerable', desc.enumerable) and cr
     # 9. If Desc has a [[Configurable]] field, then
     if hasattr(desc, 'configurable'):
         # a. Perform CreateDataProperty(obj, "configurable", Desc.[[Configurable]]).
-        cr = CreateDataProperty(obj, 'configurable', desc.configurable)
-        crs.append(cr)
+        cr = CreateDataProperty(obj, 'configurable', desc.configurable) and cr
     # 10. Assert: All of the above CreateDataProperty operations return true.
-    assert all(cr.ctype == CompletionType.NORMAL and cr.value for cr in crs)
+    assert cr
     # 11. Return obj.
     return obj
 
@@ -1352,95 +1271,70 @@ def ToPropertyDescriptor(obj):
     #
     # 1. If Type(Obj) is not Object, throw a TypeError exception.
     if not isObject(obj):
-        return ThrowCompletion(CreateTypeError('ToPropertyDescriptor called with non-object'))
+        raise ESTypeError('ToPropertyDescriptor called with non-object')
     # 2. Let desc be a new Property Descriptor that initially has no fields.
     desc = PropertyDescriptor()
     # 3. Let hasEnumerable be ? HasProperty(Obj, "enumerable").
-    has_enumerable, ok = ec(HasProperty(obj, 'enumerable'))
-    if not ok:
-        return has_enumerable
+    has_enumerable =HasProperty(obj, 'enumerable')
     # 4. If hasEnumerable is true, then
     if has_enumerable:
         # a. Let enum be ToBoolean(? Get(Obj, "enumerable")).
-        enumble, ok = ec(Get(obj, 'enumerable'))
-        if not ok:
-            return enumble
+        enumble = Get(obj, 'enumerable')
         # b. Set desc.[[Enumerable]] to enum.
         desc.enumerable = ToBoolean(enumble)
     # 5. Let hasConfigurable be ? HasProperty(Obj, "configurable").
-    has_configurable, ok = ec(HasProperty(obj, 'configurable'))
-    if not ok:
-        return has_configurable
+    has_configurable = HasProperty(obj, 'configurable')
     # 6. If hasConfigurable is true, then
     if has_configurable:
         # a. Let conf be ToBoolean(? Get(Obj, "configurable")).
-        conf, ok = ec(Get(obj, 'configurable'))
-        if not ok:
-            return conf
+        conf = Get(obj, 'configurable')
         # b. Set desc.[[Configurable]] to conf.
         desc.configurable = ToBoolean(conf)
     # 7. Let hasValue be ? HasProperty(Obj, "value").
-    has_value, ok = ec(HasProperty(obj, 'value'))
-    if not ok:
-        return has_value
+    has_value = HasProperty(obj, 'value')
     # 8. If hasValue is true, then
     if has_value:
         # a. Let value be ? Get(Obj, "value").
-        value, ok = ec(Get(obj, 'value'))
-        if not ok:
-            return value
+        value = Get(obj, 'value')
         # b. Set desc.[[Value]] to value.
         desc.value = value
     # 9. Let hasWritable be ? HasProperty(Obj, "writable").
-    has_writable, ok = ec(HasProperty(obj, 'writable'))
-    if not ok:
-        return has_writable
+    has_writable = HasProperty(obj, 'writable')
     # 10. If hasWritable is true, then
     if has_writable:
         # a. Let writable be ToBoolean(? Get(Obj, "writable")).
-        writable, ok = ec(Get(obj, 'writable'))
-        if not ok:
-            return writable
+        writable = Get(obj, 'writable')
         # b. Set desc.[[Writable]] to writable.
         desc.writable = ToBoolean(writable)
     # 11. Let hasGet be ? HasProperty(Obj, "get").
-    has_get, ok = ec(HasProperty(obj, 'get'))
-    if not ok:
-        return has_get
+    has_get = HasProperty(obj, 'get')
     # 12. If hasGet is true, then
     if has_get:
         # a. Let getter be ? Get(Obj, "get").
-        getter, ok = ec(Get(obj, 'get'))
-        if not ok:
-            return getter
+        getter = Get(obj, 'get')
         # b. If IsCallable(getter) is false and getter is not undefined, throw a TypeError exception.
         if not IsCallable(getter) and getter is not None:
-            return ThrowCompletion(CreateTypeError('Getter Object not callable'))
+            raise ESTypeError('Getter Object not callable')
         # c. Set desc.[[Get]] to getter.
         desc.Get = getter
     # 13. Let hasSet be ? HasProperty(Obj, "set").
-    has_set, ok = ec(HasProperty(obj, 'set'))
-    if not ok:
-        return has_set
+    has_set = HasProperty(obj, 'set')
     # 14. If hasSet is true, then
     if has_set:
         # a. Let setter be ? Get(Obj, "set").
-        setter, ok = ec(Get(obj, 'set'))
-        if not ok:
-            return setter
+        setter = Get(obj, 'set')
         # b. If IsCallable(setter) is false and setter is not undefined, throw a TypeError exception.
         if not IsCallable(setter) and setter is not None:
-            return ThrowCompletion(CreateTypeError('Setter object not callable'))
+            raise ESTypeError('Setter object not callable')
         # c. Set desc.[[Set]] to setter.
         desc.Set = setter
     # 15. If desc.[[Get]] is present or desc.[[Set]] is present, then
-    print(f'{desc!r}')
     if hasattr(desc, 'Get') or hasattr(desc, 'Set'):
         # a. If desc.[[Value]] is present or desc.[[Writable]] is present, throw a TypeError exception.
         if hasattr(desc, 'value') or hasattr(desc, 'writable'):
-            return ThrowCompletion(CreateTypeError('ToPropertyDescriptor: Had a declarative vs accessor conflict'))
+            raise ESTypeError('ToPropertyDescriptor: Had a declarative vs accessor conflict')
     # 16. Return desc.
-    return NormalCompletion(desc)
+    return desc
 
 # 6.2.5.6 CompletePropertyDescriptor ( Desc )
 def CompletePropertyDescriptor(desc):
@@ -1483,27 +1377,23 @@ def ToPrimitive(input, preferred_type='default'):
         # b. Else if PreferredType is hint String, let hint be "string".
         # c. Else PreferredType is hint Number, let hint be "number".
         # d. Let exoticToPrim be ? GetMethod(input, @@toPrimitive).
-        exotic_to_prim, ok = ec(GetMethod(input, wks_to_primitive))
-        if not ok:
-            return exotic_to_prim
+        exotic_to_prim = GetMethod(input, wks_to_primitive)
         # e. If exoticToPrim is not undefined, then
         if exotic_to_prim is not None:
             # i. Let result be ? Call(exoticToPrim, input, � hint �).
-            result, ok = ec(Call(exotic_to_prim, input, [preferred_type]))
-            if not ok:
-                return result
+            result = Call(exotic_to_prim, input, [preferred_type])
             # ii. If Type(result) is not Object, return result.
             if not isObject(result):
-                return NormalCompletion(result)
+                return result
             # iii. Throw a TypeError exception.
-            return ThrowCompletion(CreateTypeError())
+            raise ESTypeError(f'Cannot convert to primitive: {input!r}')
         # f. If hint is "default", set hint to "number".
         if preferred_type == 'default':
             preferred_type = 'number'
         # g. Return ? OrdinaryToPrimitive(input, hint).
         return OrdinaryToPrimitive(input, preferred_type)
     # 3. Return input.
-    return NormalCompletion(input)
+    return input
 
     # NOTE
     #
@@ -1532,20 +1422,16 @@ def OrdinaryToPrimitive(obj, hint):
     # 5. For each name in methodNames in List order, do
     for name in method_names:
         # a. Let method be ? Get(O, name).
-        method, ok = ec(Get(obj, name))
-        if not ok:
-            return method
+        method = Get(obj, name)
         # b. If IsCallable(method) is true, then
         if IsCallable(method):
             # i. Let result be ? Call(method, O).
-            result, ok = ec(Call(method, obj))
-            if not ok:
-                return result
+            result = Call(method, obj)
             # ii. If Type(result) is not Object, return result.
             if not isObject(result):
-                return NormalCompletion(result)
+                return result
     # 6. Throw a TypeError exception.
-    return ThrowCompletion(CreateTypeError())
+    raise ESTypeError(f'Can\'t convert {obj!r} to {hint}')
 
 # 7.1.2 ToBoolean ( argument )
 def ToBoolean(arg):
@@ -1589,14 +1475,10 @@ def ToNumber(arg):
     elif isNumber(arg):
         result = arg
     elif isSymbol(arg):
-        return ThrowCompletion(CreateTypeError('symbols cannot be converted to numbers'))
+        raise ESTypeError('symbols cannot be converted to numbers')
     elif isObject(arg):
-        prim_value, ok = ec(ToPrimitive(arg, 'number'))
-        if not ok:
-            return prim_value
-        result, ok = ec(ToNumber(prim_value))
-        if not ok:
-            return result
+        prim_value = ToPrimitive(arg, 'number')
+        result = ToNumber(prim_value)
     else: # String!
         digits = arg.strip(Lexer.whitespace + Lexer.line_terminators)
         binary = re.match(r'0[bB]([0-1]+)$', digits)
@@ -1636,13 +1518,11 @@ def ToNumber(arg):
                         result = float(digits)
                     else:
                         result = math.nan
-    return NormalCompletion(result)
+    return result
 
 # 7.1.4 ToInteger ( argument )
 def ToInteger(arg):
-    number, ok = ec(ToNumber(arg))
-    if not ok:
-        return number
+    number = ToNumber(arg)
     if math.isnan(number):
         result = 0
     elif number == 0.0 or abs(number) == math.inf:
@@ -1651,126 +1531,110 @@ def ToInteger(arg):
         result = math.floor(abs(number))
         if number < 0:
             result = -result
-    return NormalCompletion(result)
+    return result
 
 # 7.1.5 ToInt32 ( argument )
 def ToInt32(arg):
-    number, ok = ec(ToNumber(arg))
-    if not ok:
-        return number
+    number = ToNumber(arg)
     if math.isnan(number) or number == 0 or abs(number) == math.inf:
-        return NormalCompletion(0)
+        return 0
     this_int = math.floor(abs(number))
     if number < 0:
         this_int = -this_int
     int32bit = this_int % 2**32
     if int32bit >= 2**31:
-        return NormalCompletion(int32bit - 2**32)
-    return NormalCompletion(int32bit)
+        return int32bit - 2**32
+    return int32bit
 
 # 7.1.6 ToUint32 ( argument )
 def ToUint32(arg):
-    number, ok = ec(ToNumber(arg))
-    if not ok:
-        return number
+    number = ToNumber(arg)
     if math.isnan(number) or number == 0 or abs(number) == math.inf:
-        return NormalCompletion(0)
+        return 0
     this_int = math.floor(abs(number))
     if number < 0:
         this_int = -this_int
     int32bit = this_int % 2**32
-    return NormalCompletion(int32bit)
+    return int32bit
 
 # 7.1.7 ToInt16 ( argument )
 def ToInt16(arg):
-    number, ok = ec(ToNumber(arg))
-    if not ok:
-        return number
+    number = ToNumber(arg)
     if math.isnan(number) or number == 0 or abs(number) == math.inf:
-        return NormalCompletion(0)
+        return 0
     this_int = math.floor(abs(number))
     if number < 0:
         this_int = -this_int
     int16bit = this_int % 2**16
     if int16bit >= 2**15:
-        return NormalCompletion(int16bit - 2**16)
-    return NormalCompletion(int16bit)
+        return int16bit - 2**16
+    return int16bit
 
 # 7.1.8 ToUint16 ( argument )
 def ToUint16(arg):
-    number, ok = ec(ToNumber(arg))
-    if not ok:
-        return number
+    number = ToNumber(arg)
     if math.isnan(number) or number == 0 or abs(number) == math.inf:
-        return NormalCompletion(0)
+        return 0
     this_int = math.floor(abs(number))
     if number < 0:
         this_int = -this_int
     int16bit = this_int % 2**16
-    return NormalCompletion(int16bit)
+    return int16bit
 
 # 7.1.9 ToInt8 ( argument )
 def ToInt8(arg):
-    number, ok = ec(ToNumber(arg))
-    if not ok:
-        return number
+    number = ToNumber(arg)
     if math.isnan(number) or number == 0 or abs(number) == math.inf:
-        return NormalCompletion(0)
+        return 0
     this_int = math.floor(abs(number))
     if number < 0:
         this_int = -this_int
     int8bit = this_int % 2**8
     if int8bit >= 2**7:
-        return NormalCompletion(int8bit - 2**8)
-    return NormalCompletion(int8bit)
+        return int8bit - 2**8
+    return int8bit
 
 # 7.1.10 ToUint8 ( argument )
 def ToUint8(arg):
-    number, ok = ec(ToNumber(arg))
-    if not ok:
-        return number
+    number = ToNumber(arg)
     if math.isnan(number) or number == 0 or abs(number) == math.inf:
-        return NormalCompletion(0)
+        return 0
     this_int = math.floor(abs(number))
     if number < 0:
         this_int = -this_int
     int8bit = this_int % 2**8
-    return NormalCompletion(int8bit)
+    return int8bit
 
 # 7.1.11 ToUint8Clamp ( argument )
 def ToUint8Clamp(arg):
-    number, ok = ec(ToNumber(arg))
-    if not ok:
-        return number
+    number = ToNumber(arg)
     if math.isnan(number) or number <= 0:
-        return NormalCompletion(0)
+        return 0
     if number >= 255:
-        return NormalCompletion(255)
+        return 255
     f = math.floor(number)
     if f + 0.5 < number:
-        return NormalCompletion(f+1)
+        return f+1
     if number < f + 0.5 or f & 1 == 0:
-        return NormalCompletion(f)
-    return NormalCompletion(f+1)
+        return f
+    return f+1
 
 # 7.1.12 ToString ( argument )
 def ToString(arg):
     if isUndefined(arg):
-        return NormalCompletion('undefined')
+        return 'undefined'
     if isNull(arg):
-        return NormalCompletion('null')
+        return 'null'
     if isBoolean(arg):
-        return NormalCompletion('true' if arg else 'false')
+        return 'true' if arg else 'false'
     if isNumber(arg):
-        return NormalCompletion(NumberToString(arg))
+        return NumberToString(arg)
     if isString(arg):
-        return NormalCompletion(arg)
+        return arg
     if isSymbol(arg):
-        return ThrowCompletion(CreateTypeError())
+        raise ESTypeError('Symbol not convertable to string')
     # isObject
-    prim_value, ok = ec(ToPrimitive(arg, 'string'))
-    if not ok:
-        return prim_value
+    prim_value = ToPrimitive(arg, 'string')
     return ToString(prim_value)
 
 # 7.1.12.1 NumberToString ( m )
@@ -1821,8 +1685,8 @@ def ToObject(argument):
     if isSymbol(argument):
         return Construct(intrinsics['%Symbol%'], [argument])
     if isObject(argument):
-        return NormalCompletion(argument)
-    return ThrowCompletion(CreateTypeError('undefined and null cannot be converted to objects'))
+        return argument
+    raise ESTypeError('undefined and null cannot be converted to objects')
 
 # 7.1.14 ToPropertyKey ( argument )
 def ToPropertyKey(argument):
@@ -1833,12 +1697,10 @@ def ToPropertyKey(argument):
     # 2. If Type(key) is Symbol, then
     #    a. Return key.
     # 3. Return ! ToString(key).
-    key, ok = ec(ToPrimitive(argument, 'string'))
-    if not ok:
-        return key
+    key = ToPrimitive(argument, 'string')
     if isSymbol(key):
-        return NormalCompletion(key)
-    return NormalCompletion(nc(ToString(key)))
+        return key
+    return ToString(key)
 
 # 7.1.16 CanonicalNumericIndexString ( argument )
 def CanonicalNumericIndexString(arg):
@@ -1852,9 +1714,9 @@ def CanonicalNumericIndexString(arg):
     if arg == '-0':
         return -0.0
     # 3. Let n be ! ToNumber(argument).
-    n = nc(ToNumber(arg))
+    n = ToNumber(arg)
     # 4. If SameValue(! ToString(n), argument) is false, return undefined.
-    if not SameValue(nc(ToString(n)), arg):
+    if not SameValue(ToString(n), arg):
         return None
     # 5. Return n.
     return n
@@ -1889,7 +1751,9 @@ def RequireObjectCoercible(argument):
     # String	Return argument.
     # Symbol	Return argument.
     # Object	Return argument.
-    return ThrowCompletion(CreateTypeError('Must be a coercible value')) if isNull(argument) or isUndefined(argument) else NormalCompletion(argument)
+    if isNull(argument) or isUndefined(argument):
+        raise ESTypeError('Must be a coercible value')
+    return argument
 
 # 7.2.2 IsArray ( argument )
 def IsArray(arg):
@@ -1897,21 +1761,21 @@ def IsArray(arg):
     #
     # 1. If Type(argument) is not Object, return false.
     if not isObject(arg):
-        return NormalCompletion(False)
+        return False
     # 2. If argument is an Array exotic object, return true.
     if isinstance(arg, ArrayObject):
-        return NormalCompletion(True)
+        return True
     # 3. If argument is a Proxy exotic object, then
     if isinstance(arg, ProxyObject):
         # a. If argument.[[ProxyHandler]] is null, throw a TypeError exception.
         if isNull(arg.ProxyHandler):
-            return ThrowCompletion(CreateTypeError('IsArray: Proxy object is missing a handler'))
+            raise ESTypeError('IsArray: Proxy object is missing a handler')
         # b. Let target be argument.[[ProxyTarget]].
         target = arg.ProxyTarget
         # c. Return ? IsArray(target).
         return IsArray(target)
     # 4. Return false.
-    return NormalCompletion(False)
+    return False
 
 # 7.2.3 IsCallable ( argument )
 def IsCallable(arg):
@@ -2031,23 +1895,15 @@ def AbstractRelationalComparison(x, y, LeftFirst):
     # 1. If the LeftFirst flag is true, then
     if LeftFirst:
         # a. Let px be ? ToPrimitive(x, hint Number).
-        px, ok = ec(ToPrimitive(x, 'number'))
-        if not ok:
-            return px
+        px = ToPrimitive(x, 'number')
         # b. Let py be ? ToPrimitive(y, hint Number).
-        py, ok = ec(ToPrimitive(y, 'number'))
-        if not ok:
-            return py
+        py = ToPrimitive(y, 'number')
     # 2. Else the order of evaluation needs to be reversed to preserve left to right evaluation,
     else:
         # a. Let py be ? ToPrimitive(y, hint Number).
-        py, ok = ec(ToPrimitive(y, 'number'))
-        if not ok:
-            return py
+        py = ToPrimitive(y, 'number')
         # b. Let px be ? ToPrimitive(x, hint Number).
-        px, ok = ec(ToPrimitive(x, 'number'))
-        if not ok:
-            return px
+        px = ToPrimitive(x, 'number')
     # 3. If Type(px) is String and Type(py) is String, then
     if isString(px) and isString(py):
         # a. If IsStringPrefix(py, px) is true, return false.
@@ -2058,21 +1914,17 @@ def AbstractRelationalComparison(x, y, LeftFirst):
         # e. Let n be the integer that is the numeric value of the code unit at index k within py.
         # f. If m < n, return true. Otherwise, return false.
         # -- Steps a-f are what python already does. So this is easy.
-        return NormalCompletion(px < py)
+        return px < py
     # 4. Else,
     # a. NOTE: Because px and py are primitive values evaluation order is not important.
     # b. Let nx be ? ToNumber(px).
-    nx, ok = ec(ToNumber(px))
-    if not ok:
-        return nx
+    nx = ToNumber(px)
     # c. Let ny be ? ToNumber(py).
-    ny, ok = ec(ToNumber(py))
-    if not ok:
-        return ny
+    ny = ToNumber(py)
     # d. If nx is NaN, return undefined.
     # e. If ny is NaN, return undefined.
     if math.isnan(nx) or math.isnan(ny):
-        return NormalCompletion(None)
+        return None
     # f. If nx and ny are the same Number value, return false.
     # g. If nx is +0 and ny is -0, return false.
     # h. If nx is -0 and ny is +0, return false.
@@ -2083,7 +1935,7 @@ def AbstractRelationalComparison(x, y, LeftFirst):
     # m. If the mathematical value of nx is less than the mathematical value of ny—note that these mathematical values are both
     #    finite and not both zero—return true. Otherwise, return false.
     # --- Rules f-m are followed by python, so we let it do the work.
-    return NormalCompletion(nx < ny)
+    return nx < ny
     #
     # NOTE 1
     # Step 3 differs from step 7 in the algorithm for the addition operator + (12.8.3) by using the logical-and operation
@@ -2104,39 +1956,35 @@ def AbstractEqualityComparison(x, y):
     # 1. If Type(x) is the same as Type(y), then
     if TypeOf(x) == TypeOf(y):
         # a. Return the result of performing Strict Equality Comparison x === y.
-        return NormalCompletion(StrictEqualityComparison(x, y))
+        return StrictEqualityComparison(x, y)
     # 2. If x is null and y is undefined, return true.
     if isNull(x) and isUndefined(y):
-        return NormalCompletion(True)
+        return True
     # 3. If x is undefined and y is null, return true.
     if isUndefined(x) and isNull(y):
-        return NormalCompletion(True)
+        return True
     # 4. If Type(x) is Number and Type(y) is String, return the result of the comparison x == ! ToNumber(y).
     if isNumber(x) and isString(y):
-        return AbstractEqualityComparison(x, nc(ToNumber(y)))
+        return AbstractEqualityComparison(x, ToNumber(y))
     # 5. If Type(x) is String and Type(y) is Number, return the result of the comparison ! ToNumber(x) == y.
     if isString(x) and isNumber(y):
-        return AbstractEqualityComparison(nc(ToNumber(x)), y)
+        return AbstractEqualityComparison(ToNumber(x), y)
     # 6. If Type(x) is Boolean, return the result of the comparison ! ToNumber(x) == y.
     if isBoolean(x):
-        return AbstractEqualityComparison(nc(ToNumber(x)), y)
+        return AbstractEqualityComparison(ToNumber(x), y)
     # 7. If Type(y) is Boolean, return the result of the comparison x == ! ToNumber(y).
     if isBoolean(y):
-        return AbstractEqualityComparison(x, nc(ToNumber(y)))
+        return AbstractEqualityComparison(x, ToNumber(y))
     # 8. If Type(x) is either String, Number, or Symbol and Type(y) is Object, return the result of the comparison x == ToPrimitive(y).
     if (isString(x) or isNumber(x) or isSymbol(x)) and isObject(y):
-        prim, ok = ec(ToPrimitive(y))
-        if not ok:
-            return prim
+        prim = ToPrimitive(y)
         return AbstractEqualityComparison(x, prim)
     # 9. If Type(x) is Object and Type(y) is either String, Number, or Symbol, return the result of the comparison ToPrimitive(x) == y.
     if isObject(x) and (isString(y) or isNumber(y) or isSymbol(y)):
-        prim, ok = ec(ToPrimitive(x))
-        if not ok:
-            return prim
+        prim = ToPrimitive(x)
         return AbstractEqualityComparison(prim, y)
     # 10. Return false.
-    return NormalCompletion(False)
+    return False
 
 # 7.2.15 Strict Equality Comparison
 def StrictEqualityComparison(x, y):
@@ -2197,9 +2045,7 @@ def GetV(value, propkey):
     # 1. Assert: IsPropertyKey(P) is true.
     assert IsPropertyKey(propkey)
     # 2. Let O be ? ToObject(V).
-    obj, ok = ec(ToObject(value))
-    if not ok:
-        return obj
+    obj = ToObject(value)
     # 3. Return ? O.[[Get]](P, V).
     return obj.Get(propkey, value)
 
@@ -2216,14 +2062,12 @@ def Set(O, P, V, Throw):
     # 3. Assert: Type(Throw) is Boolean.
     assert isBoolean(Throw)
     # 4. Let success be ? O.[[Set]](P, V, O).
-    success, ok = ec(O.Set(P, V, O))
-    if not ok:
-        return success
+    success = O.Set(P, V, O)
     # 5. If success is false and Throw is true, throw a TypeError exception.
     if not success and Throw:
-        return ThrowCompletion(CreateTypeError(f'unable to set property \'{P}\''))
+        raise ESTypeError(f'unable to set property \'{P}\'')
     # 6. Return success.
-    return NormalCompletion(success)
+    return success
 
 # 7.3.4 CreateDataProperty ( O, P, V )
 def CreateDataProperty(obj, propkey, value):
@@ -2283,20 +2127,16 @@ def CreateDataPropertyOrThrow(O, P, V):
     # 5. Return success.
     assert isObject(O)
     assert IsPropertyKey(P)
-    success, ok = ec(CreateDataProperty(O, P, V))
-    if not ok:
-        return success
+    success = CreateDataProperty(O, P, V)
     if not success:
-        return ThrowCompletion(CreateTypeError(f'Cannot create property \'{P}\''))
-    return NormalCompletion(success)
+        raise ESTypeError(f'Cannot create property \'{P}\'')
+    return success
 
 def CreateMethodPropertyOrThrow(obj, propkey, value):
-    success, ok = ec(CreateMethodProperty(obj, propkey, value))
-    if not ok:
-        return success
+    success = CreateMethodProperty(obj, propkey, value)
     if not success:
-        return ThrowCompletion(CreateTypeError(f'Cannot create method \'{propkey}\''))
-    return NormalCompletion(success)
+        raise ESTypeError(f'Cannot create method \'{propkey}\'')
+    return success
 
 # 7.3.7 DefinePropertyOrThrow ( O, P, desc )
 def DefinePropertyOrThrow(obj, propkey, desc):
@@ -2310,14 +2150,12 @@ def DefinePropertyOrThrow(obj, propkey, desc):
     # 2. Assert: IsPropertyKey(P) is true.
     assert IsPropertyKey(propkey)
     # 3. Let success be ? O.[[DefineOwnProperty]](P, desc).
-    success, ok = ec(obj.DefineOwnProperty(propkey, desc))
-    if not ok:
-        return success
+    success = obj.DefineOwnProperty(propkey, desc)
     # 4. If success is false, throw a TypeError exception.
     if not success:
-        return ThrowCompletion(CreateTypeError(f'cannot define property \'{propkey}\''))
+        raise ESTypeError(f'cannot define property \'{propkey}\'')
     # 5. Return success.
-    return NormalCompletion(success)
+    return success
 
 # ------------------------------------ 𝟕.𝟑.𝟖 𝑫𝒆𝒍𝒆𝒕𝒆𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚𝑶𝒓𝑻𝒉𝒓𝒐𝒘 ( 𝑶, 𝑷 ) ------------------------------------
 # 7.3.8 DeletePropertyOrThrow ( O, P )
@@ -2333,12 +2171,10 @@ def DeletePropertyOrThrow(O, P):
     # 5. Return success.
     assert isObject(O)
     assert IsPropertyKey(P)
-    success, ok = ec(O.Delete(P))
-    if not ok:
-        return success
+    success = O.Delete(P)
     if not success:
-        return ThrowCompletion(CreateTypeError(f'cannot delete property \'{P}\''))
-    return NormalCompletion(success)
+        raise ESTypeError(f'cannot delete property \'{P}\'')
+    return success
 
 # ------------------------------------ 𝟕.𝟑.𝟗 𝑮𝒆𝒕𝑴𝒆𝒕𝒉𝒐𝒅 ( 𝑽, 𝑷 ) ------------------------------------
 # 7.3.9 GetMethod ( V, P )
@@ -2350,17 +2186,15 @@ def GetMethod(value, propkey):
     # 1. Assert: IsPropertyKey(P) is true.
     assert IsPropertyKey(propkey)
     # 2. Let func be ? GetV(V, P).
-    func, ok = ec(GetV(value, propkey))
-    if not ok:
-        return func
+    func = GetV(value, propkey)
     # 3. If func is either undefined or null, return undefined.
     if isUndefined(func) or isNull(func):
-        return NormalCompletion(None)
+        return None
     # 4. If IsCallable(func) is false, throw a TypeError exception.
     if not IsCallable(func):
-        return ThrowCompletion(CreateTypeError(f'property \'{propkey}\' is not a method'))
+        raise ESTypeError(f'property \'{propkey}\' is not a method')
     # 5. Return func.
-    return NormalCompletion(func)
+    return func
 
 # ------------------------------------ 𝟕.𝟑.𝟏𝟎 𝑯𝒂𝒔𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚 ( 𝑶, 𝑷 ) ------------------------------------
 # 7.3.10 HasProperty ( O, P )
@@ -2388,12 +2222,10 @@ def HasOwnProperty(O, P):
     # 2. Assert: IsPropertyKey(P) is true.
     assert IsPropertyKey(P)
     # 3. Let desc be ? O.[[GetOwnProperty]](P).
-    desc, ok = ec(O.GetOwnProperty(P))
-    if not ok:
-        return desc
+    desc = O.GetOwnProperty(P)
     # 4. If desc is undefined, return false.
     # 5. Return true.
-    return NormalCompletion(desc is not None)
+    return desc is not None
 
 # ------------------------------------ 𝟕.𝟑.𝟏𝟐 𝑪𝒂𝒍𝒍 ( 𝑭, 𝑽 [ , 𝒂𝒓𝒈𝒖𝒎𝒆𝒏𝒕𝒔𝑳𝒊𝒔𝒕 ] ) ------------------------------------
 # 7.3.12 Call ( F, V [ , argumentsList ] )
@@ -2407,7 +2239,7 @@ def Call(func, value, args=[]):
     # 1. If argumentsList is not present, set argumentsList to a new empty List.
     # 2. If IsCallable(F) is false, throw a TypeError exception.
     if not IsCallable(func):
-        return ThrowCompletion(CreateTypeError(f'\'{func!r}\' is not a callable function'))
+        raise ESTypeError(f'\'{func!r}\' is not a callable function')
     # 3. Return ? F.[[Call]](V, argumentsList).
     return func.Call(value, args)
 
@@ -2459,33 +2291,23 @@ def SetIntegrityLevel(O, level):
     # 8. Return true.
     assert isObject(O)
     assert level in ['sealed', 'frozen']
-    status, ok = ec(O.PreventExtensions())
-    if not ok:
-        return status
+    status = O.PreventExtensions()
     if not status:
-        return NormalCompletion(False)
-    keys, ok = ec(O.OwnPropertyKeys())
-    if not ok:
-        return keys
+        return False
+    keys = O.OwnPropertyKeys()
     if level == 'sealed':
         for k in keys:
-            cr, ok = ec(DefinePropertyOrThrow(O, k, PropertyDescriptor(configurable=False)))
-            if not ok:
-                return cr
+            DefinePropertyOrThrow(O, k, PropertyDescriptor(configurable=False))
     else:
         for k in keys:
-            currentDesc, ok = ec(O.GetOwnProperty(k))
-            if not ok:
-                return currentDesc
+            currentDesc = O.GetOwnProperty(k)
             if currentDesc is not None:
                 if IsAccessorDescriptor(currentDesc):
                     desc = PropertyDescriptor(configurable=False)
                 else:
                     desc = PropertyDescriptor(writable=False, configurable=False)
-                cr, ok = ec(DefinePropertyOrThrow(O, k, desc))
-                if not ok:
-                    return cr
-    return NormalCompletion(True)
+                DefinePropertyOrThrow(O, k, desc)
+    return True
 
 # ------------------------------------ 𝟕.𝟑.𝟏𝟓 𝑻𝒆𝒔𝒕𝑰𝒏𝒕𝒆𝒈𝒓𝒊𝒕𝒚𝑳𝒆𝒗𝒆𝒍 ( 𝑶, 𝒍𝒆𝒗𝒆𝒍 ) ------------------------------------
 # 7.3.15 TestIntegrityLevel ( O, level )
@@ -2498,35 +2320,29 @@ def TestIntegrityLevel(o_value, level):
     # 2. Assert: level is either "sealed" or "frozen".
     assert level in ['sealed', 'frozen']
     # 3. Let status be ? IsExtensible(O).
-    status, ok = ec(IsExtensible(o_value))
-    if not ok:
-        return status
+    status = IsExtensible(o_value)
     # 4. If status is true, return false.
     if status:
-        return NormalCompletion(False)
+        return False
     # 5. NOTE: If the object is extensible, none of its properties are examined.
     # 6. Let keys be ? O.[[OwnPropertyKeys]]().
-    keys, ok = ec(o_value.OwnPropertyKeys())
-    if not ok:
-        return keys
+    keys = o_value.OwnPropertyKeys()
     # 7. For each element k of keys, do
     for k in keys:
         # a. Let currentDesc be ? O.[[GetOwnProperty]](k).
-        current_desc, ok = ec(o_value.GetOwnProperty(k))
-        if not ok:
-            return current_desc
+        current_desc = o_value.GetOwnProperty(k)
         # b. If currentDesc is not undefined, then
         if current_desc is not None:
             # i. If currentDesc.[[Configurable]] is true, return false.
             if current_desc.configurable:
-                return NormalCompletion(False)
+                return False
             # ii. If level is "frozen" and IsDataDescriptor(currentDesc) is true, then
             if level == 'frozen' and IsDataDescriptor(current_desc):
                 # 1. If currentDesc.[[Writable]] is true, return false.
                 if current_desc.writable:
-                    return NormalCompletion(False)
+                    return False
     # 8. Return true.
-    return NormalCompletion(True)
+    return True
 
 # ------------------------------------ 𝟕.𝟑.𝟏𝟔 𝑪𝒓𝒆𝒂𝒕𝒆𝑨𝒓𝒓𝒂𝒚𝑭𝒓𝒐𝒎𝑳𝒊𝒔𝒕 ( 𝒆𝒍𝒆𝒎𝒆𝒏𝒕𝒔 ) ------------------------------------
 # 7.3.16 CreateArrayFromList ( elements )
@@ -2544,9 +2360,9 @@ def CreateArrayFromList(elements):
     # 5. Return array.
     assert isinstance(elements, list)
     assert all(isEcmaValue(x) for x in elements)
-    array = nc(ArrayCreate(0))
+    array = ArrayCreate(0)
     for n, e in enumerate(elements):
-        status = nc(CreateDataProperty(array, nc(ToString(n)), e))
+        status = CreateDataProperty(array, ToString(n), e)
         assert status
     return array
 
@@ -2563,9 +2379,7 @@ def Invoke(v, p, arguments_list=[]):
     assert IsPropertyKey(p)
     # 2. If argumentsList is not present, set argumentsList to a new empty List.
     # 3. Let func be ? GetV(V, P).
-    func, ok = ec(GetV(v, p))
-    if not ok:
-        return func
+    func = GetV(v, p)
     # 4. Return ? Call(func, V, argumentsList).
     return Call(func, v, arguments_list)
 
@@ -2576,7 +2390,7 @@ def OrdinaryHasInstance(C, O):
     #
     # 1. If IsCallable(C) is false, return false.
     if not IsCallable(C):
-        return NormalCompletion(False)
+        return False
     # 2. If C has a [[BoundTargetFunction]] internal slot, then
     if hasattr(C, 'BoundTargetFunction'):
         # a. Let BC be C.[[BoundTargetFunction]].
@@ -2585,26 +2399,22 @@ def OrdinaryHasInstance(C, O):
         return InstanceofOperator(O, BC)
     # 3. If Type(O) is not Object, return false.
     if not isObject(O):
-        return NormalCompletion(False)
+        return False
     # 4. Let P be ? Get(C, "prototype").
-    P, ok = ec(Get(C, 'prototype'))
-    if not ok:
-        return P
+    P = Get(C, 'prototype')
     # 5. If Type(P) is not Object, throw a TypeError exception.
     if not isObject(P):
-        return ThrowCompletion(CreateTypeError())
+        raise ESTypeError()
     # 6. Repeat,
     while 1:
         # a. Set O to ? O.[[GetPrototypeOf]]().
-        O, ok = ec(O.GetPrototypeOf())
-        if not ok:
-            return O
+        O = O.GetPrototypeOf()
         # b. If O is null, return false.
         if isNull(O):
-            return NormalCompletion(False)
+            return False
         # c. If SameValue(P, O) is true, return true.
         if SameValue(P, O):
-            return NormalCompletion(True)
+            return True
 
 # ------------------------------------ 𝟕.𝟑.𝟐𝟏 𝑬𝒏𝒖𝒎𝒆𝒓𝒂𝒃𝒍𝒆𝑶𝒘𝒏𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚𝑵𝒂𝒎𝒆𝒔 ( 𝑶, 𝒌𝒊𝒏𝒅 ) ------------------------------------
 # 7.3.21 EnumerableOwnPropertyNames ( O, kind )
@@ -2631,22 +2441,16 @@ def EnumerableOwnPropertyNames(O, kind):
     #      that would be returned if the EnumerateObjectProperties internal method were invoked with O.
     #   6. Return properties.
     assert isObject(O)
-    ownKeys, ok = ec(O.OwnPropertyKeys())
-    if not ok:
-        return ownKeys
+    ownKeys = O.OwnPropertyKeys()
     properties = []
     for key in ownKeys:
         if isString(key):
-            desc, ok = ec(O.GetOwnProperty(key))
-            if not ok:
-                return desc
+            desc = O.GetOwnProperty(key)
             if desc is not None and desc.enumerable:
                 if kind == 'key':
                     properties.append(key)
                 else:
-                    value, ok = ec(Get(O, key))
-                    if not ok:
-                        return value
+                    value = Get(O, key)
                     if kind == 'value':
                         properties.append(value)
                     else:
@@ -2666,7 +2470,7 @@ def GetFunctionRealm(obj):
     # 2. If obj has a [[Realm]] internal slot, then
     if hasattr(obj, 'Realm'):
         # a. Return obj.[[Realm]].
-        return NormalCompletion(obj.Realm)
+        return obj.Realm
     # 3. If obj is a Bound Function exotic object, then
     if hasattr(obj, 'BoundTargetFunction'):
         # a. Let target be obj.[[BoundTargetFunction]].
@@ -2677,7 +2481,7 @@ def GetFunctionRealm(obj):
     if hasattr(obj, 'ProxyHandler'):
         # a. If obj.[[ProxyHandler]] is null, throw a TypeError exception.
         if isNull(obj.ProxyHandler):
-            return ThrowCompletion(CreateTypeError())
+            raise ESTypeError()
         # b. Let proxyTarget be obj.[[ProxyTarget]].
         proxy_target = obj.ProxyTarget
         # c. Return ? GetFunctionRealm(proxyTarget).
@@ -2856,7 +2660,7 @@ class DeclarativeEnvironmentRecord:
         #    the newly created binding may be deleted by a subsequent DeleteBinding call.
         self.bindings[N] = self.Binding(None, True, False, D, False)
         # 4. Return NormalCompletion(empty).
-        return NormalCompletion(Empty.EMPTY)
+        return Empty.EMPTY
 
     # 8.1.1.1.3 CreateImmutableBinding ( N, S )
     def CreateImmutableBinding(self, N, S):
@@ -2874,7 +2678,7 @@ class DeclarativeEnvironmentRecord:
         #    the newly created binding is a strict binding.
         self.bindings[N] = self.Binding(None, False, S, False, False)
         # 4. Return NormalCompletion(empty).
-        return NormalCompletion(Empty.EMPTY)
+        return Empty.EMPTY
 
     # 8.1.1.1.4 InitializeBinding ( N, V )
     def InitializeBinding(self, N, V):
@@ -2891,7 +2695,7 @@ class DeclarativeEnvironmentRecord:
         # 4. Record that the binding for N in envRec has been initialized.
         self.bindings[N] = self.bindings[N]._replace(value=V, initialized=True)
         # 5. Return NormalCompletion(empty).
-        return NormalCompletion(Empty.EMPTY)
+        return Empty.EMPTY
 
     # 8.1.1.1.5 SetMutableBinding ( N, V, S )
     def SetMutableBinding(self, N, V, S):
@@ -2908,19 +2712,19 @@ class DeclarativeEnvironmentRecord:
         if N not in self.bindings:
             # a. If S is true, throw a ReferenceError exception.
             if S:
-                return ThrowCompletion(CreateReferenceError())
+                raise ESReferenceError()
             # b. Perform envRec.CreateMutableBinding(N, true).
             self.CreateMutableBinding(N, True)
             # c. Perform envRec.InitializeBinding(N, V).
             self.InitializeBinding(N, V)
             # d. Return NormalCompletion(empty).
-            return NormalCompletion(Empty.EMPTY)
+            return Empty.EMPTY
         # 3. If the binding for N in envRec is a strict binding, set S to true.
         if self.bindings[N].strict:
             S = True
         # 4. If the binding for N in envRec has not yet been initialized, throw a ReferenceError exception.
         if not self.bindings[N].initialized:
-            return ThrowCompletion(CreateReferenceError())
+            raise ESReferenceError()
         # 5. Else if the binding for N in envRec is a mutable binding, change its bound value to V.
         if self.bindings[N].mutable:
             self.bindings[N] = self.bindings[N]._replace(value=V)
@@ -2929,9 +2733,9 @@ class DeclarativeEnvironmentRecord:
             # a. Assert: This is an attempt to change the value of an immutable binding.
             # b. If S is true, throw a TypeError exception.
             if S:
-                return ThrowCompletion(CreateTypeError())
+                raise ESTypeError()
         # 7. Return NormalCompletion(empty).
-        return NormalCompletion(Empty.EMPTY)
+        return Empty.EMPTY
         # NOTE
         # An example of ECMAScript code that results in a missing binding at step 2 is:
         #
@@ -2946,9 +2750,9 @@ class DeclarativeEnvironmentRecord:
         # 2. Assert: envRec has a binding for N.
         # 3. If the binding for N in envRec is an uninitialized binding, throw a ReferenceError exception.
         if not self.bindings[N].initialized:
-            return ThrowCompletion(CreateReferenceError())
+            raise ESReferenceError()
         # 4. Return the value currently bound to N in envRec.
-        return NormalCompletion(self.bindings[N].value)
+        return self.bindings[N].value
 
     # 8.1.1.1.7 DeleteBinding ( N )
     def DeleteBinding(self, N):
@@ -2958,11 +2762,11 @@ class DeclarativeEnvironmentRecord:
         # 2. Assert: envRec has a binding for the name that is the value of N.
         # 3. If the binding for N in envRec cannot be deleted, return false.
         if not self.bindings[N].deletable:
-            return NormalCompletion(False)
+            return False
         # 4. Remove the binding for N from envRec.
         del self.bindings[N]
         # 5. Return true.
-        return NormalCompletion(True)
+        return True
 
     # 8.1.1.1.8 HasThisBinding ( )
     def HasThisBinding(self):
@@ -3004,7 +2808,7 @@ class DeclarativeEnvironmentRecord:
 
 class ObjectEnvironmentRecord:
     def __init__(self, binding_object, with_environment=False):
-        self.binding_object = nc(ToObject(binding_object))
+        self.binding_object = ToObject(binding_object)
         self.with_environment = ToBoolean(with_environment)
 
     # 8.1.1.2.1 HasBinding ( N )
@@ -3014,31 +2818,25 @@ class ObjectEnvironmentRecord:
         # 1. Let envRec be the object Environment Record for which the method was invoked.
         # 2. Let bindings be the binding object for envRec.
         # 3. Let foundBinding be ? HasProperty(bindings, N).
-        found_binding, ok = ec(HasProperty(self.binding_object, N))
-        if not ok:
-            return found_binding
+        found_binding = HasProperty(self.binding_object, N)
         # 4. If foundBinding is false, return false.
         if not found_binding:
-            return NormalCompletion(False)
+            return False
         # 5. If the withEnvironment flag of envRec is false, return true.
         if not self.with_environment:
-            return NormalCompletion(True)
+            return True
         # 6. Let unscopables be ? Get(bindings, @@unscopables).
-        unscopables, ok = ec(Get(self.binding_object, wks_unscopables))
-        if not ok:
-            return unscopables
+        unscopables = Get(self.binding_object, wks_unscopables)
         # 7. If Type(unscopables) is Object, then
         if isObject(unscopables):
             # a. Let blocked be ToBoolean(? Get(unscopables, N)).
-            blocked, ok = ec(Get(unscopables, N))
-            if not ok:
-                return blocked
+            blocked = Get(unscopables, N)
             blocked = ToBoolean(blocked)
             # b. If blocked is true, return false.
             if blocked:
-                return NormalCompletion(False)
+                return False
         # 8. Return true.
-        return NormalCompletion(True)
+        return True
 
     # 8.1.1.2.2 CreateMutableBinding ( N, D )
     def CreateMutableBinding(self, name, deletable):
@@ -3095,15 +2893,13 @@ class ObjectEnvironmentRecord:
         # 1. Let envRec be the object Environment Record for which the method was invoked.
         # 2. Let bindings be the binding object for envRec.
         # 3. Let value be ? HasProperty(bindings, N).
-        value, ok = ec(HasProperty(self.binding_object, name))
-        if not ok:
-            return value
+        value = HasProperty(self.binding_object, name)
         # 4. If value is false, then
         if not value:
             # a. If S is false, return the value undefined; otherwise throw a ReferenceError exception.
             if not strict:
-                return NormalCompletion(None)
-            return ThrowCompletion(CreateReferenceError())
+                return None
+            raise ESReferenceError()
         # 5. Return ? Get(bindings, N).
         return Get(self.binding_object, name)
 
@@ -3121,13 +2917,13 @@ class ObjectEnvironmentRecord:
     def HasThisBinding(self):
         # Regular object Environment Records do not provide a this binding.
         # 1. Return false.
-        return NormalCompletion(False)
+        return False
 
     # 8.1.1.2.9 HasSuperBinding ( )
     def HasSuperBinding(self):
         # Regular object Environment Records do not provide a super binding.
         # 1. Return false.
-        return NormalCompletion(False)
+        return False
 
     # 8.1.1.2.10 WithBaseObject ( )
     def WithBaseObject(self):
@@ -3137,9 +2933,9 @@ class ObjectEnvironmentRecord:
         # 1. Let envRec be the object Environment Record for which the method was invoked.
         # 2. If the withEnvironment flag of envRec is true, return the binding object for envRec.
         if self.with_environment:
-            return NormalCompletion(self.binding_object)
+            return self.binding_object
         # 3. Otherwise, return undefined.
-        return NormalCompletion(None)
+        return None
 
 # 8.1.1.3 Function Environment Records
 #
@@ -3205,13 +3001,13 @@ class FunctionEnvironmentRecord(DeclarativeEnvironmentRecord):
         assert self.this_binding_status != 'lexical'
         # 3. If envRec.[[ThisBindingStatus]] is "initialized", throw a ReferenceError exception.
         if self.this_binding_status == 'initialized':
-            return ThrowCompletion(CreateReferenceError())
+            raise ESReferenceError()
         # 4. Set envRec.[[ThisValue]] to V.
         self.this_value = value
         # 5. Set envRec.[[ThisBindingStatus]] to "initialized".
         self.this_binding_status = 'initialized'
         # 6. Return V.
-        return NormalCompletion(value)
+        return value
 
     # 8.1.1.3.2 HasThisBinding ( )
     def HasThisBinding(self):
@@ -3235,9 +3031,9 @@ class FunctionEnvironmentRecord(DeclarativeEnvironmentRecord):
         assert self.this_binding_status != 'lexical'
         # 3. If envRec.[[ThisBindingStatus]] is "uninitialized", throw a ReferenceError exception.
         if self.this_binding_status == 'uninitialized':
-            return ThrowCompletion(CreateReferenceError())
+            raise ESReferenceError()
         # 4. Return envRec.[[ThisValue]].
-        return NormalCompletion(self.this_value)
+        return self.this_value
 
     # 8.1.1.3.5 GetSuperBase ( )
     def GetSuperBase(self):
@@ -3246,7 +3042,7 @@ class FunctionEnvironmentRecord(DeclarativeEnvironmentRecord):
         home = self.home_object
         # 3. If home has the value undefined, return undefined.
         if home is None:
-            return NormalCompletion(None)
+            return None
         # 4. Assert: Type(home) is Object.
         assert isObject(home)
         # 5. Return ? home.[[GetPrototypeOf]]().
@@ -3348,7 +3144,7 @@ class FunctionEnvironmentRecord(DeclarativeEnvironmentRecord):
 class GlobalEnvironmentRecord:
     def __init__(self, binding_object, global_this_value):
         self.object_record = ObjectEnvironmentRecord(binding_object, False)
-        self.global_this_value = nc(ToObject(global_this_value))
+        self.global_this_value = ToObject(global_this_value)
         self.declarative_record = DeclarativeEnvironmentRecord()
         self.var_names = []
 
@@ -3361,7 +3157,7 @@ class GlobalEnvironmentRecord:
         # 2. Let DclRec be envRec.[[DeclarativeRecord]].
         # 3. If DclRec.HasBinding(N) is true, return true.
         if self.declarative_record.HasBinding(name):
-            return NormalCompletion(True)
+            return True
         # 4. Let ObjRec be envRec.[[ObjectRecord]].
         # 5. Return ? ObjRec.HasBinding(N).
         return self.object_record.HasBinding(name)
@@ -3377,7 +3173,7 @@ class GlobalEnvironmentRecord:
         # 2. Let DclRec be envRec.[[DeclarativeRecord]].
         # 3. If DclRec.HasBinding(N) is true, throw a TypeError exception.
         if self.declarative_record.HasBinding(name):
-            return ThrowCompletion(CreateTypeError())
+            raise ESTypeError()
         # 4. Return DclRec.CreateMutableBinding(N, D).
         return self.declarative_record.CreateMutableBinding(name, deletable)
 
@@ -3391,7 +3187,7 @@ class GlobalEnvironmentRecord:
         # 2. Let DclRec be envRec.[[DeclarativeRecord]].
         # 3. If DclRec.HasBinding(N) is true, throw a TypeError exception.
         if self.declarative_record.HasBinding(name):
-            return ThrowCompletion(CreateTypeError())
+            raise ESTypeError()
         # 4. Return DclRec.CreateImmutableBinding(N, S).
         return self.declarative_record.CreateImmutableBinding(name, strict)
 
@@ -3462,15 +3258,11 @@ class GlobalEnvironmentRecord:
         # 5. Let globalObject be the binding object for ObjRec.
         global_object = self.object_record.binding_object
         # 6. Let existingProp be ? HasOwnProperty(globalObject, N).
-        existing_prop, ok = ec(HasOwnProperty(global_object, name))
-        if not ok:
-            return existing_prop
+        existing_prop = HasOwnProperty(global_object, name)
         # 7. If existingProp is true, then
         if existing_prop:
             # a. Let status be ? ObjRec.DeleteBinding(N).
-            status, ok = ec(self.object_record.DeleteBinding(name))
-            if not ok:
-                return status
+            status = self.object_record.DeleteBinding(name)
             # b. If status is true, then
             if status:
                 # i. Let varNames be envRec.[[VarNames]].
@@ -3480,9 +3272,9 @@ class GlobalEnvironmentRecord:
                 except ValueError:
                     pass
             # c. Return status.
-            return NormalCompletion(status)
+            return status
         # 8. Return true.
-        return NormalCompletion(True)
+        return True
 
     # 8.1.1.4.8 HasThisBinding ( )
     def HasThisBinding(self):
@@ -3540,15 +3332,13 @@ class GlobalEnvironmentRecord:
         # 3. Let globalObject be the binding object for ObjRec.
         global_object = self.object_record.binding_object
         # 4. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
-        existing_prop, ok = ec(global_object.GetOwnProperty(name))
-        if not ok:
-            return existing_prop
+        existing_prop = global_object.GetOwnProperty(name)
         # 5. If existingProp is undefined, return false.
         if isUndefined(existing_prop):
-            return NormalCompletion(False)
+            return False
         # 6. If existingProp.[[Configurable]] is true, return false.
         # 7. Return true.
-        return NormalCompletion(not existing_prop.Configurable)
+        return not existing_prop.Configurable
         # NOTE
         # Properties may exist upon a global object that were directly created rather than being declared using a var
         # or function declaration. A global lexical binding may not be created that has the same name as a
@@ -3566,12 +3356,10 @@ class GlobalEnvironmentRecord:
         # 3. Let globalObject be the binding object for ObjRec.
         global_object = self.object_record.binding_object
         # 4. Let hasProperty be ? HasOwnProperty(globalObject, N).
-        has_property, ok = ec(HasOwnProperty(global_object, name))
-        if not ok:
-            return has_property
+        has_property = HasOwnProperty(global_object, name)
         # 5. If hasProperty is true, return true.
         if has_property:
-            return NormalCompletion(True)
+            return True
         # 6. Return ? IsExtensible(globalObject).
         return IsExtensible(global_object)
 
@@ -3585,21 +3373,19 @@ class GlobalEnvironmentRecord:
         # 3. Let globalObject be the binding object for ObjRec.
         global_object = self.object_record.binding_object
         # 4. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
-        existing_prop, ok = ec(global_object.GetOwnProperty(name))
-        if not ok:
-            return existing_prop
+        existing_prop = global_object.GetOwnProperty(name)
         # 5. If existingProp is undefined, return ? IsExtensible(globalObject).
         if isUndefined(existing_prop):
             return IsExtensible(global_object)
         # 6. If existingProp.[[Configurable]] is true, return true.
         if existing_prop['configurable']:
-            return NormalCompletion(True)
+            return True
         # 7. If IsDataDescriptor(existingProp) is true and existingProp has attribute values { [[Writable]]: true,
         #    [[Enumerable]]: true }, return true.
         if IsDataDescriptor(existing_prop) and existing_prop['writable'] and existing_prop['enumerable']:
-            return NormalCompletion(True)
+            return True
         # 8. Return false.
-        return NormalCompletion(False)
+        return False
 
     # 8.1.1.4.17 CreateGlobalVarBinding ( N, D )
     def CreateGlobalVarBinding(self, name, deletable):
@@ -3612,30 +3398,22 @@ class GlobalEnvironmentRecord:
         # 3. Let globalObject be the binding object for ObjRec.
         global_object = self.object_record.binding_object
         # 4. Let hasProperty be ? HasOwnProperty(globalObject, N).
-        has_property, ok = ec(HasOwnProperty(global_object, name))
-        if not ok:
-            return has_property
+        has_property = HasOwnProperty(global_object, name)
         # 5. Let extensible be ? IsExtensible(globalObject).
-        extensible, ok = ec(IsExtensible(global_object))
-        if not ok:
-            return extensible
+        extensible = IsExtensible(global_object)
         # 6. If hasProperty is false and extensible is true, then
         if not has_property and extensible:
             # a. Perform ? ObjRec.CreateMutableBinding(N, D).
-            cr, ok = ec(self.object_record.CreateMutableBinding(name, deletable))
-            if not ok:
-                return cr
+            self.object_record.CreateMutableBinding(name, deletable)
             # b. Perform ? ObjRec.InitializeBinding(N, undefined).
-            cr, ok = ec(self.object_record.InitializeBinding(name, None))
-            if not ok:
-                return cr
+            self.object_record.InitializeBinding(name, None)
         # 7. Let varDeclaredNames be envRec.[[VarNames]].
         # 8. If varDeclaredNames does not contain N, then
         if name not in self.var_names:
             # a. Append N to varDeclaredNames.
             self.var_names.append(name)
         # 9. Return NormalCompletion(empty).
-        return NormalCompletion(Empty.EMPTY)
+        return Empty.EMPTY
 
     # 8.1.1.4.18 CreateGlobalFunctionBinding ( N, V, D )
     def CreateGlobalFunctionBinding(self, name, value, deletable):
@@ -3648,9 +3426,7 @@ class GlobalEnvironmentRecord:
         # 3. Let globalObject be the binding object for ObjRec.
         global_object = self.object_record.binding_object
         # 4. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
-        existing_prop, ok = ec(global_object.GetOwnProperty(name))
-        if not ok:
-            return existing_prop
+        existing_prop = global_object.GetOwnProperty(name)
         # 5. If existingProp is undefined or existingProp.[[Configurable]] is true, then
         if existing_prop is None or existing_prop['configurable']:
             # a. Let desc be the PropertyDescriptor { [[Value]]: V, [[Writable]]: true, [[Enumerable]]: true,
@@ -3661,24 +3437,20 @@ class GlobalEnvironmentRecord:
             # a. Let desc be the PropertyDescriptor { [[Value]]: V }.
             desc = { 'value': value }
         # 7. Perform ? DefinePropertyOrThrow(globalObject, N, desc).
-        cr, ok = ec(DefinePropertyOrThrow(global_object, name, desc))
-        if not ok:
-            return cr
+        DefinePropertyOrThrow(global_object, name, desc)
         # 8. Record that the binding for N in ObjRec has been initialized.
         # .... object records aren't supposed to need to do this, so I'm not sure where I'm storing this info and when
         # it's used. A problem for later....
         pass
         # 9. Perform ? Set(globalObject, N, V, false).
-        cr, ok = ec(Set(global_object, name, value, False))
-        if not ok:
-            return cr
+        Set(global_object, name, value, False)
         # 10. Let varDeclaredNames be envRec.[[VarNames]].
         # 11. If varDeclaredNames does not contain N, then
         if name not in self.var_names:
             # a. Append N to varDeclaredNames.
             self.var_names.append(name)
         # 12. Return NormalCompletion(empty).
-        return NormalCompletion(Empty.EMPTY)
+        return Empty.EMPTY
         # NOTE
         # Global function declarations are always represented as own properties of the global object. If possible, an
         # existing own property is reconfigured to have a standard set of attribute values. Steps 8-9 are equivalent to
@@ -3701,9 +3473,7 @@ def GetIdentifierReference(lex, name, strict):
     # 2. Let envRec be lex's EnvironmentRecord.
     env_rec = lex.environment_record
     # 3. Let exists be ? envRec.HasBinding(name).
-    exists, ok = ec(env_rec.HasBinding(name))
-    if not ok:
-        return exists
+    exists = env_rec.HasBinding(name)
     # 4. If exists is true, then
     if exists:
         # a. Return a value of type Reference whose base value component is envRec, whose referenced name component is
@@ -3873,6 +3643,9 @@ def CreateRealm():
     # 6. Return realmRec.
     return realm_rec
 
+def internal_throw_type_error(*args, **kwargs):
+    raise ESTypeError('type invalid for operation')
+
 # 8.2.2 CreateIntrinsics ( realmRec )
 def CreateIntrinsics(realm_rec):
     # The abstract operation CreateIntrinsics with argument realmRec performs the following steps:
@@ -3888,7 +3661,7 @@ def CreateIntrinsics(realm_rec):
     # 4. Set intrinsics.[[%ObjectPrototype%]] to objProto.
     intrinsics['%ObjectPrototype%'] = obj_proto
     # 5. Let throwerSteps be the algorithm steps specified in 9.2.9.1 for the %ThrowTypeError% function.
-    thrower_steps = lambda *args, **kwargs: ThrowCompletion(CreateTypeError('type invalid for operation'))
+    thrower_steps = internal_throw_type_error
     # 6. Let thrower be CreateBuiltinFunction(throwerSteps, « », realmRec, null).
     thrower = CreateBuiltinFunction(thrower_steps, [], realm_rec, JSNull.NULL)
     # 7. Set intrinsics.[[%ThrowTypeError%]] to thrower.
@@ -4006,9 +3779,7 @@ def SetDefaultGlobalBindings(realm_rec):
         #    attribute is the corresponding intrinsic object from realmRec.
         # c. Perform ? DefinePropertyOrThrow(global, name, desc).
         desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=False)
-        cr, ok = ec(DefinePropertyOrThrow(globl, name, desc))
-        if not ok:
-            return cr
+        DefinePropertyOrThrow(globl, name, desc)
     # 3. Return global.
     return globl
 
@@ -4304,7 +4075,7 @@ def EnqueueJob(queue_name, job, arguments):
     # 9. Add pending at the back of the Job Queue named by queueName.
     surrounding_agent.job_queues[queue_name].append(pending)
     # 10. Return NormalCompletion(empty).
-    return NormalCompletion(Empty.EMPTY)
+    return Empty.EMPTY
 
 # 8.5 InitializeHostDefinedRealm ( )
 def InitializeHostDefinedRealm():
@@ -4334,20 +4105,16 @@ def InitializeHostDefinedRealm():
     # 9. Perform SetRealmGlobalObject(realm, global, thisValue).
     SetRealmGlobalObject(realm, global_exotic, this_value)
     # 10. Let globalObj be ? SetDefaultGlobalBindings(realm).
-    global_obj, ok = ec(SetDefaultGlobalBindings(realm))
-    if not ok:
-        return global_obj
+    SetDefaultGlobalBindings(realm)
     # 11. Create any implementation-defined global object properties on globalObj.
-    pass # Gonna want to add things like "console" here...
+    pass # (Assign the prior to a var and edit the object) Gonna want to add things like "console" here...
     # 12. Return NormalCompletion(empty).
-    return NormalCompletion(Empty.EMPTY)
+    return Empty.EMPTY
 
 # 8.6 RunJobs
 def RunJobs(scripts=[], modules=[]):
     # 1. Perform ? InitializeHostDefinedRealm().
-    cr, ok = ec(InitializeHostDefinedRealm())
-    if not ok:
-        return cr
+    InitializeHostDefinedRealm()
     # 2. In an implementation-dependent manner, obtain the ECMAScript source texts (see clause 10) and any
     #    associated host-defined values for zero or more ECMAScript scripts and/or ECMAScript modules.
     host_defined = None
@@ -4391,11 +4158,13 @@ def RunJobs(scripts=[], modules=[]):
         # (Nothing yet.)
         # k. Let result be the result of performing the abstract operation named by nextPending.[[Job]] using the
         #    elements of nextPending.[[Arguments]] as its arguments.
-        result, ok = ec((next_pending.job)(*next_pending.arguments))
-        # l. If result is an abrupt completion, perform HostReportErrors(« result.[[Value]] »).
-        if not ok:
-            HostReportErrors([result.value])
-    return NormalCompletion(result)
+        try:
+            result = (next_pending.job)(*next_pending.arguments)
+        except ESError as err:
+            # l. If result is an abrupt completion, perform HostReportErrors(« result.[[Value]] »).
+            HostReportErrors([err.ecma_object])
+            result = err.ecma_object
+    return result
 
 # 8.7 Agents
 
@@ -4490,9 +4259,7 @@ def OrdinaryDefineOwnProperty(obj, propkey, desc):
     # Desc, the following steps are taken:
     #
     # 1. Let current be ? O.[[GetOwnProperty]](P).
-    current, ok = ec(obj.GetOwnProperty(propkey))
-    if not ok:
-        return current
+    current = obj.GetOwnProperty(propkey)
     # 2. Let extensible be O.[[Extensible]].
     extensible = obj.Extensible
     # 3. Return ValidateAndApplyPropertyDescriptor(O, P, extensible, Desc, current).
@@ -4593,21 +4360,20 @@ class JSFunction(JSObject):
         # argumentsList, a List of ECMAScript language values. The following steps are taken:
         pass                                                      # 1. Assert: F is an ECMAScript function object.
         if self.FunctionKind == 'classConstructor':               # 2. If F.[[FunctionKind]] is "classConstructor",
-            return ThrowCompletion(CreateTypeError())             #    throw a TypeError exception.
+            raise ESTypeError()             #    throw a TypeError exception
         callerContext = surrounding_agent.running_ec              # 3. Let callerContext be the running execution context.
         calleeContext = PrepareForOrdinaryCall(self, None)        # 4. Let calleeContext be PrepareForOrdinaryCall(F, undefined).
         assert calleeContext == surrounding_agent.running_ec      # 5. Assert: calleeContext is now the running execution context.
         OrdinaryCallBindThis(self, calleeContext, thisArgument)   # 6. Perform OrdinaryCallBindThis(F, calleeContext, thisArgument).
-        result = OrdinaryCallEvaluateBody(self, argumentsList)    # 7. Let result be OrdinaryCallEvaluateBody(F, argumentsList).
+        try:
+            OrdinaryCallEvaluateBody(self, argumentsList)    # 7. Let result be OrdinaryCallEvaluateBody(F, argumentsList).
+            result = None
+        except ESReturn as abrupt:
+            result = abrupt.completion.value
         surrounding_agent.ec_stack.pop()                          # 8. Remove calleeContext from the execution context stack and
         surrounding_agent.running_ec = surrounding_agent.ec_stack[-1]   # restore callerContext as the running execution context.
         assert surrounding_agent.running_ec == callerContext
-        if result.ctype == CompletionType.RETURN:                 # 9. If result.[[Type]] is return, return
-            return NormalCompletion(result.value)                 #    NormalCompletion(result.[[Value]]).
-        _, ok = ec(result)                                        # 10. ReturnIfAbrupt(result).
-        if not ok:
-            return result
-        return NormalCompletion(None)                             # 11. Return NormalCompletion(undefined).
+        return result
         # NOTE
         # When calleeContext is removed from the execution context stack in step 8 it must not be destroyed if it is suspended
         # and retained for later resumption by an accessible generator object.
@@ -4639,8 +4405,8 @@ def OrdinaryCallBindThis(F, calleeContext, thisArgument):
     # ECMAScript value thisArgument, the following steps are taken:
     #
     thisMode = F.ThisMode                                         # 1. Let thisMode be F.[[ThisMode]].
-    if thisMode == TM.LEXICAL:                                    # 2. If thisMode is lexical, return NormalCompletion(undefined).
-        return NormalCompletion(None)
+    if thisMode == TM.LEXICAL:                                    # 2. If thisMode is lexical, return undefined
+        return None
     calleeRealm = F.Realm                                         # 3. Let calleeRealm be F.[[Realm]].
     localEnv = calleeContext.lexical_environment                  # 4. Let localEnv be the LexicalEnvironment of calleeContext.
     if thisMode == TM.STRICT:                                     # 5. If thisMode is strict, let thisValue be thisArgument.
@@ -4652,7 +4418,7 @@ def OrdinaryCallBindThis(F, calleeContext, thisArgument):
             assert isinstance(globalEnvRec, GlobalEnvironmentRecord) #  iii. Assert: globalEnvRec is a global Environment Record.
             thisValue = globalEnvRec.global_this_value            #      iv. Let thisValue be globalEnvRec.[[GlobalThisValue]].
         else:                                                     #    b. Else,
-            thisValue = nc(ToObject(thisArgument))                #       i. Let thisValue be ! ToObject(thisArgument).
+            thisValue = ToObject(thisArgument)                    #       i. Let thisValue be ! ToObject(thisArgument).
             # ii. NOTE: ToObject produces wrapper objects using calleeRealm.
     envRec = localEnv.environment_record                          # 7. Let envRec be localEnv's EnvironmentRecord.
     assert isinstance(envRec, FunctionEnvironmentRecord)          # 8. Assert: envRec is a function Environment Record.
@@ -4685,9 +4451,7 @@ def JSFunction_Construct(F, argumentsList, newTarget):
     # 5. If kind is "base", then
     if kind == 'base':
         # a. Let thisArgument be ? OrdinaryCreateFromConstructor(newTarget, "%ObjectPrototype%").
-        thisArgument, ok = ec(OrdinaryCreateFromConstructor(newTarget, '%ObjectPrototype%'))
-        if not ok:
-            return thisArgument
+        thisArgument = OrdinaryCreateFromConstructor(newTarget, '%ObjectPrototype%')
     # 6. Let calleeContext be PrepareForOrdinaryCall(F, newTarget).
     calleeContext = PrepareForOrdinaryCall(F, newTarget)
     # 7. Assert: calleeContext is now the running execution context.
@@ -4700,26 +4464,27 @@ def JSFunction_Construct(F, argumentsList, newTarget):
     # 10. Let envRec be constructorEnv's EnvironmentRecord.
     envRec = constructorEnv.environment_record
     # 11. Let result be OrdinaryCallEvaluateBody(F, argumentsList).
-    result = OrdinaryCallEvaluateBody(F, argumentsList)
+    try:
+        OrdinaryCallEvaluateBody(F, argumentsList)
+        saw_return = False
+    except ESReturn as abrupt:
+        result = abrupt.completion.value
+        saw_return = True
     # 12. Remove calleeContext from the execution context stack and restore callerContext as the running execution context.
     surrounding_agent.ec_stack.pop()
     surrounding_agent.running_ec = surrounding_agent.ec_stack[-1]
     # 13. If result.[[Type]] is return, then
-    if result.ctype == CompletionType.RETURN:
-        # a. If Type(result.[[Value]]) is Object, return NormalCompletion(result.[[Value]]).
-        if isObject(result.value):
-            return NormalCompletion(result.value)
-        # b. If kind is "base", return NormalCompletion(thisArgument).
-        if kind == 'base':
-            return NormalCompletion(thisArgument)
-        # c. If result.[[Value]] is not undefined, throw a TypeError exception.
-        if result.value is not None:
-            return ThrowCompletion(CreateTypeError('Constructor failed to create an object'))
-    # 14. Else, ReturnIfAbrupt(result).
-    else:
-        result, ok = ec(result)
-        if not ok:
+    if saw_return:
+        # a. If Type(result.[[Value]]) is Object, return result.[[Value]])
+        if isObject(result):
             return result
+        # b. If kind is "base", return thisArgument
+        if kind == 'base':
+            return thisArgument
+        # c. If result.[[Value]] is not undefined, throw a TypeError exception.
+        if result is not None:
+            raise ESTypeError('Constructor failed to create an object')
+    # 14. Else, ReturnIfAbrupt(result).
     # 15. Return ? envRec.GetThisBinding().
     return envRec.GetThisBinding()
 
@@ -4760,7 +4525,7 @@ def FunctionAllocate(functionPrototype, strict, functionKind):
     # 14. Set F.[[Realm]] to the current Realm Record.
     F.Realm = surrounding_agent.running_ec.realm
     # 15. Return F.
-    return NormalCompletion(F)
+    return F
 
 # 9.2.4 FunctionInitialize ( F, kind, ParameterList, Body, Scope )
 @unique
@@ -4776,7 +4541,7 @@ def FunctionInitialize(F, kind, ParameterList, Body, Scope):
     # 1. Let len be the ExpectedArgumentCount of ParameterList.
     len_ = ParameterList.ExpectedArgumentCount()
     # 2. Perform ! SetFunctionLength(F, len).
-    nc(SetFunctionLength(F, len_))
+    SetFunctionLength(F, len_)
     # 3. Let Strict be F.[[Strict]].
     Strict = F.Strict
     # 4. Set F.[[Environment]] to Scope.
@@ -4797,7 +4562,7 @@ def FunctionInitialize(F, kind, ParameterList, Body, Scope):
     else:
         F.ThisMode = TM.GLOBAL
     # 11. Return F.
-    return NormalCompletion(F)
+    return F
 
 # 9.2.5 FunctionCreate ( kind, ParameterList, Body, Scope, Strict [ , prototype ] )
 def FunctionCreate(kind, ParameterList, Body, Scope, Strict, prototype=missing.MISSING):
@@ -4816,7 +4581,7 @@ def FunctionCreate(kind, ParameterList, Body, Scope, Strict, prototype=missing.M
     else:
         allocKind = 'normal'
     # 4. Let F be FunctionAllocate(prototype, Strict, allocKind).
-    F = nc(FunctionAllocate(prototype, Strict, allocKind))
+    F = FunctionAllocate(prototype, Strict, allocKind)
     # 5. Return FunctionInitialize(F, kind, ParameterList, Body, Scope).
     return FunctionInitialize(F, kind, ParameterList, Body, Scope)
 
@@ -4829,7 +4594,7 @@ def GeneratorFunctionCreate(kind, ParameterList, Body, Scope, Strict):
     # 1. Let functionPrototype be the intrinsic object %Generator%.
     functionPrototype = surrounding_agent.running_ec.realm.intrinsics['%Generator%']
     # 2. Let F be FunctionAllocate(functionPrototype, Strict, "generator").
-    F = nc(FunctionAllocate(functionPrototype, Strict, 'generator'))
+    F = FunctionAllocate(functionPrototype, Strict, 'generator')
     # 3. Return FunctionInitialize(F, kind, ParameterList, Body, Scope).
     return FunctionInitialize(F, kind, ParameterList, Body, Scope)
 
@@ -4842,7 +4607,7 @@ def AsyncGeneratorFunctionCreate(kind, ParameterList, Body, Scope, Strict):
     # 1. Let functionPrototype be the intrinsic object %AsyncGenerator%.
     functionPrototype = surrounding_agent.running_ec.realm.intrinsics['%AsyncGenerator%']
     # 2. Let F be ! FunctionAllocate(functionPrototype, Strict, "generator").
-    F = nc(FunctionAllocate(functionPrototype, Strict, 'generator'))
+    F = FunctionAllocate(functionPrototype, Strict, 'generator')
     # 3. Return ! FunctionInitialize(F, kind, ParameterList, Body, Scope).
     return FunctionInitialize(F, kind, ParameterList, Body, Scope)
 
@@ -4855,7 +4620,7 @@ def AsyncFunctionCreate(kind, parameters, body, Scope, Strict):
     # 1. Let functionPrototype be the intrinsic object %AsyncFunctionPrototype%.
     functionPrototype = surrounding_agent.running_ec.realm.intrinsics['%AsyncFunctionPrototype%']
     # 2. Let F be ! FunctionAllocate(functionPrototype, Strict, "async").
-    F = nc(FunctionAllocate(functionPrototype, Strict, 'async'))
+    F = FunctionAllocate(functionPrototype, Strict, 'async')
     # 3. Return ! FunctionInitialize(F, kind, parameters, body, Scope).
     return FunctionInitialize(F, kind, parameters, body, Scope)
 
@@ -4870,10 +4635,10 @@ def AddRestrictedFunctionProperties(func, realm):
     thrower = realm.intrinsics['%ThrowTypeError%']
     # 3. Perform ! DefinePropertyOrThrow(F, "caller", PropertyDescriptor { [[Get]]: thrower, [[Set]]: thrower,
     #    [[Enumerable]]: false, [[Configurable]]: true }).
-    nc(DefinePropertyOrThrow(func, 'caller', PropertyDescriptor(Get=thrower, Set=thrower, enumerable=False, configurable=True)))
+    DefinePropertyOrThrow(func, 'caller', PropertyDescriptor(Get=thrower, Set=thrower, enumerable=False, configurable=True))
     # 4. Return ! DefinePropertyOrThrow(F, "arguments", PropertyDescriptor { [[Get]]: thrower, [[Set]]: thrower,
     #    [[Enumerable]]: false, [[Configurable]]: true }).
-    return nc(DefinePropertyOrThrow(func, 'arguments', PropertyDescriptor(Get=thrower, Set=thrower, enumerable=False, configurable=True)))
+    return DefinePropertyOrThrow(func, 'arguments', PropertyDescriptor(Get=thrower, Set=thrower, enumerable=False, configurable=True))
 
 # 9.2.10 MakeConstructor ( F [ , writablePrototype [ , prototype ] ] )
 def MakeConstructor(F, writeablePrototype=True, prototype=missing.MISSING):
@@ -4891,13 +4656,13 @@ def MakeConstructor(F, writeablePrototype=True, prototype=missing.MISSING):
     # 5. If prototype is not present, then
     if prototype == missing.MISSING:
         # a. Set prototype to ObjectCreate(%ObjectPrototype%).
-        prototype = nc(ObjectCreate(surrounding_agent.running_ec.realm.intrinsics['%ObjectPrototype%']))
+        prototype = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics['%ObjectPrototype%'])
         # b. Perform ! DefinePropertyOrThrow(prototype, "constructor", PropertyDescriptor { [[Value]]: F, [[Writable]]: writablePrototype, [[Enumerable]]: false, [[Configurable]]: true }).
         DefinePropertyOrThrow(prototype, 'constructor', PropertyDescriptor(value=F, writable=writeablePrototype, enumerable=False, configurable=True))
     # 6. Perform ! DefinePropertyOrThrow(F, "prototype", PropertyDescriptor { [[Value]]: prototype, [[Writable]]: writablePrototype, [[Enumerable]]: false, [[Configurable]]: false }).
     DefinePropertyOrThrow(F, 'prototype', PropertyDescriptor(value=prototype, writable=writeablePrototype, enumerable=False, configurable=False))
-    # 7. Return NormalCompletion(undefined).
-    return NormalCompletion(None)
+    # 7. Return undefined)
+    return None
 
 # 9.2.11 MakeClassConstructor ( F )
 def MakeClassConstructor(F):
@@ -4909,8 +4674,8 @@ def MakeClassConstructor(F):
     assert F.FunctionKind == 'normal'
     # 3. Set F.[[FunctionKind]] to "classConstructor".
     F.FunctionKind = 'classConstructor'
-    # 4. Return NormalCompletion(undefined).
-    return NormalCompletion(None)
+    # 4. Return undefined)
+    return None
 
 # 9.2.12 MakeMethod ( F, homeObject )
 def MakeMethod(F, homeObject):
@@ -4923,8 +4688,8 @@ def MakeMethod(F, homeObject):
     assert isObject(homeObject)
     # 3. Set F.[[HomeObject]] to homeObject.
     F.HomeObject = homeObject
-    # 4. Return NormalCompletion(undefined).
-    return NormalCompletion(None)
+    # 4. Return undefined)
+    return None
 
 # 9.2.13 SetFunctionName ( F, name [ , prefix ] )
 def SetFunctionName(F, name, prefix=missing.MISSING):
@@ -4952,7 +4717,7 @@ def SetFunctionName(F, name, prefix=missing.MISSING):
         # a. Set name to the string-concatenation of prefix, the code unit 0x0020 (SPACE), and name.
         name = f'{prefix} {name}'
     # 6. Return ! DefinePropertyOrThrow(F, "name", PropertyDescriptor { [[Value]]: name, [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true }).
-    return nc(DefinePropertyOrThrow(F, 'name', PropertyDescriptor(value=name, writable=False, enumerable=False, configurable=True)))
+    return DefinePropertyOrThrow(F, 'name', PropertyDescriptor(value=name, writable=False, enumerable=False, configurable=True))
 
 # 9.2.14 SetFunctionLength ( F, length )
 def SetFunctionLength(F, length):
@@ -4964,7 +4729,7 @@ def SetFunctionLength(F, length):
     # 2. Assert: Type(length) is Number.
     assert isNumber(length)
     # 3. Assert: length ≥ 0 and ! ToInteger(length) is equal to length.
-    assert length >= 0 and nc(ToInteger(length)) == length
+    assert length >= 0 and ToInteger(length) == length
     # 4. Return ! DefinePropertyOrThrow(F, "length",
     #        PropertyDescriptor { [[Value]]: length, [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true }).
     desc = PropertyDescriptor(value=length, writable=False, enumerable=False, configurable=True)
@@ -5054,11 +4819,11 @@ def FunctionDeclarationInstantiation(func, argumentsList):
         # c. If alreadyDeclared is false, then
         if not alreadyDeclared:
             # i. Perform ! envRec.CreateMutableBinding(paramName, false).
-            nc(envRec.CreateMutableBinding(paramName, False))
+            envRec.CreateMutableBinding(paramName, False)
             # ii. If hasDuplicates is true, then
             if hasDuplicates:
                 # 1. Perform ! envRec.InitializeBinding(paramName, undefined).
-                nc(envRec.InitializeBinding(paramName, None))
+                envRec.InitializeBinding(paramName, None)
     # 22. If argumentsObjectNeeded is true, then
     if argumentsObjectNeeded:
         # a. If strict is true or if simpleParameterList is false, then
@@ -5073,10 +4838,10 @@ def FunctionDeclarationInstantiation(func, argumentsList):
         # c. If strict is true, then
         if strict:
             # i. Perform ! envRec.CreateImmutableBinding("arguments", false).
-            nc(envRec.CreateImmutableBinding('arguments', False))
+            envRec.CreateImmutableBinding('arguments', False)
         # d. Else,
             # i. Perform ! envRec.CreateMutableBinding("arguments", false).
-            nc(envRec.CreateMutableBinding('arguments', False))
+            envRec.CreateMutableBinding('arguments', False)
         # e. Call envRec.InitializeBinding("arguments", ao).
         envRec.InitializeBinding('arguments', ao)
         # f. Let parameterBindings be a new List of parameterNames with "arguments" appended.
@@ -5089,12 +4854,10 @@ def FunctionDeclarationInstantiation(func, argumentsList):
     # 25. If hasDuplicates is true, then
     if hasDuplicates:
         # a. Perform ? IteratorBindingInitialization for formals with iteratorRecord and undefined as arguments.
-        cr, ok = ec(formals.IteratorBindingInitialization(iteratorRecord, None))
-        if not ok:
-            return cr
+        formals.IteratorBindingInitialization(iteratorRecord, None)
     # 26. Else,
         # a. Perform ? IteratorBindingInitialization for formals with iteratorRecord and env as arguments.
-        cr, ok = ec(formals.IteratorBindingInitialization(iteratorRecord, env))
+        formals.IteratorBindingInitialization(iteratorRecord, env)
     # 27. If hasParameterExpressions is false, then
     if not hasParameterExpressions:
         # a. NOTE: Only a single lexical environment is needed for the parameters and top-level vars.
@@ -5107,7 +4870,7 @@ def FunctionDeclarationInstantiation(func, argumentsList):
                 # 1. Append n to instantiatedVarNames.
                 instantiatedVarNames.append(n)
                 # 2. Perform ! envRec.CreateMutableBinding(n, false).
-                nc(envRec.CreateMutableBinding(n, False))
+                envRec.CreateMutableBinding(n, False)
                 # 3. Call envRec.InitializeBinding(n, undefined).
                 envRec.InitializeBinding(n, None)
         # d. Let varEnv be env.
@@ -5132,13 +4895,13 @@ def FunctionDeclarationInstantiation(func, argumentsList):
                 # 1. Append n to instantiatedVarNames.
                 instantiatedVarNames.append(n)
                 # 2. Perform ! varEnvRec.CreateMutableBinding(n, false).
-                nc(varEnvRec.CreateMutableBinding(n, False))
+                varEnvRec.CreateMutableBinding(n, False)
                 # 3. If n is not an element of parameterBindings or if n is an element of functionNames, let initialValue be undefined.
                 if n not in parameterBindings or n in functionNames:
                     initialValue = None
                 # 4. Else,
                     # a. Let initialValue be ! envRec.GetBindingValue(n, false).
-                    initialValue = nc(envRec.GetBindingValue(n, False))
+                    initialValue = envRec.GetBindingValue(n, False)
                 # 5. Call varEnvRec.InitializeBinding(n, initialValue).
                 varEnvRec.InitializeBinding(n, initialValue)
                 # 6. NOTE: vars whose names are the same as a formal parameter, initially have the same value as the
@@ -5170,11 +4933,11 @@ def FunctionDeclarationInstantiation(func, argumentsList):
             # i. If IsConstantDeclaration of d is true, then
             if d.IsConstantDeclaration():
                 # 1. Perform ! lexEnvRec.CreateImmutableBinding(dn, true).
-                nc(lexEnvRec.CreateImmutableBinding(dn, True))
+                lexEnvRec.CreateImmutableBinding(dn, True)
             # ii. Else,
             else:
                 # 1. Perform ! lexEnvRec.CreateMutableBinding(dn, false).
-                nc(lexEnvRec.CreateMutableBinding(dn, False))
+                lexEnvRec.CreateMutableBinding(dn, False)
     # 36. For each Parse Node f in functionsToInitialize, do
     for f in functionsToInitialize:
         # a. Let fn be the sole element of the BoundNames of f.
@@ -5182,9 +4945,9 @@ def FunctionDeclarationInstantiation(func, argumentsList):
         # b. Let fo be the result of performing InstantiateFunctionObject for f with argument lexEnv.
         fo = f.InstantiateFunctionObject(lexEnv)
         # c. Perform ! varEnvRec.SetMutableBinding(fn, fo, false).
-        nc(varEnvRec.SetMutableBinding(fn, fo, False))
+        varEnvRec.SetMutableBinding(fn, fo, False)
     # 37. Return NormalCompletion(empty).
-    return NormalCompletion(Empty.EMPTY)
+    return Empty.EMPTY
     # NOTE 2
     # B.3.3 provides an extension to the above algorithm that is necessary for backwards compatibility with web browser
     # implementations of ECMAScript that predate ECMAScript 2015.
@@ -5247,7 +5010,7 @@ class BuiltinFunction(JSObject):
         #     the named parameters, and the NewTarget value is undefined.
         result = self.steps(this_argument, None, *arguments_list)
         if not isinstance(result, Completion):
-            result = NormalCompletion(result)
+            result = result
         # 11. Remove calleeContext from the execution context stack and restore callerContext as the running execution
         #     context.
         surrounding_agent.ec_stack.pop()
@@ -5295,7 +5058,7 @@ def BuiltinFunction_Construct(self, arguments_list, new_target):
     #     newTarget provides the NewTarget value.
     result = self.steps(None, new_target, *arguments_list)
     if not isinstance(result, Completion):
-        result = NormalCompletion(result)
+        result = result
     # 11. Remove calleeContext from the execution context stack and restore callerContext as the running execution
     #     context.
     surrounding_agent.ec_stack.pop()
@@ -5439,9 +5202,7 @@ def BoundFunctionCreate(targetFunction, boundThis, boundArgs):
     # 1. Assert: Type(targetFunction) is Object.
     assert isObject(targetFunction)
     # 2. Let proto be ? targetFunction.[[GetPrototypeOf]]().
-    proto, ok = ec(targetFunction.GetPrototypeOf())
-    if not ok:
-        return proto
+    proto = targetFunction.GetPrototypeOf()
     # 3. Let obj be a newly created object.
     # 4. Set obj's essential internal methods to the default ordinary object definitions specified in 9.1.
     # 5. Set obj.[[Call]] as described in 9.4.1.1.
@@ -5461,7 +5222,7 @@ def BoundFunctionCreate(targetFunction, boundThis, boundArgs):
     # 11. Set obj.[[BoundArguments]] to boundArgs.
     obj.BoundArguments = boundArgs
     # 12. Return obj.
-    return NormalCompletion(obj)
+    return obj
 
 # 9.4.2 Array Exotic Objects
 #
@@ -5499,8 +5260,8 @@ class ArrayObject(JSObject):
             return ArraySetLength(self, Desc)
         # 3. Else if P is an array index, then
         if isString(P):
-            index = nc(ToUint32(P))
-            if nc(ToString(index)) == P and index != 0xffffffff:
+            index = ToUint32(P)
+            if ToString(index) == P and index != 0xffffffff:
                 # a. Let oldLenDesc be OrdinaryGetOwnProperty(A, "length").
                 oldLenDesc = OrdinaryGetOwnProperty(self, 'length')
                 # b. Assert: oldLenDesc will never be undefined or an accessor descriptor because Array objects are created
@@ -5511,22 +5272,22 @@ class ArrayObject(JSObject):
                 # d. Let index be ! ToUint32(P).
                 # e. If index ≥ oldLen and oldLenDesc.[[Writable]] is false, return false.
                 if index >= oldLen and not oldLenDesc.writable:
-                    return NormalCompletion(False)
+                    return False
                 # f. Let succeeded be ! OrdinaryDefineOwnProperty(A, P, Desc).
-                succeeded = nc(OrdinaryDefineOwnProperty(self, P, Desc))
+                succeeded = OrdinaryDefineOwnProperty(self, P, Desc)
                 # g. If succeeded is false, return false.
                 if not succeeded:
-                    return NormalCompletion(False)
+                    return False
                 # h. If index ≥ oldLen, then
                 if index >= oldLen:
                     # i. Set oldLenDesc.[[Value]] to index + 1.
                     oldLenDesc.value = index + 1
                     # ii. Let succeeded be OrdinaryDefineOwnProperty(A, "length", oldLenDesc).
-                    succeeded = nc(OrdinaryDefineOwnProperty(self, 'length', oldLenDesc))
+                    succeeded = OrdinaryDefineOwnProperty(self, 'length', oldLenDesc)
                     # iii. Assert: succeeded is true.
                     assert succeeded
                 # i. Return true.
-                return NormalCompletion(True)
+                return True
         # 4. Return OrdinaryDefineOwnProperty(A, P, Desc).
         return OrdinaryDefineOwnProperty(self, P, Desc)
 
@@ -5542,7 +5303,7 @@ def ArrayCreate(length, proto=None):
         length = 0
     # 3. If length > 2^32-1, throw a RangeError exception.
     if length > 0xffffffff:
-        return ThrowCompletion(CreateRangeError(f'length {length} is too large for array indices'))
+        raise ESRangeError(f'length {length} is too large for array indices')
     # 4. If proto is not present, set proto to the intrinsic object %ArrayPrototype%.
     if proto is None:
         proto = surrounding_agent.running_ec.realm.intrinsics['%ArrayPrototype%']
@@ -5557,10 +5318,10 @@ def ArrayCreate(length, proto=None):
     A.Extensible = True
     # 10. Perform ! OrdinaryDefineOwnProperty(A, "length",
     #           PropertyDescriptor { [[Value]]: length, [[Writable]]: true, [[Enumerable]]: false, [[Configurable]]: false }).
-    nc(OrdinaryDefineOwnProperty(A, 'length',
-                                 PropertyDescriptor(value=length, writable=True, enumerable=False, configurable=False)))
+    OrdinaryDefineOwnProperty(A, 'length',
+                                 PropertyDescriptor(value=length, writable=True, enumerable=False, configurable=False))
     # 11. Return A.
-    return NormalCompletion(A)
+    return A
 
 # 9.4.2.3 ArraySpeciesCreate ( originalArray, length )
 def ArraySpeciesCreate(originalArray, length):
@@ -5573,24 +5334,18 @@ def ArraySpeciesCreate(originalArray, length):
     if math.copysign(1.0, length) < 0:
         length = 0
     # 3. Let isArray be ? IsArray(originalArray).
-    isArray, ok = ec(IsArray(originalArray))
-    if not ok:
-        return isArray
+    isArray = IsArray(originalArray)
     # 4. If isArray is false, return ? ArrayCreate(length).
     if not isArray:
         return ArrayCreate(length)
     # 5. Let C be ? Get(originalArray, "constructor").
-    C, ok = ec(Get(originalArray, 'constructor'))
-    if not ok:
-        return C
+    C = Get(originalArray, 'constructor')
     # 6. If IsConstructor(C) is true, then
     if IsConstructor(C):
         # a. Let thisRealm be the current Realm Record.
         thisRealm = surrounding_agent.running_ec.realm
         # b. Let realmC be ? GetFunctionRealm(C).
-        realmC, ok = ec(GetFunctionRealm(C))
-        if not ok:
-            return realmC
+        realmC = GetFunctionRealm(C)
         # c. If thisRealm and realmC are not the same Realm Record, then
         if thisRealm != realmC:
             # i. If SameValue(C, realmC.[[Intrinsics]].[[%Array%]]) is true, set C to undefined.
@@ -5599,9 +5354,7 @@ def ArraySpeciesCreate(originalArray, length):
     # 7. If Type(C) is Object, then
     if isObject(C):
         # a. Set C to ? Get(C, @@species).
-        C, ok = ec(Get(C, wks_species))
-        if not ok:
-            return C
+        C = Get(C, wks_species)
         # b. If C is null, set C to undefined.
         if isNull(C):
             C = None
@@ -5610,7 +5363,7 @@ def ArraySpeciesCreate(originalArray, length):
         return ArrayCreate(length)
     # 9. If IsConstructor(C) is false, throw a TypeError exception.
     if not IsConstructor(C):
-        return ThrowCompletion(CreateTypeError())
+        raise ESTypeError()
     # 10. Return ? Construct(C, « length »).
     return Construct(C, [length])
     # NOTE
@@ -5663,14 +5416,10 @@ def ArraySetLength(A, Desc):
     if not hasattr(Desc, 'value'):
         return OrdinaryDefineOwnProperty(A, 'length', Desc)
     newLenDesc = copy(Desc)
-    newLen, ok = ec(ToUint32(Desc.value))
-    if not ok:
-        return newLen
-    numberLen, ok = ec(ToNumber(Desc.value))
-    if not ok:
-        return numberLen
+    newLen = ToUint32(Desc.value)
+    numberLen = ToNumber(Desc.value)
     if newLen != numberLen:
-        return ThrowCompletion(CreateRangeError(f'Array length {nc(ToString(Desc.value))} is invalid'))
+        raise ESRangeError(f'Array length {ToString(Desc.value)} is invalid')
     newLenDesc.value = newLen
     oldLenDesc = OrdinaryGetOwnProperty(A, 'length')
     assert oldLenDesc is not None and not oldLenDesc.is_accessor_descriptor()
@@ -5678,27 +5427,27 @@ def ArraySetLength(A, Desc):
     if newLen >= oldLen:
         return OrdinaryDefineOwnProperty(A, 'length', newLenDesc)
     if not oldLenDesc.writable:
-        return NormalCompletion(False)
+        return False
     if getattr(newLenDesc, 'writable', True):
         newWritable = True
     else:
         newWritable = False
         newLenDesc.writable = True # Need to defer setting [[Writable]] in case any elements cannot be deleted
-    succeeded = nc(OrdinaryDefineOwnProperty(A, 'length', newLenDesc))
+    succeeded = OrdinaryDefineOwnProperty(A, 'length', newLenDesc)
     if not succeeded:
-        return NormalCompletion(False)
+        return False
     while newLen < oldLen:
         oldLen -= 1
-        deleteSucceeded = nc(A.Delete(nc(ToString(oldLen))))
+        deleteSucceeded = A.Delete(ToString(oldLen))
         if not deleteSucceeded:
             newLenDesc.value = oldLen + 1
             if not newWritable:
                 newLenDesc.writable = False
-            nc(OrdinaryDefineOwnProperty(A, 'length', newLenDesc))
-            return NormalCompletion(False)
+            OrdinaryDefineOwnProperty(A, 'length', newLenDesc)
+            return False
     if not newWritable:
         return OrdinaryDefineOwnProperty(A, 'length', PropertyDescriptor(writable=False))
-    return NormalCompletion(True)
+    return True
 
 # ------------------------------------ 𝟗.𝟒.𝟑 𝑺𝒕𝒓𝒊𝒏𝒈 𝑬𝒙𝒐𝒕𝒊𝒄 𝑶𝒃𝒋𝒆𝒄𝒕𝒔 ------------------------------------
 # 9.4.3 String Exotic Objects
@@ -5720,7 +5469,7 @@ class StringObject(JSObject):
         self.Prototype = prototype
         self.Extensible = True
         desc = PropertyDescriptor(value=len(value), writable=False, enumerable=False, configurable=False)
-        nc(DefinePropertyOrThrow(self, 'length', desc))
+        DefinePropertyOrThrow(self, 'length', desc)
     def __repr__(self):
         return f'String({self.StringData!r})'
 
@@ -5737,8 +5486,8 @@ class StringObject(JSObject):
         assert IsPropertyKey(P)
         desc = OrdinaryGetOwnProperty(self, P)
         if desc is not None:
-            return NormalCompletion(desc)
-        return NormalCompletion(nc(StringGetOwnProperty(self, P)))
+            return desc
+        return StringGetOwnProperty(self, P)
 
     # -------------------------------- 𝟗.𝟒.𝟑.𝟐 [[𝑫𝒆𝒇𝒊𝒏𝒆𝑶𝒘𝒏𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚]] ( 𝑷, 𝑫𝒆𝒔𝒄 ) ------------------------------------
     # 9.4.3.2 [[DefineOwnProperty]] ( P, Desc )
@@ -5753,13 +5502,13 @@ class StringObject(JSObject):
         #    b. Return ! IsCompatiblePropertyDescriptor(extensible, Desc, stringDesc).
         # 4. Return ! OrdinaryDefineOwnProperty(S, P, Desc).
         assert IsPropertyKey(P)
-        stringDesc = nc(StringGetOwnProperty(self, P))
+        stringDesc = StringGetOwnProperty(self, P)
         if stringDesc is not None:
             extensible = self.IsExtensible
-            rval = nc(IsCompatiblePropertyDescriptor(extensible, Desc, stringDesc))
-            return NormalCompletion(rval)
-        rval = nc(OrdinaryDefineOwnProperty(self, P, Desc))
-        return NormalCompletion(rval)
+            rval = IsCompatiblePropertyDescriptor(extensible, Desc, stringDesc)
+            return rval
+        rval = OrdinaryDefineOwnProperty(self, P, Desc)
+        return rval
 
     # -------------------------------- 𝟗.𝟒.𝟑.𝟑 [[𝑶𝒘𝒏𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚𝑲𝒆𝒚𝒔]] ( ) ------------------------------------
     # 9.4.3.3 [[OwnPropertyKeys]] ( )
@@ -5782,9 +5531,9 @@ class StringObject(JSObject):
         #    creation, do
         #    a. Add P as the last element of keys.
         # 8. Return keys.
-        g1 = (nc(ToString(i)) for i in range(len(self.StringData)))
-        g2 = sorted((key for key in self.properties.keys() if isIntegerIndex(key) and nc(ToInteger(key)) >= len(self.StringData)),
-                    key=lambda x: nc(ToInteger(x)))
+        g1 = (ToString(i) for i in range(len(self.StringData)))
+        g2 = sorted((key for key in self.properties.keys() if isIntegerIndex(key) and ToInteger(key) >= len(self.StringData)),
+                    key=lambda x: ToInteger(x))
         g3 = (key for key in self.properties.keys() if isString(key) and not isIntegerIndex(key))
         g4 = (key for key in self.properties.keys() if isSymbol(key))
         return list(chain(g1, g2, g3, g4))
@@ -5809,7 +5558,7 @@ def StringCreate(value, prototype):
     #     [[Enumerable]]: false, [[Configurable]]: false }).
     # 12. Return S.
     assert isString(value)
-    return NormalCompletion(StringObject(value, prototype))
+    return StringObject(value, prototype)
 
 # ------------------------------------ 𝟗.𝟒.𝟑.𝟓 𝑺𝒕𝒓𝒊𝒏𝒈𝑮𝒆𝒕𝑶𝒘𝒏𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚 ( 𝑺, 𝑷 ) ------------------------------------
 # 9.4.3.5 StringGetOwnProperty ( S, P )
@@ -5833,18 +5582,18 @@ def StringGetOwnProperty(S, P):
     assert isObject(S) and hasattr(S, 'StringData')
     assert IsPropertyKey(P)
     if not isString(P):
-        return NormalCompletion(None)
-    index = nc(CanonicalNumericIndexString(P))
+        return None
+    index = CanonicalNumericIndexString(P)
     if index is None:
-        return NormalCompletion(None)
+        return None
     if not IsInteger(index):
-        return NormalCompletion(None)
+        return None
     if index == 0 and math.copysign(1.0, index) < 0:
-        return NormalCompletion(None)
+        return None
     if index < 0 or len(S.StringData) <= index:
-        return NormalCompletion(None)
-    return NormalCompletion(PropertyDescriptor(value=S.StringData[int(index)], writable=False,
-                                               enumerable=True, configurable=False))
+        return None
+    return PropertyDescriptor(value=S.StringData[int(index)], writable=False,
+                                               enumerable=True, configurable=False)
 # 9.4.7 Immutable Prototype Exotic Objects
 #
 # An immutable prototype exotic object is an exotic object that has a [[Prototype]] internal slot that will not change
@@ -5868,12 +5617,10 @@ def SetImmutablePrototype(obj, value):
     # 1. Assert: Either Type(V) is Object or Type(V) is Null.
     assert isObject(value) or isNull(value)
     # 2. Let current be ? O.[[GetPrototypeOf]]().
-    current, ok = ec(obj.GetPrototypeOf())
-    if not ok:
-        return current
+    current = obj.GetPrototypeOf()
     # 3. If SameValue(V, current) is true, return true.
     # 4. Return false.
-    return NormalCompletion(SameValue(value, current))
+    return SameValue(value, current)
 #endregion
 
 # 9.5 ProxyObjects
@@ -7098,8 +6845,8 @@ def InitializeBoundName(name, value, environment):
         env = environment.environment_record
         # b. Perform env.InitializeBinding(name, value).
         env.InitializeBinding(name, value)
-        # c. Return NormalCompletion(undefined).
-        return NormalCompletion(None)
+        # c. Return undefined)
+        return None
     # 3. Else,
     # a. Let lhs be ResolveBinding(name).
     lhs = ResolveBinding(name)
@@ -7428,7 +7175,7 @@ class PN_LiteralPropertyName_NumericLiteral(PN_LiteralPropertyName):
         #           LiteralPropertyName : StringLiteral
         # 1. Let nbr be the result of forming the value of the NumericLiteral.
         # 2. Return ! ToString(nbr).
-        return nc(ToString(self.NumericLiteral.value))
+        return ToString(self.NumericLiteral.value)
     def evaluate(self):
         return self.PropName()
 
@@ -7451,9 +7198,7 @@ class PN_ComputedPropertyName_LBRACKET_AssignmentExpression_RBRACKET(PN_Computed
         # 2. Let propName be ? GetValue(exprValue).
         # 3. Return ? ToPropertyKey(propName).
         exprValue = self.AssignmentExpression.evaluate()
-        propName, ok = ec(GetValue(exprValue))
-        if not ok:
-            return propName
+        propName = GetValue(exprValue)
         return ToPropertyKey(propName)
 
 class PN_Initializer(ParseNode):
@@ -7539,19 +7284,11 @@ class PN_MemberExpression_MemberExpression_LBRACKET_Expression_RBRACKET(PN_Membe
         # 7. If the code matched by this MemberExpression is strict mode code, let strict be true, else let strict be false.
         # 8. Return a value of type Reference whose base value component is bv, whose referenced name component is propertyKey, and whose strict reference flag is strict.
         baseReference = self.MemberExpression.evaluate()
-        baseValue, ok = ec(GetValue(baseReference))
-        if not ok:
-            return baseValue
+        baseValue = GetValue(baseReference)
         propertyNameReference = self.Expression.evaluate()
-        propertyNameValue, ok = ec(GetValue(propertyNameReference))
-        if not ok:
-            return propertyNameValue
-        bv, ok = ec(RequireObjectCoercible(baseValue))
-        if not ok:
-            return bv
-        propertyKey, ok = ec(ToPropertyKey(propertyNameValue))
-        if not ok:
-            return propertyKey
+        propertyNameValue = GetValue(propertyNameReference)
+        bv = RequireObjectCoercible(baseValue)
+        propertyKey = ToPropertyKey(propertyNameValue)
         return Reference(bv, propertyKey, self.strict)
 class PN_MemberExpression_MemberExpression_DOT_IdentifierName(PN_MemberExpression_NotPassThru):
     @property
@@ -7585,12 +7322,8 @@ class PN_MemberExpression_MemberExpression_DOT_IdentifierName(PN_MemberExpressio
         # 5. If the code matched by this MemberExpression is strict mode code, let strict be true, else let strict be false.
         # 6. Return a value of type Reference whose base value component is bv, whose referenced name component is propertyNameString, and whose strict reference flag is strict.
         baseReference = self.MemberExpression.evaluate()
-        baseValue, ok = ec(GetValue(baseReference))
-        if not ok:
-            return baseValue
-        bv, ok = ec(RequireObjectCoercible(baseValue))
-        if not ok:
-            return bv
+        baseValue = GetValue(baseReference)
+        bv = RequireObjectCoercible(baseValue)
         propertyNameString = self.IdentifierName.StringValue()
         return Reference(bv, propertyNameString, self.strict)
 # = - = - = - = - = - = - = - = - = NewExpression - = - = - = - = - = - = - = - = - = - = - = - = - = - = - = -
@@ -7636,17 +7369,13 @@ def EvaluateNew(constructExpr, arguments):
     assert constructExpr.name in ['NewExpression', 'MemberExpression']
     assert arguments == Empty.EMPTY or arguments.name == 'Arguments'
     ref = constructExpr.evaluate()
-    constructor, ok = ec(GetValue(ref))
-    if not ok:
-        return constructor
+    constructor = GetValue(ref)
     if arguments == Empty.EMPTY:
         argList = []
     else:
-        argList, ok = ec(arguments.ArgumentListEvaluation())
-        if not ok:
-            return argList
+        argList = arguments.ArgumentListEvaluation()
     if not IsConstructor(constructor):
-        return ThrowCompletion(CreateTypeError(f'{GetReferencedName(ref)} is not a constructor'))
+        raise ESTypeError(f'{GetReferencedName(ref)} is not a constructor')
     return Construct(constructor, argList)
 # = - = - = - = - = - = - = - = - = CallExpression - = - = - = - = - = - = - = - = - = - = - = - = - = - = - = -
 # 12.3.4 Function Calls
@@ -7676,9 +7405,7 @@ class PN_CallExpression_CallExpression_Arguments(PN_CallExpression):
         CallExpression = self.CallExpression
         Arguments = self.Arguments
         ref = CallExpression.evaluate()
-        func, ok = ec(GetValue(ref))
-        if not ok:
-            return func
+        func = GetValue(ref)
         thisCall = CallExpression
         tailCall = IsInTailPosition(thisCall)
         return EvaluateCall(func, ref, Arguments, tailCall)
@@ -7728,22 +7455,16 @@ class PN_CallExpression_CoverCallExpressionAndAsyncArrowHead(PN_CallExpression):
         memberExpr = expr.MemberExpression
         arguments = expr.Arguments
         ref = memberExpr.evaluate()
-        func, ok = ec(GetValue(ref))
-        if not ok:
-            return func
+        func = GetValue(ref)
         if isinstance(ref, Reference) and not IsPropertyReference(ref) and GetReferencedName(ref) == 'eval':
             if SameValue(func, surrounding_agent.running_ec.realm.intrinsics['%eval%']):
-                argList, ok = ec(arguments.ArgumentListEvaluation())
-                if not ok:
-                    return argList
+                argList = arguments.ArgumentListEvaluation()
                 if len(argList) == 0:
                     return None
                 evalText = argList[0]
                 strictCaller = self.strict
                 evalRealm = surrounding_agent.running_ec.realm
-                cr, ok = HostEnsureCanCompileStrings(evalRealm, evalRealm)
-                if not ok:
-                    return cr
+                HostEnsureCanCompileStrings(evalRealm, evalRealm)
                 return PerformEval(evalText, evalRealm, strictCaller, True)
         #thisCall = self
         tailCall = False #IsInTailPosition(thisCall)
@@ -7789,18 +7510,16 @@ def EvaluateCall(func, ref, arguments, tailPosition):
             thisValue = refEnv.WithBaseObject()
     else:
         thisValue = None
-    argList, ok = ec(arguments.ArgumentListEvaluation())
-    if not ok:
-        return argList
+    argList = arguments.ArgumentListEvaluation()
     if not isObject(func):
-        return ThrowCompletion(CreateTypeError('Not a function'))
+        raise ESTypeError('Not a function')
     if not IsCallable(func):
-        return ThrowCompletion(CreateTypeError('Not a function'))
+        raise ESTypeError('Not a function')
     if tailPosition:
         PrepareForTailCall()
     result = Call(func, thisValue, argList)
     # assert not tailPosition
-    assert (isinstance(result, Completion) and (result.ctype != CompletionType.NORMAL or isEcmaValue(result.value))) or isEcmaValue(result)
+    # assert (isinstance(result, Completion) and (result.ctype != CompletionType.NORMAL or isEcmaValue(result.value))) or isEcmaValue(result)
     return result
 # = - = - = - = - = - = - = - = - = ArgumentList - = - = - = - = - = - = - = - = - = - = - = - = - = - = - = -
 # 12.3.6 Argument Lists
@@ -7818,9 +7537,7 @@ class PN_ArgumentList_AssignmentExpression(PN_ArgumentList):
         # 3. Return a List whose sole item is arg.
         AssignmentExpression = self.children[0]
         ref = AssignmentExpression.evaluate()
-        arg, ok = ec(GetValue(ref))
-        if not ok:
-            return arg
+        arg = GetValue(ref)
         return [arg]
 class PN_ArgumentList_DOTDOTDOT_AssignmentExpression(PN_ArgumentList):
     def ArgumentListEvaluation(self):
@@ -7838,21 +7555,13 @@ class PN_ArgumentList_DOTDOTDOT_AssignmentExpression(PN_ArgumentList):
         AssignmentExpression = self.children[1]
         lst = []
         spreadRef = AssignmentExpression.evaluate()
-        spreadObj, ok = ec(GetValue(spreadRef))
-        if not ok:
-            return spreadObj
-        iteratorRecord, ok = GetIterator(spreadObj)
-        if not ok:
-            return iteratorRecord
+        spreadObj = GetValue(spreadRef)
+        iteratorRecord = GetIterator(spreadObj)
         while 1:
-            nxt, ok = ec(IteratorStep(iteratorRecord))
-            if not ok:
-                return nxt
+            nxt = IteratorStep(iteratorRecord)
             if not nxt:
                 return lst
-            nextArg, ok = ec(IteratorValue(nxt))
-            if not ok:
-                return nextArg
+            nextArg = IteratorValue(nxt)
             lst.append(nextArg)
 class PN_ArgumentList_ArgumentList_COMMA_AssignmentExpression(PN_ArgumentList):
     def ArgumentListEvaluation(self):
@@ -7866,13 +7575,9 @@ class PN_ArgumentList_ArgumentList_COMMA_AssignmentExpression(PN_ArgumentList):
         # 6. Return precedingArgs.
         ArgumentList = self.children[0]
         AssignmentExpression = self.children[2]
-        precedingArgs, ok = ec(ArgumentList.ArgumentListEvaluation())
-        if not ok:
-            return precedingArgs
+        precedingArgs = ArgumentList.ArgumentListEvaluation()
         ref = AssignmentExpression.evaluate()
-        arg, ok = ec(GetValue(ref))
-        if not ok:
-            return arg
+        arg = GetValue(ref)
         precedingArgs.append(arg)
         return precedingArgs
 class PN_ArgumentList_ArgumentList_COMMA_DOTDOTDOT_AssignmentExpression(PN_ArgumentList):
@@ -7890,25 +7595,15 @@ class PN_ArgumentList_ArgumentList_COMMA_DOTDOTDOT_AssignmentExpression(PN_Argum
         #    d. Append nextArg as the last element of precedingArgs.
         ArgumentList = self.children[0]
         AssignmentExpression = self.children[3]
-        precedingArgs, ok = ec(ArgumentList.ArgumentListEvaluation)
-        if not ok:
-            return precedingArgs
+        precedingArgs = ArgumentList.ArgumentListEvaluation
         spreadRef = AssignmentExpression.evaluate()
-        spreadObj, ok = ec(GetValue(spreadRef))
-        if not ok:
-            return spreadObj
-        iteratorRecord, ok = ec(GetIterator(spreadObj))
-        if not ok:
-            return iteratorRecord
+        spreadObj = GetValue(spreadRef)
+        iteratorRecord = GetIterator(spreadObj)
         while 1:
-            nxt, ok = ec(IteratorStep(iteratorRecord))
-            if not ok:
-                return nxt
+            nxt = IteratorStep(iteratorRecord)
             if not nxt:
                 return precedingArgs
-            nextArg, ok = ec(IteratorValue(nxt))
-            if not ok:
-                return nextArg
+            nextArg = IteratorValue(nxt)
             precedingArgs.append(nextArg)
 # = - = - = - = - = - = - = - = - = Arguments - = - = - = - = - = - = - = - = - = - = - = - = - = - = - = -
 class PN_Arguments(ParseNode):
@@ -8003,15 +7698,9 @@ class PN_UpdateExpression_LeftHandSideExpression_PLUSPLUS(PN_UpdateExpression_po
         # 5. Return oldValue.
         LeftHandSideExpression = self.children[0]
         lhs = LeftHandSideExpression.evaluate()
-        oldValue, ok = ec(GetValue(lhs))
-        if not ok:
-            return oldValue
-        oldValue, ok = ec(ToNumber(oldValue))
-        if not ok:
-            return oldValue
-        cr, ok = ec(PutValue(lhs, oldValue + 1))
-        if not ok:
-            return cr
+        oldValue = GetValue(lhs)
+        oldValue = ToNumber(oldValue)
+        PutValue(lhs, oldValue + 1)
         return oldValue
 class PN_UpdateExpression_LeftHandSideExpression_MINUSMINUS(PN_UpdateExpression_postfix):
     # 12.4.5 Postfix Decrement Operator
@@ -8025,15 +7714,9 @@ class PN_UpdateExpression_LeftHandSideExpression_MINUSMINUS(PN_UpdateExpression_
         # 5. Return oldValue.
         LeftHandSideExpression = self.children[0]
         lhs = LeftHandSideExpression.evaluate()
-        oldValue, ok = ec(GetValue(lhs))
-        if not ok:
-            return oldValue
-        oldValue, ok = ec(ToNumber(oldValue))
-        if not ok:
-            return oldValue
-        cr, ok = ec(PutValue(lhs, oldValue - 1))
-        if not ok:
-            return cr
+        oldValue = GetValue(lhs)
+        oldValue = ToNumber(oldValue)
+        PutValue(lhs, oldValue - 1)
         return oldValue
 class PN_UpdateExpression_PLUSPLUS_UnaryExpression(PN_UpdateExpression_prefix):
     # 12.4.6 Prefix Increment Operator
@@ -8047,16 +7730,10 @@ class PN_UpdateExpression_PLUSPLUS_UnaryExpression(PN_UpdateExpression_prefix):
         # 5. Return newValue.
         UnaryExpression = self.children[1]
         expr = UnaryExpression.evaluate()
-        oldValue, ok = ec(GetValue(expr))
-        if not ok:
-            return oldValue
-        oldValue, ok = ec(ToNumber(oldValue))
-        if not ok:
-            return oldValue
+        oldValue = GetValue(expr)
+        oldValue = ToNumber(oldValue)
         newValue = oldValue + 1
-        cr, ok = ec(PutValue(expr, newValue))
-        if not ok:
-            return cr
+        PutValue(expr, newValue)
         return newValue
 class PN_UpdateExpression_MINUSMINUS_UnaryExpression(PN_UpdateExpression_prefix):
     # 12.4.7 Prefix Decrement Operator
@@ -8070,16 +7747,10 @@ class PN_UpdateExpression_MINUSMINUS_UnaryExpression(PN_UpdateExpression_prefix)
         # 5. Return newValue.
         UnaryExpression = self.children[1]
         expr = UnaryExpression.evaluate()
-        oldValue, ok = ec(GetValue(expr))
-        if not ok:
-            return oldValue
-        oldValue, ok = ec(ToNumber(oldValue))
-        if not ok:
-            return oldValue
+        oldValue = GetValue(expr)
+        oldValue = ToNumber(oldValue)
         newValue = oldValue - 1
-        cr, ok = ec(PutValue(expr, newValue))
-        if not ok:
-            return cr
+        PutValue(expr, newValue)
         return newValue
 ################################################################################################################################################################################################
 #
@@ -8156,9 +7827,7 @@ class PN_UnaryExpression_DELETE_UnaryExpression(PN_UnaryExpression_op):
         UnaryExpression = self.children[1]
         #   1. Let ref be the result of evaluating UnaryExpression.
         #   2. ReturnIfAbrupt(ref).
-        ref, ok = ec(UnaryExpression.evaluate())
-        if not ok:
-            return ref
+        ref = UnaryExpression.evaluate()
         #   3. If Type(ref) is not Reference, return true.
         if not isinstance(ref, Reference):
             return True
@@ -8172,16 +7841,14 @@ class PN_UnaryExpression_DELETE_UnaryExpression(PN_UnaryExpression_op):
         if IsPropertyReference(ref):
             #   a. If IsSuperReference(ref) is true, throw a ReferenceError exception.
             if IsSuperReference(ref):
-                return ThrowCompletion(CreateReferenceError('Can\'t delete super references'))
+                raise ESReferenceError('Can\'t delete super references')
             #   b. Let baseObj be ! ToObject(GetBase(ref)).
-            baseObj = nc(ToObject(GetBase(ref)))
+            baseObj = ToObject(GetBase(ref))
             #   c. Let deleteStatus be ? baseObj.[[Delete]](GetReferencedName(ref)).
-            deleteStatus, ok = ec(baseObj.Delete(GetReferencedName(ref)))
-            if not ok:
-                return deleteStatus
+            deleteStatus = baseObj.Delete(GetReferencedName(ref))
             #   d. If deleteStatus is false and IsStrictReference(ref) is true, throw a TypeError exception.
             if not deleteStatus and IsStrictReference(ref):
-                return ThrowCompletion(CreateTypeError(f'Couldn\'t delete {GetReferencedName(ref)!r}.'))
+                raise ESTypeError(f'Couldn\'t delete {GetReferencedName(ref)!r}.')
             #   e. Return deleteStatus.
             return deleteStatus
         #   6. Else ref is a Reference to an Environment Record binding,
@@ -8204,9 +7871,7 @@ class PN_UnaryExpression_VOID_UnaryExpression(PN_UnaryExpression_op):
         # 3. Return undefined.
         # NOTE
         # GetValue must be called even though its value is not used because it may have observable side-effects.
-        cr, ok = ec(GetValue(self.children[1].evaluate()))
-        if not ok:
-            return cr
+        GetValue(self.children[1].evaluate())
         return None
 class PN_UnaryExpression_TYPEOF_UnaryExpression(PN_UnaryExpression_op):
     # 12.5.5 The typeof Operator
@@ -8248,14 +7913,10 @@ class PN_UnaryExpression_TYPEOF_UnaryExpression(PN_UnaryExpression_op):
         # NOTE
         # Implementations are discouraged from defining new typeof result values for non-standard exotic objects. If
         # possible "object" should be used for such objects.
-        val, ok = ec(self.children[1].evaluate())
-        if not ok:
-            return val
+        val = self.children[1].evaluate()
         if isinstance(val, Reference) and IsUnresolvableReference(val):
             return 'undefined'
-        val, ok = ec(GetValue(val))
-        if not ok:
-            return val
+        val = GetValue(val)
         type_matrix = [
             (isUndefined, 'undefined'),
             (isNull, 'object'),
@@ -8276,9 +7937,7 @@ class PN_UnaryExpression_PLUS_UnaryExpression(PN_UnaryExpression_op):
         #           UnaryExpression : + UnaryExpression
         # 1. Let expr be the result of evaluating UnaryExpression.
         # 2. Return ? ToNumber(? GetValue(expr)).
-        val, ok = ec(GetValue(self.children[1].evaluate()))
-        if not ok:
-            return val
+        val = GetValue(self.children[1].evaluate())
         return ToNumber(val)
 class PN_UnaryExpression_MINUS_UnaryExpression(PN_UnaryExpression_op):
     # 12.5.7 Unary - Operator
@@ -8294,12 +7953,8 @@ class PN_UnaryExpression_MINUS_UnaryExpression(PN_UnaryExpression_op):
         # 4. Return the result of negating oldValue; that is, compute a Number with the same magnitude but opposite
         #    sign.
         UnaryExpression = self.children[1]
-        expr, ok = ec(GetValue(UnaryExpression.evaluate()))
-        if not ok:
-            return expr
-        oldValue, ok = ec(ToNumber(expr))
-        if not ok:
-            return oldValue
+        expr = GetValue(UnaryExpression.evaluate())
+        oldValue = ToNumber(expr)
         if math.isnan(oldValue):
             return math.nan
         return -oldValue
@@ -8312,13 +7967,9 @@ class PN_UnaryExpression_TILDE_UnaryExpression(PN_UnaryExpression_op):
         # 2. Let oldValue be ? ToInt32(? GetValue(expr)).
         # 3. Return the result of applying bitwise complement to oldValue. The result is a signed 32-bit integer.
         UnaryExpression = self.children[1]
-        expr, ok = ec(GetValue(UnaryExpression.evaluate()))
-        if not ok:
-            return expr
-        oldValue, ok = ec(ToInt32(expr))
-        if not ok:
-            return oldValue
-        return nc(ToInt32(~oldValue))
+        expr = GetValue(UnaryExpression.evaluate())
+        oldValue = ToInt32(expr)
+        return ToInt32(~oldValue)
 class PN_UnaryExpression_BANG_UnaryExpression(PN_UnaryExpression_op):
     # 12.5.9 Logical NOT Operator ( ! )
     def evaluate(self):
@@ -8328,9 +7979,7 @@ class PN_UnaryExpression_BANG_UnaryExpression(PN_UnaryExpression_op):
         # 2. Let oldValue be ToBoolean(? GetValue(expr)).
         # 3. If oldValue is true, return false.
         # 4. Return true.
-        expr, ok = ec(GetValue(self.children[1].evaluate()))
-        if not ok:
-            return expr
+        expr = GetValue(self.children[1].evaluate())
         oldValue = ToBoolean(expr)
         return not oldValue
 ################################################################################################################################################################################################
@@ -8370,12 +8019,8 @@ class PN_ExponentiationExpression_UpdateExpression_STARSTAR_ExponentiationExpres
     def IsValidSimpleAssignmentTarget(self):
         return False
     def evaluate(self):
-        lval, ok = ec(GetValue(self.children[0].evaluate()))
-        if not ok:
-            return lval
-        rval, ok = ec(GetValue(self.children[2].evaluate()))
-        if not ok:
-            return rval
+        lval = GetValue(self.children[0].evaluate())
+        rval = GetValue(self.children[2].evaluate())
         return ExponentiationOperation(lval, rval)
 ################################################################################################################################################################################################
 #
@@ -8428,15 +8073,11 @@ class PN_MultiplicativeExpression_MultiplicativeOperator_ExponentiationExpressio
         # 1. Let left be the result of evaluating MultiplicativeExpression.
         left = MultiplicativeExpression.evaluate()
         # 2. Let leftValue be ? GetValue(left).
-        leftValue, ok = ec(GetValue(left))
-        if not ok:
-            return leftValue
+        leftValue = GetValue(left)
         # 3. Let right be the result of evaluating ExponentiationExpression.
         right = ExponentiationExpression.evaluate()
         # 4. Let rightValue be ? GetValue(right).
-        rightValue, ok = ec(GetValue(right))
-        if not ok:
-            return rightValue
+        rightValue = GetValue(right)
         # 5. Let lnum be ? ToNumber(leftValue).
         # 6. Let rnum be ? ToNumber(rightValue).
         # 7. Return the result of applying the MultiplicativeOperator (*, /, or %) to lnum and rnum as specified in
@@ -8486,43 +8127,27 @@ class PN_AdditiveExpression_AdditiveExpression_PLUS_MultiplicativeExpression(PN_
         # 1. Let lref be the result of evaluating AdditiveExpression.
         lref = self.children[0].evaluate()
         # 2. Let lval be ? GetValue(lref).
-        lval, ok = ec(GetValue(lref))
-        if not ok:
-            return lval
+        lval = GetValue(lref)
         # 3. Let rref be the result of evaluating MultiplicativeExpression.
         rref = self.children[2].evaluate()
         # 4. Let rval be ? GetValue(rref).
-        rval, ok = ec(GetValue(rref))
-        if not ok:
-            return rval
+        rval = GetValue(rref)
         # 5. Let lprim be ? ToPrimitive(lval).
-        lprim, ok = ec(ToPrimitive(lval))
-        if not ok:
-            return lprim
+        lprim = ToPrimitive(lval)
         # 6. Let rprim be ? ToPrimitive(rval).
-        rprim, ok = ec(ToPrimitive(rval))
-        if not ok:
-            return rprim
+        rprim = ToPrimitive(rval)
         # 7. If Type(lprim) is String or Type(rprim) is String, then
         if isString(lprim) or isString(rprim):
             # a. Let lstr be ? ToString(lprim).
-            lstr, ok = ec(ToString(lprim))
-            if not ok:
-                return lstr
+            lstr = ToString(lprim)
             # b. Let rstr be ? ToString(rprim).
-            rstr, ok = ec(ToString(rprim))
-            if not ok:
-                return rstr
+            rstr = ToString(rprim)
             # c. Return the string-concatenation of lstr and rstr.
             return lstr + rstr
         # 8. Let lnum be ? ToNumber(lprim).
-        lnum, ok = ec(ToNumber(lprim))
-        if not ok:
-            return lnum
+        lnum = ToNumber(lprim)
         # 9. Let rnum be ? ToNumber(rprim).
-        rnum, ok = ec(ToNumber(rprim))
-        if not ok:
-            return rnum
+        rnum = ToNumber(rprim)
         # 10. Return the result of applying the addition operation to lnum and rnum. See the Note below 12.8.5.
         return lnum + rnum
         # NOTE 1
@@ -8539,23 +8164,15 @@ class PN_AdditiveExpression_AdditiveExpression_MINUS_MultiplicativeExpression(PN
         # 1.Let lref be the result of evaluating AdditiveExpression.
         lref = self.children[0].evaluate()
         # 2. Let lval be ? GetValue(lref).
-        lval, ok = ec(GetValue(lref))
-        if not ok:
-            return lval
+        lval = GetValue(lref)
         # 3. Let rref be the result of evaluating MultiplicativeExpression.
         rref = self.children[2].evaluate()
         # 4. Let rval be ? GetValue(rref).
-        rval, ok = ec(GetValue(rref))
-        if not ok:
-            return rval
+        rval = GetValue(rref)
         # 5. Let lnum be ? ToNumber(lval).
-        lnum, ok = ec(ToNumber(lval))
-        if not ok:
-            return lnum
+        lnum = ToNumber(lval)
         # 6. Let rnum be ? ToNumber(rval).
-        rnum, ok = ec(ToNumber(rval))
-        if not ok:
-            return rnum
+        rnum = ToNumber(rval)
         # 7. Return the result of applying the subtraction operation to lnum and rnum. See the note below 12.8.5.
         return lnum - rnum
 # 12.8.5 Applying the Additive Operators to Numbers
@@ -8621,23 +8238,15 @@ class PN_ShiftExpression_S_op_A(PN_ShiftExpression):
         # 1. Let lref be the result of evaluating ShiftExpression.
         lref = self.children[0].evaluate()
         # 2. Let lval be ? GetValue(lref).
-        lval, ok = ec(GetValue(lref))
-        if not ok:
-            return lval
+        lval = GetValue(lref)
         # 3. Let rref be the result of evaluating AdditiveExpression.
         rref = self.children[2].evaluate()
         # 4. Let rval be ? GetValue(rref).
-        rval, ok = ec(GetValue(rref))
-        if not ok:
-            return rval
+        rval = GetValue(rref)
         # 5. Let lnum be ? ToInt32(lval), or ? ToUint32(lval), depending.
-        lnum, ok = ec(ToInt32(lval) if self.lval_is_signed else ToUint32(lval))
-        if not ok:
-            return lnum
+        lnum = ToInt32(lval) if self.lval_is_signed else ToUint32(lval)
         # 6. Let rnum be ? ToUint32(rval).
-        rnum, ok = ec(ToUint32(rval))
-        if not ok:
-            return rnum
+        rnum = ToUint32(rval)
         # 7. Let shiftCount be the result of masking out all but the least significant 5 bits of rnum, that is, compute
         #    rnum & 0x1F.
         shiftCount = rnum & 0x1f
@@ -8699,15 +8308,11 @@ class PN_RelationalExpression_R_op_S(PN_RelationalExpression):
         # 1. Let lref be the result of evaluating RelationalExpression.
         lref = self.children[0].evaluate()
         # 2. Let lval be ? GetValue(lref).
-        lval, ok = ec(GetValue(lref))
-        if not ok:
-            return lval
+        lval = GetValue(lref)
         # 3. Let rref be the result of evaluating ShiftExpression.
         rref = self.children[2].evaluate()
         # 4. Let rval be ? GetValue(rref).
-        rval, ok = ec(GetValue(rref))
-        if not ok:
-            return rval
+        rval = GetValue(rref)
         # 5+: defer to subclass
         return self.operate(lval, rval)
 class PN_RelationalExpression_RelationalExpression_LT_ShiftExpression(PN_RelationalExpression_R_op_S):
@@ -8715,9 +8320,7 @@ class PN_RelationalExpression_RelationalExpression_LT_ShiftExpression(PN_Relatio
     def operate(self, lval, rval):
         # 5. Let r be the result of performing Abstract Relational Comparison lval < rval.
         # 6. ReturnIfAbrupt(r).
-        r, ok = ec(AbstractRelationalComparison(lval, rval, True))
-        if not ok:
-            return r
+        r = AbstractRelationalComparison(lval, rval, True)
         # 7. If r is undefined, return false. Otherwise, return r.
         return r or False
 class PN_RelationalExpression_RelationalExpression_GT_ShiftExpression(PN_RelationalExpression_R_op_S):
@@ -8725,9 +8328,7 @@ class PN_RelationalExpression_RelationalExpression_GT_ShiftExpression(PN_Relatio
     def operate(self, lval, rval):
         # 5. Let r be the result of performing Abstract Relational Comparison rval < lval with LeftFirst equal to false.
         # 6. ReturnIfAbrupt(r).
-        r, ok = ec(AbstractRelationalComparison(rval, lval, False))
-        if not ok:
-            return r
+        r = AbstractRelationalComparison(rval, lval, False)
         # 7. If r is undefined, return false. Otherwise, return r.
         return r or False
 class PN_RelationalExpression_RelationalExpression_LE_ShiftExpression(PN_RelationalExpression_R_op_S):
@@ -8735,9 +8336,7 @@ class PN_RelationalExpression_RelationalExpression_LE_ShiftExpression(PN_Relatio
     def operate(self, lval, rval):
         # 5. Let r be the result of performing Abstract Relational Comparison rval < lval with LeftFirst equal to false.
         # 6. ReturnIfAbrupt(r).
-        r, ok = ec(AbstractRelationalComparison(rval, lval, False))
-        if not ok:
-            return r
+        r = AbstractRelationalComparison(rval, lval, False)
         # 7. If r is true or undefined, return false. Otherwise, return true.
         return not (r is None or r)
 class PN_RelationalExpression_RelationalExpression_GE_ShiftExpression(PN_RelationalExpression_R_op_S):
@@ -8745,9 +8344,7 @@ class PN_RelationalExpression_RelationalExpression_GE_ShiftExpression(PN_Relatio
     def operate(self, lval, rval):
         # 5. Let r be the result of performing Abstract Relational Comparison lval < rval.
         # 6. ReturnIfAbrupt(r).
-        r, ok = ec(AbstractRelationalComparison(lval, rval, True))
-        if not ok:
-            return r
+        r = AbstractRelationalComparison(lval, rval, True)
         # 7. If r is true or undefined, return false. Otherwise, return true.
         return not (r is None or r)
 class PN_RelationalExpression_RelationalExpression_INSTANCEOF_ShiftExpression(PN_RelationalExpression_R_op_S):
@@ -8761,10 +8358,8 @@ class PN_RelationalExpression_RelationalExpression_IN_ShiftExpression(PN_Relatio
         # 5. If Type(rval) is not Object, throw a TypeError exception.
         # 6. Return ? HasProperty(rval, ToPropertyKey(lval)).
         if not isObject(rval):
-            return ThrowCompletion(CreateTypeError(f"Cannot use 'in' operator to search for '{nc(ToString(lval))}' in {nc(ToString(rval))}"))
-        key, ok = ec(ToPropertyKey(lval))
-        if not ok:
-            return key
+            raise ESTypeError(f"Cannot use 'in' operator to search for '{ToString(lval)}' in {ToString(rval)}")
+        key = ToPropertyKey(lval)
         return HasProperty(rval, key)
 # 12.10.4 Runtime Semantics: InstanceofOperator ( V, target )
 def InstanceofOperator(V, target):
@@ -8775,21 +8370,17 @@ def InstanceofOperator(V, target):
     #
     # 1. If Type(target) is not Object, throw a TypeError exception.
     if not isObject(target):
-        return ThrowCompletion(CreateTypeError())
+        raise ESTypeError()
     # 2. Let instOfHandler be ? GetMethod(target, @@hasInstance).
-    instOfHandler, ok = ec(GetMethod(target, wks_has_instance))
-    if not ok:
-        return instOfHandler
+    instOfHandler = GetMethod(target, wks_has_instance)
     # 3. If instOfHandler is not undefined, then
     if instOfHandler is not None:
         # a. Return ToBoolean(? Call(instOfHandler, target, « V »)).
-        val, ok = ec(Call(instOfHandler, target, [V]))
-        if not ok:
-            return val
+        val = Call(instOfHandler, target, [V])
         return ToBoolean(val)
     # 4. If IsCallable(target) is false, throw a TypeError exception.
     if not IsCallable(target):
-        return ThrowCompletion(CreateTypeError())
+        raise ESTypeError()
     # 5. Return ? OrdinaryHasInstance(target, V).
     return OrdinaryHasInstance(target, V)
     # NOTE
@@ -8834,15 +8425,11 @@ class PN_EqualityExpression_E_op_R(PN_EqualityExpression):
         # 1. Let lref be the result of evaluating EqualityExpression.
         lref = self.children[0].evaluate()
         # 2. Let lval be ? GetValue(lref).
-        lval, ok = ec(GetValue(lref))
-        if not ok:
-            return lval
+        lval = GetValue(lref)
         # 3. Let rref be the result of evaluating RelationalExpression.
         rref = self.children[2].evaluate()
         # 4. Let rval be ? GetValue(rref).
-        rval, ok = ec(GetValue(rref))
-        if not ok:
-            return rval
+        rval = GetValue(rref)
         # 5-6. Defer to subclasses
         return self.operation(lval, rval)
 class PN_EqualityExpression_EqualityExpression_EQEQ_RelationalExpression(PN_EqualityExpression_E_op_R):
@@ -8857,10 +8444,8 @@ class PN_EqualityExpression_EqualityExpression_BANGEQ_RelationalExpression(PN_Eq
     def operation(self, lval, rval):
         # 5. Let r be the result of performing Abstract Equality Comparison rval == lval.
         # 6. If r is true, return false. Otherwise, return true.
-        r, ok = ec(AbstractEqualityComparison(rval, lval))
-        if not ok:
-            return r
-        return NormalCompletion(not r)
+        r = AbstractEqualityComparison(rval, lval)
+        return not r
 class PN_EqualityExpression_EqualityExpression_EQEQEQ_RelationalExpression(PN_EqualityExpression_E_op_R):
     # 12.11.3 Runtime Semantics: Evaluation
     #   For EqualityExpression : EqualityExpression === RelationalExpression
@@ -8909,23 +8494,15 @@ class PN_BitwiseExpression(ParseNode):
         # 1. Let lref be the result of evaluating A.
         lref = self.children[0].evaluate()
         # 2. Let lval be ? GetValue(lref).
-        lval, ok = ec(GetValue(lref))
-        if not ok:
-            return lval
+        lval = GetValue(lref)
         # 3. Let rref be the result of evaluating B.
         rref = self.children[2].evaluate()
         # 4. Let rval be ? GetValue(rref).
-        rval, ok = ec(GetValue(rref))
-        if not ok:
-            return rval
+        rval = GetValue(rref)
         # 5. Let lnum be ? ToInt32(lval).
-        lnum, ok = ec(ToInt32(lval))
-        if not ok:
-            return lnum
+        lnum = ToInt32(lval)
         # 6. Let rnum be ? ToInt32(rval).
-        rnum, ok = ec(ToInt32(rval))
-        if not ok:
-            return rnum
+        rnum = ToInt32(rval)
         # 7+. Defer to subclasses
         return self.operate(lnum, rnum)
 # '&' Productions
@@ -8997,9 +8574,7 @@ class PN_LogicalANDExpression_LogicalANDExpression_AMPAMP_BitwiseORExpression(PN
         # 1. Let lref be the result of evaluating LogicalANDExpression.
         lref = self.children[0].evaluate()
         # 2. Let lval be ? GetValue(lref).
-        lval, ok = ec(GetValue(lref))
-        if not ok:
-            return lval
+        lval = GetValue(lref)
         # 3. Let lbool be ToBoolean(lval).
         lbool = ToBoolean(lval)
         # 4. If lbool is false, return lval.
@@ -9021,9 +8596,7 @@ class PN_LogicalORExpression_LogicalORExpression_PIPEPIPE_LogicalANDExpression(P
         # 1. Let lref be the result of evaluating LogicalORExpression.
         lref = self.children[0].evaluate()
         # 2. Let lval be ? GetValue(lref).
-        lval, ok = ec(GetValue(lref))
-        if not ok:
-            return lval
+        lval = GetValue(lref)
         # 3. Let lbool be ToBoolean(lval).
         lbool = ToBoolean(lval)
         # 4. If lbool is true, return lval.
@@ -9064,9 +8637,7 @@ class PN_ConditionalExpression_QUESTION_AssignmentExpression_COLON_AssignmentExp
         # 1. Let lref be the result of evaluating LogicalORExpression.
         lref = self.children[0].evaluate()
         # 2. Let lval be ToBoolean(? GetValue(lref)).
-        lval, ok = ec(GetValue(lref))
-        if not ok:
-            return lval
+        lval = GetValue(lref)
         lval = ToBoolean(lval)
         # 3. If lval is true, then
         if lval:
@@ -9110,165 +8681,109 @@ class PN_AssignmentExpression_LeftHandSideExpression_EQUALS_AssignmentExpression
         return False
     def evaluate(self):
         # This is missing the ArrayLiteral and ObjectLiteral steps @@@
-        lref, ok = ec(self.children[0].evaluate())
-        if not ok:
-            return lref
+        lref = self.children[0].evaluate()
         rref = self.children[2].evaluate()
-        rval, ok = ec(GetValue(rref))
-        if not ok:
-            return rval
+        rval = GetValue(rref)
         if IsAnonymousFunctionDefinition(self.children[0]) and self.children[0].IsIdentifierRef():
-            hasNameProperty, ok = ec(HasOwnProperty(rval, 'name'))
-            if not ok:
-                return hasNameProperty
+            hasNameProperty = HasOwnProperty(rval, 'name')
             if not hasNameProperty:
                 SetFunctionName(rval, GetReferencedName(lref))
-        cr, ok = ec(PutValue(lref, rval))
-        if not ok:
-            return cr
+        PutValue(lref, rval)
         return rval
 def prep_for_bitwise(lval, rval):
-    lnum, ok = ec(ToInt32(lval))  # 1. Let lnum be ? ToInt32(lval).
-    if not ok:
-        return lnum
-    rnum, ok = ec(ToInt32(rval))  # 2. Let rnum be ? ToInt32(rval).
-    if not ok:
-        return rnum
+    lnum = ToInt32(lval)  # 1. Let lnum be ? ToInt32(lval).
+    rnum = ToInt32(rval)  # 2. Let rnum be ? ToInt32(rval).
     return (lnum, rnum)  # Return (lnum, rnum)
 def BitwiseANDOperation(lval, rval):
     # Do integer conversion on the operands, forming lnum and rnum
-    operands, ok = ec(prep_for_bitwise(lval, rval))
-    if not ok:
-        return operands
+    operands = prep_for_bitwise(lval, rval)
     lnum, rnum = operands
     # Return the result of applying the bitwise operator & to lnum and rnum. The result is a signed 32-bit integer.
     return lnum & rnum
 def BitwiseXOROperation(lval, rval):
     # Do integer conversion on the operands, forming lnum and rnum
-    operands, ok = ec(prep_for_bitwise(lval, rval))
-    if not ok:
-        return operands
+    operands = prep_for_bitwise(lval, rval)
     lnum, rnum = operands
     # Return the result of applying the bitwise operator ^ to lnum and rnum. The result is a signed 32-bit integer.
     return lnum ^ rnum
 def BitwiseOROperation(lval, rval):
     # Do integer conversion on the operands, forming lnum and rnum
-    operands, ok = ec(prep_for_bitwise(lval, rval))
-    if not ok:
-        return operands
+    operands = prep_for_bitwise(lval, rval)
     lnum, rnum = operands
     # Return the result of applying the bitwise operator | to lnum and rnum. The result is a signed 32-bit integer.
     return lnum | rnum
 def prep_for_math(lval, rval):
     # Converts args to Number values, in preparation for math.
-    lnum, ok = ec(ToNumber(lval))  # 1. Let lnum be ? ToNumber(lval)
-    if not ok:
-        return lnum
-    rnum, ok = ec(ToNumber(rval))  # 2. Let rnum be ? ToNumber(rval)
-    if not ok:
-        return rnum
+    lnum = ToNumber(lval)  # 1. Let lnum be ? ToNumber(lval).
+    rnum = ToNumber(rval)  # 2. Let rnum be ? ToNumber(rval).
     return (lnum, rnum)  # 3. Return (lnum, rnum)
 def MultiplyOperation(lval, rval):
     # Do number conversion on the operands, forming lnum and rnum
-    operands, ok = ec(prep_for_math(lval, rval))
-    if not ok:
-        return operands
+    operands = prep_for_math(lval, rval)
     lnum, rnum = operands
     # Return the result of multiplying lnum and rnum.
     return lnum * rnum
 def DivideOperation(lval, rval):
     # Do number conversion on the operands, forming lnum and rnum
-    operands, ok = ec(prep_for_math(lval, rval))
-    if not ok:
-        return operands
+    operands = prep_for_math(lval, rval)
     lnum, rnum = operands
     # Return the result of dividing lnum and rnum.
     return lnum / rnum
 def ModuloOperation(lval, rval):
     # Do number conversion on the operands, forming lnum and rnum
-    operands, ok = ec(prep_for_math(lval, rval))
-    if not ok:
-        return operands
+    operands = prep_for_math(lval, rval)
     lnum, rnum = operands
     # Return the result of applying the modulo operator to lnum and rnum.
     return lnum % rnum
 def AdditionOperation(lval, rval):
-    lprim, ok = ec(ToPrimitive(lval))
-    if not ok:
-        return lprim
-    rprim, ok = ec(ToPrimitive(rval))
-    if not ok:
-        return rprim
+    lprim = ToPrimitive(lval)
+    rprim = ToPrimitive(rval)
     if isString(lprim) or isString(rprim):
-        lstr, ok = ec(ToString(lprim))
-        if not ok:
-            return lstr
-        rstr, ok = ec(ToString(rprim))
-        if not ok:
-            return rstr
-        return NormalCompletion(lstr + rstr)
+        lstr = ToString(lprim)
+        rstr = ToString(rprim)
+        return lstr + rstr
     # Do number conversion on the operands, forming lnum and rnum
-    operands, ok = ec(prep_for_math(lval, rval))
-    if not ok:
-        return operands
+    operands = prep_for_math(lval, rval)
     lnum, rnum = operands
     # Return the result of applying the addition operator to lnum and rnum.
     return lnum + rnum
 def SubtractionOperation(lval, rval):
     # Do number conversion on the operands, forming lnum and rnum
-    operands, ok = ec(prep_for_math(lval, rval))
-    if not ok:
-        return operands
+    operands = prep_for_math(lval, rval)
     lnum, rnum = operands
     # Return the result of applying the modulo operator to lnum and rnum.
     return lnum - rnum
 def prep_for_signed_shift(lval, rval):
     # Converts args to integer values, in preparation for signed shifting.
-    lnum, ok = ec(ToInt32(lval))  # 1. Let lnum be ? ToInt32(lval)
-    if not ok:
-        return lnum
-    rnum, ok = ec(ToUint32(rval))  # 2. Let rnum be ? ToUnit32(rval)
-    if not ok:
-        return rnum
-    return (int(lnum), int(rnum))  # 3. Return (lnum, rnum)
+    lnum = ToInt32(lval)  # 1. Let lnum be ? ToInt32(lval).
+    rnum = ToUint32(rval)  # 2. Let rnum be ? ToUnit32(rval).
+    return (int(lnum), int(rnum))  # 3. Return (lnum, rnum).
 def LeftShiftOperation(lval, rval):
     # Do number conversion on the operands, forming lnum and rnum
-    operands, ok = ec(prep_for_signed_shift(lval, rval))
-    if not ok:
-        return operands
+    operands = prep_for_signed_shift(lval, rval)
     lnum, rnum = operands
     # Strip the right operand to 5 bits and shift the left. Then put it back into a 32-bit int.
     shiftCount = rnum & 0x1f
     return ToInt32(lnum << shiftCount)
 def RightShiftOperation(lval, rval):
     # Do number conversion on the operands, forming lnum and rnum
-    operands, ok = ec(prep_for_signed_shift(lval, rval))
-    if not ok:
-        return operands
+    operands = prep_for_signed_shift(lval, rval)
     lnum, rnum = operands
     shiftCount = rnum & 0x1f
     return lnum >> shiftCount
 def prep_for_unsigned_shift(lval, rval):
     # Converts args to integer values, in preparation for unsigned shifting.
-    lnum, ok = ec(ToUint32(lval))  # 1. Let lnum be ? ToUint32(lval)
-    if not ok:
-        return lnum
-    rnum, ok = ec(ToUint32(rval))  # 2. Let rnum be ? ToUnit32(rval)
-    if not ok:
-        return rnum
+    lnum = ToUint32(lval)  # 1. Let lnum be ? ToUint32(lval)
+    rnum = ToUint32(rval)  # 2. Let rnum be ? ToUnit32(rval)
     return (int(lnum), int(rnum))  # 3. Return (lnum, rnum)
 def UnsignedRightShiftOperation(lval, rval):
     # Do number conversion on the operands, forming lnum and rnum
-    operands, ok = ec(prep_for_unsigned_shift(lval, rval))
-    if not ok:
-        return operands
+    operands = prep_for_unsigned_shift(lval, rval)
     lnum, rnum = operands
     shiftCount = rnum & 0x1f
     return lnum >> shiftCount
 def ExponentiationOperation(lval, rval):
-    operands, ok = ec(prep_for_math(lval, rval))
-    if not ok:
-        return operands
+    operands = prep_for_math(lval, rval)
     lnum, rnum = operands
     if abs(lnum) == 1.0 and abs(rnum) == math.inf:
         return math.nan
@@ -9310,25 +8825,17 @@ class PN_AssignmentExpression_LeftHandSideExpression_AssignmentOperator_Assignme
         # 1. Let lref be the result of evaluating LeftHandSideExpression.
         lref = self.children[0].evaluate()
         # 2. Let lval be ? GetValue(lref).
-        lval, ok = ec(GetValue(lref))
-        if not ok:
-            return lval
+        lval = GetValue(lref)
         # 3. Let rref be the result of evaluating AssignmentExpression.
         rref = self.children[2].evaluate()
         # 4. Let rval be ? GetValue(rref).
-        rval, ok = ec(GetValue(rref))
-        if not ok:
-            return rval
+        rval = GetValue(rref)
         # 5. Let op be the @ where AssignmentOperator is @=.
         op = self.children[1].op_function()
         # 6. Let r be the result of applying op to lval and rval as if evaluating the expression lval op rval.
-        r, ok = ec(op(lval, rval))
-        if not ok:
-            return r
+        r = op(lval, rval)
         # 7. Perform ? PutValue(lref, r).
-        cr, ok = ec(PutValue(lref, r))
-        if not ok:
-            return cr
+        PutValue(lref, r)
         # 8. Return r.
         return r
         # NOTE
@@ -9365,9 +8872,7 @@ class PN_Expression_Expression_COMMA_AssignmentExpression(ParseNode):
         return False
     def evaluate(self):
         lref = self.children[0].evaluate()
-        cr, ok = ec(GetValue(lref)) # Have to run, thanks to side effects
-        if not ok:
-            return cr
+        GetValue(lref) # Have to run, thanks to side effect.
         rref = self.children[2].evaluate()
         return GetValue(rref)
 ################################################################################################################################################################################3################################################################################################################################################################################3###########################################################################
@@ -9395,7 +8900,7 @@ class PN_EmptyStatement_SEMICOLON(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('EmptyStatement', p)
     def evaluate(self):
-        return NormalCompletion(Empty.EMPTY)
+        return Empty.EMPTY
 class PN_Statement(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('Statement', p)
@@ -9437,6 +8942,8 @@ class PN_Statement_IfStatement(PN_Statement):
 class PN_Statement_BreakableStatement(PN_Statement):
     pass
 class PN_Statement_ContinueStatement(PN_Statement):
+    def ContainsDuplicateLabels(self, lst):
+        return False
     def ContainsUndefinedBreakTarget(self, labelSet):
         return False
     def VarDeclaredNames(self):
@@ -9467,12 +8974,15 @@ class PN_BreakableStatement_IterationStatement(PN_BreakableStatement):
         # 1. Let stmtResult be the result of performing LabelledEvaluation of IterationStatement with argument labelSet.
         # 2. If stmtResult.[[Type]] is break, then
         #     a. If stmtResult.[[Target]] is empty, then
-        #        i. If stmtResult.[[Value]] is empty, set stmtResult to NormalCompletion(undefined).
-        #       ii. Else, set stmtResult to NormalCompletion(stmtResult.[[Value]]).
+        #        i. If stmtResult.[[Value]] is empty, set stmtResult to undefined)
+        #       ii. Else, set stmtResult to stmtResult.[[Value]])
         # 3. Return Completion(stmtResult).
-        stmtResult = self.IterationStatement.LabelledEvaluation(labelSet)
-        if stmtResult.ctype == CompletionType.BREAK and stmtResult.target == Empty.EMPTY:
-            stmtResult = NormalCompletion(stmtResult.value if stmtResult.value != Empty.EMPTY else None)
+        try:
+            stmtResult = self.IterationStatement.LabelledEvaluation(labelSet)
+        except ESBreak as abrupt:
+            if abrupt.completion.target != Empty.EMPTY:
+                raise
+            stmtResult = abrupt.completion.value if abrupt.completion.value != Empty.EMPTY else None
         return stmtResult
     def evaluate(self):
         # 13.1.8 Runtime Semantics: Evaluation
@@ -9494,9 +9004,12 @@ class PN_BreakableStatement_SwitchStatement(PN_BreakableStatement):
         #       i. If stmtResult.[[Value]] is empty, set stmtResult to NormalCompletion(undefined).
         #      ii. Else, set stmtResult to NormalCompletion(stmtResult.[[Value]]).
         # 3. Return Completion(stmtResult).
-        stmtResult = self.SwitchStatement.evaluate()
-        if stmtResult.ctype == CompletionType.BREAK and stmtResult.target == Empty.EMPTY:
-            stmtResult = NormalCompletion(stmtResult.value if stmtResult.value != Empty.EMPTY else None)
+        try:
+            stmtResult = self.SwitchStatement.evaluate()
+        except ESBreak as abrupt:
+            if abrupt.completion.target != Empty.EMPTY:
+                raise
+            stmtResult = abrupt.completion.value if abrupt.completion.value != Empty.EMPTY else None
         return stmtResult
     def evaluate(self):
         # 13.1.8 Runtime Semantics: Evaluation
@@ -9594,7 +9107,7 @@ class PN_Block_LCURLY_RCURLY(PN_Block):
     def VarScopedDeclarations(self):
         return []
     def evaluate(self):
-        return NormalCompletion(Empty.EMPTY)
+        return Empty.EMPTY
 class PN_BlockStatement_Block(PN_BlockStatement):
     pass
 class PN_StatementListItem_Statement(PN_StatementListItem):
@@ -9715,9 +9228,7 @@ class PN_StatementList_StatementList_StatementListItem(PN_StatementList):
     def StatementListItem(self):
         return self.children[1]
     def evaluate(self):
-        sl, ok = ec(self.StatementList.evaluate())
-        if not ok:
-            return sl
+        sl = self.StatementList.evaluate()
         s = self.StatementListItem.evaluate()
         return UpdateEmpty(s, sl)
     def TopLevelLexicallyDeclaredNames(self):
@@ -9853,10 +9364,8 @@ class PN_LexicalDeclaration_LetOrConst_BindingList_SEMICOLON(PN_LexicalDeclarati
         # 1. Let next be the result of evaluating BindingList.
         # 2. ReturnIfAbrupt(next).
         # 3. Return NormalCompletion(empty).
-        next, ok = ec(self.BindingList.evaluate())
-        if not ok:
-            return next
-        return NormalCompletion(Empty.EMPTY)
+        self.BindingList.evaluate()
+        return Empty.EMPTY
 
 class PN_LetOrConst(ParseNode):
     def __init__(self, ctx, p):
@@ -9906,9 +9415,7 @@ class PN_BindingList_BindingList_COMMA_LexicalBinding(PN_BindingList):
         # 1. Let next be the result of evaluating BindingList.
         # 2. ReturnIfAbrupt(next).
         # 3. Return the result of evaluating LexicalBinding.
-        next, ok = ec(self.BindingList.evaluate())
-        if not ok:
-            return next
+        self.BindingList.evaluate()
         return self.LexicalBinding.evaluate()
 
 class PN_LexicalBinding(ParseNode):
@@ -9943,13 +9450,9 @@ class PN_LexicalBinding_BindingIdentifier_Initializer(PN_LexicalBinding):
         bindingId = self.BindingIdentifier.StringValue()
         lhs = ResolveBinding(bindingId)
         rhs = self.Initializer.evaluate()
-        value, ok = ec(GetValue(rhs))
-        if not ok:
-            return value
+        value = GetValue(rhs)
         if IsAnonymousFunctionDefinition(self.Initializer):
-            hasNameProperty, ok = ec(HasOwnProperty(value, 'name'))
-            if not ok:
-                return hasNameProperty
+            hasNameProperty = HasOwnProperty(value, 'name')
             if not hasNameProperty:
                 SetFunctionName(value, bindingId)
         return InitializeReferencedBinding(lhs, value)
@@ -10001,9 +9504,7 @@ class PN_LexicalBinding_BindingPattern_Initializer(PN_LexicalBinding):
         # 4. Return the result of performing BindingInitialization for BindingPattern using value and env as the
         #    arguments.
         rhs = self.Initializer.evaluate()
-        value, ok = ec(GetValue(rhs))
-        if not ok:
-            return value
+        value = GetValue(rhs)
         env = surrounding_agent.running_ec.LexicalEnvironment
         return self.BindingPattern.BindingInitialization(value, env)
 #######################################################################################################################
@@ -10042,10 +9543,8 @@ class PN_VariableStatement_VAR_VariableDeclarationList(PN_VariableStatement):
         # 1. Let next be the result of evaluating VariableDeclarationList.
         # 2. ReturnIfAbrupt(next).
         # 3. Return NormalCompletion(empty).
-        next, ok = ec(self.children[1].evaluate())
-        if not ok:
-            return next
-        return NormalCompletion(Empty.EMPTY)
+        self.children[1].evaluate()
+        return Empty.EMPTY
 class PN_VariableDeclarationList(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('VariableDeclarationList', p)
@@ -10080,9 +9579,7 @@ class PN_VariableDeclarationList_VariableDeclarationList_COMMA_VariableDeclarati
         #   1. Let next be the result of evaluating VariableDeclarationList.
         #   2. ReturnIfAbrupt(next).
         #   3. Return the result of evaluating VariableDeclaration.
-        next, ok = ec(self.children[0].evaluate())
-        if not ok:
-            return next
+        self.children[0].evaluate()
         return self.children[2].evaluate()
 
 # ------------------------------------ 𝑽𝒂𝒓𝒊𝒂𝒃𝒍𝒆𝑫𝒆𝒄𝒍𝒂𝒓𝒂𝒕𝒊𝒐𝒏 ------------------------------------
@@ -10094,7 +9591,7 @@ class PN_VariableDeclaration_BindingIdentifier(PN_VariableDeclaration):
         # 13.3.2.4 Runtime Semantics: Evaluation
         #       VariableDeclaration : BindingIdentifier
         #   1. Return NormalCompletion(empty).
-        return NormalCompletion(Empty.EMPTY)
+        return Empty.EMPTY
 class PN_VariableDeclaration_BindingIdentifier_Initializer(PN_VariableDeclaration):
     @property
     def BindingIdentifier(self):
@@ -10119,17 +9616,11 @@ class PN_VariableDeclaration_BindingIdentifier_Initializer(PN_VariableDeclaratio
         #       b. If hasNameProperty is false, perform SetFunctionName(value, bindingId).
         #   6. Return ? PutValue(lhs, value).
         bindingId = self.BindingIdentifier.StringValue()
-        lhs, ok = ec(ResolveBinding(bindingId))
-        if not ok:
-            return lhs
+        lhs = ResolveBinding(bindingId)
         rhs = self.Initializer.evaluate()
-        value, ok = ec(GetValue(rhs))
-        if not ok:
-            return value
+        value = GetValue(rhs)
         if IsAnonymousFunctionDefinition(self.Initializer):
-            hasNameProperty, ok = ec(HasOwnProperty(value, 'name'))
-            if not ok:
-                return hasNameProperty
+            hasNameProperty = HasOwnProperty(value, 'name')
             if not hasNameProperty:
                 SetFunctionName(value, bindingId)
         return PutValue(lhs, value)
@@ -10153,9 +9644,7 @@ class PN_VariableDeclaration_BindingPattern_Initializer(PN_VariableDeclaration):
         #       3. Return the result of performing BindingInitialization for BindingPattern passing rval and undefined
         #          as arguments.
         rhs = self.Initializer.evaluate()
-        rval, ok = ec(GetValue(rhs))
-        if not ok:
-            return rval
+        rval = GetValue(rhs)
         return self.BindingPattern.BindingInitialization(rval, None)
 #######################################################################################################################################################################################################################################################################################################
 #
@@ -10196,9 +9685,7 @@ class PN_BindingPattern_ArrayBindingPattern(PN_BindingPattern):
         # 2. Let result be IteratorBindingInitialization for ArrayBindingPattern using iteratorRecord and environment as arguments.
         # 3. If iteratorRecord.[[Done]] is false, return ? IteratorClose(iteratorRecord, result).
         # 4. Return result.
-        iteratorRecord, ok = ec(GetIterator(value))
-        if not ok:
-            return iteratorRecord
+        iteratorRecord = GetIterator(value)
         result = self.ArrayBindingPattern.IteratorBindingInitialization(iteratorRecord, environment)
         if not iteratorRecord.Done:
             return IteratorClose(iteratorRecord, result)
@@ -10222,9 +9709,7 @@ class PN_BindingPattern_ObjectBindingPattern(PN_BindingPattern):
         # 1. Perform ? RequireObjectCoercible(value).
         # 2. Return the result of performing BindingInitialization for ObjectBindingPattern using value and environment
         #    as arguments.
-        cr, ok = ec(RequireObjectCoercible(value))
-        if not ok:
-            return cr
+        RequireObjectCoercible(value)
         return self.ObjectBindingPattern.BindingInitialization(value, environment)
 
 # ------------------------------------ 𝑶𝒃𝒋𝒆𝒄𝒕𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑷𝒂𝒕𝒕𝒆𝒓𝒏 ------------------------------------
@@ -10248,7 +9733,7 @@ class PN_ObjectBindingPattern_LCURLY_RCURLY(PN_ObjectBindingPattern):
         #   With parameters value and environment.
         #           ObjectBindingPattern : { }
         # 1. Return NormalCompletion(empty).
-        return NormalCompletion(Empty.EMPTY)
+        return Empty.EMPTY
 class PN_ObjectBindingPattern_LCURLY_BindingRestProperty_RCURLY(PN_ObjectBindingPattern):
     # -------------------------------- 𝑶𝒃𝒋𝒆𝒄𝒕𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑷𝒂𝒕𝒕𝒆𝒓𝒏 : { 𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑹𝒆𝒔𝒕𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚 } --------------------------------
     @property
@@ -10272,11 +9757,9 @@ class PN_ObjectBindingPattern_LCURLY_BindingPropertyList_RCURLY(PN_ObjectBinding
         #   With parameters value and environment.
         #           ObjectBindingPattern : { BindingPropertyList }
         # 1. Perform ? PropertyBindingInitialization for BindingPropertyList using value and environment as the arguments.
-        # 2. Return NormalCompletion(empty).
-        cr, ok = ec(self.BindingPropertyList.PropertyBindingInitialization(value, environment))
-        if not ok:
-            return cr
-        return NormalCompletion(Empty.EMPTY)
+        # 2. Return NomalCompletion(empty).
+        self.BindingPropertyList.PropertyBindingInitialization(value, environment)
+        return Empty.EMPTY
 class PN_ObjectBindingPattern_LCURLY_BindingPropertyList_COMMA_RCURLY(PN_ObjectBindingPattern):
     @property
     def BindingPropertyList(self):
@@ -10287,10 +9770,8 @@ class PN_ObjectBindingPattern_LCURLY_BindingPropertyList_COMMA_RCURLY(PN_ObjectB
         #           ObjectBindingPattern : { BindingPropertyList , }
         # 1. Perform ? PropertyBindingInitialization for BindingPropertyList using value and environment as the arguments.
         # 2. Return NormalCompletion(empty).
-        cr, ok = ec(self.BindingPropertyList.PropertyBindingInitialization(value, environment))
-        if not ok:
-            return cr
-        return NormalCompletion(Empty.EMPTY)
+        self.BindingPropertyList.PropertyBindingInitialization(value, environment)
+        return Empty.EMPTY
 class PN_ObjectBindingPattern_LCURLY_BindingPropertyList_COMMA_BindingRestProperty_RCURLY(PN_ObjectBindingPattern):
     @property
     def BindingPropertyList(self):
@@ -10306,9 +9787,7 @@ class PN_ObjectBindingPattern_LCURLY_BindingPropertyList_COMMA_BindingRestProper
         #    value and environment as arguments.
         # 2. Return the result of performing RestBindingInitialization of BindingRestProperty with value, environment,
         #    and excludedNames as the arguments.
-        excludedNames, ok = ec(self.BindingPropertyList.PropertyBindingInitialization(value, environment))
-        if not ok:
-            return excludedNames
+        excludedNames = self.BindingPropertyList.PropertyBindingInitialization(value, environment)
         return self.BindingRestProperty.RestBindingInitialization(value, environment, excludedNames)
 
 # ------------------------------------ 𝑨𝒓𝒓𝒂𝒚𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑷𝒂𝒕𝒕𝒆𝒓𝒏 ------------------------------------
@@ -10366,7 +9845,7 @@ class PN_ArrayBindingPattern_LBRACKET_RBRACKET(PN_ArrayBindingPattern):
         #   With parameters iteratorRecord and environment.
         # ArrayBindingPattern : [ ]
         #       1. Return NormalCompletion(empty).
-        return NormalCompletion(Empty.EMPTY)
+        return Empty.EMPTY
 class PN_ArrayBindingPattern_LBRACKET_Elision_RBRACKET(PN_ArrayBindingPattern):
     @property
     def Elision(self):
@@ -10415,9 +9894,7 @@ class PN_ArrayBindingPattern_LBRACKET_Elision_BindingRestElement_RBRACKET(PN_Arr
         #       1. Perform ? IteratorDestructuringAssignmentEvaluation of Elision with iteratorRecord as the argument.
         #       2. Return the result of performing IteratorBindingInitialization for BindingRestElement with
         #          iteratorRecord and environment as arguments.
-        cr, ok = ec(self.Elision.IteratorDestructuringAssignmentEvaluation(iteratorRecord))
-        if not ok:
-            return cr
+        self.Elision.IteratorDestructuringAssignmentEvaluation(iteratorRecord)
         return self.BindingRestElement.IteratorBindingInitialization(iteratorRecord, environment)
 class PN_ArrayBindingPattern_LBRACKET_BindingElementList_RBRACKET(PN_ArrayBindingPattern):
     @property
@@ -10465,9 +9942,7 @@ class PN_ArrayBindingPattern_LBRACKET_BindingElementList_COMMA_Elision_RBRACKET(
         #          as arguments.
         #       2. Return the result of performing IteratorDestructuringAssignmentEvaluation of Elision with
         #          iteratorRecord as the argument.
-        cr, ok = ec(self.BindingElementList.IteratorBindingInitialization(iteratorRecord, environment))
-        if not ok:
-            return cr
+        self.BindingElementList.IteratorBindingInitialization(iteratorRecord, environment)
         return self.Elision.IteratorDestructuringAssignmentEvaluation(iteratorRecord)
 class PN_ArrayBindingPattern_LBRACKET_BindingElementList_COMMA_BindingRestElement_RBRACKET(PN_ArrayBindingPattern):
     @property
@@ -10484,9 +9959,7 @@ class PN_ArrayBindingPattern_LBRACKET_BindingElementList_COMMA_BindingRestElemen
         #          as arguments.
         #       2. Return the result of performing IteratorBindingInitialization for BindingRestElement with
         #          iteratorRecord and environment as arguments.
-        cr, ok = ec(self.BindingElementList.IteratorBindingInitialization(iteratorRecord, environment))
-        if not ok:
-            return cr
+        self.BindingElementList.IteratorBindingInitialization(iteratorRecord, environment)
         return self.BindingRestElement.IteratorBindingInitialization(iteratorRecord, environment)
 class PN_ArrayBindingPattern_LBRACKET_BindingElementList_COMMA_Elision_BindingRestElement_RBRACKET(PN_ArrayBindingPattern):
     @property
@@ -10507,12 +9980,8 @@ class PN_ArrayBindingPattern_LBRACKET_BindingElementList_COMMA_Elision_BindingRe
         #       2. Perform ? IteratorDestructuringAssignmentEvaluation of Elision with iteratorRecord as the argument.
         #       3. Return the result of performing IteratorBindingInitialization for BindingRestElement with
         #          iteratorRecord and environment as arguments.
-        cr, ok = ec(self.BindingElementList.IteratorBindingInitialization(iteratorRecord, environment))
-        if not ok:
-            return cr
-        cr, ok = ec(self.Elision.IteratorDestructuringAssignmentEvaluation(iteratorRecord))
-        if not ok:
-            return cr
+        self.BindingElementList.IteratorBindingInitialization(iteratorRecord, environment)
+        self.Elision.IteratorDestructuringAssignmentEvaluation(iteratorRecord)
         return self.BindingRestElement.IteratorBindingInitialization(iteratorRecord, environment)
 
 # ------------------------------------ 𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑹𝒆𝒔𝒕𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚 ------------------------------------
@@ -10532,13 +10001,9 @@ class PN_BindingRestProperty_DOTDOTDOT_BindingIdentifier(PN_BindingRestProperty)
         #       3. Perform ? CopyDataProperties(restObj, value, excludedNames).
         #       4. If environment is undefined, return PutValue(lhs, restObj).
         #       5. Return InitializeReferencedBinding(lhs, restObj).
-        lhs, ok = ec(ResolveBinding(self.BindingIdentifier.StringValue(), environment))
-        if not ok:
-            return lhs
+        lhs = ResolveBinding(self.BindingIdentifier.StringValue(), environment)
         restObj = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics['%ObjectPrototype%'])
-        cr, ok = ec(CopyDataProperties(restObj, value, excludedNames))
-        if not ok:
-            return cr
+        CopyDataProperties(restObj, value, excludedNames)
         if environment is None:
             return PutValue(lhs, restObj)
         return InitializeReferencedBinding(lhs, restObj)
@@ -10588,12 +10053,8 @@ class PN_BindingPropertyList_BindingPropertyList_COMMA_BindingProperty(PN_Bindin
         #          value and environment as arguments.
         #       3. Append each item in nextNames to the end of boundNames.
         #       4. Return boundNames.
-        boundNames, ok = ec(self.BindingPropertyList.PropertyBindingInitialization(value, environment))
-        if not ok:
-            return boundNames
-        nextNames, ok = ec(self.BindingProperty.PropertyBindingInitialization(value, environment))
-        if not ok:
-            return nextNames
+        boundNames = self.BindingPropertyList.PropertyBindingInitialization(value, environment)
+        nextNames = self.BindingProperty.PropertyBindingInitialization(value, environment)
         boundNames.extend(nextNames)
         return boundNames
 
@@ -10643,9 +10104,7 @@ class PN_BindingElementList_BindingElementList_COMMA_BindingElisionElement(PN_Bi
         #          as arguments.
         #       2. Return the result of performing IteratorBindingInitialization for BindingElisionElement using
         #          iteratorRecord and environment as arguments.
-        cr, ok = ec(self.BindingElementList.IteratorBindingInitialization(iteratorRecord, environment))
-        if not ok:
-            return cr
+        self.BindingElementList.IteratorBindingInitialization(iteratorRecord, environment)
         return self.BindingElisionElement.IteratorBindingInitialization(iteratorRecord, environment)
 
 # ------------------------------------ 𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑬𝒍𝒊𝒔𝒊𝒐𝒏𝑬𝒍𝒆𝒎𝒆𝒏𝒕 ------------------------------------
@@ -10687,9 +10146,7 @@ class PN_BindingElisionElement_Elision_BindingElement(PN_BindingElisionElement):
         #       1. Perform ? IteratorDestructuringAssignmentEvaluation of Elision with iteratorRecord as the argument.
         #       2. Return the result of performing IteratorBindingInitialization of BindingElement with iteratorRecord
         #          and environment as the arguments.
-        cr, ok = ec(self.Elision.IteratorDestructuringAssignmentEvaluation(iteratorRecord))
-        if not ok:
-            return cr
+        self.Elision.IteratorDestructuringAssignmentEvaluation(iteratorRecord)
         return self.BindingElement.IteratorBindingInitialization(iteratorRecord, environment)
 
 # ------------------------------------ 𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚 ------------------------------------
@@ -10709,9 +10166,7 @@ class PN_BindingProperty_SingleNameBinding(PN_BindingProperty):
         #          the arguments.
         #       3. Return a new List containing name.
         name = self.SingleNameBinding.BoundNames()[0]
-        cr, ok = ec(self.SingleNameBinding.KeyedBindingInitialization(value, environment, name))
-        if not ok:
-            return cr
+        self.SingleNameBinding.KeyedBindingInitialization(value, environment, name)
         return [name]
 class PN_BindingProperty_PropertyName_COLON_BindingElement(PN_BindingProperty):
     @property
@@ -10740,12 +10195,8 @@ class PN_BindingProperty_PropertyName_COLON_BindingElement(PN_BindingProperty):
         #       2. ReturnIfAbrupt(P).
         #       3. Perform ? KeyedBindingInitialization of BindingElement with value, environment, and P as the arguments.
         #       4. Return a new List containing P.
-        P, ok = ec(self.PropertyName.evaluate())
-        if not ok:
-            return P
-        cr, ok = ec(self.BindingElement.KeyedBindingInitialization(value, environment, P))
-        if not ok:
-            return cr
+        P = self.PropertyName.evaluate()
+        self.BindingElement.KeyedBindingInitialization(value, environment, P)
         return [P]
 
 # ------------------------------------ 𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑬𝒍𝒆𝒎𝒆𝒏𝒕 ------------------------------------
@@ -10794,21 +10245,19 @@ class PN_BindingElement_BindingPattern(PN_BindingElement):
         #       3. Return the result of performing BindingInitialization of BindingPattern with v and environment as
         #          the arguments.)
         if not iteratorRecord.Done:
-            next = IteratorStep(iteratorRecord)
-            if next.ctype != CompletionType.NORMAL:
+            try:
+                next = IteratorStep(iteratorRecord)
+            except (ESError, ESAbrupt):
                 iteratorRecord.Done = True
-            next, ok = ec(next)
-            if not ok:
-                return next
+                raise
             if not next:
                 iteratorRecord.Done = True
             else:
-                v = IteratorValue(next)
-                if v.ctype != CompletionType.NORMAL:
+                try:
+                    v = IteratorValue(next)
+                except (ESError, ESAbrupt):
                     iteratorRecord.Done = True
-                v, ok = ec(v)
-                if not ok:
-                    return v
+                    raise
         if iteratorRecord.Done:
             v = None
         return self.BindingPattern.BindingInitialization(v, environment)
@@ -10819,9 +10268,7 @@ class PN_BindingElement_BindingPattern(PN_BindingElement):
         #       1. Let v be ? GetV(value, propertyName).
         #       2. Return the result of performing BindingInitialization for BindingPattern passing v and environment
         #          as arguments.
-        v, ok = ec(GetV(value, propertyName))
-        if not ok:
-            return v
+        v = GetV(value, propertyName)
         return self.BindingPattern.BindingInitialization(v, environment)
 class PN_BindingElement_BindingPattern_Initializer(PN_BindingElement):
     @property
@@ -10870,28 +10317,24 @@ class PN_BindingElement_BindingPattern_Initializer(PN_BindingElement):
         #       4. Return the result of performing BindingInitialization of BindingPattern with v and environment as
         #          the arguments.)
         if not iteratorRecord.Done:
-            next = IteratorStep(iteratorRecord)
-            if next.ctype != CompletionType.NORMAL:
+            try:
+                next = IteratorStep(iteratorRecord)
+            except (ESError, ESAbrupt):
                 iteratorRecord.Done = True
-            next, ok = ec(next)
-            if not ok:
-                return next
+                raise
             if not next:
                 iteratorRecord.Done = True
             else:
-                v = IteratorValue(next)
-                if v.ctype != CompletionType.NORMAL:
+                try:
+                    v = IteratorValue(next)
+                except (ESError, ESAbrupt):
                     iteratorRecord.Done = True
-                v, ok = ec(v)
-                if not ok:
-                    return v
+                    raise
         if iteratorRecord.Done:
             v = None
         if v is None:
             defaultValue = self.Initializer.evaluate()
-            v, ok = ec(GetValue(defaultValue))
-            if not ok:
-                return v
+            v = GetValue(defaultValue)
         return self.BindingPattern.BindingInitialization(v, environment)
     def KeyedBindingInitialization(self, value, environment, propertyName):
         # 13.3.3.9 Runtime Semantics: KeyedBindingInitialization
@@ -10903,14 +10346,10 @@ class PN_BindingElement_BindingPattern_Initializer(PN_BindingElement):
         #          b. Set v to ? GetValue(defaultValue).
         #       3. Return the result of performing BindingInitialization for BindingPattern passing v and environment
         #          as arguments.
-        v, ok = ec(GetV(value, propertyName))
-        if not ok:
-            return v
+        v = GetV(value, propertyName)
         if v is None:
             defaultValue = self.Initializer.evaluate()
-            v, ok = ec(GetValue(defaultValue))
-            if not ok:
-                return v
+            v = GetValue(defaultValue)
         return self.BindingPattern.BindingInitialization(v, environment)
 
 # ------------------------------------ 𝑺𝒊𝒏𝒈𝒍𝒆𝑵𝒂𝒎𝒆𝑩𝒊𝒏𝒅𝒊𝒏𝒈 ------------------------------------
@@ -10955,21 +10394,21 @@ class PN_SingleNameBinding_BindingIdentifier(PN_SingleNameBinding):
         #       5. If environment is undefined, return ? PutValue(lhs, v).
         #       6. Return InitializeReferencedBinding(lhs, v).
         bindingId = self.BindingIdentifier.StringValue()
-        lhs, ok = ec(ResolveBinding(bindingId, environment))
-        if not ok:
-            return lhs
+        lhs = ResolveBinding(bindingId, environment)
         if not iteratorRecord.Done:
-            next, ok = ec(IteratorStep(iteratorRecord))
-            if not ok:
+            try:
+                next = IteratorStep(iteratorRecord)
+            except (ESError, ESAbrupt):
                 iteratorRecord.Done = True
-                return next
+                raise
             if not next:
                 iteratorRecord.Done = True
             else:
-                v, ok = ec(IteratorValue(next))
-                if not ok:
+                try:
+                    v = IteratorValue(next)
+                except (ESError, ESAbrupt):
                     iteratorRecord.Done = True
-                    return v
+                    raise
         if iteratorRecord.Done:
             v = None
         if environment is None:
@@ -10985,12 +10424,8 @@ class PN_SingleNameBinding_BindingIdentifier(PN_SingleNameBinding):
         #       4. If environment is undefined, return ? PutValue(lhs, v).
         #       5. Return InitializeReferencedBinding(lhs, v).
         bindingId = self.BindingIdentifier.StringValue()
-        lhs, ok = ec(ResolveBinding(bindingId, environment))
-        if not ok:
-            return lhs
-        v, ok = ec(GetV(value, propertyName))
-        if not ok:
-            return v
+        lhs = ResolveBinding(bindingId, environment)
+        v = GetV(value, propertyName)
         if environment is None:
             return PutValue(lhs, v)
         return InitializeReferencedBinding(lhs, v)
@@ -11046,32 +10481,28 @@ class PN_SingleNameBinding_BindingIdentifier_Initializer(PN_SingleNameBinding):
         #       6. If environment is undefined, return ? PutValue(lhs, v).
         #       7. Return InitializeReferencedBinding(lhs, v).
         bindingId = self.BindingIdentifier.StringValue()
-        lhs, ok = ec(ResolveBinding(bindingId, environment))
-        if not ok:
-            return lhs
+        lhs = ResolveBinding(bindingId, environment)
         if not iteratorRecord.Done:
-            next, ok = ec(IteratorStep(iteratorRecord))
-            if not ok:
+            try:
+                next = IteratorStep(iteratorRecord)
+            except (ESError, ESAbrupt):
                 iteratorRecord.Done = True
-                return next
+                raise
             if not next:
                 iteratorRecord.Done = True
             else:
-                v, ok = ec(IteratorValue(next))
-                if not ok:
+                try:
+                    v = IteratorValue(next)
+                except (ESError, ESAbrupt):
                     iteratorRecord.Done = True
-                    return v
+                    raise
         if iteratorRecord.Done:
             v = None
         if v is None:
             defaultValue = self.Initializer.evaluate()
-            v, ok = ec(GetValue(defaultValue))
-            if not ok:
-                return v
+            v = GetValue(defaultValue)
             if IsAnonymousFunctionDefinition(self.Initializer):
-                hasNameProperty, ok = ec(HasOwnProperty(v, 'name'))
-                if not ok:
-                    return hasNameProperty
+                hasNameProperty = HasOwnProperty(v, 'name')
                 if not hasNameProperty:
                     SetFunctionName(v, bindingId)
         if environment is None:
@@ -11093,21 +10524,13 @@ class PN_SingleNameBinding_BindingIdentifier_Initializer(PN_SingleNameBinding):
         #       5. If environment is undefined, return ? PutValue(lhs, v).
         #       6. Return InitializeReferencedBinding(lhs, v).
         bindingId = self.BindingIdentifier.StringValue()
-        lhs, ok = ec(ResolveBinding(bindingId, environment))
-        if not ok:
-            return lhs
-        v, ok = ec(GetV(value, propertyName))
-        if not ok:
-            return v
+        lhs = ResolveBinding(bindingId, environment)
+        v = GetV(value, propertyName)
         if v is None:
             defaultValue = self.Initializer.evaluate()
-            v, ok = ec(GetValue(defaultValue))
-            if not ok:
-                return v
+            v = GetValue(defaultValue)
             if IsAnonymousFunctionDefinition(self.Initializer):
-                hasNameProperty, ok = ec(HasOwnProperty(v, 'name'))
-                if not ok:
-                    return hasNameProperty
+                hasNameProperty = HasOwnProperty(v, 'name')
                 if not hasNameProperty:
                     SetFunctionName(v, bindingId)
         if environment is None:
@@ -11143,28 +10566,28 @@ class PN_BindingRestElement_DOTDOTDOT_BindingIdentifier(PN_BindingRestElement):
         #           f. Let status be CreateDataProperty(A, ! ToString(n), nextValue).
         #           g. Assert: status is true.
         #           h. Increment n by 1.
-        lhs, ok = ec(ResolveBinding(self.BindingIdentifier.StringValue(), environment))
-        if not ok:
-            return lhs
-        A = nc(ArrayCreate(0))
+        lhs = ResolveBinding(self.BindingIdentifier.StringValue(), environment)
+        A = ArrayCreate(0)
         n = 0
         while 1:
             if not iteratorRecord.Done:
-                next, ok = ec(IteratorStep(iteratorRecord))
-                if not ok:
+                try:
+                    next = IteratorStep(iteratorRecord)
+                except (ESError, ESAbrupt):
                     iteratorRecord.Done = True
-                    return next
+                    raise
                 if not next:
                     iteratorRecord.Done = True
             if iteratorRecord.Done:
                 if environment is None:
                     return PutValue(lhs, A)
                 return InitializeReferencedBinding(lhs, A)
-            nextValue, ok = ec(IteratorValue(next))
-            if not ok:
+            try:
+                nextValue = IteratorValue(next)
+            except (ESError, ESAbrupt):
                 iteratorRecord.Done = True
-                return nextValue
-            status = CreateDataProperty(A, nc(ToString(n)), nextValue)
+                raise
+            status = CreateDataProperty(A, ToString(n), nextValue)
             assert status
             n += 1
 class PN_BindingRestElement_DOTDOTDOT_BindingPattern(PN_BindingRestElement):
@@ -11191,23 +10614,25 @@ class PN_BindingRestElement_DOTDOTDOT_BindingPattern(PN_BindingRestElement):
         #           f. Let status be CreateDataProperty(A, ! ToString(n), nextValue).
         #           g. Assert: status is true.
         #           h. Increment n by 1.
-        A = nc(ArrayCreate(0))
+        A = ArrayCreate(0)
         n = 0
         while 1:
             if not iteratorRecord.Done:
-                next, ok = ec(IteratorStep(iteratorRecord))
-                if not ok:
+                try:
+                    next = IteratorStep(iteratorRecord)
+                except (ESError, ESAbrupt):
                     iteratorRecord.Done = True
-                    return next
+                    raise
                 if not next:
                     iteratorRecord.Done = True
             if iteratorRecord.Done:
                 return self.BindingPattern.BindingInitialization(A, environment)
-            nextValue, ok = ec(IteratorValue(next))
-            if not ok:
+            try:
+                nextValue = IteratorValue(next)
+            except (ESError, ESAbrupt):
                 iteratorRecord.Done = True
-                return nextValue
-            status = CreateDataProperty(A, nc(ToString(n)), nextValue)
+                raise
+            status = CreateDataProperty(A, ToString(n), nextValue)
             assert status
             n += 1
 ###########################################################################################################################################################################
@@ -11290,9 +10715,7 @@ class PN_IfStatement_IF_LPAREN_Expression_RPAREN_Statement_ELSE_Statement(PN_IfS
         # 4. Else,
         #    a. Let stmtCompletion be the result of evaluating the second Statement.
         # 5. Return Completion(UpdateEmpty(stmtCompletion, undefined)).
-        exprValue, ok = ec(GetValue(self.Expression.evaluate()))
-        if not ok:
-            return exprValue
+        exprValue = GetValue(self.Expression.evaluate())
         stmtCompletion = self.Statement1.evaluate() if ToBoolean(exprValue) else self.Statement2.evaluate()
         return UpdateEmpty(stmtCompletion, None)
 class PN_IfStatement_IF_LPAREN_Expression_RPAREN_Statement(PN_IfStatement):
@@ -11340,10 +10763,8 @@ class PN_IfStatement_IF_LPAREN_Expression_RPAREN_Statement(PN_IfStatement):
         # 4. Else,
         #    a. Let stmtCompletion be the result of evaluating Statement.
         #    b. Return Completion(UpdateEmpty(stmtCompletion, undefined)).
-        exprValue, ok = ec(GetValue(self.Expression.evaluate()))
-        if not ok:
-            return exprValue
-        return UpdateEmpty(self.Statement.evaluate(), None) if ToBoolean(exprValue) else NormalCompletion(None)
+        exprValue = GetValue(self.Expression.evaluate())
+        return UpdateEmpty(self.Statement.evaluate(), None) if ToBoolean(exprValue) else None
 ############################################################################################################################################################################################################
 #
 #  d888    .d8888b.      8888888888     8888888 888                              888    d8b                        .d8888b.  888             888                                             888
@@ -11409,16 +10830,18 @@ class PN_IterationStatement_DO_Statement_WHILE_LPAREN_Expression_RPAREN_SEMICOLO
         #    f. If ToBoolean(exprValue) is false, return NormalCompletion(V).
         V = None
         while 1:
-            stmtResult = self.Statement.evaluate()
-            if not LoopContinues(stmtResult, labelSet):
-                return UpdateEmpty(stmtResult, V)
-            if stmtResult.value != Empty.EMPTY:
-                V = stmtResult.value
-            exprValue, ok = ec(GetValue(self.Expression.evaluate()))
-            if not ok:
-                return exprValue
+            try:
+                stmtResult = self.Statement.evaluate()
+            except ESAbrupt as abrupt:
+                c = abrupt.completion
+                if not LoopContinues(c.value, labelSet):
+                    raise type(abrupt)(value=UpdateEmpty(c.value, V), target=c.target)
+                stmtResult = c.value
+            if stmtResult != Empty.EMPTY:
+                V = stmtResult
+            exprValue = GetValue(self.Expression.evaluate())
             if not ToBoolean(exprValue):
-                return NormalCompletion(V)
+                return V
 class PN_IterationStatement_WHILE_LPAREN_Expression_RPAREN_Statement(PN_IterationStatement):
     # 13.7.3 The while Statement
     @property
@@ -11469,16 +10892,18 @@ class PN_IterationStatement_WHILE_LPAREN_Expression_RPAREN_Statement(PN_Iteratio
         #    f. If stmtResult.[[Value]] is not empty, set V to stmtResult.[[Value]].
         V = None
         while 1:
-            exprValue, ok = ec(GetValue(self.Expression.evaluate()))
-            if not ok:
-                return exprValue
+            exprValue = GetValue(self.Expression.evaluate())
             if not ToBoolean(exprValue):
-                return NormalCompletion(V)
-            stmtResult = self.Statement.evaluate()
-            if not LoopContinues(stmtResult, labelSet):
-                return UpdateEmpty(stmtResult, V)
-            if stmtResult.value != Empty.EMPTY:
-                V = stmtResult.value
+                return V
+            try:
+                stmtResult = self.Statement.evaluate()
+            except ESAbrupt as abrupt:
+                c = abrupt.completion
+                if not LoopContinues(c.value, labelSet):
+                    raise type(abrupt)(value=UpdateEmpty(c.value, V), target=c.target)
+                stmtResult = c.value
+            if stmtResult != Empty.EMPTY:
+                V = stmtResult
 def LoopContinues(completion, labelSet):
     # 13.7.1.2 Runtime Semantics: LoopContinues ( completion, labelSet )
     # The abstract operation LoopContinues with arguments completion and labelSet is defined by the following steps:
@@ -11553,9 +10978,7 @@ class PN_IterationStatement_For_Expressions_only(PN_IterationStatement_For_Expre
         #    b. Perform ? GetValue(exprRef).
         # 1. Return ? ForBodyEvaluation(the second Expression, the third Expression, Statement, « », labelSet).
         if self.Expression1:
-            cr, ok = ec(GetValue(self.Expression1.evaluate()))
-            if not ok:
-                return cr
+            GetValue(self.Expression1.evaluate())
         return ForBodyEvaluation(self.Expression2, self.Expression3, self.Statement, [], labelSet)
 class PN_IterationStatement_FOR_LPAREN_Expression_SEMICOLON_Expression_SEMICOLON_Expression_RPAREN_Statement(PN_IterationStatement_For_Expressions_only):
     @property
@@ -11694,9 +11117,7 @@ class PN_IterationStatement_For_varlist(PN_IterationStatement_For_Expressions):
         # 1. Let varDcl be the result of evaluating VariableDeclarationList.
         # 2. ReturnIfAbrupt(varDcl).
         # 3. Return ? ForBodyEvaluation(the first Expression, the second Expression, Statement, « », labelSet).
-        varDcl, ok = ec(self.VariableDeclarationList.evaluate())
-        if not ok:
-            return varDcl
+        self.VariableDeclarationList.evaluate()
         return ForBodyEvaluation(self.Expression1, self.Expression2, self.Statement, [], labelSet)
 class PN_IterationStatement_FOR_LPAREN_VAR_VariableDeclarationList_SEMICOLON_Expression_SEMICOLON_Expression_RPAREN_Statement(PN_IterationStatement_For_varlist):
     @property
@@ -11752,7 +11173,7 @@ class PN_IterationStatement_FOR_LPAREN_VAR_VariableDeclarationList_SEMICOLON_SEM
         return self.children[7]
 
 # 13.7.4.8 Runtime Semantics: ForBodyEvaluation ( test, increment, stmt, perIterationBindings, labelSet )
-def ForBodyEvaluation(test, increment, stmt, perIterationBindings, lableSet):
+def ForBodyEvaluation(test, increment, stmt, perIterationBindings, labelSet):
     # The abstract operation ForBodyEvaluation with arguments test, increment, stmt, perIterationBindings, and
     # labelSet is performed as follows:
     #
@@ -11771,28 +11192,24 @@ def ForBodyEvaluation(test, increment, stmt, perIterationBindings, lableSet):
     #       i. Let incRef be the result of evaluating increment.
     #      ii. Perform ? GetValue(incRef).
     V = None
-    cr, ok = ec(CreatePerIterationEnvironment(perIterationBindings))
-    if not ok:
-        return cr
+    CreatePerIterationEnvironment(perIterationBindings)
     while 1:
         if test:
-            testValue, ok = ec(GetValue(test.evaluate()))
-            if not ok:
-                return testValue
+            testValue = GetValue(test.evaluate())
             if not ToBoolean(testValue):
-                return NormalCompletion(V)
-        result = stmt.evaluate()
-        if not LoopContinues(result, lableSet):
-            return UpdateEmpty(result, V)
-        if result.value != Empty.EMPTY:
-            V = result.value
-        cr, ok = ec(CreatePerIterationEnvironment(perIterationBindings))
-        if not ok:
-            return cr
+                return V
+        try:
+            result = stmt.evaluate()
+        except ESAbrupt as abrupt:
+            c = abrupt.completion
+            if not LoopContinues(c, labelSet):
+                raise type(abrupt)(value=UpdateEmpty(c.value, V), target=c.target)
+            result = c.value
+        if result != Empty.EMPTY:
+            V = result
+        CreatePerIterationEnvironment(perIterationBindings)
         if increment:
-            cr, ok = ec(GetValue(increment.evaluate()))
-            if not ok:
-                return cr
+            GetValue(increment.evaluate())
 # 13.7.4.9 Runtime Semantics: CreatePerIterationEnvironment ( perIterationBindings )
 def CreatePerIterationEnvironment(perIterationBindings):
     # The abstract operation CreatePerIterationEnvironment with argument perIterationBindings is performed as follows:
@@ -11818,13 +11235,11 @@ def CreatePerIterationEnvironment(perIterationBindings):
         thisIterationEnv = NewDeclarativeEnvironment(outer)
         thisIterationEnvRec = thisIterationEnv.environment_record
         for bn in perIterationBindings:
-            nc(thisIterationEnvRec.CreateMutableBinding(bn, False))
-            lastValue, ok = ec(lastIterationEnvRec.GetBindingValue(bn, True))
-            if not ok:
-                return lastValue
+            thisIterationEnvRec.CreateMutableBinding(bn, False)
+            lastValue = lastIterationEnvRec.GetBindingValue(bn, True)
             thisIterationEnvRec.InitializeBinding(bn, lastValue)
         surrounding_agent.running_ec.lexical_environment = thisIterationEnv
-    return NormalCompletion(None)
+    return None
 
 # ------------------------------------ 𝑭𝒐𝒓𝑫𝒆𝒄𝒍𝒂𝒓𝒂𝒕𝒊𝒐𝒏 ------------------------------------
 class PN_ForDeclaration(ParseNode):
@@ -11876,9 +11291,9 @@ class PN_ForDeclaration_LetOrConst_ForBinding(PN_ForDeclaration):
         assert isinstance(envRec, DeclarativeEnvironmentRecord)
         for name in self.ForBinding.BoundNames():
             if self.LetOrConst.IsConstantDeclaration():
-                nc(envRec.CreateImmutableBinding(name, True))
+                envRec.CreateImmutableBinding(name, True)
             else:
-                nc(envRec.CreateMutableBinding(name, False))
+                envRec.CreateMutableBinding(name, False)
 
 # ------------------------------------ 𝑭𝒐𝒓𝑩𝒊𝒏𝒅𝒊𝒏𝒈 ------------------------------------
 class PN_ForBinding(ParseNode):
@@ -11945,7 +11360,7 @@ class PN_ContinueStatement_CONTINUE_SEMICOLON(PN_ContinueStatement):
         # 13.8.3 Runtime Semantics: Evaluation
         #           ContinueStatement : continue ;
         # 1. Return Completion { [[Type]]: continue, [[Value]]: empty, [[Target]]: empty }.
-        return Completion(CompletionType.CONTINUE, Empty.EMPTY, Empty.EMPTY)
+        raise ESContinue
 class PN_ContinueStatement_CONTINUE_LabelIdentifier_SEMICOLON(PN_ContinueStatement):
     @property
     def LabelIdentifier(self):
@@ -11962,7 +11377,7 @@ class PN_ContinueStatement_CONTINUE_LabelIdentifier_SEMICOLON(PN_ContinueStateme
         #           ContinueStatement : continue LabelIdentifier ;
         # 1. Let label be the StringValue of LabelIdentifier.
         # 2. Return Completion { [[Type]]: continue, [[Value]]: empty, [[Target]]: label }.
-        return Completion(CompletionType.CONTINUE, Empty.EMPTY, self.LabelIdentifier.StringValue())
+        return ESContinue(target=self.LabelIdentifier.StringValue())
 
 ###############################################################################################################################
 class PN_CoverCallExpressionAndAsyncArrowHead(ParseNode):
@@ -12029,7 +11444,7 @@ class PN_Script_empty(PN_Script):
         # 15.1.7 Runtime Semantics: Evaluation
         # Script : [empty]
         #      1. Return NormalCompletion(undefined).
-        return NormalCompletion(None)
+        return None
 class PN_ScriptBody_StatementList(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('ScriptBody', p)
@@ -13795,7 +13210,7 @@ def ParseScript(sourceText, realm, hostDefined):
         return body
     # 4. Return Script Record { [[Realm]]: realm, [[Environment]]: undefined, [[ECMAScriptCode]]: body,
     #                           [[HostDefined]]: hostDefined }.
-    return NormalCompletion(ScriptRecord(Realm=realm, Environment=None, ECMAScriptCode=body, HostDefined=hostDefined))
+    return ScriptRecord(Realm=realm, Environment=None, ECMAScriptCode=body, HostDefined=hostDefined)
     # NOTE
     # An implementation may parse script source text and analyse it for Early Error conditions prior to evaluation of
     # ParseScript for that script source text. However, the reporting of any errors must be deferred until the point where this
@@ -13825,22 +13240,23 @@ def ScriptEvaluation(scriptRecord):
     # 10. Let scriptBody be scriptRecord.[[ECMAScriptCode]].
     scriptBody = scriptRecord.ECMAScriptCode
     # 11. Let result be GlobalDeclarationInstantiation(scriptBody, globalEnv).
-    result = GlobalDeclarationInstantiation(scriptBody, globalEnv)
-    # 12. If result.[[Type]] is normal, then
-    if result.ctype == CompletionType.NORMAL:
+    try:
+        GlobalDeclarationInstantiation(scriptBody, globalEnv)
+        # 12. If result.[[Type]] is normal, then
         # a. Set result to the result of evaluating scriptBody.
         result = scriptBody.evaluate()
-    # 13. If result.[[Type]] is normal and result.[[Value]] is empty, then
-    if result.ctype == CompletionType.NORMAL and result.value == Empty.EMPTY:
+        # 13. If result.[[Type]] is normal and result.[[Value]] is empty, then
         # a. Set result to NormalCompletion(undefined).
-        result = NormalCompletion(None)
-    # 14. Suspend scriptCxt and remove it from the execution context stack.
-    scriptCtx.suspend()
-    surrounding_agent.ec_stack.pop()
-    # 15. Assert: The execution context stack is not empty.
-    assert len(surrounding_agent.ec_stack) > 0
-    # 16. Resume the context that is now on the top of the execution context stack as the running execution context.
-    surrounding_agent.running_ec = surrounding_agent.ec_stack[-1]
+        if result == Empty.EMPTY:
+            result = None
+    finally:
+        # 14. Suspend scriptCxt and remove it from the execution context stack.
+        scriptCtx.suspend()
+        surrounding_agent.ec_stack.pop()
+        # 15. Assert: The execution context stack is not empty.
+        assert len(surrounding_agent.ec_stack) > 0
+        # 16. Resume the context that is now on the top of the execution context stack as the running execution context.
+        surrounding_agent.running_ec = surrounding_agent.ec_stack[-1]
     # 17. Return Completion(result).
     return result
 
@@ -13866,22 +13282,20 @@ def GlobalDeclarationInstantiation(script, env):
     for name in lexNames:
         # a. If envRec.HasVarDeclaration(name) is true, throw a SyntaxError exception.
         if envRec.HasVarDeclaration(name):
-            return ThrowCompletion(CreateSyntaxError())
+            raise ESSyntaxError()
         # b. If envRec.HasLexicalDeclaration(name) is true, throw a SyntaxError exception.
         if envRec.HasLexicalDeclaration(name):
-            return ThrowCompletion(CreateSyntaxError())
+            raise ESSyntaxError()
         # c. Let hasRestrictedGlobal be ? envRec.HasRestrictedGlobalProperty(name).
-        hasRestrictedGlobal, ok = ec(envRec.HasRestrictedGlobalProperty(name))
-        if not ok:
-            return hasRestrictedGlobal
+        hasRestrictedGlobal = envRec.HasRestrictedGlobalProperty(name)
         # d. If hasRestrictedGlobal is true, throw a SyntaxError exception.
         if hasRestrictedGlobal:
-            return ThrowCompletion(CreateSyntaxError())
+            raise ESSyntaxError()
     # 6. For each name in varNames, do
     for name in varNames:
         # a. If envRec.HasLexicalDeclaration(name) is true, throw a SyntaxError exception.
         if envRec.HasLexicalDeclaration(name):
-            return ThrowCompletion(CreateSyntaxError())
+            raise ESSyntaxError()
     # 7. Let varDeclarations be the VarScopedDeclarations of script.
     varDeclarations = script.VarScopedDeclarations()
     # 8. Let functionsToInitialize be a new empty List.
@@ -13903,12 +13317,10 @@ def GlobalDeclarationInstantiation(script, env):
             # iv. If fn is not an element of declaredFunctionNames, then
             if fn not in declaredFunctionNames:
                 # 1. Let fnDefinable be ? envRec.CanDeclareGlobalFunction(fn).
-                fnDefinable, ok = ec(envRec.CanDeclareGlobalFunction(fn))
-                if not ok:
-                    return fnDefinable
+                fnDefinable = envRec.CanDeclareGlobalFunction(fn)
                 # 2. If fnDefinable is false, throw a TypeError exception.
                 if not fnDefinable:
-                    return ThrowCompletion(CreateTypeError())
+                    raise ESTypeError()
                 # 3. Append fn to declaredFunctionNames.
                 declaredFunctionNames.append(fn)
                 # 4. Insert d as the first element of functionsToInitialize.
@@ -13924,12 +13336,10 @@ def GlobalDeclarationInstantiation(script, env):
                 # 1. If vn is not an element of declaredFunctionNames, then
                 if vn not in declaredFunctionNames:
                     # a. Let vnDefinable be ? envRec.CanDeclareGlobalVar(vn).
-                    vnDefinable, ok = ec(envRec.CanDeclareGlobalVar(vn))
-                    if not ok:
-                        return vnDefinable
+                    vnDefinable = envRec.CanDeclareGlobalVar(vn)
                     # b. If vnDefinable is false, throw a TypeError exception.
                     if not vnDefinable:
-                        return ThrowCompletion(CreateTypeError())
+                        raise ESTypeError()
                     # c. If vn is not an element of declaredVarNames, then
                     if vn not in declaredVarNames:
                         # i. Append vn to declaredVarNames.
@@ -13948,13 +13358,11 @@ def GlobalDeclarationInstantiation(script, env):
             # i. If IsConstantDeclaration of d is true, then
             if d.IsConstantDeclaration():
                 # 1. Perform ? envRec.CreateImmutableBinding(dn, true).
-                cr, ok = ec(envRec.CreateImmutableBinding(dn, True))
-                if not ok:
-                    return cr
+                envRec.CreateImmutableBinding(dn, True)
             # ii. Else,
             else:
                 # 1. Perform ? envRec.CreateMutableBinding(dn, false).
-                cr, ok = ec(envRec.CreateMutableBinding(dn, False))
+                envRec.CreateMutableBinding(dn, False)
     # 17. For each Parse Node f in functionsToInitialize, do
     for f in functionsToInitialize:
         # a. Let fn be the sole element of the BoundNames of f.
@@ -13962,17 +13370,13 @@ def GlobalDeclarationInstantiation(script, env):
         # b. Let fo be the result of performing InstantiateFunctionObject for f with argument env.
         fo = f.InstantiateFunctionObject(env)
         # c. Perform ? envRec.CreateGlobalFunctionBinding(fn, fo, false).
-        cr, ok = ec(envRec.CreateGlobalFunctionBinding(fn, fo, False))
-        if not ok:
-            return cr
+        envRec.CreateGlobalFunctionBinding(fn, fo, False)
     # 18.For each String vn in declaredVarNames, in list order, do
     for vn in declaredVarNames:
         # a. Perform ? envRec.CreateGlobalVarBinding(vn, false).
-        cr, ok = ec(envRec.CreateGlobalVarBinding(vn, False))
-        if not ok:
-            return cr
+        envRec.CreateGlobalVarBinding(vn, False)
     # 19. Return NormalCompletion(empty).
-    return NormalCompletion(Empty.EMPTY)
+    return Empty.EMPTY
     # NOTE 2
     # Early errors specified in 15.1.1 prevent name conflicts between function/var declarations and let/const/class
     # declarations as well as redeclaration of let/const/class bindings for declaration contained within a single Script.
@@ -14001,9 +13405,9 @@ def ScriptEvaluationJob(source_text, host_defined):
         # a. Perform HostReportErrors(s).
         HostReportErrors(script_nodes)
         # b. Return NormalCompletion(undefined).
-        return NormalCompletion(None)
+        return None
     # 5. Return ? ScriptEvaluation(s).
-    return ScriptEvaluation(nc(script_nodes))
+    return ScriptEvaluation(script_nodes)
 
 # 16.1 HostReportErrors ( errorList )
 def HostReportErrors(errorList):
@@ -14018,9 +13422,9 @@ def HostReportErrors(errorList):
     # will always be SyntaxError or ReferenceError objects. Runtime errors, however, can be any ECMAScript value.
 
     for err in errorList:
-        print(nc(ToString(err)))
+        print(ToString(err))
 
-    return NormalCompletion(Empty.EMPTY)
+    return Empty.EMPTY
 
 ###########################################################################################################################################################
 #
@@ -14049,31 +13453,19 @@ def HostReportErrors(errorList):
 #     * is designed to be subclassable. It may be used as the value of an extends clause of a class definition.
 def BindBuiltinFunctions(realm, obj, details):
     for key, fcn, length in details:
-        func_obj, ok = ec(CreateBuiltinFunction(fcn, [], realm))
-        if not ok:
-            return func_obj
-        success, ok = ec(DefinePropertyOrThrow(func_obj, 'length', PropertyDescriptor(value=length, writable=False, enumerable=False, configurable=True)))
-        if not ok:
-            return success
-        success, ok = ec(DefinePropertyOrThrow(func_obj, 'name', PropertyDescriptor(value=key, writable=False, enumerable=False, configurable=True)))
-        if not ok:
-            return success
-        success, ok = ec(CreateMethodPropertyOrThrow(obj, key, func_obj))
-        if not ok:
-            return success
-    return NormalCompletion(None)
+        func_obj = CreateBuiltinFunction(fcn, [], realm)
+        DefinePropertyOrThrow(func_obj, 'length', PropertyDescriptor(value=length, writable=False, enumerable=False, configurable=True))
+        DefinePropertyOrThrow(func_obj, 'name', PropertyDescriptor(value=key, writable=False, enumerable=False, configurable=True))
+        CreateMethodPropertyOrThrow(obj, key, func_obj)
+    return None
 
 def CreateObjectConstructor(realm):
     intrinsics = realm.intrinsics
     obj = CreateBuiltinFunction(ObjectFunction, ['Construct'], realm=realm)
     for key, value in [('length', 1), ('name', 'Object')]:
-        cr, ok = ec(DefinePropertyOrThrow(obj, key, PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)))
-        if not ok:
-            return cr
-    cr, ok = ec(DefinePropertyOrThrow(obj, 'prototype', PropertyDescriptor(value=intrinsics['%ObjectPrototype%'], writable=False, enumerable=False, configurable=False)))
-    if not ok:
-        return cr
-    cr, ok = ec(BindBuiltinFunctions(realm, obj, [
+        DefinePropertyOrThrow(obj, key, PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True))
+    DefinePropertyOrThrow(obj, 'prototype', PropertyDescriptor(value=intrinsics['%ObjectPrototype%'], writable=False, enumerable=False, configurable=False))
+    BindBuiltinFunctions(realm, obj, [
         ('assign', ObjectMethod_assign, 2),
         ('create', ObjectMethod_create, 2),
         ('defineProperties', ObjectMethod_defineProperties, 2),
@@ -14093,9 +13485,7 @@ def CreateObjectConstructor(realm):
         ('preventExtensions', ObjectMethod_preventExtensions, 1),
         ('seal', ObjectMethod_seal, 1),
         ('setPrototypeOf', ObjectMethod_setPrototypeOf, 2),
-        ('values', ObjectMethod_values, 1)]))
-    if not ok:
-        return cr
+        ('values', ObjectMethod_values, 1)])
     return obj
 
 # 19.1.1.1 Object ( [ value ] )
@@ -14119,12 +13509,10 @@ def ObjectMethod_assign(_a, _b, target, *sources):
     # objects to a target object. When the assign function is called, the following steps are taken:
     #
     # 1. Let to be ? ToObject(target).
-    to_obj, ok = ec(ToObject(target))
-    if not ok:
-        return to_obj
+    to_obj = ToObject(target)
     # 2. If only one argument was passed, return to.
     if len(sources) == 0:
-        return NormalCompletion(to_obj)
+        return to_obj
     # 3. Let sources be the List of argument values starting with the second argument.
     # 4. For each element nextSource of sources, in ascending index order, do
     for next_source in sources:
@@ -14134,29 +13522,21 @@ def ObjectMethod_assign(_a, _b, target, *sources):
         # b. Else,
         else:
             # i. Let from be ! ToObject(nextSource).
-            from_obj = nc(ToObject(next_source))
+            from_obj = ToObject(next_source)
             # ii. Let keys be ? from.[[OwnPropertyKeys]]().
-            keys, ok = ec(from_obj.OwnPropertyKeys())
-            if not ok:
-                return keys
+            keys = from_obj.OwnPropertyKeys()
         # c. For each element nextKey of keys in List order, do
         for next_key in keys:
             # i. Let desc be ? from.[[GetOwnProperty]](nextKey).
-            desc, ok = ec(from_obj.GetOwnProperty(next_key))
-            if not ok:
-                return desc
+            desc = from_obj.GetOwnProperty(next_key)
             # ii. If desc is not undefined and desc.[[Enumerable]] is true, then
             if desc is not None and desc.enumerable:
                 # 1. Let propValue be ? Get(from, nextKey).
-                prop_value, ok = ec(Get(from_obj, next_key))
-                if not ok:
-                    return prop_value
+                prop_value = Get(from_obj, next_key)
                 # 2. Perform ? Set(to, nextKey, propValue, true).
-                cr, ok = ec(Set(to_obj, next_key, prop_value, True))
-                if not ok:
-                    return cr
+                Set(to_obj, next_key, prop_value, True)
     # 5. Return to.
-    return NormalCompletion(to_obj)
+    return to_obj
 
 # 19.1.2.2 Object.create ( O, Properties )
 def ObjectMethod_create(_a, _b, o_value, properties):
@@ -14165,7 +13545,7 @@ def ObjectMethod_create(_a, _b, o_value, properties):
     #
     # 1. If Type(O) is neither Object nor Null, throw a TypeError exception.
     if not isObject(o_value) and not isNull(o_value):
-        return ThrowCompletion(CreateTypeError())
+        raise ESTypeError()
     # 2. Let obj be ObjectCreate(O).
     obj = ObjectCreate(o_value)
     # 3. If Properties is not undefined, then
@@ -14173,7 +13553,7 @@ def ObjectMethod_create(_a, _b, o_value, properties):
         # a. Return ? ObjectDefineProperties(obj, Properties).
         return ObjectDefineProperties(obj, properties)
     # 4. Return obj.
-    return NormalCompletion(obj)
+    return obj
 
 # 19.1.2.3 Object.defineProperties ( O, Properties )
 def ObjectMethod_defineProperties(_a, _b, o_value, properties):
@@ -14189,33 +13569,23 @@ def ObjectDefineProperties(o_value, properties):
     #
     # 1. If Type(O) is not Object, throw a TypeError exception.
     if not isObject(o_value):
-        return ThrowCompletion(CreateTypeError())
+        raise ESTypeError()
     # 2. Let props be ? ToObject(Properties).
-    props, ok = ec(ToObject(properties))
-    if not ok:
-        return props
+    props = ToObject(properties)
     # 3. Let keys be ? props.[[OwnPropertyKeys]]().
-    keys, ok = ec(props.OwnPropertyKeys())
-    if not ok:
-        return keys
+    keys = props.OwnPropertyKeys()
     # 4. Let descriptors be a new empty List.
     descriptors = []
     # 5. For each element nextKey of keys in List order, do
     for next_key in keys:
         # a. Let propDesc be ? props.[[GetOwnProperty]](nextKey).
-        prop_desc, ok = ec(props.GetOwnProperty(next_key))
-        if not ok:
-            return prop_desc
+        prop_desc = props.GetOwnProperty(next_key)
         # b. If propDesc is not undefined and propDesc.[[Enumerable]] is true, then
         if prop_desc is not None and prop_desc.enumerable:
             # i. Let descObj be ? Get(props, nextKey).
-            desc_obj, ok = ec(Get(props, next_key))
-            if not ok:
-                return desc_obj
+            desc_obj = Get(props, next_key)
             # ii. Let desc be ? ToPropertyDescriptor(descObj).
-            desc, ok = ec(ToPropertyDescriptor(desc_obj))
-            if not ok:
-                return desc
+            desc = ToPropertyDescriptor(desc_obj)
             # iii. Append the pair (a two element List) consisting of nextKey and desc to the end of descriptors.
             descriptors.append((next_key, desc))
     # 6. For each pair from descriptors in list order, do
@@ -14223,11 +13593,9 @@ def ObjectDefineProperties(o_value, properties):
         # a. Let P be the first element of pair.
         # b. Let desc be the second element of pair.
         # c. Perform ? DefinePropertyOrThrow(O, P, desc).
-        cr, ok = ec(DefinePropertyOrThrow(o_value, prop_key, desc))
-        if not ok:
-            return cr
+        DefinePropertyOrThrow(o_value, prop_key, desc)
     # 7. Return O.
-    return NormalCompletion(o_value)
+    return o_value
 
 # 19.1.2.4 Object.defineProperty ( O, P, Attributes )
 def ObjectMethod_defineProperty(_a, _b, o_value, prop, attributes):
@@ -14236,36 +13604,26 @@ def ObjectMethod_defineProperty(_a, _b, o_value, prop, attributes):
     #
     # 1. If Type(O) is not Object, throw a TypeError exception.
     if not isObject(o_value):
-        return ThrowCompletion(CreateTypeError())
+        raise ESTypeError()
     # 2. Let key be ? ToPropertyKey(P).
-    key, ok = ec(ToPropertyKey(prop))
-    if not ok:
-        return key
+    key = ToPropertyKey(prop)
     # 3. Let desc be ? ToPropertyDescriptor(Attributes).
-    desc, ok = ec(ToPropertyDescriptor(attributes))
-    if not ok:
-        return desc
+    desc = ToPropertyDescriptor(attributes)
     # 4. Perform ? DefinePropertyOrThrow(O, key, desc).
-    cr, ok = ec(DefinePropertyOrThrow(o_value, key, desc))
-    if not ok:
-        return cr
+    DefinePropertyOrThrow(o_value, key, desc)
     # 5. Return O.
-    return NormalCompletion(o_value)
+    return o_value
 
 # 19.1.2.5 Object.entries ( O )
 def ObjectMethod_entries(_a, _b, o_value):
     # When the entries function is called with argument O, the following steps are taken:
     #
     # 1. Let obj be ? ToObject(O).
-    obj, ok = ec(ToObject(o_value))
-    if not ok:
-        return obj
+    obj = ToObject(o_value)
     # 2. Let nameList be ? EnumerableOwnPropertyNames(obj, "key+value").
-    name_list, ok = ec(EnumerableOwnPropertyNames(obj, 'key+value'))
-    if not ok:
-        return name_list
+    name_list = EnumerableOwnPropertyNames(obj, 'key+value')
     # 3. Return CreateArrayFromList(nameList).
-    return NormalCompletion(CreateArrayFromList(name_list))
+    return CreateArrayFromList(name_list)
 
 # 19.1.2.6 Object.freeze ( O )
 def ObjectMethod_freeze(_a, _b, o_value):
@@ -14273,63 +13631,49 @@ def ObjectMethod_freeze(_a, _b, o_value):
     #
     # 1. If Type(O) is not Object, return O.
     if not isObject(o_value):
-        return NormalCompletion(o_value)
+        return o_value
     # 2. Let status be ? SetIntegrityLevel(O, "frozen").
-    status, ok = ec(SetIntegrityLevel(o_value, 'frozen'))
-    if not ok:
-        return status
+    status = SetIntegrityLevel(o_value, 'frozen')
     # 3. If status is false, throw a TypeError exception.
     if not status:
-        return ThrowCompletion(CreateTypeError())
+        raise ESTypeError()
     # 4. Return O.
-    return NormalCompletion(o_value)
+    return o_value
 
 # 19.1.2.7 Object.getOwnPropertyDescriptor ( O, P )
 def ObjectMethod_getOwnPropertyDescriptor(_a, _b, o_value, propkey):
     # When the getOwnPropertyDescriptor function is called, the following steps are taken:
     #
     # 1. Let obj be ? ToObject(O).
-    obj, ok = ec(ToObject(o_value))
-    if not ok:
-        return obj
+    obj = ToObject(o_value)
     # 2. Let key be ? ToPropertyKey(P).
-    key, ok = ec(ToPropertyKey(propkey))
-    if not ok:
-        return key
+    key = ToPropertyKey(propkey)
     # 3. Let desc be ? obj.[[GetOwnProperty]](key).
-    desc, ok = ec(obj.GetOwnProperty(key))
-    if not ok:
-        return desc
+    desc = obj.GetOwnProperty(key)
     # 4. Return FromPropertyDescriptor(desc).
-    return NormalCompletion(FromPropertyDescriptor(desc))
+    return FromPropertyDescriptor(desc)
 
 # 19.1.2.8 Object.getOwnPropertyDescriptors ( O )
 def ObjectMethod_getOwnPropertyDescriptors(_a, _b, o_value):
     # When the getOwnPropertyDescriptors function is called, the following steps are taken:
     #
     # 1. Let obj be ? ToObject(O).
-    obj, ok = ec(ToObject(o_value))
-    if not ok:
-        return obj
+    obj = ToObject(o_value)
     # 2. Let ownKeys be ? obj.[[OwnPropertyKeys]]().
-    own_keys, ok = ec(obj.OwnPropertyKeys())
-    if not ok:
-        return own_keys
+    own_keys = obj.OwnPropertyKeys()
     # 3. Let descriptors be ! ObjectCreate(%ObjectPrototype%).
-    descriptors = nc(ObjectCreate(surrounding_agent.running_ec.realm.intrinsics['%ObjectPrototype%']))
+    descriptors = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics['%ObjectPrototype%'])
     # 4. For each element key of ownKeys in List order, do
     for key in own_keys:
         # a. Let desc be ? obj.[[GetOwnProperty]](key).
-        desc, ok = ec(obj.GetOwnProperty(key))
-        if not ok:
-            return desc
+        desc = obj.GetOwnProperty(key)
         # b. Let descriptor be ! FromPropertyDescriptor(desc).
-        descriptor = nc(FromPropertyDescriptor(desc))
+        descriptor = FromPropertyDescriptor(desc)
         # c. If descriptor is not undefined, perform ! CreateDataProperty(descriptors, key, descriptor).
         if descriptor is not None:
-            nc(CreateDataProperty(descriptors, key, descriptor))
+            CreateDataProperty(descriptors, key, descriptor)
     # 5. Return descriptors.
-    return NormalCompletion(descriptors)
+    return descriptors
 
 # 19.1.2.9 Object.getOwnPropertyNames ( O )
 def ObjectMethod_getOwnPropertyNames(_a, _b, o_value):
@@ -14351,29 +13695,23 @@ def GetOwnPropertyKeys(o_value, type_checker):
     # one of the ECMAScript specification types String or Symbol. The following steps are taken:
     #
     # 1. Let obj be ? ToObject(O).
-    obj, ok = ec(ToObject(o_value))
-    if not ok:
-        return obj
+    obj = ToObject(o_value)
     # 2. Let keys be ? obj.[[OwnPropertyKeys]]().
-    keys, ok = ec(obj.OwnPropertyKeys())
-    if not ok:
-        return keys
+    keys = obj.OwnPropertyKeys()
     # 3. Let nameList be a new empty List.
     # 4. For each element nextKey of keys in List order, do
         # a. If Type(nextKey) is Type, then
             # i. Append nextKey as the last element of nameList.
     name_list = [key for key in keys if type_checker(key)]
     # 5. Return CreateArrayFromList(nameList).
-    return NormalCompletion(CreateArrayFromList(name_list))
+    return CreateArrayFromList(name_list)
 
 # 19.1.2.11 Object.getPrototypeOf ( O )
 def ObjectMethod_getPrototypeOf(_a, _b, o_value):
     # When the getPrototypeOf function is called with argument O, the following steps are taken:
     #
     # 1. Let obj be ? ToObject(O).
-    obj, ok = ec(ToObject(o_value))
-    if not ok:
-        return obj
+    obj = ToObject(o_value)
     # 2. Return ? obj.[[GetPrototypeOf]]().
     return obj.GetPrototypeOf()
 
@@ -14382,7 +13720,7 @@ def ObjectMethod_is(_a, _b, value1, value2):
     # When the is function is called with arguments value1 and value2, the following steps are taken:
     #
     # 1. Return SameValue(value1, value2).
-    return NormalCompletion(SameValue(value1, value2))
+    return SameValue(value1, value2)
 
 # 19.1.2.13 Object.isExtensible ( O )
 def ObjectMethod_isExtensible(_a, _b, o_value):
@@ -14390,7 +13728,7 @@ def ObjectMethod_isExtensible(_a, _b, o_value):
     #
     # 1. If Type(O) is not Object, return false.
     if not isObject(o_value):
-        return NormalCompletion(False)
+        return False
     # 2. Return ? IsExtensible(O).
     return IsExtensible(o_value)
 
@@ -14400,7 +13738,7 @@ def ObjectMethod_isFrozen(_a, _b, o_value):
     #
     # 1. If Type(O) is not Object, return true.
     if not isObject(o_value):
-        return NormalCompletion(True)
+        return True
     # 2. Return ? TestIntegrityLevel(O, "frozen").
     return TestIntegrityLevel(o_value, 'frozen')
 
@@ -14410,7 +13748,7 @@ def ObjectMethod_isSealed(_a, _b, o_value):
     #
     # 1. If Type(O) is not Object, return true.
     if not isObject(o_value):
-        return NormalCompletion(True)
+        return True
     # 2. Return ? TestIntegrityLevel(O, "sealed").
     return TestIntegrityLevel(o_value, 'sealed')
 
@@ -14419,15 +13757,11 @@ def ObjectMethod_keys(_a, _b, o_value):
     # When the keys function is called with argument O, the following steps are taken:
     #
     # 1. Let obj be ? ToObject(O).
-    obj, ok = ec(ToObject(o_value))
-    if not ok:
-        return obj
+    obj = ToObject(o_value)
     # 2. Let nameList be ? EnumerableOwnPropertyNames(obj, "key").
-    name_list, ok = ec(EnumerableOwnPropertyNames(obj, 'key'))
-    if not ok:
-        return name_list
+    name_list = EnumerableOwnPropertyNames(obj, 'key')
     # 3. Return CreateArrayFromList(nameList).
-    return NormalCompletion(CreateArrayFromList(name_list))
+    return CreateArrayFromList(name_list)
 
 # 19.1.2.17 Object.preventExtensions ( O )
 def ObjectMethod_preventExtensions(_a, _b, o_value):
@@ -14435,16 +13769,14 @@ def ObjectMethod_preventExtensions(_a, _b, o_value):
     #
     # 1. If Type(O) is not Object, return O.
     if not isObject(o_value):
-        return NormalCompletion(o_value)
+        return o_value
     # 2. Let status be ? O.[[PreventExtensions]]().
-    status, ok = ec(o_value.PreventExtensions())
-    if not ok:
-        return status
+    status = o_value.PreventExtensions()
     # 3. If status is false, throw a TypeError exception.
     if not status:
-        return ThrowCompletion(CreateTypeError())
+        raise ESTypeError()
     # 4. Return O.
-    return NormalCompletion(o_value)
+    return o_value
 
 # 19.1.2.19 Object.seal ( O )
 def ObjectMethod_seal(_a, _b, o_value):
@@ -14452,55 +13784,45 @@ def ObjectMethod_seal(_a, _b, o_value):
     #
     # 1. If Type(O) is not Object, return O.
     if not isObject(o_value):
-        return NormalCompletion(o_value)
+        return o_value
     # 2. Let status be ? SetIntegrityLevel(O, "sealed").
-    status, ok = ec(SetIntegrityLevel(o_value, 'sealed'))
-    if not ok:
-        return status
+    status = SetIntegrityLevel(o_value, 'sealed')
     # 3. If status is false, throw a TypeError exception.
     if not status:
-        return ThrowCompletion(CreateTypeError())
+        raise ESTypeError()
     # 4. Return O.
-    return NormalCompletion(o_value)
+    return o_value
 
 # 19.1.2.20 Object.setPrototypeOf ( O, proto )
 def ObjectMethod_setPrototypeOf(_a, _b, o_value, proto):
     # When the setPrototypeOf function is called with arguments O and proto, the following steps are taken:
     #
     # 1. Let O be ? RequireObjectCoercible(O).
-    o_value, ok = ec(RequireObjectCoercible(o_value))
-    if not ok:
-        return o_value
+    o_value = RequireObjectCoercible(o_value)
     # 2. If Type(proto) is neither Object nor Null, throw a TypeError exception.
     if not isObject(proto) and not isNull(proto):
-        return ThrowCompletion(CreateTypeError())
+        raise ESTypeError()
     # 3. If Type(O) is not Object, return O.
     if not isObject(o_value):
-        return NormalCompletion(o_value)
+        return o_value
     # 4. Let status be ? O.[[SetPrototypeOf]](proto).
-    status, ok = ec(o_value.SetPrototypeOf(proto))
-    if not ok:
-        return status
+    status = o_value.SetPrototypeOf(proto)
     # 5. If status is false, throw a TypeError exception.
     if not status:
-        return ThrowCompletion(CreateTypeError())
+        raise ESTypeError()
     # 6. Return O.
-    return NormalCompletion(o_value)
+    return o_value
 
 # 19.1.2.21 Object.values ( O )
 def ObjectMethod_values(_a, _b, o_value):
     # When the values function is called with argument O, the following steps are taken:
     #
     # 1. Let obj be ? ToObject(O).
-    obj, ok = ec(ToObject(o_value))
-    if not ok:
-        return obj
+    obj = ToObject(o_value)
     # 2. Let nameList be ? EnumerableOwnPropertyNames(obj, "value").
-    name_list, ok = ec(EnumerableOwnPropertyNames(obj, 'value'))
-    if not ok:
-        return name_list
+    name_list = EnumerableOwnPropertyNames(obj, 'value')
     # 3. Return CreateArrayFromList(nameList).
-    return NormalCompletion(CreateArrayFromList(name_list))
+    return CreateArrayFromList(name_list)
 
 # 19.1.3 Properties of the Object Prototype Object
 #
@@ -14514,33 +13836,25 @@ def AddObjectPrototypeProps(realm_rec):
     obj = intrinsics['%ObjectPrototype%']
     # 19.1.3.1 Object.prototype.constructor
     # The initial value of Object.prototype.constructor is the intrinsic object %Object%.
-    cr, ok = ec(DefinePropertyOrThrow(obj, 'constructor', PropertyDescriptor(value=intrinsics['%Object%'], writable=False, enumerable=False, configurable=False)))
-    if not ok:
-        return cr
-    cr, ok = ec(BindBuiltinFunctions(realm_rec, obj, [
+    DefinePropertyOrThrow(obj, 'constructor', PropertyDescriptor(value=intrinsics['%Object%'], writable=False, enumerable=False, configurable=False))
+    BindBuiltinFunctions(realm_rec, obj, [
         ('hasOwnProperty', ObjectPrototype_hasOwnProperty, 1),
         ('isPrototypeOf', ObjectPrototype_isPrototypeOf, 1),
         ('propertyIsEnumerable', ObjectPrototype_propertyIsEnumerable, 1),
         ('toLocaleString', ObjectPrototype_toLocaleString, 0),
         ('toString', ObjectPrototype_toString, 0),
         ('valueOf', ObjectPrototype_valueOf, 0)
-        ]))
-    if not ok:
-        return cr
-    return NormalCompletion(None)
+        ])
+    return None
 
 # 19.1.3.2 Object.prototype.hasOwnProperty ( V )
 def ObjectPrototype_hasOwnProperty(this_value, _, key):
     # When the hasOwnProperty method is called with argument V, the following steps are taken:
     #
     # 1. Let P be ? ToPropertyKey(V).
-    p, ok = ec(ToPropertyKey(key))
-    if not ok:
-        return p
+    p = ToPropertyKey(key)
     # 2. Let O be ? ToObject(this value).
-    o, ok = ec(ToObject(this_value))
-    if not ok:
-        return o
+    o = ToObject(this_value)
     # 3. Return ? HasOwnProperty(O, P).
     return HasOwnProperty(o, p)
     # NOTE
@@ -14553,23 +13867,19 @@ def ObjectPrototype_isPrototypeOf(this_value, _, obj):
     #
     # 1. If Type(V) is not Object, return false.
     if not isObject(obj):
-        return NormalCompletion(False)
+        return False
     # 2. Let O be ? ToObject(this value).
-    o, ok = ec(ToObject(this_value))
-    if not ok:
-        return o
+    o = ToObject(this_value)
     # 3. Repeat,
     while 1:
         # a. Let V be ? V.[[GetPrototypeOf]]().
-        obj, ok = ec(obj.GetPrototypeOf())
-        if not ok:
-            return obj
+        obj = obj.GetPrototypeOf()
         # b. If V is null, return false.
         if isNull(obj):
-            return NormalCompletion(False)
+            return False
         # c. If SameValue(O, V) is true, return true.
         if SameValue(o, obj):
-            return NormalCompletion(True)
+            return True
     # NOTE
     # The ordering of steps 1 and 2 preserves the behaviour specified by previous editions of this specification for
     # the case where V is not an object and the this value is undefined or null.
@@ -14579,22 +13889,16 @@ def ObjectPrototype_propertyIsEnumerable(this_value, _, v):
     # When the propertyIsEnumerable method is called with argument V, the following steps are taken:
     #
     # 1. Let P be ? ToPropertyKey(V).
-    p, ok = ec(ToPropertyKey(v))
-    if not ok:
-        return p
+    p = ToPropertyKey(v)
     # 2. Let O be ? ToObject(this value).
-    o, ok = ec(ToObject(this_value))
-    if not ok:
-        return o
+    o = ToObject(this_value)
     # 3. Let desc be ? O.[[GetOwnProperty]](P).
-    desc, ok = ec(o.GetOwnProperty(p))
-    if not ok:
-        return desc
+    desc = o.GetOwnProperty(p)
     # 4. If desc is undefined, return false.
     if desc is None:
-        return NormalCompletion(False)
+        return False
     # 5. Return desc.[[Enumerable]].
-    return NormalCompletion(desc.enumerable)
+    return desc.enumerable
     # NOTE 1
     # This method does not consider objects in the prototype chain.
     # NOTE 2
@@ -14625,16 +13929,14 @@ def ObjectPrototype_toString(this_value, _):
     #
     # 1. If the this value is undefined, return "[object Undefined]".
     if this_value is None:
-        return NormalCompletion('[object Undefined]')
+        return '[object Undefined]'
     # 2. If the this value is null, return "[object Null]".
     if isNull(this_value):
-        return NormalCompletion('[object Null]')
+        return '[object Null]'
     # 3. Let O be ! ToObject(this value).
-    o = nc(ToObject(this_value))
+    o = ToObject(this_value)
     # 4. Let isArray be ? IsArray(O).
-    is_array, ok = ec(IsArray(o))
-    if not ok:
-        return is_array
+    is_array = IsArray(o)
     # 5. If isArray is true, let builtinTag be "Array".
     if is_array:
         builtin_tag = 'Array'
@@ -14666,14 +13968,12 @@ def ObjectPrototype_toString(this_value, _):
     else:
         builtin_tag = 'Object'
     # 15. Let tag be ? Get(O, @@toStringTag).
-    tag, ok = ec(Get(o, wks_to_string_tag))
-    if not ok:
-        return tag
+    tag = Get(o, wks_to_string_tag)
     # 16. If Type(tag) is not String, let tag be builtinTag.
     if not isString(tag):
         tag = builtin_tag
     # 17. Return the string-concatenation of "[object ", tag, and "]".
-    return NormalCompletion('[object %s]' % tag)
+    return f'[object {tag}]'
     # This function is the %ObjProto_toString% intrinsic object.
     # NOTE
     # Historically, this function was occasionally used to access the String value of the [[Class]] internal slot that
@@ -14739,9 +14039,7 @@ def CreateBooleanConstructor(realm):
     obj = CreateBuiltinFunction(BooleanFunction, ['Construct'], realm=realm)
     for key, value in [('length', 1), ('name', 'Boolean')]:
         desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)
-        cr, ok = ec(DefinePropertyOrThrow(obj, key, desc))
-        if not ok:
-            return cr
+        DefinePropertyOrThrow(obj, key, desc)
     return obj
 
 # 19.3.1.1 Boolean ( value )
@@ -14752,27 +14050,21 @@ def BooleanFunction(_, new_target, value):
     b = ToBoolean(value)
     # 2. If NewTarget is undefined, return b.
     if new_target is None:
-        return NormalCompletion(b)
+        return b
     # 3. Let O be ? OrdinaryCreateFromConstructor(NewTarget, "%BooleanPrototype%", « [[BooleanData]] »).
-    o, ok = ec(OrdinaryCreateFromConstructor(new_target, '%BooleanPrototype%', ['BooleanData']))
-    if not ok:
-        return o
+    o = OrdinaryCreateFromConstructor(new_target, '%BooleanPrototype%', ['BooleanData'])
     # 4. Set O.[[BooleanData]] to b.
     o.BooleanData = b
     # 5. Return O.
-    return NormalCompletion(o)
+    return o
 
 def BooleanFixups(realm):
     boolean_constructor = realm.intrinsics['%Boolean%']
     boolean_prototype = realm.intrinsics['%BooleanPrototype%']
-    cr, ok = ec(DefinePropertyOrThrow(boolean_constructor, 'prototype',
-                PropertyDescriptor(value=boolean_prototype, writable=False, enumerable=False, configurable=False)))
-    if not ok:
-        return cr
-    cr, ok = ec(DefinePropertyOrThrow(boolean_prototype, 'constructor', PropertyDescriptor(value=boolean_constructor)))
-    if not ok:
-        return cr
-    return NormalCompletion(None)
+    DefinePropertyOrThrow(boolean_constructor, 'prototype',
+                PropertyDescriptor(value=boolean_prototype, writable=False, enumerable=False, configurable=False))
+    DefinePropertyOrThrow(boolean_prototype, 'constructor', PropertyDescriptor(value=boolean_constructor))
+    return None
 
 # 19.3.3 Properties of the Boolean Prototype Object
 #
@@ -14785,12 +14077,10 @@ def BooleanFixups(realm):
 def CreateBooleanPrototype(realm):
     boolean_prototype = ObjectCreate(realm.intrinsics['%ObjectPrototype%'], ['BooleanData'])
     boolean_prototype.BooleanData = False
-    cr, ok = ec(BindBuiltinFunctions(realm, boolean_prototype, [
+    BindBuiltinFunctions(realm, boolean_prototype, [
         ('toString', BooleanPrototype_toString, 0),
         ('valueOf', BooleanPrototype_valueOf, 0)
-        ]))
-    if not ok:
-        return cr
+        ])
     return boolean_prototype
 
 def thisBooleanValue(value):
@@ -14808,18 +14098,16 @@ def thisBooleanValue(value):
         # c. Return b.
         return b
     # 3. Throw a TypeError exception.
-    return ThrowCompletion(CreateTypeError())
+    raise ESTypeError()
 
 # 19.3.3.2 Boolean.prototype.toString ( )
 def BooleanPrototype_toString(this_value, _):
     # The following steps are taken:
     #
     # 1. Let b be ? thisBooleanValue(this value).
-    b, ok = ec(thisBooleanValue(this_value))
-    if not ok:
-        return b
+    b = thisBooleanValue(this_value)
     # 2. If b is true, return "true"; else return "false".
-    return NormalCompletion('true' if b else 'false')
+    return 'true' if b else 'false'
 
 # 19.3.3.3 Boolean.prototype.valueOf ( )
 def BooleanPrototype_valueOf(this_value, _):
@@ -14876,9 +14164,7 @@ def CreateErrorConstructor(realm):
     obj = CreateBuiltinFunction(ErrorFunction, ['Construct'], realm=realm)
     for key, value in [('length', 1), ('name', 'Error')]:
         desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)
-        cr, ok = ec(DefinePropertyOrThrow(obj, key, desc))
-        if not ok:
-            return cr
+        DefinePropertyOrThrow(obj, key, desc)
     return obj
 
 # 19.5.1.1 Error ( message )
@@ -14894,16 +14180,12 @@ def ErrorFunction(this_value, new_target, message):
     #    c. Perform ! DefinePropertyOrThrow(O, "message", msgDesc).
     # 4. Return O.
     newTarget = new_target or surrounding_agent.running_ec.function
-    O, ok = ec(OrdinaryCreateFromConstructor(newTarget, '%ErrorPrototype%', ['ErrorData']))
-    if not ok:
-        return O
+    O = OrdinaryCreateFromConstructor(newTarget, '%ErrorPrototype%', ['ErrorData'])
     if message is not None:
-        msg, ok = ec(ToString(message))
-        if not ok:
-            return msg
+        msg = ToString(message)
         msgDesc = PropertyDescriptor(value=msg, writable=True, enumerable=False, configurable=True)
-        nc(DefinePropertyOrThrow(O, 'message', msgDesc))
-    return NormalCompletion(O)
+        DefinePropertyOrThrow(O, 'message', msgDesc)
+    return O
 
 # 19.5.2 Properties of the Error Constructor
 # The Error constructor:
@@ -14918,16 +14200,12 @@ def ErrorFunction(this_value, new_target, message):
 def ErrorFixups(realm):
     error_constructor = realm.intrinsics['%Error%']
     error_prototype = realm.intrinsics['%ErrorPrototype%']
-    cr, ok = ec(DefinePropertyOrThrow(error_constructor, 'prototype',
-                PropertyDescriptor(value=error_prototype, writable=False, enumerable=False, configurable=False)))
-    if not ok:
-        return cr
+    DefinePropertyOrThrow(error_constructor, 'prototype',
+                PropertyDescriptor(value=error_prototype, writable=False, enumerable=False, configurable=False))
     # 19.5.3.1 Error.prototype.constructor
     # The initial value of Error.prototype.constructor is the intrinsic object %Error%.
-    cr, ok = ec(DefinePropertyOrThrow(error_prototype, 'constructor', PropertyDescriptor(value=error_constructor)))
-    if not ok:
-        return cr
-    return NormalCompletion(None)
+    DefinePropertyOrThrow(error_prototype, 'constructor', PropertyDescriptor(value=error_constructor))
+    return None
 
 # 19.5.3 Properties of the Error Prototype Object
 # The Error prototype object:
@@ -14943,12 +14221,8 @@ def CreateErrorPrototype(realm):
     # 19.5.3.3 Error.prototype.name
     # The initial value of Error.prototype.name is "Error".
     for key, value in [('message', ''), ('name', 'Error')]:
-        cr, ok = ec(Set(error_prototype, key, value, True))
-        if not ok:
-            return cr
-    cr, ok = ec(BindBuiltinFunctions(realm, error_prototype, [('toString', ErrorPrototype_toString, 1)]))
-    if not ok:
-        return cr
+        Set(error_prototype, key, value, True)
+    BindBuiltinFunctions(realm, error_prototype, [('toString', ErrorPrototype_toString, 1)])
     return error_prototype
 
 # 19.5.3.4 Error.prototype.toString ( )
@@ -14965,75 +14239,55 @@ def ErrorPrototype_toString(this_value, _):
     # 8. If msg is the empty String, return name.
     # 9. Return the string-concatenation of name, the code unit 0x003A (COLON), the code unit 0x0020 (SPACE), and msg.
     if not isObject(this_value):
-        return ThrowCompletion(CreateTypeError('Method used on non-object'))
-    name, ok = ec(Get(this_value, 'name'))
-    if not ok:
-        return name
+        raise ESTypeError('Method used on non-object')
+    name = Get(this_value, 'name')
     if name is None:
         name = 'Error'
     else:
-        name, ok = ec(ToString(name))
-        if not ok:
-            return name
-    msg, ok = ec(Get(this_value, 'message'))
-    if not ok:
-        return msg
+        name = ToString(name)
+    msg = Get(this_value, 'message')
     if msg is None:
         msg = ''
     else:
-        msg, ok = ec(ToString(msg))
-        if not ok:
-            return msg
+        msg = ToString(msg)
     if name == '':
-        return NormalCompletion(msg)
+        return msg
     if msg == '':
-        return NormalCompletion(name)
-    return NormalCompletion(f'{name}: {msg}')
+        return name
+    return f'{name}: {msg}'
 
 def CreateNativeErrorConstructor(realm, errorname):
     errfunc = CreateErrorConstructorFunction(errorname)
     obj = CreateBuiltinFunction(errfunc, ['Construct'], realm=realm, prototype=realm.intrinsics['%Error%'])
     for key, value in [('length', 1), ('name', f'{errorname}Error')]:
         desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)
-        cr, ok = ec(DefinePropertyOrThrow(obj, key, desc))
-        if not ok:
-            return cr
+        DefinePropertyOrThrow(obj, key, desc)
     return obj
 
 def CreateErrorConstructorFunction(name):
     def native_error_function(this_value, new_target, message):
         newTarget = new_target or surrounding_agent.running_ec.function
-        O, ok = ec(OrdinaryCreateFromConstructor(newTarget, f'%{name}ErrorPrototype%', ['ErrorData']))
-        if not ok:
-            return O
+        O = OrdinaryCreateFromConstructor(newTarget, f'%{name}ErrorPrototype%', ['ErrorData'])
         if message is not None:
-            msg, ok = ec(ToString(message))
-            if not ok:
-                return msg
+            msg = ToString(message)
             msgDesc = PropertyDescriptor(value=msg, writable=True, enumerable=False, configurable=True)
-            nc(DefinePropertyOrThrow(O, 'message', msgDesc))
-        return NormalCompletion(O)
+            DefinePropertyOrThrow(O, 'message', msgDesc)
+        return O
     return native_error_function
 
 def NativeErrorFixups(realm):
     for name in ['Eval', 'Range', 'Reference', 'Syntax', 'Type', 'URI']:
         constructor = realm.intrinsics[f'%{name}Error%']
         prototype = realm.intrinsics[f'%{name}ErrorPrototype%']
-        cr, ok = ec(DefinePropertyOrThrow(constructor, 'prototype',
-                    PropertyDescriptor(value=prototype, writable=False, enumerable=False, configurable=False)))
-        if not ok:
-            return cr
-        cr, ok = ec(DefinePropertyOrThrow(prototype, 'constructor', PropertyDescriptor(value=constructor)))
-        if not ok:
-            return cr
-    return NormalCompletion(None)
+        DefinePropertyOrThrow(constructor, 'prototype',
+                    PropertyDescriptor(value=prototype, writable=False, enumerable=False, configurable=False))
+        DefinePropertyOrThrow(prototype, 'constructor', PropertyDescriptor(value=constructor))
+    return None
 
 def CreateNativeErrorPrototype(realm, name):
     prototype = ObjectCreate(realm.intrinsics['%ErrorPrototype%'])
     for key, value in [('message', ''), ('name', f'{name}Error')]:
-        cr, ok = ec(Set(prototype, key, value, True))
-        if not ok:
-            return cr
+        Set(prototype, key, value, True)
     return prototype
 
 
@@ -15082,9 +14336,7 @@ def CreateNumberConstructor(realm):
     obj = CreateBuiltinFunction(NumberFunction, ['Construct'], realm=realm)
     for key, value in [('length', 1), ('name', 'Number')]:
         desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)
-        cr, ok = ec(DefinePropertyOrThrow(obj, key, desc))
-        if not ok:
-            return cr
+        DefinePropertyOrThrow(obj, key, desc)
     return obj
 
 # 20.1.1.1 Number ( value )
@@ -15096,20 +14348,16 @@ def NumberFunction(_, new_target, value=missing.MISSING):
         n = 0
     # 2. Else, let n be ? ToNumber(value).
     else:
-        n, ok = ec(ToNumber(value))
-        if not ok:
-            return n
+        n = ToNumber(value)
     # 3. If NewTarget is undefined, return n.
     if new_target is None:
-        return NormalCompletion(n)
+        return n
     # 4. Let O be ? OrdinaryCreateFromConstructor(NewTarget, "%NumberPrototype%", « [[NumberData]] »).
-    o, ok = ec(OrdinaryCreateFromConstructor(new_target, '%NumberPrototype%', ['NumberData']))
-    if not ok:
-        return o
+    o = OrdinaryCreateFromConstructor(new_target, '%NumberPrototype%', ['NumberData'])
     # 5. Set O.[[NumberData]] to n.
     o.NumberData = n
     # 6. Return O.
-    return NormalCompletion(o)
+    return o
 
 # 20.1.3 Properties of the Number Prototype Object
 # The Number prototype object:
@@ -15124,12 +14372,10 @@ def NumberFunction(_, new_target, value=missing.MISSING):
 def CreateNumberPrototype(realm):
     number_prototype = ObjectCreate(realm.intrinsics['%ObjectPrototype%'], ['NumberData'])
     number_prototype.NumberData = 0
-    cr, ok = ec(BindBuiltinFunctions(realm, number_prototype, [
+    BindBuiltinFunctions(realm, number_prototype, [
         ('toString', NumberPrototype_toString, 1),
         ('valueOf', NumberPrototype_valueOf, 0)
-        ]))
-    if not ok:
-        return cr
+        ])
     return number_prototype
 
 def thisNumberValue(value):
@@ -15137,7 +14383,7 @@ def thisNumberValue(value):
     #
     # 1. If Type(value) is Number, return value.
     if isNumber(value):
-        return NormalCompletion(value)
+        return value
     # 2. If Type(value) is Object and value has a [[NumberData]] internal slot, then
     if isObject(value) and hasattr(value, 'NumberData'):
         # a. Let n be value.[[NumberData]].
@@ -15145,9 +14391,9 @@ def thisNumberValue(value):
         # b. Assert: Type(n) is Number.
         assert(isNumber(n))
         # c. Return n.
-        return NormalCompletion(n)
+        return n
     # 3. Throw a TypeError exception.
-    return ThrowCompletion(CreateTypeError())
+    raise ESTypeError()
     # The phrase “this Number value” within the specification of a method refers to the result returned by calling the abstract
     # operation thisNumberValue with the this value of the method invocation passed as the argument.
 
@@ -15160,22 +14406,20 @@ def NumberPrototype_toString(this_value, _, radix=None):
     # The following steps are performed:
     #
     # 1. Let x be ? thisNumberValue(this value).
-    x, ok = ec(thisNumberValue(this_value))
+    x = thisNumberValue(this_value)
     # 2. If radix is not present, let radixNumber be 10.
     # 3. Else if radix is undefined, let radixNumber be 10.
     if radix is None:
         radixNumber = 10
     # 4. Else, let radixNumber be ? ToInteger(radix).
     else:
-        radixNumber, ok = ec(ToInteger(radix))
-        if not ok:
-            return radixNumber
+        radixNumber = ToInteger(radix)
     # 5. If radixNumber < 2 or radixNumber > 36, throw a RangeError exception.
     if radixNumber < 2 or radixNumber > 36:
-        return ThrowCompletion(CreateRangeError())
+        raise ESRangeError()
     # 6. If radixNumber = 10, return ! ToString(x).
     if radixNumber == 10:
-        return NormalCompletion(nc(ToString(x)))
+        return ToString(x)
     # 7. Return the String representation of this Number value using the radix specified by radixNumber. Letters a-z are used
     #    for digits with values 10 through 35. The precise algorithm is implementation-dependent, however the algorithm should
     #    be a generalization of that specified in 7.1.12.1.
@@ -15192,13 +14436,9 @@ def NumberFixups(realm):
     number_constructor = realm.intrinsics['%Number%']
     number_prototype = realm.intrinsics['%NumberPrototype%']
     proto_desc = PropertyDescriptor(value=number_prototype, writable=False, enumerable=False, configurable=False)
-    cr, ok = ec(DefinePropertyOrThrow(number_constructor, 'prototype', proto_desc))
-    if not ok:
-        return cr
-    cr, ok = ec(DefinePropertyOrThrow(number_prototype, 'constructor', PropertyDescriptor(value=number_constructor)))
-    if not ok:
-        return cr
-    return NormalCompletion(None)
+    DefinePropertyOrThrow(number_constructor, 'prototype', proto_desc)
+    DefinePropertyOrThrow(number_prototype, 'constructor', PropertyDescriptor(value=number_constructor))
+    return None
 
 # ------------------------------------ 𝟐𝟏 𝑻𝒆𝒙𝒕 𝑷𝒓𝒐𝒄𝒆𝒔𝒔𝒊𝒏𝒈 ------------------------------------
 # ------------------------------------ 𝟐𝟏.𝟏 𝑺𝒕𝒓𝒊𝒏𝒈 𝑶𝒃𝒋𝒆𝒄𝒕𝒔 ------------------------------------
@@ -15233,15 +14473,11 @@ def CreateStringConstructor(realm):
     obj = CreateBuiltinFunction(StringFunction, ['Construct'], realm=realm)
     for key, value in [('length', 1), ('name', 'String')]:
         desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)
-        cr, ok = ec(DefinePropertyOrThrow(obj, key, desc))
-        if not ok:
-            return cr
-    cr, ok = ec(BindBuiltinFunctions(realm, obj, [
+        DefinePropertyOrThrow(obj, key, desc)
+    BindBuiltinFunctions(realm, obj, [
         ('fromCharCode', String_fromCharCode, 1),
         ('fromCodePoint', String_fromCodePoint, 1),
-    ]))
-    if not ok:
-        return cr
+    ])
     return obj
 
 # ------------------------------------ 𝟐𝟏.𝟏.𝟏.𝟏 𝑺𝒕𝒓𝒊𝒏𝒈 ( 𝒗𝒂𝒍𝒖𝒆 ) ------------------------------------
@@ -15258,15 +14494,11 @@ def StringFunction(this_value, new_target, value=missing.MISSING):
         s = ''
     else:
         if new_target is None and isSymbol(value):
-            return NormalCompletion(SymbolDescriptiveString(value))
-        s, ok = ec(ToString(value))
-        if not ok:
-            return s
+            return SymbolDescriptiveString(value)
+        s = ToString(value)
     if new_target is None:
-        return NormalCompletion(s)
-    proto, ok = ec(GetPrototypeFromConstructor(new_target, '%StringPrototype%'))
-    if not ok:
-        return proto
+        return s
+    proto = GetPrototypeFromConstructor(new_target, '%StringPrototype%')
     return StringCreate(s, proto)
 
 # ------------------------------------ 𝟐𝟏.𝟏.𝟐 𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒊𝒆𝒔 𝒐𝒇 𝒕𝒉𝒆 𝑺𝒕𝒓𝒊𝒏𝒈 𝑪𝒐𝒏𝒔𝒕𝒓𝒖𝒄𝒕𝒐𝒓 ------------------------------------
@@ -15296,11 +14528,9 @@ def String_fromCharCode(this_value, new_target, *codeUnits):
     #    empty string is returned.
     elements = []
     for next in codeUnits:
-        codevalue, ok = ec(ToUint16(next))
-        if not ok:
-            return codevalue
+        codevalue = ToUint16(next)
         elements.append(codevalue)
-    return NormalCompletion(''.join(chr(x) for x in elements))
+    return ''.join(chr(x) for x in elements)
     # The length property of the fromCharCode function is 1.
 
 # ------------------------------------ 𝟐𝟏.𝟏.𝟐.𝟐 𝑺𝒕𝒓𝒊𝒏𝒈.𝒇𝒓𝒐𝒎𝑪𝒐𝒅𝒆𝑷𝒐𝒊𝒏𝒕 ( ...𝒄𝒐𝒅𝒆𝑷𝒐𝒊𝒏𝒕𝒔 ) ------------------------------------
@@ -15324,15 +14554,13 @@ def String_fromCodePoint(this_value, new_target, *codePoints):
     #    empty string is returned.
     elements = []
     for next in codePoints:
-        nextCP, ok = ec(ToNumber(next))
-        if not ok:
-            return nextCP
-        if not SameValue(nextCP, nc(ToInteger(nextCP))):
-            return ThrowCompletion(CreateRangeError('code points must be integers'))
+        nextCP = ToNumber(next)
+        if not SameValue(nextCP, ToInteger(nextCP)):
+            raise ESRangeError('code points must be integers')
         if nextCP < 0 or nextCP > 0x10FFFF:
-            return ThrowCompletion(CreateRangeError('code points must be in the range 0x0..0x10ffff'))
+            raise ESRangeError('code points must be in the range 0x0..0x10ffff')
         elements.extend(utf_16_encoding(nextCP))
-    return NormalCompletion(''.join(chr(x) for x in elements))
+    return ''.join(chr(x) for x in elements)
     # The length property of the fromCodePoint function is 1.
 
 # ------------------------------------ 𝟐𝟏.𝟏.𝟑 𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒊𝒆𝒔 𝒐𝒇 𝒕𝒉𝒆 𝑺𝒕𝒓𝒊𝒏𝒈 𝑷𝒓𝒐𝒕𝒐𝒕𝒚𝒑𝒆 𝑶𝒃𝒋𝒆𝒄𝒕 ------------------------------------
@@ -15350,13 +14578,11 @@ def String_fromCodePoint(this_value, new_target, *codePoints):
 # this value passed to them must be either a String value or an object that has a [[StringData]] internal slot that has
 # been initialized to a String value.
 def CreateStringPrototype(realm):
-    string_prototype = nc(StringCreate('', realm.intrinsics['%ObjectPrototype%']))
-    cr, ok = ec(BindBuiltinFunctions(realm, string_prototype, [
+    string_prototype = StringCreate('', realm.intrinsics['%ObjectPrototype%'])
+    BindBuiltinFunctions(realm, string_prototype, [
         ('toString', StringPrototype_toString, 0),
         ('valueOf', StringPrototype_valueOf, 0),
-    ]))
-    if not ok:
-        return cr
+    ])
     return string_prototype
 
 def thisStringValue(value):
@@ -15368,11 +14594,11 @@ def thisStringValue(value):
     #    b. Return value.[[StringData]].
     # 3. Throw a TypeError exception.
     if isString(value):
-        return NormalCompletion(value)
+        return value
     if isObject(value) and hasattr(value, 'StringData'):
         assert isString(value.StringData)
-        return NormalCompletion(value.StringData)
-    return ThrowCompletion(CreateTypeError('Not a string value'))
+        return value.StringData
+    raise ESTypeError('Not a string value')
 
 # ------------------------------------ 𝟐𝟏.𝟏.𝟑.𝟐𝟓 𝑺𝒕𝒓𝒊𝒏𝒈.𝒑𝒓𝒐𝒕𝒐𝒕𝒚𝒑𝒆.𝒕𝒐𝑺𝒕𝒓𝒊𝒏𝒈 ( ) ------------------------------------
 # 21.1.3.25 String.prototype.toString ( )
@@ -15396,26 +14622,21 @@ def StringFixups(realm):
     string_constructor = realm.intrinsics['%String%']
     string_prototype = realm.intrinsics['%StringPrototype%']
     proto_desc = PropertyDescriptor(value=string_prototype, writable=False, enumerable=False, configurable=False)
-    cr, ok = ec(DefinePropertyOrThrow(string_constructor, 'prototype', proto_desc))
-    if not ok:
-        return cr
+    DefinePropertyOrThrow(string_constructor, 'prototype', proto_desc)
     const_desc = PropertyDescriptor(value=string_constructor, writable=True, enumerable=False, configurable=True)
-    cr, ok = ec(DefinePropertyOrThrow(string_prototype, 'constructor', const_desc))
-    if not ok:
-        return cr
-    return NormalCompletion(None)
+    DefinePropertyOrThrow(string_prototype, 'constructor', const_desc)
+    return None
 
 #######################################################################################################################################################
 if __name__ == '__main__':
-    #rv, ok = ec(RunJobs(scripts=["var greg = { 'propA': 88, 'propB': true, 'henry': 'and june' }; greg;"]))
-    rv, ok = ec(RunJobs(scripts=["var x=0;"]))
-
-    InitializeHostDefinedRealm()
-    if ok:
-        print('Script returned %s' % nc(ToString(rv)))
+    try:
+        rv = RunJobs(scripts=["m=''; for (i=0; i<23; i++){ if (i%2 == 0) { continue; }; m += i; }; m;"])
+    except ESError as err:
+        InitializeHostDefinedRealm()
+        print(err)
     else:
-        print(repr(rv))
-        print(nc(ToString(rv.value)))
+        InitializeHostDefinedRealm()
+        print('Script returned %s' % ToString(rv))
     surrounding_agent.ec_stack.pop()
     surrounding_agent.running_ec = None
 

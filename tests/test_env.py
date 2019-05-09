@@ -24,19 +24,15 @@ def test_de_CreateMutableBinding():
     cr2 = der.CreateMutableBinding('kobold', False)
 
     # check
-    assert cr1.ctype == NORMAL
-    assert cr1.value == empty
-    assert cr1.target is None
-    assert cr2.ctype == NORMAL
-    assert cr2.value == empty
-    assert cr2.target is None
+    assert cr1 == empty
+    assert cr2 == empty
     assert der.bindings['goblin'].deletable
     assert not der.bindings['kobold'].deletable
 
     cr3 = der.DeleteBinding('goblin')
-    assert cr3.value
+    assert cr3
     cr4 = der.DeleteBinding('kobold')
-    assert not cr4.value
+    assert not cr4
 
     assert not der.HasBinding('goblin')
     assert der.HasBinding('kobold')
@@ -50,54 +46,36 @@ def test_de_CreateImmutableBinding(realm):
     cr2 = der.CreateImmutableBinding('kobold', False)
 
     # check
-    assert cr1.ctype == NORMAL
-    assert cr1.value == empty
-    assert cr1.target is None
-    assert cr2.ctype == NORMAL
-    assert cr2.value == empty
-    assert cr2.target is None
+    assert cr1 == empty
+    assert cr2 == empty
     assert der.bindings['goblin'].strict
     assert not der.bindings['kobold'].strict
 
     cr3 = der.InitializeBinding('goblin', 13)
     cr4 = der.InitializeBinding('kobold', 'fart')
 
-    cr5 = der.SetMutableBinding('goblin', 14, False)
-    assert cr5.ctype == THROW
+    with pytest.raises(ESTypeError):
+        der.SetMutableBinding('goblin', 14, False)
 
-    cr6 = der.SetMutableBinding('kobold', 88, False)
-    assert cr6.ctype == NORMAL
+    der.SetMutableBinding('kobold', 88, False)
 
 def test_de_InitializedBinding():
     der = DeclarativeEnvironmentRecord()
 
-    cr1 = der.CreateMutableBinding('goblin', True)
-    cr2 = der.CreateMutableBinding('kobold', False)
-    cr3 = der.CreateImmutableBinding('elf', True)
-    cr4 = der.CreateImmutableBinding('gnome', False)
-
-    assert cr1.ctype == NORMAL
-    assert cr2.ctype == NORMAL
-    assert cr3.ctype == NORMAL
-    assert cr4.ctype == NORMAL
+    der.CreateMutableBinding('goblin', True)
+    der.CreateMutableBinding('kobold', False)
+    der.CreateImmutableBinding('elf', True)
+    der.CreateImmutableBinding('gnome', False)
 
     cr5 = der.InitializeBinding('goblin', 100)
     cr6 = der.InitializeBinding('kobold', 101)
     cr7 = der.InitializeBinding('elf', 103)
     cr8 = der.InitializeBinding('gnome', 104)
 
-    assert cr5.ctype == NORMAL
-    assert cr5.value == empty
-    assert cr5.target is None
-    assert cr6.ctype == NORMAL
-    assert cr6.value == empty
-    assert cr6.target is None
-    assert cr7.ctype == NORMAL
-    assert cr7.value == empty
-    assert cr7.target is None
-    assert cr8.ctype == NORMAL
-    assert cr8.value == empty
-    assert cr8.target is None
+    assert cr5 == empty
+    assert cr6 == empty
+    assert cr7 == empty
+    assert cr8 == empty
 
     assert der.bindings['goblin'].value == 100
     assert der.bindings['goblin'].initialized
@@ -116,80 +94,65 @@ def test_SetMutableBinding(realm):
 
     der = DeclarativeEnvironmentRecord()
 
-    cr1 = der.CreateMutableBinding('goblin', True)
-    cr2 = der.CreateMutableBinding('kobold', False)
-    cr3 = der.CreateImmutableBinding('elf', True)
-    cr4 = der.CreateImmutableBinding('gnome', False)
-
-    assert cr1.ctype == NORMAL
-    assert cr2.ctype == NORMAL
-    assert cr3.ctype == NORMAL
-    assert cr4.ctype == NORMAL
+    der.CreateMutableBinding('goblin', True)
+    der.CreateMutableBinding('kobold', False)
+    der.CreateImmutableBinding('elf', True)
+    der.CreateImmutableBinding('gnome', False)
 
     cr = der.SetMutableBinding('dwarf', 18, False)
-    assert cr.ctype == NORMAL
-    assert cr.value == empty
-    assert cr.target is None
+    assert cr == empty
     cr = der.GetBindingValue('dwarf', False)
-    assert cr.ctype == NORMAL and cr.value == 18
+    assert cr == 18
 
-    cr = der.SetMutableBinding('turtle', 99, True)
-    assert cr.ctype == THROW
+    with pytest.raises(ESReferenceError):
+        der.SetMutableBinding('turtle', 99, True)
 
-    cr = der.SetMutableBinding('goblin', 32122, False)
-    assert cr.ctype == THROW
+    with pytest.raises(ESReferenceError):
+        der.SetMutableBinding('goblin', 32122, False)
 
-    cr = der.InitializeBinding('goblin', 'beef tenderloin')
-    assert cr.ctype == NORMAL
-    cr = der.InitializeBinding('kobold', 'pasta')
-    assert cr.ctype == NORMAL
-    cr = der.InitializeBinding('elf', 'egg salad')
-    assert cr.ctype == NORMAL
-    cr = der.InitializeBinding('gnome', 'baked potato')
-    assert cr.ctype == NORMAL
+    der.InitializeBinding('goblin', 'beef tenderloin')
+    der.InitializeBinding('kobold', 'pasta')
+    der.InitializeBinding('elf', 'egg salad')
+    der.InitializeBinding('gnome', 'baked potato')
 
     cr = der.SetMutableBinding('goblin', 'volcano', False)
-    assert cr.ctype == NORMAL and cr.value == empty
+    assert cr == empty
     cr = der.GetBindingValue('goblin', False)
-    assert cr.ctype == NORMAL and cr.value == 'volcano'
-    cr = der.SetMutableBinding('elf', 'suntan', False)
-    assert cr.ctype == THROW
+    assert cr == 'volcano'
+    with pytest.raises(ESTypeError):
+        der.SetMutableBinding('elf', 'suntan', False)
     cr = der.GetBindingValue('elf', False)
-    assert cr.ctype == NORMAL and cr.value == 'egg salad'
+    assert cr == 'egg salad'
     cr = der.SetMutableBinding('gnome', 'beach', False)
-    assert cr.ctype == NORMAL and cr.value == empty
+    assert cr == empty
     cr = der.GetBindingValue('gnome', False)
-    assert cr.ctype == NORMAL and cr.value == 'baked potato'
-    cr = der.SetMutableBinding('gnome', 'forest', True)
-    assert cr.ctype == THROW
+    assert cr == 'baked potato'
+    with pytest.raises(ESTypeError):
+        der.SetMutableBinding('gnome', 'forest', True)
     cr = der.GetBindingValue('gnome', False)
-    assert cr.ctype == NORMAL and cr.value == 'baked potato'
+    assert cr == 'baked potato'
 
 def test_GetBindingValue(realm):
     der = DeclarativeEnvironmentRecord()
 
-    cr = der.CreateMutableBinding('goblin', False)
-    assert cr.ctype == NORMAL
+    der.CreateMutableBinding('goblin', False)
+    with pytest.raises(ESReferenceError):
+        der.GetBindingValue('goblin', False)
 
+    der.InitializeBinding('goblin', 'grenade')
     cr = der.GetBindingValue('goblin', False)
-    assert cr.ctype == THROW
-
-    cr = der.InitializeBinding('goblin', 'grenade')
-    assert cr.ctype == NORMAL
-
-    cr = der.GetBindingValue('goblin', False)
-    assert cr.ctype == NORMAL and cr.value == 'grenade' and cr.target is None
+    assert cr == 'grenade'
 
 def test_DeleteBinding():
     der = DeclarativeEnvironmentRecord()
 
-    cr1 = der.CreateMutableBinding('goblin', True)
-    cr2 = der.CreateMutableBinding('kobold', False)
+    der.CreateMutableBinding('goblin', True)
+    der.CreateMutableBinding('kobold', False)
 
     cr = der.DeleteBinding('goblin')
-    assert cr.ctype == NORMAL and cr.value
+    assert cr
     cr = der.DeleteBinding('kobold')
-    assert cr.ctype == NORMAL and not cr.value
+    assert not cr
 
 def test_remaining():
     der = DeclarativeEnvironmentRecord()
