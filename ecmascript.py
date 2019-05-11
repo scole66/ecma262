@@ -6591,7 +6591,7 @@ class ParseNode:
         self.children = [p[z] for z in range(len(p))]
     def __repr__(self):
         #return f'{self.name}[{",".join(repr(child) for child in self.children)}]'
-        children = ' '.join(ch.name if isinstance(ch, ParseNode) else ch.value for ch in self.children)
+        children = ' '.join(ch.name if isinstance(ch, ParseNode) else str(ch.value) for ch in self.children)
         terms = ' '.join(repr(trm.value) if trm.name == 'STRING' else str(trm.value) for trm in self.terminals())
         return f'ParseNode[{self.name} : ' + children + '] (' + terms + ')'
     def terminals(self):
@@ -9087,6 +9087,26 @@ class PN_Block_LCURLY_StatementList_RCURLY(PN_Block):
         if not ldn_set.isdisjoint(set(StatementList.VarDeclaredNames())):
             errs.append(CreateSyntaxError('Name clash between Lexically Declared Names and Var Declared Names'))
         return errs
+    def evaluate(self):
+        # 13.2.13 Runtime Semantics: Evaluation
+        # Block : { StatementList }
+        #   1. Let oldEnv be the running execution context's LexicalEnvironment.
+        #   2. Let blockEnv be NewDeclarativeEnvironment(oldEnv).
+        #   3. Perform BlockDeclarationInstantiation(StatementList, blockEnv).
+        #   4. Set the running execution context's LexicalEnvironment to blockEnv.
+        #   5. Let blockValue be the result of evaluating StatementList.
+        #   6. Set the running execution context's LexicalEnvironment to oldEnv.
+        #   7. Return blockValue.
+        # NOTE 1
+        # No matter how control leaves the Block the LexicalEnvironment is always restored to its former state.
+        oldEnv = surrounding_agent.running_ec.lexical_environment
+        blockEnv = NewDeclarativeEnvironment(oldEnv)
+        BlockDeclarationInstantiation(self.StatementList, blockEnv)
+        surrounding_agent.running_ec.lexical_environment = blockEnv
+        try:
+            return self.StatementList.evaluate()
+        finally:
+            surrounding_agent.running_ec.lexical_environment = oldEnv
 class PN_Block_LCURLY_RCURLY(PN_Block):
     def ContainsDuplicateLabels(self, labelSet):
         return False
@@ -9296,6 +9316,42 @@ class PN_StatementList_StatementList_StatementListItem(PN_StatementList):
         StatementList = self.children[0]
         StatementListItem = self.children[1]
         return StatementList.LexicallyScopedDeclarations() + StatementListItem.LexicallyScopedDeclarations()
+
+# 13.2.14 Runtime Semantics: BlockDeclarationInstantiation ( code, env )
+def BlockDeclarationInstantiation(code, env):
+    # BlockDeclarationInstantiation is performed as follows using arguments code and env. code is the Parse Node
+    # corresponding to the body of the block. env is the Lexical Environment in which bindings are to be created.
+    # NOTE
+    # When a Block or CaseBlock is evaluated a new declarative Environment Record is created and bindings for each
+    # block scoped variable, constant, function, or class declared in the block are instantiated in the Environment
+    # Record.
+    #
+    #   1. Let envRec be env's EnvironmentRecord.
+    #   2. Assert: envRec is a declarative Environment Record.
+    #   3. Let declarations be the LexicallyScopedDeclarations of code.
+    #   4. For each element d in declarations, do
+    #       a. For each element dn of the BoundNames of d, do
+    #           i. If IsConstantDeclaration of d is true, then
+    #               1. Perform ! envRec.CreateImmutableBinding(dn, true).
+    #           ii. Else,
+    #               1. Perform ! envRec.CreateMutableBinding(dn, false).
+    #       b. If d is a FunctionDeclaration, a GeneratorDeclaration, an AsyncFunctionDeclaration, or an AsyncGeneratorDeclaration, then
+    #           i. Let fn be the sole element of the BoundNames of d.
+    #           ii. Let fo be the result of performing InstantiateFunctionObject for d with argument env.
+    #           iii. Perform envRec.InitializeBinding(fn, fo).
+    envRec = env.environment_record
+    assert isinstance(envRec, DeclarativeEnvironmentRecord)
+    declarations = code.LexicallyScopedDeclarations()
+    for d in declarations:
+        for dn in d.BoundNames():
+            if d.IsConstantDeclaration():
+                envRec.CreateImmutableBinding(dn, True)
+            else:
+                envRec.CreateMutableBinding(dn, False)
+        if d.name in ['FunctionDeclaration', 'GeneratorDeclaration', 'AsyncFunctionDeclaration', 'AsyncGeneratorDeclaration']:
+            fn = d.BoundNames()[0]
+            fo = d.InstantiateFunctionObject(env)
+            envRec.InitializeBinding(fn, fo)
 ###############################################################################################################################################################################################################################################################################################################################################################
 #
 #  d888    .d8888b.       .d8888b.      8888888b.                    888                           888    d8b                                                       888     888    888                   888     888                  d8b          888      888               .d8888b.  888             888                                             888
