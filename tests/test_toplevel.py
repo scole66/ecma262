@@ -5,8 +5,8 @@ This one is for top-level tests. I.e.: Send some JS into the parser and see what
 import pytest
 import math
 
+# pylint: disable=unused-wildcard-import
 from ecmascript import *
-NORMAL = CompletionType.NORMAL
 
 @pytest.fixture
 def cleanup():

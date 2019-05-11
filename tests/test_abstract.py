@@ -1,11 +1,9 @@
 import pytest
 import math
 
+# pylint: disable=unused-wildcard-import
 import ecmascript # Need it this way for the mocker fixture
 from ecmascript import *
-
-NORMAL = CompletionType.NORMAL
-THROW = CompletionType.THROW
 
 @pytest.fixture
 def obj(realm):
@@ -767,7 +765,7 @@ def test_AbstractRelationalComparison_01(mocker):
     res = AbstractRelationalComparison(10, 20, True)
 
     # assert the order
-    ecmascript.ToPrimitive.assert_has_calls([call(10, 'number'), call(20, 'number')])
+    ecmascript.ToPrimitive.assert_has_calls([call(10, 'number'), call(20, 'number')])  # pylint: disable=no-member
     # and check the result, just because
     assert res == True
 
@@ -777,7 +775,7 @@ def test_AbstractRelationalComparison_02(mocker):
     res = AbstractRelationalComparison(10, 20, False)
 
     # assert the order
-    ecmascript.ToPrimitive.assert_has_calls([call(20, 'number'), call(10, 'number')])
+    ecmascript.ToPrimitive.assert_has_calls([call(20, 'number'), call(10, 'number')])  # pylint: disable=no-member
     assert res == True
 
 @pytest.mark.parametrize('left, right, expected', [
@@ -846,8 +844,8 @@ def test_AbstractEqualityComparsion_01(realm, mocker, left, right):
     # If Type(left) == Type(right) we're supposed to defer to StrictEqualityComparison
     mocker.patch('ecmascript.StrictEqualityComparison')
 
-    res = AbstractEqualityComparison(left, right)
-    ecmascript.StrictEqualityComparison.assert_called_once_with(left, right)
+    AbstractEqualityComparison(left, right)
+    ecmascript.StrictEqualityComparison.assert_called_once_with(left, right)  # pylint: disable=no-member
 
 @pytest.mark.parametrize('left, right, expected', [
     (JSNull.NULL, None, True), # If x is null and y is undefined, return true.
