@@ -129,6 +129,10 @@ def cleanup():
     ("'['+[65,99,]+']';", '[65,99]'),
     ("a=[1, 2, 3, 44, 55];for (it=a.values(), ir=it.next(), s=''; ! ir.done; ir = it.next()) { s += ir.value + '-'; };", '1-2-3-44-55-'),
     ("a=[1, 2, 3]; it = a.values(); ''+it;", '[object Array Iterator]'),
+    ("let colors = [ 'red', 'green', 'blue' ]; let [ firstColor, secondColor ] = colors; firstColor + '-' + secondColor;", 'red-green'),
+    ("let colors = [ 'red', 'green', 'blue' ]; let [ ,, thirdColor ] = colors; thirdColor;", 'blue'),
+    ("let colors = [ 'red', 'green', 'blue' ], firstColor = 'black', secondColor = 'purple'; [ firstColor, secondColor ] = colors; firstColor + '+' + secondColor;", 'red+green'),
+    ("let a=1, b=2; [a, b] = [b, a]; ''+a+' '+b;", '2 1'),
 ])
 def test_scripts_01(cleanup, script, result):
     rv = RunJobs(scripts=[script])
