@@ -11005,6 +11005,18 @@ class PN_IterationStatement_For_Expressions(PN_IterationStatement):
         #           for ( LexicalDeclaration Expression[opt] ; Expression[opt] ) Statement
         # 1. Return ContainsUndefinedContinueTarget of Statement with arguments iterationSet and « ».
         return self.Statement.ContainsUndefinedContinueTarget(iterationSet, [])
+    def VarDeclaredNames(self):
+        # 13.7.4.5 Static Semantics: VarDeclaredNames
+        # IterationStatement : for ( Expression ; Expression ; Expression ) Statement
+        # IterationStatement : for ( LexicalDeclaration Expression ; Expression ) Statement
+        #   1. Return the VarDeclaredNames of Statement.
+        return self.Statement.VarDeclaredNames()
+    def VarScopedDeclarations(self):
+        # 13.7.4.6 Static Semantics: VarScopedDeclarations
+        # IterationStatement : for ( Expression ; Expression ; Expression ) Statement
+        # IterationStatement : for ( LexicalDeclaration Expression ; Expression ) Statement
+        #   1. Return the VarScopedDeclarations of Statement.
+        return self.Statement.VarScopedDeclarations()
 class PN_IterationStatement_For_Expressions_only(PN_IterationStatement_For_Expressions):
     @property
     def Expression1(self):
@@ -11015,16 +11027,6 @@ class PN_IterationStatement_For_Expressions_only(PN_IterationStatement_For_Expre
     @property
     def Expression3(self):
         raise NotImplementedError('Abstract classes cannot be instantiated')
-    def VarDeclaredNames(self):
-        # 13.7.4.5 Static Semantics: VarDeclaredNames
-        #           IterationStatement : for ( Expression ; Expression ; Expression ) Statement
-        # 1. Return the VarDeclaredNames of Statement.
-        return self.Statement.VarDeclaredNames()
-    def VarScopedDeclarations(self):
-        # 13.7.4.6 Static Semantics: VarScopedDeclarations
-        #           IterationStatement : for ( Expression ; Expression ; Expression ) Statement
-        # 1. Return the VarScopedDeclarations of Statement.
-        return self.Statement.VarScopedDeclarations()
     def LabelledEvaluation(self, labelSet):
         # 13.7.4.7 Runtime Semantics: LabelledEvaluation
         #   With parameter labelSet.
@@ -11227,6 +11229,124 @@ class PN_IterationStatement_FOR_LPAREN_VAR_VariableDeclarationList_SEMICOLON_SEM
     @property
     def Statement(self):
         return self.children[7]
+class PN_IterationStatement_For_Lexical(PN_IterationStatement_For_Expressions):
+    @property
+    def Expression1(self):
+        raise NotImplementedError('Abstract classes cannot be instantiated')
+    @property
+    def Expression2(self):
+        raise NotImplementedError('Abstract classes cannot be instantiated')
+    @property
+    def LexicalDeclaration(self):
+        raise NotImplementedError('Abstract classes cannot be instantiated')
+    def EarlyErrors(self):
+        # 13.7.4.1 Static Semantics: Early Errors
+        # IterationStatement : for ( LexicalDeclaration Expression ; Expression ) Statement
+        # * It is a Syntax Error if any element of the BoundNames of LexicalDeclaration also occurs in the
+        #   VarDeclaredNames of Statement.
+        lex_set = set(self.LexicalDeclaration.BoundNames())
+        var_set = set(self.Statement.VarDeclaredNames())
+        if not lex_set.isdisjoint(var_set):
+            dups = lex_set.intersection(var_set)
+            return [CreateSyntaxError(f'Identifier \'{dups.pop()}\' has already been declared')]
+        return []
+    def LabelledEvaluation(self, labelSet):
+        # 13.7.4.7 Runtime Semantics: LabelledEvaluation
+        #   With parameter labelSet.
+        # IterationStatement : for ( LexicalDeclaration Expression ; Expression ) Statement
+        #   1. Let oldEnv be the running execution context's LexicalEnvironment.
+        #   2. Let loopEnv be NewDeclarativeEnvironment(oldEnv).
+        #   3. Let loopEnvRec be loopEnv's EnvironmentRecord.
+        #   4. Let isConst be the result of performing IsConstantDeclaration of LexicalDeclaration.
+        #   5. Let boundNames be the BoundNames of LexicalDeclaration.
+        #   6. For each element dn of boundNames, do
+        #       a. If isConst is true, then
+        #           i. Perform ! loopEnvRec.CreateImmutableBinding(dn, true).
+        #       b. Else,
+        #           i. Perform ! loopEnvRec.CreateMutableBinding(dn, false).
+        #   7. Set the running execution context's LexicalEnvironment to loopEnv.
+        #   8. Let forDcl be the result of evaluating LexicalDeclaration.
+        #   9. If forDcl is an abrupt completion, then
+        #       a. Set the running execution context's LexicalEnvironment to oldEnv.
+        #       b. Return Completion(forDcl).
+        #   10. If isConst is false, let perIterationLets be boundNames; otherwise let perIterationLets be « ».
+        #   11. Let bodyResult be ForBodyEvaluation(the first Expression, the second Expression, Statement, perIterationLets, labelSet).
+        #   12. Set the running execution context's LexicalEnvironment to oldEnv.
+        #   13. Return Completion(bodyResult).
+        oldEnv = surrounding_agent.running_ec.lexical_environment
+        loopEnv = NewDeclarativeEnvironment(oldEnv)
+        loopEnvRec = loopEnv.environment_record
+        isConst = self.LexicalDeclaration.IsConstantDeclaration()
+        boundNames = self.LexicalDeclaration.BoundNames()
+        for dn in boundNames:
+            if isConst:
+                loopEnvRec.CreateImmutableBinding(dn, True)
+            else:
+                loopEnvRec.CreateMutableBinding(dn, False)
+        surrounding_agent.running_ec.lexical_environment = loopEnv
+        try:
+            self.LexicalDeclaration.evaluate()
+            if not isConst:
+                perIterationLets = boundNames
+            else:
+                perIterationLets = []
+            return ForBodyEvaluation(self.Expression1, self.Expression2, self.Statement, perIterationLets, labelSet)
+        finally:
+            surrounding_agent.running_ec.lexical_environment = oldEnv
+
+class PN_IterationStatement_FOR_LPAREN_LexicalDeclaration_Expression_SEMICOLON_Expression_RPAREN_Statement(PN_IterationStatement_For_Lexical):
+    @property
+    def LexicalDeclaration(self):
+        return self.children[2]
+    @property
+    def Expression1(self):
+        return self.children[3]
+    @property
+    def Expression2(self):
+        return self.children[5]
+    @property
+    def Statement(self):
+        return self.children[7]
+class PN_IterationStatement_FOR_LPAREN_LexicalDeclaration_SEMICOLON_Expression_RPAREN_Statement(PN_IterationStatement_For_Lexical):
+    @property
+    def LexicalDeclaration(self):
+        return self.children[2]
+    @property
+    def Expression1(self):
+        return None
+    @property
+    def Expression2(self):
+        return self.children[4]
+    @property
+    def Statement(self):
+        return self.children[6]
+class PN_IterationStatement_FOR_LPAREN_LexicalDeclaration_Expression_SEMICOLON_RPAREN_Statement(PN_IterationStatement_For_Lexical):
+    @property
+    def LexicalDeclaration(self):
+        return self.children[2]
+    @property
+    def Expression1(self):
+        return self.children[3]
+    @property
+    def Expression2(self):
+        return None
+    @property
+    def Statement(self):
+        return self.children[6]
+class PN_IterationStatement_FOR_LPAREN_LexicalDeclaration_SEMICOLON_RPAREN_Statement(PN_IterationStatement_For_Lexical):
+    @property
+    def LexicalDeclaration(self):
+        return self.children[2]
+    @property
+    def Expression1(self):
+        return None
+    @property
+    def Expression2(self):
+        return None
+    @property
+    def Statement(self):
+        return self.children[5]
+
 
 # 13.7.4.8 Runtime Semantics: ForBodyEvaluation ( test, increment, stmt, perIterationBindings, labelSet )
 def ForBodyEvaluation(test, increment, stmt, perIterationBindings, labelSet):
