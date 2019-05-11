@@ -2383,6 +2383,7 @@ def Invoke(v, p, arguments_list=[]):
     # 4. Return ? Call(func, V, argumentsList).
     return Call(func, v, arguments_list)
 
+# ------------------------------------ 𝟕.𝟑.𝟏𝟗 𝑶𝒓𝒅𝒊𝒏𝒂𝒓𝒚𝑯𝒂𝒔𝑰𝒏𝒔𝒕𝒂𝒏𝒄𝒆 ( 𝑪, 𝑶 ) ------------------------------------
 # 7.3.19 OrdinaryHasInstance ( C, O )
 def OrdinaryHasInstance(C, O):
     # The abstract operation OrdinaryHasInstance implements the default algorithm for determining if an object O inherits from
@@ -2461,6 +2462,7 @@ def EnumerableOwnPropertyNames(O, kind):
     # spec provides. We're good, because the true ordering is already done in OwnPropertyKeys.
     return properties
 
+# ------------------------------------ 𝟕.𝟑.𝟐𝟐 𝑮𝒆𝒕𝑭𝒖𝒏𝒄𝒕𝒊𝒐𝒏𝑹𝒆𝒂𝒍𝒎 ( 𝒐𝒃𝒋 ) ------------------------------------
 # 7.3.22 GetFunctionRealm ( obj )
 def GetFunctionRealm(obj):
     # The abstract operation GetFunctionRealm with argument obj performs the following steps:
@@ -2491,6 +2493,47 @@ def GetFunctionRealm(obj):
     # NOTE
     # Step 5 will only be reached if obj is a non-standard function exotic object that does not have a [[Realm]]
     # internal slot.
+
+# ------------------------------------ 𝟕.𝟑.𝟐𝟑 𝑪𝒐𝒑𝒚𝑫𝒂𝒕𝒂𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒊𝒆𝒔 ( 𝒕𝒂𝒓𝒈𝒆𝒕, 𝒔𝒐𝒖𝒓𝒄𝒆, 𝒆𝒙𝒄𝒍𝒖𝒅𝒆𝒅𝑰𝒕𝒆𝒎𝒔 ) ------------------------------------
+# 7.3.23 CopyDataProperties ( target, source, excludedItems )
+def CopyDataProperties(target, source, excludedItems):
+    # When the abstract operation CopyDataProperties is called with arguments target, source, and excludedItems, the
+    # following steps are taken:
+    #
+    #   1. Assert: Type(target) is Object.
+    #   2. Assert: excludedItems is a List of property keys.
+    #   3. If source is undefined or null, return target.
+    #   4. Let from be ! ToObject(source).
+    #   5. Let keys be ? from.[[OwnPropertyKeys]]().
+    #   6. For each element nextKey of keys in List order, do
+    #       a. Let excluded be false.
+    #       b. For each element e of excludedItems in List order, do
+    #           i. If SameValue(e, nextKey) is true, then
+    #               1. Set excluded to true.
+    #       c. If excluded is false, then
+    #           i. Let desc be ? from.[[GetOwnProperty]](nextKey).
+    #           ii. If desc is not undefined and desc.[[Enumerable]] is true, then
+    #               1. Let propValue be ? Get(from, nextKey).
+    #               2. Perform ! CreateDataProperty(target, nextKey, propValue).
+    #   7. Return target.
+    #
+    # NOTE The target passed in here is always a newly created object which is not directly accessible in case of
+    # an error being thrown.
+    #
+    assert isObject(target)
+    assert all(IsPropertyKey(key) for key in excludedItems)
+    if source is None or isNull(source):
+        return target
+    from_obj = ToObject(source)
+    keys = from_obj.OwnPropertyKeys()
+    for nextKey in keys:
+        excluded = any(SameValue(e, nextKey) for e in excludedItems)
+        if not excluded:
+            desc = from_obj.GetOwnProperty(nextKey)
+            if desc is not None and desc.enumerable:
+                propValue = Get(from_obj, nextKey)
+                CreateDataProperty(target, nextKey, propValue)
+    return target
 
 ###############################################################################################################################################
 #
