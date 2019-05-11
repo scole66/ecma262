@@ -8,6 +8,10 @@ from ecmascript import *
 def obj(realm):
     return ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
 
+def test_PDRepr_01(realm):
+    z = PropertyDescriptor(value=33, enumerable=True)
+    assert repr(z) == 'Descriptor(value=33, enumerable=True)'
+
 @pytest.mark.parametrize('get,set,value,writable,expected', [
     (False, False, False, False, False),
     (False, False, False, True, False),
