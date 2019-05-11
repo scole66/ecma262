@@ -109,7 +109,9 @@ def cleanup():
     ("var mystr=''; for (var x=0, y=0; x<15; x++,y--) {if (x%2) {mystr += x;} else {mystr += y;}}; mystr;", '01-23-45-67-89-1011-1213-14'),
     ('String.fromCharCode(65, 66, 67);', 'ABC'),
     ("for (i=0, m=''; i<23; i++){ if (i%2 == 0) { continue; }; m += i + '-'; };", '1-3-5-7-9-11-13-15-17-19-21-'),
+    ("m=''; for (let i=0; i<10; i++) { let i=2; m += i; };", "2222222222"),
     ('{let a=3;{let a=6;};};', None),
+    ("idx=67; m=''; for (let idx=0; idx<10; idx++) { m += idx; }; m+idx;", '012345678967'),
 ])
 def test_scripts_01(cleanup, script, result):
     rv = RunJobs(scripts=[script])
