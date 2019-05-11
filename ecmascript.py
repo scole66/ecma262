@@ -18,6 +18,7 @@ surrounding_agent = None
 @unique
 class Empty(Enum):
     EMPTY = auto()
+EMPTY = Empty.EMPTY
 
 @unique
 class CompletionType(Enum):
@@ -6723,6 +6724,8 @@ class ParseNode:
         return self.defer_target().ArgumentListEvaluation()
     def IsConstantDeclaration(self):
         return self.defer_target().IsConstantDeclaration()
+    def PropertyDefinitionEvaluation(self, object, enumerable):
+        return self.defer_target().PropertyDefinitionEvaluation(object, enumerable)
 
     def evaluate(self):
         # Subclasses need to override this, or we'll throw an AttributeError when we hit a terminal.
@@ -7017,6 +7020,20 @@ class PN_PrimaryExpression_Literal(PN_PrimaryExpression):
         return False
     def IsValidSimpleAssignmentTarget(self):
         return False
+class PN_PrimaryExpression_ArrayLiteral(PN_PrimaryExpression):
+    def IsFunctionDefinition(self):
+        return False
+    def IsIdentifierRef(self):
+        return False
+    def IsValidSimpleAssignmentTarget(self):
+        return False
+class PN_PrimaryExpression_ObjectLiteral(PN_PrimaryExpression):
+    def IsFunctionDefinition(self):
+        return False
+    def IsIdentifierRef(self):
+        return False
+    def IsValidSimpleAssignmentTarget(self):
+        return False
 class PN_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(PN_PrimaryExpression):
     # 12.2.10 The Grouping Operator
     def __init__(self, ctx, p):
@@ -7141,6 +7158,200 @@ class PN_Elision_Elision_COMMA(PN_Elision):
         return 1 + self.Elision.ElisionWidth()
 
 # ------------------------------------ 𝟏𝟐.𝟐.𝟔 𝑶𝒃𝒋𝒆𝒄𝒕 𝑰𝒏𝒊𝒕𝒊𝒂𝒍𝒊𝒛𝒆𝒓 ------------------------------------
+# NOTE 1
+# An object initializer is an expression describing the initialization of an Object, written in a form resembling a
+# literal. It is a list of zero or more pairs of property keys and associated values, enclosed in curly brackets. The
+# values need not be literals; they are evaluated each time the object initializer is evaluated.
+# ------------------------------------ 𝑶𝒃𝒋𝒆𝒄𝒕𝑳𝒊𝒕𝒆𝒓𝒂𝒍 ------------------------------------
+class PN_ObjectLiteral(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('ObjectLiteral', p)
+class PN_ObjectLiteral_LCURLY_RCURLY(PN_ObjectLiteral):
+    def evaluate(self):
+        # 12.2.6.7 Runtime Semantics: Evaluation
+        # ObjectLiteral : { }
+        #   1. Return ObjectCreate(%ObjectPrototype%).
+        return ObjectCreate(surrounding_agent.running_ec.realm.intrinsics['%ObjectPrototype%'])
+class PN_ObjectLiteral_LCURLY_PropertyDefinitionList_RCURLY(PN_ObjectLiteral):
+    @property
+    def PropertyDefinitionList(self):
+        return self.children[1]
+    def evaluate(self):
+        # 12.2.6.7 Runtime Semantics: Evaluation
+        # ObjectLiteral : { PropertyDefinitionList }
+        # ObjectLiteral : { PropertyDefinitionList , }
+        #   1. Let obj be ObjectCreate(%ObjectPrototype%).
+        #   2. Perform ? PropertyDefinitionEvaluation of PropertyDefinitionList with arguments obj and true.
+        #   3. Return obj.
+        obj = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics['%ObjectPrototype%'])
+        self.PropertyDefinitionList.PropertyDefinitionEvaluation(obj, True)
+        return obj
+class PN_ObjectLiteral_LCURLY_PropertyDefinitionList_COMMA_RCURLY(PN_ObjectLiteral_LCURLY_PropertyDefinitionList_RCURLY):
+    pass
+# ------------------------------------ 𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚𝑫𝒆𝒇𝒊𝒏𝒊𝒕𝒊𝒐𝒏𝑳𝒊𝒔𝒕 ------------------------------------
+class PN_PropertyDefinitionList(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('PropertyDefinitionList', p)
+class PN_PropertyDefinitionList_PropertyDefinition(PN_PropertyDefinitionList):
+    @property
+    def PropertyDefinition(self):
+        return self.children[0]
+    def PropertyNameList(self):
+        # 12.2.6.6 Static Semantics: PropertyNameList
+        # PropertyDefinitionList : PropertyDefinition
+        #   1. If PropName of PropertyDefinition is empty, return a new empty List.
+        #   2. Return a new List containing PropName of PropertyDefinition.
+        pn = self.PropertyDefinition.PropName()
+        return [pn] if pn != EMPTY else []
+class PN_PropertyDefinitionList_PropertyDefinitionList_COMMA_PropertyDefinition(PN_PropertyDefinitionList):
+    @property
+    def PropertyDefinitionList(self):
+        return self.children[0]
+    @property
+    def PropertyDefinition(self):
+        return self.children[2]
+    def PropertyNameList(self):
+        # 12.2.6.6 Static Semantics: PropertyNameList
+        # PropertyDefinitionList : PropertyDefinitionList , PropertyDefinition
+        #   1. Let list be PropertyNameList of PropertyDefinitionList.
+        #   2. If PropName of PropertyDefinition is empty, return list.
+        #   3. Append PropName of PropertyDefinition to the end of list.
+        #   4. Return list.
+        lst = self.PropertyDefinitionList.PropertyNameList()
+        pn = self.PropertyDefinition.PropName()
+        if pn != EMPTY:
+            lst.append(pn)
+        return lst
+    def PropertyDefinitionEvaluation(self, object, enumerable):
+        # 12.2.6.8 Runtime Semantics: PropertyDefinitionEvaluation
+        #   With parameters object and enumerable.
+        # PropertyDefinitionList : PropertyDefinitionList , PropertyDefinition
+        #   1. Perform ? PropertyDefinitionEvaluation of PropertyDefinitionList with arguments object and enumerable.
+        #   2. Return the result of performing PropertyDefinitionEvaluation of PropertyDefinition with arguments object
+        #      and enumerable.
+        self.PropertyDefinitionList.PropertyDefinitionEvaluation(object, enumerable)
+        return self.PropertyDefinition.PropertyDefinitionEvaluation(object, enumerable)
+# ------------------------------------ 𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚𝑫𝒆𝒇𝒊𝒏𝒊𝒕𝒊𝒐𝒏 ------------------------------------
+class PN_PropertyDefinition(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('PropertyDefinition', p)
+class PN_PropertyDefinition_IdentifierReference(PN_PropertyDefinition):
+    @property
+    def IdentifierReference(self):
+        return self.children[0]
+    def PropName(self):
+        # 12.2.6.5 Static Semantics: PropName
+        # PropertyDefinition : IdentifierReference
+        #   1. Return StringValue of IdentifierReference.
+        return self.IdentifierReference.StringValue()
+    def PropertyDefinitionEvaluation(self, object, enumerable):
+        # 12.2.6.8 Runtime Semantics: PropertyDefinitionEvaluation
+        #   With parameters object and enumerable.
+        # PropertyDefinition : IdentifierReference
+        #   1. Let propName be StringValue of IdentifierReference.
+        #   2. Let exprValue be the result of evaluating IdentifierReference.
+        #   3. Let propValue be ? GetValue(exprValue).
+        #   4. Assert: enumerable is true.
+        #   5. Return CreateDataPropertyOrThrow(object, propName, propValue).
+        propName = self.IdentifierReference.StringValue()
+        exprValue = self.IdentifierReference.evaluate()
+        propValue = GetValue(exprValue)
+        assert enumerable
+        return CreateDataPropertyOrThrow(object, propName, propValue)
+class PN_PropertyDefinition_CoverInitializedName(PN_PropertyDefinition):
+    @property
+    def CoverInitializedName(self):
+        return self.children[0]
+    def EarlyErrors(self):
+        # 12.2.6.1 Static Semantics: Early Errors
+        #
+        # In addition to describing an actual object initializer the ObjectLiteral productions are also used as a cover
+        # grammar for ObjectAssignmentPattern and may be recognized as part of a
+        # CoverParenthesizedExpressionAndArrowParameterList. When ObjectLiteral appears in a context where
+        # ObjectAssignmentPattern is required the following Early Error rules are not applied. In addition, they are
+        # not applied when initially parsing a CoverParenthesizedExpressionAndArrowParameterList or
+        # CoverCallExpressionAndAsyncArrowHead.
+        #
+        # PropertyDefinition : CoverInitializedName
+        # * Always throw a Syntax Error if code matches this production.
+        #
+        # NOTE
+        # This production exists so that ObjectLiteral can serve as a cover grammar for ObjectAssignmentPattern. It
+        # cannot occur in an actual object initializer.
+        return [CreateSyntaxError('Production not allowed in object initializers')]
+class PN_PropertyDefinition_PropertyName_COLON_AssignmentExpression(PN_PropertyDefinition):
+    @property
+    def PropertyName(self):
+        return self.children[0]
+    @property
+    def AssignmentExpression(self):
+        return self.children[2]
+    def PropName(self):
+        # 12.2.6.5 Static Semantics: PropName
+        # PropertyDefinition : PropertyName : AssignmentExpression
+        #   1. Return PropName of PropertyName.
+        return self.PropertyName.PropName()
+    def PropertyDefinitionEvaluation(self, object, enumerable):
+        # 12.2.6.8 Runtime Semantics: PropertyDefinitionEvaluation
+        #   With parameters object and enumerable.
+        # PropertyDefinition : PropertyName : AssignmentExpression
+        #   1. Let propKey be the result of evaluating PropertyName.
+        #   2. ReturnIfAbrupt(propKey).
+        #   3. Let exprValueRef be the result of evaluating AssignmentExpression.
+        #   4. Let propValue be ? GetValue(exprValueRef).
+        #   5. If IsAnonymousFunctionDefinition(AssignmentExpression) is true, then
+        #       a. Let hasNameProperty be ? HasOwnProperty(propValue, "name").
+        #       b. If hasNameProperty is false, perform SetFunctionName(propValue, propKey).
+        #   6. Assert: enumerable is true.
+        #   7. Return CreateDataPropertyOrThrow(object, propKey, propValue).
+        propKey = self.PropertyName.evaluate()
+        exprValueRef = self.AssignmentExpression.evaluate()
+        propValue = GetValue(exprValueRef)
+        if IsAnonymousFunctionDefinition(self.AssignmentExpression):
+            if not HasOwnProperty(propValue, 'name'):
+                SetFunctionName(propValue, propKey)
+        assert enumerable
+        return CreateDataPropertyOrThrow(object, propKey, propValue)
+class PN_PropertyDefinition_MethodDefinition(PN_PropertyDefinition):
+    @property
+    def MethodDefinition(self):
+        return self.children[0]
+    def EarlyErrors(self):
+        # 12.2.6.1 Static Semantics: Early Errors
+        # PropertyDefinition : MethodDefinition
+        # * It is a Syntax Error if HasDirectSuper of MethodDefinition is true.
+        if self.MethodDefinition.HasDirectSuper():
+            return [CreateSyntaxError('super not allowed in object literal creation')]
+    def Contains(self, symbol):
+        # 12.2.6.3 Static Semantics: Contains
+        #   With parameter symbol.
+        # PropertyDefinition : MethodDefinition
+        #   1. If symbol is MethodDefinition, return true.
+        #   2. Return the result of ComputedPropertyContains for MethodDefinition with argument symbol.
+        return symbol == 'MethodDefinition' or self.MethodDefinition.ComputedPropertyContains(symbol)
+        # NOTE
+        # Static semantic rules that depend upon substructure generally do not look into function definitions.
+class PN_PropertyDefinition_DOTDOTDOT_AssignmentExpression(PN_PropertyDefinition):
+    @property
+    def AssignmentExpression(self):
+        return self.children[1]
+    def PropName(self):
+        # 12.2.6.5 Static Semantics: PropName
+        # PropertyDefinition : ... AssignmentExpression
+        #   1. Return empty.
+        return EMPTY
+    def PropertyDefinitionEvaluation(self, object, enumerable):
+        # 12.2.6.8 Runtime Semantics: PropertyDefinitionEvaluation
+        #   With parameters object and enumerable.
+        # PropertyDefinition : ... AssignmentExpression
+        #   1. Let exprValue be the result of evaluating AssignmentExpression.
+        #   2. Let fromValue be ? GetValue(exprValue).
+        #   3. Let excludedNames be a new empty List.
+        #   4. Return ? CopyDataProperties(object, fromValue, excludedNames).
+        exprValue = self.AssignmentExpression.evaluate()
+        fromValue = GetValue(exprValue)
+        return CopyDataProperties(object, fromValue, [])
+# ------------------------------------ 𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚𝑵𝒂𝒎𝒆 ------------------------------------
 class PN_PropertyName(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('PropertyName', p)
@@ -7174,7 +7385,7 @@ class PN_PropertyName_ComputedPropertyName(PN_PropertyName):
         #           PropertyName : ComputedPropertyName
         # 1. Return true.
         return True
-
+# ------------------------------------ 𝑳𝒊𝒕𝒆𝒓𝒂𝒍𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚𝑵𝒂𝒎𝒆 ------------------------------------
 class PN_LiteralPropertyName(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('LiteralProperty', p)
@@ -7190,7 +7401,7 @@ class PN_LiteralPropertyName_IdentifierName(PN_LiteralPropertyName):
         # 2. If symbol is an Identifier and StringValue of symbol is the same value as the StringValue of
         #    IdentifierName, return true.
         # 3. Return false.
-        return symbol.name == 'Identifier' and symbol.StringValue() == self.IdentifierName.StringValue()
+        return symbol not in ReservedWords and symbol == self.IdentifierName.StringValue()
     def PropName(self):
         # 12.2.6.5 Static Semantics: PropName
         #           LiteralPropertyName : IdentifierName
@@ -7221,7 +7432,7 @@ class PN_LiteralPropertyName_NumericLiteral(PN_LiteralPropertyName):
         return ToString(self.NumericLiteral.value)
     def evaluate(self):
         return self.PropName()
-
+# ------------------------------------ 𝑪𝒐𝒎𝒑𝒖𝒕𝒆𝒅𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚𝑵𝒂𝒎𝒆 ------------------------------------
 class PN_ComputedPropertyName(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('ComputedPropertyName', p)
@@ -7243,7 +7454,18 @@ class PN_ComputedPropertyName_LBRACKET_AssignmentExpression_RBRACKET(PN_Computed
         exprValue = self.AssignmentExpression.evaluate()
         propName = GetValue(exprValue)
         return ToPropertyKey(propName)
-
+# ------------------------------------ 𝑪𝒐𝒗𝒆𝒓𝑰𝒏𝒊𝒕𝒊𝒂𝒍𝒊𝒛𝒆𝒅𝑵𝒂𝒎𝒆 ------------------------------------
+class PN_CoverInitializedName(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('CoverInitializedName', p)
+class PN_CoverInitializedName_IdentifierReference_Initialzier(PN_CoverInitializedName):
+    @property
+    def IdentiferReference(self):
+        return self.children[0]
+    @property
+    def Initializer(self):
+        return self.children[1]
+# ------------------------------------ 𝑰𝒏𝒊𝒕𝒊𝒂𝒍𝒊𝒛𝒆𝒓 ------------------------------------
 class PN_Initializer(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('Initializer', p)
@@ -11782,6 +12004,9 @@ class Ecma262Parser(Parser):
     @_('MemberExpression Arguments')  # pylint: disable=undefined-variable
     def CoverCallExpressionAndAsyncArrowHead(self, p):
         return PN_CoverCallExpressionAndAsyncArrowHead_MemberExpression_Arguments(self.context, p)
+    @_('MemberExpression_Restricted Arguments')  # pylint: disable=undefined-variable
+    def CoverCallExpressionAndAsyncArrowHead_Restricted(self, p):
+        return PN_CoverCallExpressionAndAsyncArrowHead_MemberExpression_Arguments(self.context, p)
     ########################################################################################################################
 
     ########################################################################################################################
@@ -12608,9 +12833,25 @@ class Ecma262Parser(Parser):
     ########################################################################################################################
 
     ########################################################################################################################
-    @_('Expression_In SEMICOLON')  # pylint: disable=undefined-variable
+    # 13.5 Expression Statement
+    #
+    # Syntax
+    #
+    # ExpressionStatement[Yield, Await] :
+    #       [lookahead ∉ { {, function, async [no LineTerminator here] function, class, let [ }] Expression[+In, ?Yield, ?Await] ;
+    #
+    # NOTE
+    # An ExpressionStatement cannot start with a U+007B (LEFT CURLY BRACKET) because that might make it ambiguous with
+    # a Block. An ExpressionStatement cannot start with the function or class keywords because that would make it
+    # ambiguous with a FunctionDeclaration, a GeneratorDeclaration, or a ClassDeclaration. An ExpressionStatement
+    # cannot start with async function because that would make it ambiguous with an AsyncFunctionDeclaration or a
+    # AsyncGeneratorDeclaration. An ExpressionStatement cannot start with the two token sequence let [ because that
+    # would make it ambiguous with a let LexicalDeclaration whose first LexicalBinding was an ArrayBindingPattern.
+    #
+    @_('Expression_In_Restricted SEMICOLON')  # pylint: disable=undefined-variable
     def ExpressionStatement(self, p):
         return PN_ExpressionStatement_Expression(self.context, p)
+    ########################################################################################################################
     @_('AssignmentExpression')  # pylint: disable=undefined-variable
     def Expression(self, p):
         return PN_Expression_AssignmentExpression(self.context, p)
@@ -12622,6 +12863,12 @@ class Ecma262Parser(Parser):
         return PN_Expression_AssignmentExpression(self.context, p)
     @_('Expression_In COMMA AssignmentExpression_In')  # pylint: disable=undefined-variable
     def Expression_In(self, p):
+        return PN_Expression_Expression_COMMA_AssignmentExpression(self.context, p)
+    @_('AssignmentExpression_In_Restricted')  # pylint: disable=undefined-variable
+    def Expression_In_Restricted(self, p):
+        return PN_Expression_AssignmentExpression(self.context, p)
+    @_('Expression_In_Restricted COMMA AssignmentExpression_In')  # pylint: disable=undefined-variable
+    def Expression_In_Restricted(self, p):
         return PN_Expression_Expression_COMMA_AssignmentExpression(self.context, p)
     @_('ConditionalExpression')  # pylint: disable=undefined-variable
     def AssignmentExpression(self, p):
@@ -12641,6 +12888,15 @@ class Ecma262Parser(Parser):
     @_('LeftHandSideExpression AssignmentOperator AssignmentExpression_In')  # pylint: disable=undefined-variable
     def AssignmentExpression_In(self, p):
         return PN_AssignmentExpression_LeftHandSideExpression_AssignmentOperator_AssignmentExpression(self.context, p)
+    @_('ConditionalExpression_In_Restricted')  # pylint: disable=undefined-variable
+    def AssignmentExpression_In_Restricted(self, p):
+        return PN_AssignmentExpression_ConditionalExpression(self.context, p)
+    @_('LeftHandSideExpression_Restricted EQUALS AssignmentExpression_In')  # pylint: disable=undefined-variable
+    def AssignmentExpression_In_Restricted(self, p):
+        return PN_AssignmentExpression_LeftHandSideExpression_EQUALS_AssignmentExpression(self.context, p)
+    @_('LeftHandSideExpression_Restricted AssignmentOperator AssignmentExpression_In')  # pylint: disable=undefined-variable
+    def AssignmentExpression_In_Restricted(self, p):
+        return PN_AssignmentExpression_LeftHandSideExpression_AssignmentOperator_AssignmentExpression(self.context, p)
     @_('STAREQ', 'DIVEQ', 'PERCENTEQ', 'PLUSEQ', 'MINUSEQ', 'LTLE', 'GTGE', 'GTGTGE', 'AMPEQ', 'XOREQ', 'PIPEEQ', 'STARSTAREQ')  # pylint: disable=undefined-variable
     def AssignmentOperator(self, p):
         return PN_AssignmentOperator(self.context, p)
@@ -12655,6 +12911,12 @@ class Ecma262Parser(Parser):
         return PN_ConditionalExpression_LogicalORExpression(self.context, p)
     @_('LogicalORExpression_In QUESTION AssignmentExpression_In COLON AssignmentExpression_In')  # pylint: disable=undefined-variable
     def ConditionalExpression_In(self, p):
+        return PN_ConditionalExpression_QUESTION_AssignmentExpression_COLON_AssignmentExpression(self.context, p)
+    @_('LogicalORExpression_In_Restricted')  # pylint: disable=undefined-variable
+    def ConditionalExpression_In_Restricted(self, p):
+        return PN_ConditionalExpression_LogicalORExpression(self.context, p)
+    @_('LogicalORExpression_In_Restricted QUESTION AssignmentExpression_In COLON AssignmentExpression_In')  # pylint: disable=undefined-variable
+    def ConditionalExpression_In_Restricted(self, p):
         return PN_ConditionalExpression_QUESTION_AssignmentExpression_COLON_AssignmentExpression(self.context, p)
 
     ########################################################################################################################
@@ -12675,6 +12937,12 @@ class Ecma262Parser(Parser):
     @_('LogicalANDExpression_In AMPAMP BitwiseORExpression_In')  # pylint: disable=undefined-variable
     def LogicalANDExpression_In(self, p):
         return PN_LogicalANDExpression_LogicalANDExpression_AMPAMP_BitwiseORExpression(self.context, p)
+    @_('BitwiseORExpression_In_Restricted')  # pylint: disable=undefined-variable
+    def LogicalANDExpression_In_Restricted(self, p):
+        return PN_LogicalANDExpression_BitwiseORExpression(self.context, p)
+    @_('LogicalANDExpression_In_Restricted AMPAMP BitwiseORExpression_In')  # pylint: disable=undefined-variable
+    def LogicalANDExpression_In_Restricted(self, p):
+        return PN_LogicalANDExpression_LogicalANDExpression_AMPAMP_BitwiseORExpression(self.context, p)
     #
     # LogicalORExpression[In, Yield, Await]:
     #                 LogicalANDExpression[?In, ?Yield, ?Await]
@@ -12690,6 +12958,12 @@ class Ecma262Parser(Parser):
         return PN_LogicalORExpression_LogicalANDExpression(self.context, p)
     @_('LogicalORExpression_In PIPEPIPE LogicalANDExpression_In')  # pylint: disable=undefined-variable
     def LogicalORExpression_In(self, p):
+        return PN_LogicalORExpression_LogicalORExpression_PIPEPIPE_LogicalANDExpression(self.context, p)
+    @_('LogicalANDExpression_In_Restricted')  # pylint: disable=undefined-variable
+    def LogicalORExpression_In_Restricted(self, p):
+        return PN_LogicalORExpression_LogicalANDExpression(self.context, p)
+    @_('LogicalORExpression_In_Restricted PIPEPIPE LogicalANDExpression_In')  # pylint: disable=undefined-variable
+    def LogicalORExpression_In_Restricted(self, p):
         return PN_LogicalORExpression_LogicalORExpression_PIPEPIPE_LogicalANDExpression(self.context, p)
     # NOTE
     # The value produced by a && or || operator is not necessarily of type Boolean. The value produced will always be the value
@@ -12714,6 +12988,12 @@ class Ecma262Parser(Parser):
     @_('BitwiseANDExpression_In AMP EqualityExpression_In')  # pylint: disable=undefined-variable
     def BitwiseANDExpression_In(self, p):
         return PN_BitwiseANDExpression_BitwiseANDExpression_AMP_EqualityExpression(self.context, p)
+    @_('EqualityExpression_In_Restricted')  # pylint: disable=undefined-variable
+    def BitwiseANDExpression_In_Restricted(self, p):
+        return PN_BitwiseANDExpression_EqualityExpression(self.context, p)
+    @_('BitwiseANDExpression_In_Restricted AMP EqualityExpression_In')  # pylint: disable=undefined-variable
+    def BitwiseANDExpression_In_Restricted(self, p):
+        return PN_BitwiseANDExpression_BitwiseANDExpression_AMP_EqualityExpression(self.context, p)
     #
     # BitwiseXORExpression[In, Yield, Await]:
     #                 BitwiseANDExpression[?In, ?Yield, ?Await]
@@ -12730,6 +13010,12 @@ class Ecma262Parser(Parser):
     @_('BitwiseXORExpression_In XOR BitwiseANDExpression_In')  # pylint: disable=undefined-variable
     def BitwiseXORExpression_In(self, p):
         return PN_BitwiseXORExpression_BitwiseXORExpression_XOR_BitwiseANDExpression(self.context, p)
+    @_('BitwiseANDExpression_In_Restricted')  # pylint: disable=undefined-variable
+    def BitwiseXORExpression_In_Restricted(self, p):
+        return PN_BitwiseXORExpression_BitwiseANDExpression(self.context, p)
+    @_('BitwiseXORExpression_In_Restricted XOR BitwiseANDExpression_In')  # pylint: disable=undefined-variable
+    def BitwiseXORExpression_In_Restricted(self, p):
+        return PN_BitwiseXORExpression_BitwiseXORExpression_XOR_BitwiseANDExpression(self.context, p)
     #
     # BitwiseORExpression[In, Yield, Await]:
     #                 BitwiseXORExpression[?In, ?Yield, ?Await]
@@ -12745,6 +13031,12 @@ class Ecma262Parser(Parser):
         return PN_BitwiseORExpression_BitwiseXORExpression(self.context, p)
     @_('BitwiseORExpression_In PIPE BitwiseXORExpression_In')  # pylint: disable=undefined-variable
     def BitwiseORExpression_In(self, p):
+        return PN_BitwiseORExpression_BitwiseORExpression_PIPE_BitwiseXORExpression(self.context, p)
+    @_('BitwiseXORExpression_In_Restricted')  # pylint: disable=undefined-variable
+    def BitwiseORExpression_In_Restricted(self, p):
+        return PN_BitwiseORExpression_BitwiseXORExpression(self.context, p)
+    @_('BitwiseORExpression_In_Restricted PIPE BitwiseXORExpression_In')  # pylint: disable=undefined-variable
+    def BitwiseORExpression_In_Restricted(self, p):
         return PN_BitwiseORExpression_BitwiseORExpression_PIPE_BitwiseXORExpression(self.context, p)
     ########################################################################################################################
 
@@ -12790,6 +13082,21 @@ class Ecma262Parser(Parser):
         return PN_EqualityExpression_EqualityExpression_EQEQEQ_RelationalExpression(self.context, p)
     @_('EqualityExpression_In BANGEQEQ RelationalExpression_In')  # pylint: disable=undefined-variable
     def EqualityExpression_In(self, p):
+        return PN_EqualityExpression_EqualityExpression_BANGEQEQ_RelationalExpression(self.context, p)
+    @_('RelationalExpression_In_Restricted')  # pylint: disable=undefined-variable
+    def EqualityExpression_In_Restricted(self, p):
+        return PN_EqualityExpression_RelationalExpression(self.context, p)
+    @_('EqualityExpression_In_Restricted EQEQ RelationalExpression_In')  # pylint: disable=undefined-variable
+    def EqualityExpression_In_Restricted(self, p):
+        return PN_EqualityExpression_EqualityExpression_EQEQ_RelationalExpression(self.context, p)
+    @_('EqualityExpression_In_Restricted BANGEQ RelationalExpression_In')  # pylint: disable=undefined-variable
+    def EqualityExpression_In_Restricted(self, p):
+        return PN_EqualityExpression_EqualityExpression_BANGEQ_RelationalExpression(self.context, p)
+    @_('EqualityExpression_In_Restricted EQEQEQ RelationalExpression_In')  # pylint: disable=undefined-variable
+    def EqualityExpression_In_Restricted(self, p):
+        return PN_EqualityExpression_EqualityExpression_EQEQEQ_RelationalExpression(self.context, p)
+    @_('EqualityExpression_In_Restricted BANGEQEQ RelationalExpression_In')  # pylint: disable=undefined-variable
+    def EqualityExpression_In_Restricted(self, p):
         return PN_EqualityExpression_EqualityExpression_BANGEQEQ_RelationalExpression(self.context, p)
     ########################################################################################################################
 
@@ -12853,6 +13160,27 @@ class Ecma262Parser(Parser):
     @_('RelationalExpression_In IN ShiftExpression')  # pylint: disable=undefined-variable
     def RelationalExpression_In(self, p):
         return PN_RelationalExpression_RelationalExpression_IN_ShiftExpression(self.context, p)
+    @_('ShiftExpression_Restricted')  # pylint: disable=undefined-variable
+    def RelationalExpression_In_Restricted(self, p):
+        return PN_RelationalExpression_ShiftExpression(self.context, p)
+    @_('RelationalExpression_In_Restricted LT ShiftExpression')  # pylint: disable=undefined-variable
+    def RelationalExpression_In_Restricted(self, p):
+        return PN_RelationalExpression_RelationalExpression_LT_ShiftExpression(self.context, p)
+    @_('RelationalExpression_In_Restricted GT ShiftExpression')  # pylint: disable=undefined-variable
+    def RelationalExpression_In_Restricted(self, p):
+        return PN_RelationalExpression_RelationalExpression_GT_ShiftExpression(self.context, p)
+    @_('RelationalExpression_In_Restricted LE ShiftExpression')  # pylint: disable=undefined-variable
+    def RelationalExpression_In_Restricted(self, p):
+        return PN_RelationalExpression_RelationalExpression_LE_ShiftExpression(self.context, p)
+    @_('RelationalExpression_In_Restricted GE ShiftExpression')  # pylint: disable=undefined-variable
+    def RelationalExpression_In_Restricted(self, p):
+        return PN_RelationalExpression_RelationalExpression_GE_ShiftExpression(self.context, p)
+    @_('RelationalExpression_In_Restricted INSTANCEOF ShiftExpression')  # pylint: disable=undefined-variable
+    def RelationalExpression_In_Restricted(self, p):
+        return PN_RelationalExpression_RelationalExpression_INSTANCEOF_ShiftExpression(self.context, p)
+    @_('RelationalExpression_In_Restricted IN ShiftExpression')  # pylint: disable=undefined-variable
+    def RelationalExpression_In_Restricted(self, p):
+        return PN_RelationalExpression_RelationalExpression_IN_ShiftExpression(self.context, p)
     ########################################################################################################################
 
     ########################################################################################################################
@@ -12878,6 +13206,18 @@ class Ecma262Parser(Parser):
     @_('ShiftExpression GTGTGT AdditiveExpression')  # pylint: disable=undefined-variable
     def ShiftExpression(self, p):
         return PN_ShiftExpression_GTGTGT_AdditiveExpression(self.context, p)
+    @_('AdditiveExpression_Restricted')  # pylint: disable=undefined-variable
+    def ShiftExpression_Restricted(self, p):
+        return PN_ShiftExpression_AdditiveExpression(self.context, p)
+    @_('ShiftExpression_Restricted LTLT AdditiveExpression')  # pylint: disable=undefined-variable
+    def ShiftExpression_Restricted(self, p):
+        return PN_ShiftExpression_LTLT_AdditiveExpression(self.context, p)
+    @_('ShiftExpression_Restricted GTGT AdditiveExpression')  # pylint: disable=undefined-variable
+    def ShiftExpression_Restricted(self, p):
+        return PN_ShiftExpression_GTGT_AdditiveExpression(self.context, p)
+    @_('ShiftExpression_Restricted GTGTGT AdditiveExpression')  # pylint: disable=undefined-variable
+    def ShiftExpression_Restricted(self, p):
+        return PN_ShiftExpression_GTGTGT_AdditiveExpression(self.context, p)
     ########################################################################################################################
 
     ########################################################################################################################
@@ -12899,6 +13239,15 @@ class Ecma262Parser(Parser):
     @_('AdditiveExpression MINUS MultiplicativeExpression')  # pylint: disable=undefined-variable
     def AdditiveExpression(self, p):
         return PN_AdditiveExpression_AdditiveExpression_MINUS_MultiplicativeExpression(self.context, p)
+    @_('MultiplicativeExpression_Restricted')  # pylint: disable=undefined-variable
+    def AdditiveExpression_Restricted(self, p):
+        return PN_AdditiveExpression_MultiplicativeExpression(self.context, p)
+    @_('AdditiveExpression_Restricted PLUS MultiplicativeExpression')  # pylint: disable=undefined-variable
+    def AdditiveExpression_Restricted(self, p):
+        return PN_AdditiveExpression_AdditiveExpression_PLUS_MultiplicativeExpression(self.context, p)
+    @_('AdditiveExpression_Restricted MINUS MultiplicativeExpression')  # pylint: disable=undefined-variable
+    def AdditiveExpression_Restricted(self, p):
+        return PN_AdditiveExpression_AdditiveExpression_MINUS_MultiplicativeExpression(self.context, p)
     ########################################################################################################################
 
     ########################################################################################################################
@@ -12919,6 +13268,12 @@ class Ecma262Parser(Parser):
     @_('MultiplicativeExpression MultiplicativeOperator ExponentiationExpression')  # pylint: disable=undefined-variable
     def MultiplicativeExpression(self, p):
         return PN_MultiplicativeExpression_MultiplicativeOperator_ExponentiationExpression(self.context, p)
+    @_('ExponentiationExpression_Restricted')  # pylint: disable=undefined-variable
+    def MultiplicativeExpression_Restricted(self, p):
+        return PN_MultiplicativeExpression_ExponentiationExpression(self.context, p)
+    @_('MultiplicativeExpression_Restricted MultiplicativeOperator ExponentiationExpression')  # pylint: disable=undefined-variable
+    def MultiplicativeExpression_Restricted(self, p):
+        return PN_MultiplicativeExpression_MultiplicativeOperator_ExponentiationExpression(self.context, p)
     @_('STAR', 'DIV', 'PERCENT')  # pylint: disable=undefined-variable
     def MultiplicativeOperator(self, p):
         return PN_MultiplicativeOperator(self.context, p)
@@ -12938,6 +13293,12 @@ class Ecma262Parser(Parser):
         return PN_ExponentiationExpression_UnaryExpression(self.context, p)
     @_('UpdateExpression STARSTAR ExponentiationExpression')  # pylint: disable=undefined-variable
     def ExponentiationExpression(self, p):
+        return PN_ExponentiationExpression_UpdateExpression_STARSTAR_ExponentiationExpression(self.context, p)
+    @_('UnaryExpression_Restricted')  # pylint: disable=undefined-variable
+    def ExponentiationExpression_Restricted(self, p):
+        return PN_ExponentiationExpression_UnaryExpression(self.context, p)
+    @_('UpdateExpression_Restricted STARSTAR ExponentiationExpression')  # pylint: disable=undefined-variable
+    def ExponentiationExpression_Restricted(self, p):
         return PN_ExponentiationExpression_UpdateExpression_STARSTAR_ExponentiationExpression(self.context, p)
     ########################################################################################################################
 
@@ -12977,6 +13338,27 @@ class Ecma262Parser(Parser):
     @_('BANG UnaryExpression')  # pylint: disable=undefined-variable
     def UnaryExpression(self, p):
         return PN_UnaryExpression_BANG_UnaryExpression(self.context, p)
+    @_('UpdateExpression_Restricted')  # pylint: disable=undefined-variable
+    def UnaryExpression_Restricted(self, p):
+        return PN_UnaryExpression_UpdateExpression(self.context, p)
+    @_('DELETE UnaryExpression')  # pylint: disable=undefined-variable
+    def UnaryExpression_Restricted(self, p):
+        return PN_UnaryExpression_DELETE_UnaryExpression(self.context, p)
+    @_('TYPEOF UnaryExpression')  # pylint: disable=undefined-variable
+    def UnaryExpression_Restricted(self, p):
+        return PN_UnaryExpression_TYPEOF_UnaryExpression(self.context, p)
+    @_('PLUS UnaryExpression')  # pylint: disable=undefined-variable
+    def UnaryExpression_Restricted(self, p):
+        return PN_UnaryExpression_PLUS_UnaryExpression(self.context, p)
+    @_('MINUS UnaryExpression')  # pylint: disable=undefined-variable
+    def UnaryExpression_Restricted(self, p):
+        return PN_UnaryExpression_MINUS_UnaryExpression(self.context, p)
+    @_('TILDE UnaryExpression')  # pylint: disable=undefined-variable
+    def UnaryExpression_Restricted(self, p):
+        return PN_UnaryExpression_TILDE_UnaryExpression(self.context, p)
+    @_('BANG UnaryExpression')  # pylint: disable=undefined-variable
+    def UnaryExpression_Restricted(self, p):
+        return PN_UnaryExpression_BANG_UnaryExpression(self.context, p)
     ########################################################################################################################
 
     ########################################################################################################################
@@ -13005,6 +13387,21 @@ class Ecma262Parser(Parser):
         return PN_UpdateExpression_PLUSPLUS_UnaryExpression(self.context, p)
     @_('MINUSMINUS UnaryExpression')  # pylint: disable=undefined-variable
     def UpdateExpression(self, p):
+        return PN_UpdateExpression_MINUSMINUS_UnaryExpression(self.context, p)
+    @_('LeftHandSideExpression_Restricted')  # pylint: disable=undefined-variable
+    def UpdateExpression_Restricted(self, p):
+        return PN_UpdateExpression_LeftHandSideExpression(self.context, p)
+    @_('LeftHandSideExpression_Restricted PLUSPLUS')  # pylint: disable=undefined-variable
+    def UpdateExpression_Restricted(self, p):
+        return PN_UpdateExpression_LeftHandSideExpression_PLUSPLUS(self.context, p)
+    @_('LeftHandSideExpression_Restricted MINUSMINUS')  # pylint: disable=undefined-variable
+    def UpdateExpression_Restricted(self, p):
+        return PN_UpdateExpression_LeftHandSideExpression_MINUSMINUS(self.context, p)
+    @_('PLUSPLUS UnaryExpression')  # pylint: disable=undefined-variable
+    def UpdateExpression_Restricted(self, p):
+        return PN_UpdateExpression_PLUSPLUS_UnaryExpression(self.context, p)
+    @_('MINUSMINUS UnaryExpression')  # pylint: disable=undefined-variable
+    def UpdateExpression_Restricted(self, p):
         return PN_UpdateExpression_MINUSMINUS_UnaryExpression(self.context, p)
     ########################################################################################################################
 
@@ -13068,11 +13465,23 @@ class Ecma262Parser(Parser):
     @_('CallExpression')  # pylint: disable=undefined-variable
     def LeftHandSideExpression(self, p):
         return PN_LeftHandSideExpression_CallExpression(self.context, p)
+    @_('NewExpression_Restricted')  # pylint: disable=undefined-variable
+    def LeftHandSideExpression_Restricted(self, p):
+        return PN_LeftHandSideExpression_NewExpression(self.context, p)
+    @_('CallExpression_Restricted')  # pylint: disable=undefined-variable
+    def LeftHandSideExpression_Restricted(self, p):
+        return PN_LeftHandSideExpression_CallExpression(self.context, p)
     @_('CoverCallExpressionAndAsyncArrowHead')  # pylint: disable=undefined-variable
     def CallExpression(self, p):
         return PN_CallExpression_CoverCallExpressionAndAsyncArrowHead(self.context, p)
     @_('CallExpression Arguments')  # pylint: disable=undefined-variable
     def CallExpression(self, p):
+        return PN_CallExpression_CallExpression_Arguments(self.context, p)
+    @_('CoverCallExpressionAndAsyncArrowHead_Restricted')  # pylint: disable=undefined-variable
+    def CallExpression_Restricted(self, p):
+        return PN_CallExpression_CoverCallExpressionAndAsyncArrowHead(self.context, p)
+    @_('CallExpression_Restricted Arguments')  # pylint: disable=undefined-variable
+    def CallExpression_Restricted(self, p):
         return PN_CallExpression_CallExpression_Arguments(self.context, p)
     @_('MemberExpression Arguments')  # pylint: disable=undefined-variable
     def CallMemberExpression(self, p):
@@ -13104,6 +13513,12 @@ class Ecma262Parser(Parser):
     @_('NEW NewExpression')  # pylint: disable=undefined-variable
     def NewExpression(self, p):
         return PN_NewExpression_NEW_NewExpression(self.context, p)
+    @_('MemberExpression_Restricted')  # pylint: disable=undefined-variable
+    def NewExpression_Restricted(self, p):
+        return PN_NewExpression_MemberExpression(self.context, p)
+    @_('NEW NewExpression')  # pylint: disable=undefined-variable
+    def NewExpression_Restricted(self, p):
+        return PN_NewExpression_NEW_NewExpression(self.context, p)
     @_('PrimaryExpression')  # pylint: disable=undefined-variable
     def MemberExpression(self, p):
         return PN_MemberExpression_PrimaryExpression(self.context, p)
@@ -13115,6 +13530,18 @@ class Ecma262Parser(Parser):
         return PN_MemberExpression_MemberExpression_LBRACKET_Expression_RBRACKET(self.context, p)
     @_('MemberExpression PERIOD  IdentifierName')  # pylint: disable=undefined-variable
     def MemberExpression(self, p):
+        return PN_MemberExpression_MemberExpression_DOT_IdentifierName(self.context, p)
+    @_('PrimaryExpression_Restricted')  # pylint: disable=undefined-variable
+    def MemberExpression_Restricted(self, p):
+        return PN_MemberExpression_PrimaryExpression(self.context, p)
+    @_('NEW MemberExpression Arguments')  # pylint: disable=undefined-variable
+    def MemberExpression_Restricted(self, p):
+        return PN_MemberExpression_NEW_MemberExpression_Arguments(self.context, p)
+    @_('MemberExpression_Restricted LBRACKET Expression_In RBRACKET')  # pylint: disable=undefined-variable
+    def MemberExpression_Restricted(self, p):
+        return PN_MemberExpression_MemberExpression_LBRACKET_Expression_RBRACKET(self.context, p)
+    @_('MemberExpression_Restricted PERIOD  IdentifierName')  # pylint: disable=undefined-variable
+    def MemberExpression_Restricted(self, p):
         return PN_MemberExpression_MemberExpression_DOT_IdentifierName(self.context, p)
     ########################################################################################################################
 
@@ -13132,10 +13559,25 @@ class Ecma262Parser(Parser):
     #           { }
     #           { PropertyDefinitionList[?Yield, ?Await] }
     #           { PropertyDefinitionList[?Yield, ?Await] , }
+    @_('LCURLY RCURLY')  # pylint: disable=undefined-variable
+    def ObjectLiteral(self, p):
+        return PN_ObjectLiteral_LCURLY_RCURLY(self.context, p)
+    @_('LCURLY PropertyDefinitionList RCURLY')  # pylint: disable=undefined-variable
+    def ObjectLiteral(self, p):
+        return PN_ObjectLiteral_LCURLY_PropertyDefinitionList_RCURLY(self.context, p)
+    @_('LCURLY PropertyDefinitionList COMMA RCURLY')  # pylint: disable=undefined-variable
+    def ObjectLiteral(self, p):
+        return PN_ObjectLiteral_LCURLY_PropertyDefinitionList_COMMA_RCURLY(self.context, p)
     #
     # PropertyDefinitionList[Yield, Await] :
     #           PropertyDefinition[?Yield, ?Await]
     #           PropertyDefinitionList[?Yield, ?Await] , PropertyDefinition[?Yield, ?Await]
+    @_('PropertyDefinition')  # pylint: disable=undefined-variable
+    def PropertyDefinitionList(self, p):
+        return PN_PropertyDefinitionList_PropertyDefinition(self.context, p)
+    @_('PropertyDefinitionList COMMA PropertyDefinition')  # pylint: disable=undefined-variable
+    def PropertyDefinitionList(self, p):
+        return PN_PropertyDefinitionList_PropertyDefinitionList_COMMA_PropertyDefinition(self.context, p)
     #
     # PropertyDefinition[Yield, Await]:
     #           IdentifierReference[?Yield, ?Await]
@@ -13143,6 +13585,21 @@ class Ecma262Parser(Parser):
     #           PropertyName[?Yield, ?Await] : AssignmentExpression[+In, ?Yield, ?Await]
     #           MethodDefinition[?Yield, ?Await]
     #           ... AssignmentExpression[+In, ?Yield, ?Await]
+    @_('IdentifierReference')  # pylint: disable=undefined-variable
+    def PropertyDefinition(self, p):
+        return PN_PropertyDefinition_IdentifierReference(self.context, p)
+    @_('CoverInitializedName')  # pylint: disable=undefined-variable
+    def PropertyDefinition(self, p):
+        return PN_PropertyDefinition_CoverInitializedName(self.context, p)
+    @_('PropertyName COLON AssignmentExpression_In')  # pylint: disable=undefined-variable
+    def PropertyDefinition(self, p):
+        return PN_PropertyDefinition_PropertyName_COLON_AssignmentExpression(self.context, p)
+#    @_('MethodDefinition')  # pylint: disable=undefined-variable
+#    def PropertyDefinition(self, p):
+#        return PN_PropertyDefinition_MethodDefinition(self.context, p)
+    @_('DOTDOTDOT AssignmentExpression_In')  # pylint: disable=undefined-variable
+    def PropertyDefinition(self, p):
+        return PN_PropertyDefinition_DOTDOTDOT_AssignmentExpression(self.context, p)
     #
     # PropertyName[Yield, Await] :
     #           LiteralPropertyName
@@ -13176,6 +13633,9 @@ class Ecma262Parser(Parser):
     #
     # CoverInitializedName[Yield, Await] :
     #           IdentifierReference[?Yield, ?Await] Initializer[+In, ?Yield, ?Await]
+    @_('IdentifierReference Initializer_In')
+    def CoverInitializedName(self, p):
+        return PN_CoverInitializedName_IdentifierReference_Initialzier(self.context, p)
     #
     # Initializer[In, Yield, Await] :
     #           = AssignmentExpression[?In, ?Yield, ?Await]
@@ -13283,8 +13743,23 @@ class Ecma262Parser(Parser):
     @_('Literal')  # pylint: disable=undefined-variable
     def PrimaryExpression(self, p):
         return PN_PrimaryExpression_Literal(self.context, p)
+    @_('ObjectLiteral')  # pylint: disable=undefined-variable
+    def PrimaryExpression(self, p):
+        return PN_PrimaryExpression_ObjectLiteral(self.context, p)
     @_('CoverParenthesizedExpressionAndArrowParameterList')  # pylint: disable=undefined-variable
     def PrimaryExpression(self, p):
+        return PN_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(self.context, p)
+    @_('THIS')  # pylint: disable=undefined-variable
+    def PrimaryExpression_Restricted(self, p):
+        return PN_PrimaryExpression_THIS(self.context, p)
+    @_('IdentifierReference')  # pylint: disable=undefined-variable
+    def PrimaryExpression_Restricted(self, p):
+        return PN_PrimaryExpression_IdentifierReference(self.context, p)
+    @_('Literal')  # pylint: disable=undefined-variable
+    def PrimaryExpression_Restricted(self, p):
+        return PN_PrimaryExpression_Literal(self.context, p)
+    @_('CoverParenthesizedExpressionAndArrowParameterList')  # pylint: disable=undefined-variable
+    def PrimaryExpression_Restricted(self, p):
         return PN_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(self.context, p)
 
     @_('LPAREN Expression_In RPAREN')  # pylint: disable=undefined-variable
@@ -14849,7 +15324,7 @@ def StringFixups(realm):
 #######################################################################################################################################################
 if __name__ == '__main__':
     try:
-        rv = RunJobs(scripts=["m=''; for (i=0; i<23; i++){ if (i%2 == 0) { continue; }; m += i; }; m;"])
+        rv = RunJobs(scripts=["b = { a: 3, bob: 'happy' }; b.bob + b.a;"])
     except ESError as err:
         InitializeHostDefinedRealm()
         print(err)

@@ -112,6 +112,11 @@ def cleanup():
     ("m=''; for (let i=0; i<10; i++) { let i=2; m += i; };", "2222222222"),
     ('{let a=3;{let a=6;};};', None),
     ("idx=67; m=''; for (let idx=0; idx<10; idx++) { m += idx; }; m+idx;", '012345678967'),
+    ('b={a:3};b.a;', 3),
+    ('b={a:5,};b.a;', 5),
+    ('b={a:99,bob:\'purple\'};b.bob+b.a;', 'purple99'),
+    ('a=55;b=67;c={a,b};c.a*c.b;', 55*67),
+    ('b={a:3};c={...b,y:88};c.a*c.y;', 3 * 88),
 ])
 def test_scripts_01(cleanup, script, result):
     rv = RunJobs(scripts=[script])
