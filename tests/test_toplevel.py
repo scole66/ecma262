@@ -139,6 +139,13 @@ def cleanup():
     ("let colors=['red', ['green', 'lightgreen'], 'blue']; let [ firstcolor, [ secondcolor ]] = colors; 'firstcolor=' + firstcolor + ', secondcolor=' + secondcolor;", 'firstcolor=red, secondcolor=green'),
     ("let colors=['red','green','blue'];let [firstcolor, ...restcolors]=colors;firstcolor+restcolors.length+restcolors[0]+restcolors[1];", 'red2greenblue'),
     ("let node={type:'Identifier',name:'foo',loc:{start:{line:1,column:1},end:{line:1,column:4}},range:[0,3]};let{loc:{start},range:[startIndex]}=node;''+start.line+', '+start.column+', '+startIndex;", '1, 1, 0'),
+    ("let obj={first:'a',second:'b',third:'c'};s='';for (h in obj){s+=h+'-';}", 'first-second-third-'), # for ( LeftHandSideExpression in Expression ) Statement
+    ("let obj={first:'a',second:'b',third:'c'};s='';for (var h in obj){s+=h+'-';}", 'first-second-third-'), # for ( var ForBinding in Expression ) Statement
+    ("let obj={first:'a',second:'b',third:'c'};s='';for (let h in obj){s+=h+'-';}", 'first-second-third-'), # for ( ForDeclaration in Expression ) Statement
+    ("let ary=['first','second','third'];s='';for (h of ary){s+=h+'-';}", 'first-second-third-'), # for ( LeftHandSideExpression of Expression ) Statement
+    ("let ary=['first','second','third'];s='';for (var h of ary){s+=h+'-';}", 'first-second-third-'), # for ( var ForBinding of Expression ) Statement
+    ("let ary=['first','second','third'];s='';for (let h of ary){s+=h+'-';}", 'first-second-third-'), # for ( ForDeclaration of Expression ) Statement
+    ("let ary=[[1,2],[3,4],[5,6]];let s='';for ([a,b] of ary){s+=(a*b)+'-';}", '2-12-30-')
 ])
 def test_scripts_01(cleanup, script, result):
     rv = RunJobs(scripts=[script])

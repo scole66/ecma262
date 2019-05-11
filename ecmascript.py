@@ -28,6 +28,21 @@ class CompletionType(Enum):
     RETURN = auto()
     THROW = auto()
 
+@unique
+class ECMAScriptEnum(Enum):
+    ENUMERATE = auto()
+    ASSIGNMENT = auto()
+    VARBINDING = auto()
+    LEXICALBINDING = auto()
+    ITERATE = auto()
+    ASYNC_ITERATE = auto()
+ENUMERATE = ECMAScriptEnum.ENUMERATE
+ASSIGNMENT = ECMAScriptEnum.ASSIGNMENT
+VARBINDING = ECMAScriptEnum.VARBINDING
+LEXICALBINDING = ECMAScriptEnum.LEXICALBINDING
+ITERATE = ECMAScriptEnum.ITERATE
+ASYNC_ITERATE = ECMAScriptEnum.ASYNC_ITERATE
+
 Completion = namedtuple('Completion', ['ctype', 'value', 'target'])
 
 
@@ -6034,6 +6049,8 @@ class Lexer():
         __slots__ = ('name', 'value', 'lt_follows', 'index', 'length')
         def __repr__(self):
             return f'TokenValue(value={self.value!r}, name={self.name}, lt_follows={self.lt_follows})'
+        def Is(self, symbol):
+            return self.name == symbol
 
     whitespace = (
         '\u0009'  # <TAB> CHARACTER TABULATION
@@ -6908,7 +6925,13 @@ class ParseNode:
         return (any(child.name == symbol for child in self.children) or
                 any(child.Contains(symbol) for child in self.children if isinstance(child, ParseNode)))
     def Is(self, symbol):
-        return len(self.children) == 1 and (self.children[0].name == symbol or (isinstance(self.children[0], ParseNode) and self.children[0].Is(symbol)))
+        return self.name == symbol or (len(self.children) == 1 and self.children[0].Is(symbol))
+    def Derived(self, symbol):
+        if (type(symbol) == str and self.name == symbol) or (type(symbol) == type and isinstance(self, symbol)):
+            return self
+        if len(self.children) == 1 and isinstance(self.children[0], ParseNode):
+            return self.children[0].Derived(symbol)
+        return None
     def EarlyErrorsScan(self):
         errs = []
         # Check the children first
@@ -6967,6 +6990,8 @@ class ParseNode:
         return self.defer_target().DestructuringAssignmentEvaluation(value)
     def PropertyBindingInitialization(self, value, environment):
         return self.defer_target().PropertyBindingInitialization(value, environment)
+    def IsDestructuring(self):
+        return self.defer_target().IsDestructuring()
 
     def evaluate(self):
         # Subclasses need to override this, or we'll throw an AttributeError when we hit a terminal.
@@ -7335,8 +7360,10 @@ class PN_CoverParenthesizedExpressionAndArrowParameterList(ParseNode):
     def CoveredParenthesizedExpression(self):
         return getattr(self, 'covered_production', None)
 class PN_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_RPAREN(PN_CoverParenthesizedExpressionAndArrowParameterList):
-    pass
-class PN_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_COMMA_RPAREN(PN_CoverParenthesizedExpressionAndArrowParameterList):
+    @property
+    def Expression(self):
+        return self.children[1]
+class PN_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_COMMA_RPAREN(PN_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_RPAREN):
     pass
 class PN_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_RPAREN(PN_CoverParenthesizedExpressionAndArrowParameterList):
     pass
@@ -8028,7 +8055,15 @@ class PN_MemberExpression(ParseNode):
         super().__init__('MemberExpression', p)
         self.strict = ctx.strict
 class PN_MemberExpression_PrimaryExpression(PN_MemberExpression):
-    pass
+    @property
+    def PrimaryExpression(self):
+        return self.children[0]
+    def IsDestructuring(self):
+        # 12.3.1.4 Static Semantics: IsDestructuring
+        # MemberExpression : PrimaryExpression
+        #   1. If PrimaryExpression is either an ObjectLiteral or an ArrayLiteral, return true.
+        #   2. Return false.
+        return self.PrimaryExpression.Is('ObjectLiteral') or self.PrimaryExpression.Is('ArrayLiteral')
 class PN_MemberExpression_NotPassThru(PN_MemberExpression):
     def IsFunctionDefinition(self):
         # 12.3.1.3 Static Semantics: IsFunctionDefinition
@@ -12727,7 +12762,6 @@ class PN_IterationStatement_For_Lexical(PN_IterationStatement_For_Expressions):
             return ForBodyEvaluation(self.Expression1, self.Expression2, self.Statement, perIterationLets, labelSet)
         finally:
             surrounding_agent.running_ec.lexical_environment = oldEnv
-
 class PN_IterationStatement_FOR_LPAREN_LexicalDeclaration_Expression_SEMICOLON_Expression_RPAREN_Statement(PN_IterationStatement_For_Lexical):
     @property
     def LexicalDeclaration(self):
@@ -12780,8 +12814,6 @@ class PN_IterationStatement_FOR_LPAREN_LexicalDeclaration_SEMICOLON_RPAREN_State
     @property
     def Statement(self):
         return self.children[5]
-
-
 # 13.7.4.8 Runtime Semantics: ForBodyEvaluation ( test, increment, stmt, perIterationBindings, labelSet )
 def ForBodyEvaluation(test, increment, stmt, perIterationBindings, labelSet):
     # The abstract operation ForBodyEvaluation with arguments test, increment, stmt, perIterationBindings, and
@@ -12850,7 +12882,523 @@ def CreatePerIterationEnvironment(perIterationBindings):
             thisIterationEnvRec.InitializeBinding(bn, lastValue)
         surrounding_agent.running_ec.lexical_environment = thisIterationEnv
     return None
+# ------------------------------------ 𝟏𝟑.𝟕.𝟓 𝑻𝒉𝒆 𝒇𝒐𝒓-𝒊𝒏, 𝒇𝒐𝒓-𝒐𝒇, 𝒂𝒏𝒅 𝒇𝒐𝒓-𝒂𝒘𝒂𝒊𝒕-𝒐𝒇 𝑺𝒕𝒂𝒕𝒆𝒎𝒆𝒏𝒕𝒔 ------------------------------------
+class PN_IterationStatement_FOR_in_of(PN_IterationStatement):
+    @property
+    def Statement(self):
+        raise NotImplementedError('Abstract classes cannot be instantiated')
+    @property
+    def LeftHandSideExpression(self):
+        raise NotImplementedError('Abstract classes cannot be instantiated')
+    @property
+    def ForDeclaration(self):
+        raise NotImplementedError('Abstract classes cannot be instantiated')
+    # Common routines for these productions:
+    #           for ( [lookahead ∉ { let [ }] LeftHandSideExpression[?Yield, ?Await] in Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    #           for ( var ForBinding[?Yield, ?Await] in Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    #           for ( ForDeclaration[?Yield, ?Await] in Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    #           for ( [lookahead ≠ let] LeftHandSideExpression[?Yield, ?Await] of AssignmentExpression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    #           for ( var ForBinding[?Yield, ?Await] of AssignmentExpression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    #           for ( ForDeclaration[?Yield, ?Await] of AssignmentExpression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    #           [+Await] for await ( [lookahead ≠ let] LeftHandSideExpression[?Yield, ?Await] of AssignmentExpression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    #           [+Await] for await ( var ForBinding[?Yield, ?Await] of AssignmentExpression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    #           [+Await] for await ( ForDeclaration[?Yield, ?Await] of AssignmentExpression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    def ContainsDuplicateLabels(self, labelSet):
+        # 13.7.5.3 Static Semantics: ContainsDuplicateLabels
+        #   With parameter labelSet.
+        #   1. Return ContainsDuplicateLabels of Statement with argument labelSet.
+        return self.Statement.ContainsDuplicateLabels(labelSet)
+    def ContainsUndefinedBreakTarget(self, labelSet):
+        # 13.7.5.4 Static Semantics: ContainsUndefinedBreakTarget
+        #   With parameter labelSet.
+        #   1. Return ContainsUndefinedBreakTarget of Statement with argument labelSet.
+        return self.Statement.ContainsUndefinedBreakTarget(labelSet)
+    def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
+        # 13.7.5.5 Static Semantics: ContainsUndefinedContinueTarget
+        #   With parameters iterationSet and labelSet.
+        #   1. Return ContainsUndefinedContinueTarget of Statement with arguments iterationSet and « ».
+        return self.Statement.ContainsUndefinedContinueTarget(iterationSet, [])
+class PN_IterationStatement_FOR_in_of_LeftHandSideExpression(PN_IterationStatement_FOR_in_of):
+    # Common routines for these productions:
+    #           for ( [lookahead ∉ { let [ }] LeftHandSideExpression[?Yield, ?Await] in Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    #           for ( [lookahead ≠ let] LeftHandSideExpression[?Yield, ?Await] of AssignmentExpression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    #           [+Await] for await ( [lookahead ≠ let] LeftHandSideExpression[?Yield, ?Await] of AssignmentExpression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
+    def EarlyErrors(self):
+        # 13.7.5.1 Static Semantics: Early Errors
+        # IterationStatement:
+        #       for ( LeftHandSideExpression in Expression ) Statement
+        #       for ( LeftHandSideExpression of AssignmentExpression ) Statement
+        #       for await ( LeftHandSideExpression of AssignmentExpression ) Statement
+        #
+        # * It is a Syntax Error if LeftHandSideExpression is either an ObjectLiteral or an ArrayLiteral and if
+        #   LeftHandSideExpression is not covering an AssignmentPattern.
+        #
+        # If LeftHandSideExpression is either an ObjectLiteral or an ArrayLiteral and if LeftHandSideExpression is
+        # covering an AssignmentPattern then the following rules are not applied. Instead, the Early Error rules for
+        # AssignmentPattern are used.
+        #
+        # * It is a Syntax Error if IsValidSimpleAssignmentTarget of LeftHandSideExpression is false.
+        # * It is a Syntax Error if the LeftHandSideExpression is
+        #   CoverParenthesizedExpressionAndArrowParameterList : ( Expression ) and Expression derives a phrase that
+        #   would produce a Syntax Error according to these rules if that phrase were substituted for
+        #   LeftHandSideExpression. This rule is recursively applied.
+        #
+        # NOTE
+        # The last rule means that the other rules are applied even if parentheses surround Expression.
+        return self.EarlyErrors_LHS(self.LeftHandSideExpression)
+    def EarlyErrors_LHS(self, lhs):
+        if lhs.Is('ObjectLiteral') or lhs.Is('ArrayLiteral'):
+            assignment_pattern = lhs.covering('AssignmentPattern')
+            if not assignment_pattern:
+                return [CreateSyntaxError('Not a valid lhs for "in" or "of" iteration')]
+            return assignment_pattern.EarlyErrors()
+        if not lhs.IsValidSimpleAssignmentTarget():
+            return [CreateSyntaxError('Not a valid lhs for "in" or "of" iteration')]
+        cpe = lhs.Derived(PN_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_RPAREN)
+        if cpe:
+            return self.EarlyErrors_LHS(cpe.Expression)
+        return []
+class PN_IterationStatement_FOR_LPAREN_LeftHandSideExpression_IN_Expression_RPAREN_Statement(PN_IterationStatement_FOR_in_of_LeftHandSideExpression):
+    @property
+    def LeftHandSideExpression(self):
+        return self.children[2]
+    @property
+    def Expression(self):
+        return self.children[4]
+    @property
+    def Statement(self):
+        return self.children[6]
+    def VarDeclaredNames(self):
+        # 13.7.5.7 Static Semantics: VarDeclaredNames
+        # IterationStatement : for ( LeftHandSideExpression in Expression ) Statement
+        #   1. Return the VarDeclaredNames of Statement.
+        return self.Statement.VarDeclaredNames()
+    def VarScopedDeclarations(self):
+        # 13.7.5.8 Static Semantics: VarScopedDeclarations
+        # IterationStatement : for ( LeftHandSideExpression in Expression ) Statement
+        #   1. Return the VarScopedDeclarations of Statement.
+        return self.Statement.VarScopedDeclarations()
+    def LabelledEvaluation(self, labelSet):
+        # 13.7.5.11 Runtime Semantics: LabelledEvaluation
+        #   With parameter labelSet.
+        # IterationStatement : for ( LeftHandSideExpression in Expression ) Statement
+        #   1. Let keyResult be ? ForIn/OfHeadEvaluation(« », Expression, enumerate).
+        #   2. Return ? ForIn/OfBodyEvaluation(LeftHandSideExpression, Statement, keyResult, enumerate, assignment, labelSet).
+        keyResult = ForInOfHeadEvaluation([], self.Expression, ENUMERATE)
+        return ForInOfBodyEvaluation(self.LeftHandSideExpression, self.Statement, keyResult, ENUMERATE, ASSIGNMENT, labelSet)
+class PN_IterationStatement_FOR_LPAREN_LeftHandSideExpression_OF_AssignmentExpression_RPAREN_Statement(PN_IterationStatement_FOR_in_of_LeftHandSideExpression):
+    @property
+    def LeftHandSideExpression(self):
+        return self.children[2]
+    @property
+    def AssignmentExpression(self):
+        return self.children[4]
+    @property
+    def Statement(self):
+        return self.children[6]
+    def VarDeclaredNames(self):
+        # 13.7.5.7 Static Semantics: VarDeclaredNames
+        # IterationStatement : for ( LeftHandSideExpression of AssignmentExpression ) Statement
+        #   1. Return the VarDeclaredNames of Statement.
+        return self.Statement.VarDeclaredNames()
+    def VarScopedDeclarations(self):
+        # 13.7.5.8 Static Semantics: VarScopedDeclarations
+        # IterationStatement : for ( LeftHandSideExpression of AssignmentExpression ) Statement
+        #   1. Return the VarScopedDeclarations of Statement.
+        return self.Statement.VarScopedDeclarations()
+    def LabelledEvaluation(self, labelSet):
+        # 13.7.5.11 Runtime Semantics: LabelledEvaluation
+        #   With parameter labelSet.
+        # IterationStatement : for ( LeftHandSideExpression of AssignmentExpression ) Statement
+        #   1. Let keyResult be the result of performing ? ForIn/OfHeadEvaluation(« », AssignmentExpression, iterate).
+        #   2. Return ? ForIn/OfBodyEvaluation(LeftHandSideExpression, Statement, keyResult, iterate, assignment, labelSet).
+        keyResult = ForInOfHeadEvaluation([], self.AssignmentExpression, ITERATE)
+        return ForInOfBodyEvaluation(self.LeftHandSideExpression, self.Statement, keyResult, ITERATE, ASSIGNMENT, labelSet)
+class PN_IterationStatement_FOR_in_of_ForDeclaration(PN_IterationStatement_FOR_in_of):
+    def EarlyErrors(self):
+        # IterationStatement : for ( ForDeclaration in Expression ) Statement
+        # IterationStatement : for ( ForDeclaration of AssignmentExpression ) Statement
+        # IterationStatement : for await ( ForDeclaration of AssignmentExpression ) Statement
+        #   * It is a Syntax Error if the BoundNames of ForDeclaration contains "let".
+        #   * It is a Syntax Error if any element of the BoundNames of ForDeclaration also occurs in the VarDeclaredNames of Statement.
+        #   * It is a Syntax Error if the BoundNames of ForDeclaration contains any duplicate entries.
+        errs = []
+        bound_names = self.ForDeclaration.BoundNames()
+        if 'let' in bound_names:
+            errs.append(CreateSyntaxError("'let' not allowed as an identifier in this context"))
+        if len(bound_names) != len(set(bound_names)):
+            errs.append(CreateSyntaxError("duplicate identifier names not allowed"))
+        if not set(bound_names).isdisjoint(set(self.Statement.VarDeclaredNames())):
+            errs.append(CreateSyntaxError("for statement identifiers duplicated in statement body"))
+        return errs
+class PN_IterationStatement_FOR_LPAREN_ForDeclaration_IN_Expression_RPAREN_Statement(PN_IterationStatement_FOR_in_of):
+    @property
+    def ForDeclaration(self):
+        return self.children[2]
+    @property
+    def Expression(self):
+        return self.children[4]
+    @property
+    def Statement(self):
+        return self.children[6]
+    def VarDeclaredNames(self):
+        # 13.7.5.7 Static Semantics: VarDeclaredNames
+        # IterationStatement : for ( ForDeclaration in Expression ) Statement
+        #   1. Return the VarDeclaredNames of Statement.
+        return self.Statement.VarDeclaredNames()
+    def VarScopedDeclarations(self):
+        # 13.7.5.8 Static Semantics: VarScopedDeclarations
+        # IterationStatement : for ( ForDeclaration in Expression ) Statement
+        #   1. Return the VarScopedDeclarations of Statement.
+        return self.Statement.VarScopedDeclarations()
+    def LabelledEvaluation(self, labelSet):
+        # 13.7.5.11 Runtime Semantics: LabelledEvaluation
+        #   With parameter labelSet.
+        # IterationStatement : for ( ForDeclaration in Expression ) Statement
+        #   1. Let keyResult be the result of performing ? ForIn/OfHeadEvaluation(BoundNames of ForDeclaration, Expression, enumerate).
+        #   2. Return ? ForIn/OfBodyEvaluation(ForDeclaration, Statement, keyResult, enumerate, lexicalBinding, labelSet).
+        keyResult = ForInOfHeadEvaluation(self.ForDeclaration.BoundNames(), self.Expression, ENUMERATE)
+        return ForInOfBodyEvaluation(self.ForDeclaration, self.Statement, keyResult, ENUMERATE, LEXICALBINDING, labelSet)
+class PN_IterationStatement_FOR_LPAREN_ForDeclaration_OF_AssignmentExpression_RPAREN_Statement(PN_IterationStatement_FOR_in_of):
+    @property
+    def ForDeclaration(self):
+        return self.children[2]
+    @property
+    def AssignmentExpression(self):
+        return self.children[4]
+    @property
+    def Statement(self):
+        return self.children[6]
+    def VarDeclaredNames(self):
+        # 13.7.5.7 Static Semantics: VarDeclaredNames
+        # IterationStatement : for ( ForDeclaration of AssignmentExpression ) Statement
+        #   1. Return the VarDeclaredNames of Statement.
+        return self.Statement.VarDeclaredNames()
+    def VarScopedDeclarations(self):
+        # 13.7.5.8 Static Semantics: VarScopedDeclarations
+        # IterationStatement : for ( ForDeclaration of AssignmentExpression ) Statement
+        #   1. Return the VarScopedDeclarations of Statement.
+        return self.Statement.VarScopedDeclarations()
+    def LabelledEvaluation(self, labelSet):
+        # 13.7.5.11 Runtime Semantics: LabelledEvaluation
+        #   With parameter labelSet.
+        # IterationStatement : for ( ForDeclaration of AssignmentExpression ) Statement
+        #   1. Let keyResult be the result of performing ? ForIn/OfHeadEvaluation(BoundNames of ForDeclaration, AssignmentExpression, iterate).
+        #   2. Return ? ForIn/OfBodyEvaluation(ForDeclaration, Statement, keyResult, iterate, lexicalBinding, labelSet).
+        keyResult = ForInOfHeadEvaluation(self.ForDeclaration.BoundNames(), self.AssignmentExpression, ITERATE)
+        return ForInOfBodyEvaluation(self.ForDeclaration, self.Statement, keyResult, ITERATE, LEXICALBINDING, labelSet)
+class PN_IterationStatement_FOR_LPAREN_VAR_ForBinding_IN_Expression_RPAREN_Statement(PN_IterationStatement_FOR_in_of):
+    @property
+    def ForBinding(self):
+        return self.children[3]
+    @property
+    def Expression(self):
+        return self.children[5]
+    @property
+    def Statement(self):
+        return self.children[7]
+    def VarDeclaredNames(self):
+        # 13.7.5.7 Static Semantics: VarDeclaredNames
+        # IterationStatement : for ( var ForBinding in Expression ) Statement
+        #   1. Let names be the BoundNames of ForBinding.
+        #   2. Append to names the elements of the VarDeclaredNames of Statement.
+        #   3. Return names.
+        names = self.ForBinding.BoundNames()
+        names.extend(self.Statement.VarDeclaredNames())
+        return names
+    def VarScopedDeclarations(self):
+        # 13.7.5.8 Static Semantics: VarScopedDeclarations
+        # IterationStatement : for ( var ForBinding in Expression ) Statement
+        #   1. Let declarations be a List containing ForBinding.
+        #   2. Append to declarations the elements of the VarScopedDeclarations of Statement.
+        #   3. Return declarations.
+        declarations = [self.ForBinding]
+        declarations.extend(self.Statement.VarScopedDeclarations())
+        return declarations
+    def LabelledEvaluation(self, labelSet):
+        # 13.7.5.11 Runtime Semantics: LabelledEvaluation
+        #   With parameter labelSet.
+        # IterationStatement : for ( var ForBinding in Expression ) Statement
+        #   1. Let keyResult be ? ForIn/OfHeadEvaluation(« », Expression, enumerate).
+        #   2. Return ? ForIn/OfBodyEvaluation(ForBinding, Statement, keyResult, enumerate, varBinding, labelSet).
+        keyResult = ForInOfHeadEvaluation([], self.Expression, ENUMERATE)
+        return ForInOfBodyEvaluation(self.ForBinding, self.Statement, keyResult, ENUMERATE, VARBINDING, labelSet)
+class PN_IterationStatement_FOR_LPAREN_VAR_ForBinding_OF_AssignmentExpression_RPAREN_Statement(PN_IterationStatement_FOR_in_of):
+    @property
+    def ForBinding(self):
+        return self.children[3]
+    @property
+    def AssignmentExpression(self):
+        return self.children[5]
+    @property
+    def Statement(self):
+        return self.children[7]
+    def VarDeclaredNames(self):
+        # 13.7.5.7 Static Semantics: VarDeclaredNames
+        # IterationStatement : for ( var ForBinding of AssignmentExpression ) Statement
+        #   1. Let names be the BoundNames of ForBinding.
+        #   2. Append to names the elements of the VarDeclaredNames of Statement.
+        #   3. Return names.
+        names = self.ForBinding.BoundNames()
+        names.extend(self.Statement.VarDeclaredNames())
+        return names
+    def VarScopedDeclarations(self):
+        # 13.7.5.8 Static Semantics: VarScopedDeclarations
+        # IterationStatement : for ( var ForBinding of AssignmentExpression ) Statement
+        #   1. Let declarations be a List containing ForBinding.
+        #   2. Append to declarations the elements of the VarScopedDeclarations of Statement.
+        #   3. Return declarations.
+        declarations = [self.ForBinding]
+        declarations.extend(self.Statement.VarScopedDeclarations())
+        return declarations
+    def LabelledEvaluation(self, labelSet):
+        # 13.7.5.11 Runtime Semantics: LabelledEvaluation
+        #   With parameter labelSet.
+        # IterationStatement : for ( var ForBinding of AssignmentExpression ) Statement
+        #   1. Let keyResult be the result of performing ? ForIn/OfHeadEvaluation(« », AssignmentExpression, iterate).
+        #   2. Return ? ForIn/OfBodyEvaluation(ForBinding, Statement, keyResult, iterate, varBinding, labelSet).
+        keyResult = ForInOfHeadEvaluation([], self.AssignmentExpression, ITERATE)
+        return ForInOfBodyEvaluation(self.ForBinding, self.Statement, keyResult, ITERATE, VARBINDING, labelSet)
+# 13.7.5.12 Runtime Semantics: ForIn/OfHeadEvaluation ( TDZnames, expr, iterationKind )
+def ForInOfHeadEvaluation(TDZnames, expr, iterationKind):
+    # The abstract operation ForIn/OfHeadEvaluation is called with arguments TDZnames, expr, and iterationKind. The
+    # value of iterationKind is either enumerate, iterate, or async-iterate.
+    #
+    #   1. Let oldEnv be the running execution context's LexicalEnvironment.
+    #   2. If TDZnames is not an empty List, then
+    #       a. Assert: TDZnames has no duplicate entries.
+    #       b. Let TDZ be NewDeclarativeEnvironment(oldEnv).
+    #       c. Let TDZEnvRec be TDZ's EnvironmentRecord.
+    #       d. For each string name in TDZnames, do
+    #           i. Perform ! TDZEnvRec.CreateMutableBinding(name, false).
+    #       e. Set the running execution context's LexicalEnvironment to TDZ.
+    #   3. Let exprRef be the result of evaluating expr.
+    #   4. Set the running execution context's LexicalEnvironment to oldEnv.
+    #   5. Let exprValue be ? GetValue(exprRef).
+    #   6. If iterationKind is enumerate, then
+    #       a. If exprValue is undefined or null, then
+    #           i. Return Completion { [[Type]]: break, [[Value]]: empty, [[Target]]: empty }.
+    #       b. Let obj be ! ToObject(exprValue).
+    #       c. Return ? EnumerateObjectProperties(obj).
+    #   7. Else,
+    #       a. Assert: iterationKind is iterate.
+    #       b. If iterationKind is async-iterate, let iteratorHint be async.
+    #       c. Else, let iteratorHint be sync.
+    #       d. Return ? GetIterator(exprValue, iteratorHint).
+    oldEnv = surrounding_agent.running_ec.lexical_environment
+    if TDZnames:
+        assert len(TDZnames) == len(set(TDZnames))
+        TDZ = NewDeclarativeEnvironment(oldEnv)
+        TDZEnvRec = TDZ.environment_record
+        for name in TDZnames:
+            TDZEnvRec.CreateMutableBinding(name, False)
+        surrounding_agent.running_ec.lexical_environment = TDZ
+    exprRef = expr.evaluate()
+    surrounding_agent.running_ec.lexical_environment = oldEnv
+    exprValue = GetValue(exprRef)
+    if iterationKind == ENUMERATE:
+        if exprValue is None or isNull(exprValue):
+            raise ESBreak()
+        obj = ToObject(exprValue)
+        return EnumerateObjectProperties(obj)
+    assert iterationKind in [ ITERATE, ASYNC_ITERATE ]
+    iteratorHint = { ITERATE: SYNC, ASYNC_ITERATE: ASYNC }[iterationKind]
+    return GetIterator(exprValue, iteratorHint)
+# 13.7.5.13 Runtime Semantics: ForIn/OfBodyEvaluation ( lhs, stmt, iteratorRecord, iterationKind, lhsKind,
+#                                                       labelSet [ , iteratorKind ] )
+def ForInOfBodyEvaluation(lhs, stmt, iteratorRecord, iterationKind, lhsKind, labelSet, iteratorKind=SYNC):
+    # The abstract operation ForIn/OfBodyEvaluation is called with arguments lhs, stmt, iteratorRecord, iterationKind,
+    # lhsKind, labelSet, and optional argument iteratorKind. The value of lhsKind is either assignment, varBinding or
+    # lexicalBinding. The value of iteratorKind is either sync or async.
+    #
+    #   1. If iteratorKind is not present, set iteratorKind to sync.
+    #   2. Let oldEnv be the running execution context's LexicalEnvironment.
+    #   3. Let V be undefined.
+    #   4. Let destructuring be IsDestructuring of lhs.
+    #   5. If destructuring is true and if lhsKind is assignment, then
+    #       a. Assert: lhs is a LeftHandSideExpression.
+    #       b. Let assignmentPattern be the AssignmentPattern that is covered by lhs.
+    #   6. Repeat,
+    #       a. Let nextResult be ? Call(iteratorRecord.[[NextMethod]], iteratorRecord.[[Iterator]], « »).
+    #       b. If iteratorKind is async, then set nextResult to ? Await(nextResult).
+    #       c. If Type(nextResult) is not Object, throw a TypeError exception.
+    #       x. Let _done_ be ? IteratorComplete(_nextResult_).
+    #       y. If _done_ is *true*, return NormalCompletion(_V_).
+    #       d. Let nextValue be ? IteratorValue(nextResult).
+    #       e. If lhsKind is either assignment or varBinding, then
+    #           i. If destructuring is false, then
+    #               1. Let lhsRef be the result of evaluating lhs. (It may be evaluated repeatedly.)
+    #       f. Else,
+    #           i. Assert: lhsKind is lexicalBinding.
+    #           ii. Assert: lhs is a ForDeclaration.
+    #           iii. Let iterationEnv be NewDeclarativeEnvironment(oldEnv).
+    #           iv. Perform BindingInstantiation for lhs passing iterationEnv as the argument.
+    #           v. Set the running execution context's LexicalEnvironment to iterationEnv.
+    #           vi. If destructuring is false, then
+    #               1. Assert: lhs binds a single name.
+    #               2. Let lhsName be the sole element of BoundNames of lhs.
+    #               3. Let lhsRef be ! ResolveBinding(lhsName).
+    #       g. If destructuring is false, then
+    #           i. If lhsRef is an abrupt completion, then
+    #               1. Let status be lhsRef.
+    #           ii. Else if lhsKind is lexicalBinding, then
+    #               1. Let status be InitializeReferencedBinding(lhsRef, nextValue).
+    #           iii. Else,
+    #               1. Let status be PutValue(lhsRef, nextValue).
+    #       h. Else,
+    #           i. If lhsKind is assignment, then
+    #               1. Let status be the result of performing DestructuringAssignmentEvaluation of assignmentPattern using nextValue as the argument.
+    #           ii. Else if lhsKind is varBinding, then
+    #               1. Assert: lhs is a ForBinding.
+    #               2. Let status be the result of performing BindingInitialization for lhs passing nextValue and undefined as the arguments.
+    #           iii. Else,
+    #               1. Assert: lhsKind is lexicalBinding.
+    #               2. Assert: lhs is a ForDeclaration.
+    #               3. Let status be the result of performing BindingInitialization for lhs passing nextValue and iterationEnv as arguments.
+    #       i. If status is an abrupt completion, then
+    #           i. Set the running execution context's LexicalEnvironment to oldEnv.
+    #           ii. If iteratorKind is async, return ? AsyncIteratorClose(iteratorRecord, status).
+    #           iii. If iterationKind is enumerate, then
+    #               1. Return status.
+    #           iv. Else,
+    #               1. Assert: iterationKind is iterate.
+    #               2. Return ? IteratorClose(iteratorRecord, status).
+    #       j. Let result be the result of evaluating stmt.
+    #       k. Set the running execution context's LexicalEnvironment to oldEnv.
+    #       l. If LoopContinues(result, labelSet) is false, then
+    #           i. If iterationKind is enumerate, then
+    #               1. Return Completion(UpdateEmpty(result, V)).
+    #           ii. Else,
+    #               1. Assert: iterationKind is iterate.
+    #               2. Set status to UpdateEmpty(result, V).
+    #               3. If iteratorKind is async, return ? AsyncIteratorClose(iteratorRecord, status).
+    #               4. Return ? IteratorClose(iteratorRecord, status).
+    #       m. If result.[[Value]] is not empty, set V to result.[[Value]].
+    oldEnv = surrounding_agent.running_ec.lexical_environment
+    V = None
+    destructuring = lhs.IsDestructuring()
+    if destructuring and lhsKind == ASSIGNMENT:
+        assert lhs.Is('LeftHandSideExpression')
+        assignmentPattern = lhs.covering('AssignmentPattern')
+    while 1:
+        nextResult = Call(iteratorRecord.NextMethod, iteratorRecord.Iterator, [])
+        if iteratorKind == ASYNC:
+            nextResult = Await(nextResult)
+        if not isObject(nextResult):
+            raise ESTypeError('Iterator result not an object')
+        if IteratorComplete(nextResult):
+            return V
+        nextValue = IteratorValue(nextResult)
+        try:
+            if lhsKind in (ASSIGNMENT, VARBINDING):
+                if not destructuring:
+                    lhsRef = lhs.evaluate()
+            else:
+                assert lhsKind == LEXICALBINDING
+                assert lhs.Is('ForDeclaration')
+                iterationEnv = NewDeclarativeEnvironment(oldEnv)
+                lhs.BindingInstantiation(iterationEnv)
+                surrounding_agent.running_ec.lexical_environment = iterationEnv
+                if not destructuring:
+                    bn = lhs.BoundNames()
+                    assert len(bn) == 1
+                    lhsName = bn[0]
+                    lhsRef = ResolveBinding(lhsName)
+            if not destructuring:
+                if lhsKind == LEXICALBINDING:
+                    InitializeReferencedBinding(lhsRef, nextValue)
+                else:
+                    PutValue(lhsRef, nextValue)
+            else:
+                if lhsKind == ASSIGNMENT:
+                    assignmentPattern.DestructuringAssignmentEvaluation(nextValue)
+                elif lhsKind == VARBINDING:
+                    assert lhs.Is('ForBinding')
+                    lhs.BindingInitialization(nextValue, None)
+                else:
+                    assert lhsKind == LEXICALBINDING
+                    assert lhs.Is('ForDeclaration')
+                    lhs.BindingInitialization(nextValue, iterationEnv)
+        except (ESError, ESAbrupt) as err:
+            surrounding_agent.running_ec.lexical_environment = oldEnv
+            if iteratorKind == ASYNC:
+                return AsyncIteratorClose(iteratorRecord, err)
+            if iterationKind == ENUMERATE:
+                raise
+            assert iterationKind == ITERATE
+            IteratorClose(iteratorRecord)
+            raise
+        try:
+            result = stmt.evaluate()
+        except ESAbrupt as abrupt:
+            c = abrupt.completion
+            if not LoopContinues(c.value, labelSet):
+                if iterationKind == ITERATE:
+                    if iteratorKind == ASYNC:
+                        return AsyncIteratorClose(iteratorRecord, abrupt)
+                    IteratorClose(iteratorRecord)
+                raise type(abrupt)(value=UpdateEmpty(c.value, V), target=c.target)
+        finally:
+            surrounding_agent.running_ec.lexical_environment = oldEnv
+        if result != EMPTY:
+            V = result
+# 13.7.5.15 EnumerateObjectProperties ( O )
+def EnumerateObjectProperties(O):
+    # When the abstract operation EnumerateObjectProperties is called with argument O, the following steps are taken:
+    #
+    #   1. Assert: Type(O) is Object.
+    #   2. Return an Iterator object (25.1.1.2) whose next method iterates over all the String-valued keys of
+    #      enumerable properties of O. The iterator object is never directly accessible to ECMAScript code. The
+    #      mechanics and order of enumerating the properties is not specified but must conform to the rules specified
+    #      below.
+    #
+    # The iterator's throw and return methods are null and are never invoked. The iterator's next method processes
+    # object properties to determine whether the property key should be returned as an iterator value. Returned
+    # property keys do not include keys that are Symbols. Properties of the target object may be deleted during
+    # enumeration. A property that is deleted before it is processed by the iterator's next method is ignored. If new
+    # properties are added to the target object during enumeration, the newly added properties are not guaranteed to be
+    # processed in the active enumeration. A property name will be returned by the iterator's next method at most once
+    # in any enumeration.
+    #
+    # Enumerating the properties of the target object includes enumerating properties of its prototype, and the
+    # prototype of the prototype, and so on, recursively; but a property of a prototype is not processed if it has the
+    # same name as a property that has already been processed by the iterator's next method. The values of
+    # [[Enumerable]] attributes are not considered when determining if a property of a prototype object has already
+    # been processed. The enumerable property names of prototype objects must be obtained by invoking
+    # EnumerateObjectProperties passing the prototype object as the argument. EnumerateObjectProperties must obtain the
+    # own property keys of the target object by calling its [[OwnPropertyKeys]] internal method. Property attributes of
+    # the target object must be obtained by calling its [[GetOwnProperty]] internal method.
+    assert isObject(O)
 
+    def py_enum_props(obj):
+        visited = set()
+        for key in obj.OwnPropertyKeys():
+            if isString(key):
+                desc = obj.GetOwnProperty(key)
+                if desc:
+                    visited.add(key)
+                    if desc.enumerable:
+                        yield key
+        proto = obj.GetPrototypeOf()
+        if proto and not isNull(proto):
+            for propkey in py_enum_props(proto):
+                if propkey not in visited:
+                    yield propkey
+
+    iterator_obj = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics['%IteratorPrototype%'], ['python_iter'])
+    iterator_obj.python_iter = py_enum_props(O)
+
+    def enum_next(this_value, new_target):
+        done = False
+        try:
+            val = next(this_value.python_iter)
+        except StopIteration:
+            done = True
+            val = None
+        return CreateIterResultObject(val, done)
+
+    next_fcn = CreateBuiltinFunction(enum_next, [])
+    return Record(Iterator=iterator_obj, NextMethod=next_fcn, Done=False)
 # ------------------------------------ 𝑭𝒐𝒓𝑫𝒆𝒄𝒍𝒂𝒓𝒂𝒕𝒊𝒐𝒏 ------------------------------------
 class PN_ForDeclaration(ParseNode):
     def __init__(self, ctx, p):
@@ -13284,9 +13832,6 @@ class Ecma262Parser(Parser):
     @_('LPAREN_', 'LPAREN_LET', 'LPAREN_LBRACKET')  # pylint: disable=undefined-variable
     def LPAREN(self, p):    # LPAREN --- (
         return p[0]
-    @_('LPAREN_', 'LPAREN_LBRACKET') # --- ( [lookahead != let ]  # pylint: disable=undefined-variable
-    def LPAREN_NOTLET(self, p):
-        return p[0]
     ########################################################################################################################
     # 13.7 Iteration Statements
     #
@@ -13405,9 +13950,10 @@ class Ecma262Parser(Parser):
     #           for ( ForDeclaration[?Yield, ?Await] in Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
     @_('FOR LPAREN ForDeclaration IN Expression_In RPAREN Statement')  # pylint: disable=undefined-variable
     def IterationStatement(self, p):
-        return PN_IterationStatement_FOR_LPAREN_VAR_ForBinding_IN_Expression_RPAREN_Statement(self.context, p)
+        return PN_IterationStatement_FOR_LPAREN_ForDeclaration_IN_Expression_RPAREN_Statement(self.context, p)
     #           for ( [lookahead ≠ let] LeftHandSideExpression[?Yield, ?Await] of AssignmentExpression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
-    @_('FOR LPAREN_NOTLET LeftHandSideExpression OF AssignmentExpression_In RPAREN Statement')  # pylint: disable=undefined-variable
+    @_('FOR LPAREN_ LeftHandSideExpression OF AssignmentExpression_In RPAREN Statement',  # pylint: disable=undefined-variable
+       'FOR LPAREN_LBRACKET LeftHandSideExpression OF AssignmentExpression_In RPAREN Statement')
     def IterationStatement(self, p):
         return PN_IterationStatement_FOR_LPAREN_LeftHandSideExpression_OF_AssignmentExpression_RPAREN_Statement(self.context, p)
     #           for ( var ForBinding[?Yield, ?Await] of AssignmentExpression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
@@ -13496,9 +14042,10 @@ class Ecma262Parser(Parser):
     #           for ( ForDeclaration[?Yield, ?Await] in Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
     @_('FOR LPAREN ForDeclaration IN Expression_In RPAREN Statement_Return')  # pylint: disable=undefined-variable
     def IterationStatement_Return(self, p):
-        return PN_IterationStatement_FOR_LPAREN_VAR_ForBinding_IN_Expression_RPAREN_Statement(self.context, p)
+        return PN_IterationStatement_FOR_LPAREN_ForDeclaration_IN_Expression_RPAREN_Statement(self.context, p)
     #           for ( [lookahead ≠ let] LeftHandSideExpression[?Yield, ?Await] of AssignmentExpression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
-    @_('FOR LPAREN_NOTLET LeftHandSideExpression OF AssignmentExpression_In RPAREN Statement_Return')  # pylint: disable=undefined-variable
+    @_('FOR LPAREN_ LeftHandSideExpression OF AssignmentExpression_In RPAREN Statement_Return',  # pylint: disable=undefined-variable
+       'FOR LPAREN_LBRACKET LeftHandSideExpression OF AssignmentExpression_In RPAREN Statement_Return')
     def IterationStatement_Return(self, p):
         return PN_IterationStatement_FOR_LPAREN_LeftHandSideExpression_OF_AssignmentExpression_RPAREN_Statement(self.context, p)
     #           for ( var ForBinding[?Yield, ?Await] of AssignmentExpression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
@@ -17148,7 +17695,7 @@ def IteratorPrototype_iterator(this_value, new_target):
 #######################################################################################################################################################
 if __name__ == '__main__':
     try:
-        rv = RunJobs(scripts=["let colors = [ 'red', 'green', 'blue' ]; let [ firstColor, secondColor ] = colors; firstColor + '-' + secondColor;"])
+        rv = RunJobs(scripts=["for ([a,b] of c) {;}"])
     except ESError as err:
         InitializeHostDefinedRealm()
         print(err)
