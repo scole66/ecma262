@@ -117,6 +117,9 @@ def cleanup():
     ('b={a:99,bob:\'purple\'};b.bob+b.a;', 'purple99'),
     ('a=55;b=67;c={a,b};c.a*c.b;', 55*67),
     ('b={a:3};c={...b,y:88};c.a*c.y;', 3 * 88),
+    ('b=Array();\'[\'+b+\']\';', '[]'),
+    ("b=Array(10);'['+b+']';", '[,,,,,,,,,]'),
+    ("b=Array(3, 6, 12); '['+b+']';", '[3,6,12]'),
 ])
 def test_scripts_01(cleanup, script, result):
     rv = RunJobs(scripts=[script])

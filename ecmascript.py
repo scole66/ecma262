@@ -1703,6 +1703,19 @@ def ToPropertyKey(argument):
         return key
     return ToString(key)
 
+# 7.1.15 ToLength ( argument )
+def ToLength(argument):
+    # The abstract operation ToLength converts argument to an integer suitable for use as the length of an array-like
+    # object. It performs the following steps:
+    #
+    #   1. Let len be ? ToInteger(argument).
+    #   2. If len ≤ +0, return +0.
+    #   3. Return min(len, 2^53-1).
+    length = ToInteger(argument)
+    if length <= 0:
+        return 0
+    return min(length, 2**53-1)
+
 # 7.1.16 CanonicalNumericIndexString ( argument )
 def CanonicalNumericIndexString(arg):
     # The abstract operation CanonicalNumericIndexString returns argument converted to a numeric value if it is a
@@ -3747,6 +3760,9 @@ def CreateIntrinsics(realm_rec):
     intrinsics['%String%'] = CreateStringConstructor(realm_rec)
     intrinsics['%StringPrototype%'] = CreateStringPrototype(realm_rec)
     StringFixups(realm_rec)
+    intrinsics['%Array%'] = CreateArrayConstructor(realm_rec)
+    intrinsics['%ArrayPrototype%'] = CreateArrayPrototype(realm_rec)
+    ArrayFixups(realm_rec)
 
     # 14. Return intrinsics.
     return intrinsics
@@ -5268,6 +5284,7 @@ def BoundFunctionCreate(targetFunction, boundThis, boundArgs):
     # 12. Return obj.
     return obj
 
+# ------------------------------------ 𝟗.𝟒.𝟐 𝑨𝒓𝒓𝒂𝒚 𝑬𝒙𝒐𝒕𝒊𝒄 𝑶𝒃𝒋𝒆𝒄𝒕𝒔 ------------------------------------
 # 9.4.2 Array Exotic Objects
 #
 # An Array object is an exotic object that gives special treatment to array index property keys (see 6.1.7). A property
@@ -5291,6 +5308,7 @@ def BoundFunctionCreate(targetFunction, boundThis, boundArgs):
 # internal method, Array exotic objects provide all of the other essential internal methods as specified in 9.1.
 #
 class ArrayObject(JSObject):
+    # -------------------------------- 𝟗.𝟒.𝟐.𝟏 [[𝑫𝒆𝒇𝒊𝒏𝒆𝑶𝒘𝒏𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚]] ( 𝑷, 𝑫𝒆𝒔𝒄 ) ------------------------------------
     # 9.4.2.1 [[DefineOwnProperty]] ( P, Desc )
     def DefineOwnProperty(self, P, Desc):
         # When the [[DefineOwnProperty]] internal method of an Array exotic object A is called with property key P, and
@@ -5335,6 +5353,7 @@ class ArrayObject(JSObject):
         # 4. Return OrdinaryDefineOwnProperty(A, P, Desc).
         return OrdinaryDefineOwnProperty(self, P, Desc)
 
+# ------------------------------------ 𝟗.𝟒.𝟐.𝟐 𝑨𝒓𝒓𝒂𝒚𝑪𝒓𝒆𝒂𝒕𝒆 ( 𝒍𝒆𝒏𝒈𝒕𝒉 [ , 𝒑𝒓𝒐𝒕𝒐 ] ) ------------------------------------
 # 9.4.2.2 ArrayCreate ( length [ , proto ] )
 def ArrayCreate(length, proto=None):
     # The abstract operation ArrayCreate with argument length (either 0 or a positive integer) and optional argument proto is
@@ -5367,6 +5386,7 @@ def ArrayCreate(length, proto=None):
     # 11. Return A.
     return A
 
+# ------------------------------------ 𝟗.𝟒.𝟐.𝟑 𝑨𝒓𝒓𝒂𝒚𝑺𝒑𝒆𝒄𝒊𝒆𝒔𝑪𝒓𝒆𝒂𝒕𝒆 ( 𝒐𝒓𝒊𝒈𝒊𝒏𝒂𝒍𝑨𝒓𝒓𝒂𝒚, 𝒍𝒆𝒏𝒈𝒕𝒉 ) ------------------------------------
 # 9.4.2.3 ArraySpeciesCreate ( originalArray, length )
 def ArraySpeciesCreate(originalArray, length):
     # The abstract operation ArraySpeciesCreate with arguments originalArray and length is used to specify the creation of a
@@ -5416,6 +5436,7 @@ def ArraySpeciesCreate(originalArray, length):
     # compatibility with Web browsers that have historically had that behaviour for the Array.prototype methods that now are
     # defined using ArraySpeciesCreate.
 
+# ------------------------------------ 𝟗.𝟒.𝟐.𝟒 𝑨𝒓𝒓𝒂𝒚𝑺𝒆𝒕𝑳𝒆𝒏𝒈𝒕𝒉 ( 𝑨, 𝑫𝒆𝒔𝒄 ) ------------------------------------
 # 9.4.2.4 ArraySetLength ( A, Desc )
 def ArraySetLength(A, Desc):
     # When the abstract operation ArraySetLength is called with an Array exotic object A, and Property Descriptor Desc,
@@ -15321,10 +15342,293 @@ def StringFixups(realm):
     DefinePropertyOrThrow(string_prototype, 'constructor', const_desc)
     return None
 
+# ------------------------------------ 𝟐𝟐 𝑰𝒏𝒅𝒆𝒙𝒆𝒅 𝑪𝒐𝒍𝒍𝒆𝒄𝒕𝒊𝒐𝒏𝒔 ------------------------------------
+# ------------------------------------ 𝟐𝟐.𝟏 𝑨𝒓𝒓𝒂𝒚 𝑶𝒃𝒋𝒆𝒄𝒕𝒔 ------------------------------------
+########################################################################################################################################################
+#
+#  .d8888b.   .d8888b.       d888              d8888                                        .d88888b.  888         d8b                   888
+# d88P  Y88b d88P  Y88b     d8888             d88888                                       d88P" "Y88b 888         Y8P                   888
+#        888        888       888            d88P888                                       888     888 888                               888
+#      .d88P      .d88P       888           d88P 888 888d888 888d888  8888b.  888  888     888     888 88888b.    8888  .d88b.   .d8888b 888888 .d8888b
+#  .od888P"   .od888P"        888          d88P  888 888P"   888P"       "88b 888  888     888     888 888 "88b   "888 d8P  Y8b d88P"    888    88K
+# d88P"      d88P"            888         d88P   888 888     888     .d888888 888  888     888     888 888  888    888 88888888 888      888    "Y8888b.
+# 888"       888"       d8b   888        d8888888888 888     888     888  888 Y88b 888     Y88b. .d88P 888 d88P    888 Y8b.     Y88b.    Y88b.       X88
+# 888888888  888888888  Y8P 8888888     d88P     888 888     888     "Y888888  "Y88888      "Y88888P"  88888P"     888  "Y8888   "Y8888P  "Y888  88888P'
+#                                                                                  888                             888
+#                                                                             Y8b d88P                            d88P
+#                                                                              "Y88P"                           888P"
+#
+########################################################################################################################################################
+# Array objects are exotic objects that give special treatment to a certain class of property names. See 9.4.2 for a
+# definition of this special treatment.
+# ------------------------------------ 𝟐𝟐.𝟏.𝟏 𝑻𝒉𝒆 𝑨𝒓𝒓𝒂𝒚 𝑪𝒐𝒏𝒔𝒕𝒓𝒖𝒄𝒕𝒐𝒓 ------------------------------------
+# 22.1.1 The Array Constructor
+# The Array constructor:
+#
+#   * is the intrinsic object %Array%.
+#   * is the initial value of the Array property of the global object.
+#   * creates and initializes a new Array exotic object when called as a constructor.
+#   * also creates and initializes a new Array object when called as a function rather than as a constructor. Thus the
+#     function call Array(…) is equivalent to the object creation expression new Array(…) with the same arguments.
+#   * is a single function whose behaviour is overloaded based upon the number and types of its arguments.
+#   * is designed to be subclassable. It may be used as the value of an extends clause of a class definition. Subclass
+#     constructors that intend to inherit the exotic Array behaviour must include a super call to the Array constructor
+#     to initialize subclass instances that are Array exotic objects. However, most of the Array.prototype methods are
+#     generic methods that are not dependent upon their this value being an Array exotic object.
+#   * has a length property whose value is 1.
+#
+def CreateArrayConstructor(realm):
+    obj = CreateBuiltinFunction(ArrayFunction, ['Construct'], realm=realm)
+    for key, value in [('length', 1), ('name', 'Array')]:
+        desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)
+        DefinePropertyOrThrow(obj, key, desc)
+    BindBuiltinFunctions(realm, obj, [
+        ('from', Array_from, 1),
+        #('isArray', Array_isArray, 1),
+        #('of', Array_of, 0),
+    ])
+    def get_species(this_value, new_target):
+        return this_value
+    fcn_obj = CreateBuiltinFunction(get_species, [], realm)
+    DefinePropertyOrThrow(fcn_obj, 'length', PropertyDescriptor(value=0, writable=False, enumerable=False, configurable=True))
+    DefinePropertyOrThrow(fcn_obj, 'name', PropertyDescriptor(value='get [Symbol.species]', writable=False, enumerable=False, configurable=True))
+    DefinePropertyOrThrow(obj, wks_species, PropertyDescriptor(Get=fcn_obj, enumerable=False, configurable=True))
+
+    return obj
+
+# ------------------------------------ 𝟐𝟐.𝟏.𝟏.𝟏 𝑨𝒓𝒓𝒂𝒚 ( ) ------------------------------------
+# 22.1.1.1 Array ( )
+def ArrayFunction_no_args(this_value, new_target):
+    # This description applies if and only if the Array constructor is called with no arguments.
+    #
+    #   1. Let numberOfArgs be the number of arguments passed to this function call.
+    #   2. Assert: numberOfArgs = 0.
+    #   3. If NewTarget is undefined, let newTarget be the active function object, else let newTarget be NewTarget.
+    #   4. Let proto be ? GetPrototypeFromConstructor(newTarget, "%ArrayPrototype%").
+    #   5. Return ! ArrayCreate(0, proto).
+    newTarget = new_target or GetActiveFunction()
+    proto = GetPrototypeFromConstructor(newTarget, '%ArrayPrototype%')
+    return ArrayCreate(0, proto)
+
+# ------------------------------------ 𝟐𝟐.𝟏.𝟏.𝟐 𝑨𝒓𝒓𝒂𝒚 ( 𝒍𝒆𝒏 ) ------------------------------------
+# 22.1.1.2 Array ( len )
+def ArrayFunction_one_arg(this_value, new_target, length):
+    # This description applies if and only if the Array constructor is called with exactly one argument.
+    #
+    #   1. Let numberOfArgs be the number of arguments passed to this function call.
+    #   2. Assert: numberOfArgs = 1.
+    #   3. If NewTarget is undefined, let newTarget be the active function object, else let newTarget be NewTarget.
+    #   4. Let proto be ? GetPrototypeFromConstructor(newTarget, "%ArrayPrototype%").
+    #   5. Let array be ! ArrayCreate(0, proto).
+    #   6. If Type(len) is not Number, then
+    #       a. Let defineStatus be CreateDataProperty(array, "0", len).
+    #       b. Assert: defineStatus is true.
+    #       c. Let intLen be 1.
+    #   7. Else,
+    #       a. Let intLen be ToUint32(len).
+    #       b. If intLen ≠ len, throw a RangeError exception.
+    #   8. Perform ! Set(array, "length", intLen, true).
+    #   9. Return array.
+    newTarget = new_target or GetActiveFunction()
+    proto = GetPrototypeFromConstructor(newTarget, '%ArrayPrototype%')
+    array = ArrayCreate(0, proto)
+    if not isNumber(length):
+        defineStatus = CreateDataProperty(array, '0', length)
+        assert defineStatus
+        intLen = 1
+    else:
+        intLen = ToUint32(length)
+        if intLen != length:
+            raise ESRangeError(f'Invalid array length: {length}')
+    Set(array, 'length', intLen, True)
+    return array
+
+# ------------------------------------ 𝟐𝟐.𝟏.𝟏.𝟑 𝑨𝒓𝒓𝒂𝒚 ( ...𝒊𝒕𝒆𝒎𝒔 ) ------------------------------------
+# 22.1.1.3 Array ( ...items )
+def ArrayFunction(this_value, new_target, *items):
+    # This description applies if and only if the Array constructor is called with at least two arguments.
+    #
+    # When the Array function is called, the following steps are taken:
+    #
+    #   1. Let numberOfArgs be the number of arguments passed to this function call.
+    #   2. Assert: numberOfArgs ≥ 2.
+    #   3. If NewTarget is undefined, let newTarget be the active function object, else let newTarget be NewTarget.
+    #   4. Let proto be ? GetPrototypeFromConstructor(newTarget, "%ArrayPrototype%").
+    #   5. Let array be ? ArrayCreate(numberOfArgs, proto).
+    #   6. Let k be 0.
+    #   7. Let items be a zero-origined List containing the argument items in order.
+    #   8. Repeat, while k < numberOfArgs
+    #       a. Let Pk be ! ToString(k).
+    #       b. Let itemK be items[k].
+    #       c. Let defineStatus be CreateDataProperty(array, Pk, itemK).
+    #       d. Assert: defineStatus is true.
+    #       e. Increase k by 1.
+    #   9. Assert: The value of array's length property is numberOfArgs.
+    #   10. Return array.
+    numberOfArgs = len(items)
+    if numberOfArgs == 0:
+        return ArrayFunction_no_args(this_value, new_target)
+    if numberOfArgs == 1:
+        return ArrayFunction_one_arg(this_value, new_target, items[0])
+    newTarget = new_target or GetActiveFunction()
+    proto = GetPrototypeFromConstructor(newTarget, '%ArrayPrototype%')
+    array = ArrayCreate(numberOfArgs, proto)
+    for k, itemK in enumerate(items):
+        Pk = ToString(k)
+        defineStatus = CreateDataProperty(array, Pk, itemK)
+        assert defineStatus
+    assert Get(array, 'length') == numberOfArgs
+    return array
+
+# 22.1.2 Properties of the Array Constructor
+# The Array constructor:
+#
+#   * has a [[Prototype]] internal slot whose value is the intrinsic object %FunctionPrototype%.
+#   * has the following properties:
+
+# ------------------------------------ 𝟐𝟐.𝟏.𝟐.𝟏 𝑨𝒓𝒓𝒂𝒚.𝒇𝒓𝒐𝒎 ( 𝒊𝒕𝒆𝒎𝒔 [ , 𝒎𝒂𝒑𝒇𝒏 [ , 𝒕𝒉𝒊𝒔𝑨𝒓𝒈 ] ] ) ------------------------------------
+# 22.1.2.1 Array.from ( items [ , mapfn [ , thisArg ] ] )
+def Array_from(this_value, new_target, items, mapfn=EMPTY, thisArg=EMPTY):
+    # When the from method is called with argument items and optional arguments mapfn and thisArg, the following steps
+    # are taken:
+    #
+    #   1. Let C be the this value.
+    #   2. If mapfn is undefined, let mapping be false.
+    #   3. Else,
+    #       a. If IsCallable(mapfn) is false, throw a TypeError exception.
+    #       b. If thisArg is present, let T be thisArg; else let T be undefined.
+    #       c. Let mapping be true.
+    #   4. Let usingIterator be ? GetMethod(items, @@iterator).
+    #   5. If usingIterator is not undefined, then
+    #       a. If IsConstructor(C) is true, then
+    #           i. Let A be ? Construct(C).
+    #       b. Else,
+    #           i. Let A be ! ArrayCreate(0).
+    #       c. Let iteratorRecord be ? GetIterator(items, sync, usingIterator).
+    #       d. Let k be 0.
+    #       e. Repeat,
+    #           i. If k ≥ 2^53-1, then
+    #               1. Let error be ThrowCompletion(a newly created TypeError object).
+    #               2. Return ? IteratorClose(iteratorRecord, error).
+    #           ii. Let Pk be ! ToString(k).
+    #           iii. Let next be ? IteratorStep(iteratorRecord).
+    #           iv. If next is false, then
+    #               1. Perform ? Set(A, "length", k, true).
+    #               2. Return A.
+    #           v. Let nextValue be ? IteratorValue(next).
+    #           vi. If mapping is true, then
+    #               1. Let mappedValue be Call(mapfn, T, « nextValue, k »).
+    #               2. If mappedValue is an abrupt completion, return ? IteratorClose(iteratorRecord, mappedValue).
+    #               3. Let mappedValue be mappedValue.[[Value]].
+    #           vii. Else, let mappedValue be nextValue.
+    #           viii. Let defineStatus be CreateDataPropertyOrThrow(A, Pk, mappedValue).
+    #           ix. If defineStatus is an abrupt completion, return ? IteratorClose(iteratorRecord, defineStatus).
+    #           x. Increase k by 1.
+    #   6. NOTE: items is not an Iterable so assume it is an array-like object.
+    #   7. Let arrayLike be ! ToObject(items).
+    #   8. Let len be ? ToLength(? Get(arrayLike, "length")).
+    #   9. If IsConstructor(C) is true, then
+    #       a. Let A be ? Construct(C, « len »).
+    #   10. Else,
+    #       a. Let A be ? ArrayCreate(len).
+    #   11. Let k be 0.
+    #   12. Repeat, while k < len
+    #       a. Let Pk be ! ToString(k).
+    #       b. Let kValue be ? Get(arrayLike, Pk).
+    #       c. If mapping is true, then
+    #           i. Let mappedValue be ? Call(mapfn, T, « kValue, k »).
+    #       d. Else, let mappedValue be kValue.
+    #       e. Perform ? CreateDataPropertyOrThrow(A, Pk, mappedValue).
+    #       f. Increase k by 1.
+    #   13. Perform ? Set(A, "length", len, true).
+    #   14. Return A.
+    # NOTE
+    # The from function is an intentionally generic factory method; it does not require that its this value be the
+    # Array constructor. Therefore it can be transferred to or inherited by any other constructors that may be called
+    # with a single numeric argument.
+    raise NotImplementedError # This wants iterators. @@@ I'm not there yet.
+
+# 22.1.3 Properties of the Array Prototype Object
+# The Array prototype object:
+#
+#   * is the intrinsic object %ArrayPrototype%.
+#   * is an Array exotic object and has the internal methods specified for such objects.
+#   * has a length property whose initial value is 0 and whose attributes are
+#     { [[Writable]]: true, [[Enumerable]]: false, [[Configurable]]: false }.
+#   * has a [[Prototype]] internal slot whose value is the intrinsic object %ObjectPrototype%.
+# NOTE
+# The Array prototype object is specified to be an Array exotic object to ensure compatibility with ECMAScript code
+# that was created prior to the ECMAScript 2015 specification.
+
+def CreateArrayPrototype(realm):
+    proto = ArrayCreate(0, realm.intrinsics['%ObjectPrototype%'])
+    BindBuiltinFunctions(realm, proto, [
+        ('toString', ArrayPrototype_toString, 0),
+        ('join', ArrayPrototype_join, 1),
+    ])
+    return proto
+
+# 22.1.3.13 Array.prototype.join ( separator )
+def ArrayPrototype_join(this_value, new_target, separator=','):
+    # NOTE 1
+    # The elements of the array are converted to Strings, and these Strings are then concatenated, separated by
+    # occurrences of the separator. If no separator is provided, a single comma is used as the separator.
+    #
+    # The join method takes one argument, separator, and performs the following steps:
+    #
+    #   1. Let O be ? ToObject(this value).
+    #   2. Let len be ? ToLength(? Get(O, "length")).
+    #   3. If separator is undefined, let sep be the single-element String ",".
+    #   4. Else, let sep be ? ToString(separator).
+    #   5. Let R be the empty String.
+    #   6. Let k be 0.
+    #   7. Repeat, while k < len
+    #       a. If k > 0, let R be the string-concatenation of R and sep.
+    #       b. Let element be ? Get(O, ! ToString(k)).
+    #       c. If element is undefined or null, let next be the empty String; otherwise, let next be
+    #          ? ToString(element).
+    #       d. Set R to the string-concatenation of R and next.
+    #       e. Increase k by 1.
+    #   8. Return R.
+    # NOTE 2
+    # The join function is intentionally generic; it does not require that its this value be an Array object.
+    # Therefore, it can be transferred to other kinds of objects for use as a method.
+    O = ToObject(this_value)
+    length = ToLength(Get(O, 'length'))
+    sep = ToString(separator)
+    return sep.join(ToString(element) if not (isUndefined(element) or isNull(element)) else '' for element in (Get(O, ToString(k)) for k in range(length)))
+
+# 22.1.3.28 Array.prototype.toString ( )
+def ArrayPrototype_toString(this_value, new_target):
+    # When the toString method is called, the following steps are taken:
+    #
+    #   1. Let array be ? ToObject(this value).
+    #   2. Let func be ? Get(array, "join").
+    #   3. If IsCallable(func) is false, let func be the intrinsic function %ObjProto_toString%.
+    #   4. Return ? Call(func, array).
+    # NOTE
+    # The toString function is intentionally generic; it does not require that its this value be an Array object.
+    # Therefore it can be transferred to other kinds of objects for use as a method.
+    array = ToObject(this_value)
+    func = Get(array, 'join')
+    if not IsCallable(func):
+        func = surrounding_agent.running_ec.realm.intrinsics['%ObjProto_toString%']
+    return Call(func, array)
+
+def ArrayFixups(realm):
+    array_constructor = realm.intrinsics['%Array%']
+    array_prototype = realm.intrinsics['%ArrayPrototype%']
+    proto_desc = PropertyDescriptor(value=array_prototype, writable=False, enumerable=False, configurable=False)
+    DefinePropertyOrThrow(array_constructor, 'prototype', proto_desc)
+    const_desc = PropertyDescriptor(value=array_constructor, writable=True, enumerable=False, configurable=True)
+    DefinePropertyOrThrow(array_prototype, 'constructor', const_desc)
+
+
+
 #######################################################################################################################################################
 if __name__ == '__main__':
     try:
-        rv = RunJobs(scripts=["b = { a: 3, bob: 'happy' }; b.bob + b.a;"])
+        rv = RunJobs(scripts=["b = Array(10, 11, 12);"])
     except ESError as err:
         InitializeHostDefinedRealm()
         print(err)
