@@ -7158,6 +7158,222 @@ class PN_Literal_STRING(PN_Literal):
         return self.children[0].value
 
 # ------------------------------------ 𝟏𝟐.𝟐.𝟓 𝑨𝒓𝒓𝒂𝒚 𝑰𝒏𝒊𝒕𝒊𝒂𝒍𝒊𝒛𝒆𝒓 ------------------------------------
+# 12.2.5 Array Initializer
+#
+# NOTE
+# An ArrayLiteral is an expression describing the initialization of an Array object, using a list, of zero or more
+# expressions each of which represents an array element, enclosed in square brackets. The elements need not be
+# literals; they are evaluated each time the array initializer is evaluated.
+#
+# Array elements may be elided at the beginning, middle or end of the element list. Whenever a comma in the element
+# list is not preceded by an AssignmentExpression (i.e., a comma at the beginning or after another comma), the missing
+# array element contributes to the length of the Array and increases the index of subsequent elements. Elided array
+# elements are not defined. If an element is elided at the end of an array, that element does not contribute to the
+# length of the Array.
+#
+# ------------------------------------ 𝑨𝒓𝒓𝒂𝒚𝑳𝒊𝒕𝒆𝒓𝒂𝒍 ------------------------------------
+class PN_ArrayLiteral(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('ArrayLiteral', p)
+class PN_ArrayLiteral_LBRACKET_RBRACKET(PN_ArrayLiteral):
+    def evaluate(self):
+        # 12.2.5.3 Runtime Semantics: Evaluation
+        # ArrayLiteral : [ ]
+        #   1. Let array be ! ArrayCreate(0).
+        #   2. Let pad be 0.
+        #   3. Perform Set(array, "length", ToUint32(pad), false).
+        #   4. NOTE: The above Set cannot fail because of the nature of the object returned by ArrayCreate.
+        #   5. Return array.
+        array = ArrayCreate(0)
+        Set(array, 'length', 0, False)
+        return array
+class PN_ArrayLiteral_LBRACKET_Elision_RBRACKET(PN_ArrayLiteral):
+    @property
+    def Elision(self):
+        return self.children[1]
+    def evaluate(self):
+        # 12.2.5.3 Runtime Semantics: Evaluation
+        # ArrayLiteral : [ Elision ]
+        #   1. Let array be ! ArrayCreate(0).
+        #   2. Let pad be the ElisionWidth of Elision.
+        #   3. Perform Set(array, "length", ToUint32(pad), false).
+        #   4. NOTE: The above Set cannot fail because of the nature of the object returned by ArrayCreate.
+        #   5. Return array.
+        array = ArrayCreate(0)
+        Set(array, 'length', self.Elision.ElisionWidth(), False)
+        return array
+class PN_ArrayLiteral_LBRACKET_ElementList_RBRACKET(PN_ArrayLiteral):
+    @property
+    def ElementList(self):
+        return self.children[1]
+    def evaluate(self):
+        # 12.2.5.3 Runtime Semantics: Evaluation
+        # ArrayLiteral : [ ElementList ]
+        #   1. Let array be ! ArrayCreate(0).
+        #   2. Let len be the result of performing ArrayAccumulation for ElementList with arguments array and 0.
+        #   3. ReturnIfAbrupt(len).
+        #   4. Perform Set(array, "length", ToUint32(len), false).
+        #   5. NOTE: The above Set cannot fail because of the nature of the object returned by ArrayCreate.
+        #   6. Return array.
+        array = ArrayCreate(0)
+        length = self.ElementList.ArrayAccumulation(array, 0)
+        Set(array, 'length', ToUint32(length), False)
+        return array
+class PN_ArrayLiteral_LBRACKET_ElementList_COMMA_RBRACKET(PN_ArrayLiteral_LBRACKET_ElementList_RBRACKET):
+    pass
+class PN_ArrayLiteral_LBRACKET_ElementList_COMMA_Elision_RBRACKET(PN_ArrayLiteral):
+    @property
+    def ElementList(self):
+        return self.children[1]
+    @property
+    def Elision(self):
+        return self.children[3]
+    def evaluate(self):
+        # 12.2.5.3 Runtime Semantics: Evaluation
+        # ArrayLiteral : [ ElementList , Elision ]
+        #   1. Let array be ! ArrayCreate(0).
+        #   2. Let len be the result of performing ArrayAccumulation for ElementList with arguments array and 0.
+        #   3. ReturnIfAbrupt(len).
+        #   4. Let padding be the ElisionWidth of Elision.
+        #   5. Perform Set(array, "length", ToUint32(padding+len), false).
+        #   6. NOTE: The above Set cannot fail because of the nature of the object returned by ArrayCreate.
+        #   7. Return array.
+        array = ArrayCreate(0)
+        length = self.ElementList.ArrayAccumulation(array, 0)
+        padding = self.Elision.ElisionWidth()
+        Set(array, 'length', ToUint32(padding+length), False)
+        return array
+# ------------------------------------ 𝑬𝒍𝒆𝒎𝒆𝒏𝒕𝑳𝒊𝒔𝒕 ------------------------------------
+class PN_ElementList(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('ElementList', p)
+class PN_ElementList_Elision_AssignmentExpression(PN_ElementList):
+    @property
+    def Elision(self):
+        return self.children[0]
+    @property
+    def AssignmentExpression(self):
+        return self.children[1]
+    def ArrayAccumulation(self, array, nextIndex):
+        # 12.2.5.2 Runtime Semantics: ArrayAccumulation
+        #   With parameters array and nextIndex.
+        # ElementList : Elision AssignmentExpression
+        # ElementList : AssignmentExpression
+        #   1. Let padding be the ElisionWidth of Elision; if Elision is not present, use the numeric value zero.
+        #   2. Let initResult be the result of evaluating AssignmentExpression.
+        #   3. Let initValue be ? GetValue(initResult).
+        #   4. Let created be CreateDataProperty(array, ToString(ToUint32(nextIndex+padding)), initValue).
+        #   5. Assert: created is true.
+        #   6. Return nextIndex+padding+1.
+        padding = self.Elision.ElisionWidth() if self.Elision else 0
+        initResult = self.AssignmentExpression.evaluate()
+        initValue = GetValue(initResult)
+        created = CreateDataProperty(array, ToString(ToUint32(nextIndex + padding)), initValue)
+        assert created
+        return nextIndex + padding + 1
+class PN_ElementList_AssignmentExpression(PN_ElementList_Elision_AssignmentExpression):
+    @property
+    def AssignmentExpression(self):
+        return self.children[0]
+    @property
+    def Elision(self):
+        return None
+class PN_ElementList_Elision_SpreadElement(PN_ElementList):
+    @property
+    def Elision(self):
+        return self.children[0]
+    @property
+    def SpreadElement(self):
+        return self.children[1]
+    def ArrayAccumulation(self, array, nextIndex):
+        # 12.2.5.2 Runtime Semantics: ArrayAccumulation
+        #   With parameters array and nextIndex.
+        # ElementList : Elision SpreadElement
+        # ElementList : SpreadElement
+        #   1. Let padding be the ElisionWidth of Elision; if Elision is not present, use the numeric value zero.
+        #   2. Return the result of performing ArrayAccumulation for SpreadElement with arguments array and nextIndex+padding.
+        padding = self.Elision.ElisionWidth() if self.Elision else 0
+        return self.SpreadElement.ArrayAccumulation(array, nextIndex + padding)
+class PN_ElementList_SpreadElement(PN_ElementList_Elision_SpreadElement):
+    @property
+    def SpreadElement(self):
+        return self.children[0]
+    @property
+    def Elision(self):
+        return None
+class PN_ElementList_ElementList_COMMA_Elision_AssignmentExpression(PN_ElementList):
+    @property
+    def ElementList(self):
+        return self.children[0]
+    @property
+    def Elision(self):
+        return self.children[2]
+    @property
+    def AssignmentExpression(self):
+        return self.children[3]
+    def ArrayAccumulation(self, array, nextIndex):
+        # 12.2.5.2 Runtime Semantics: ArrayAccumulation
+        #   With parameters array and nextIndex.
+        # ElementList : ElementList , Elision AssignmentExpression
+        # ElementList : ElementList , AssignmentExpression
+        #   1. Let postIndex be the result of performing ArrayAccumulation for ElementList with arguments array and nextIndex.
+        #   2. ReturnIfAbrupt(postIndex).
+        #   3. Let padding be the ElisionWidth of Elision; if Elision is not present, use the numeric value zero.
+        #   4. Let initResult be the result of evaluating AssignmentExpression.
+        #   5. Let initValue be ? GetValue(initResult).
+        #   6. Let created be CreateDataProperty(array, ToString(ToUint32(postIndex+padding)), initValue).
+        #   7. Assert: created is true.
+        #   8. Return postIndex+padding+1.
+        postIndex = self.ElementList.ArrayAccumulation(array, nextIndex)
+        padding = self.Elision.ElisionWidth() if self.Elision else 0
+        initResult = self.AssignmentExpression.evaluate()
+        initValue = GetValue(initResult)
+        created = CreateDataProperty(array, ToString(ToUint32(postIndex + padding)), initValue)
+        assert created
+        return postIndex + padding + 1
+class PN_ElementList_ElementList_COMMA_AssignmentExpression(PN_ElementList_ElementList_COMMA_Elision_AssignmentExpression):
+    @property
+    def ElementList(self):
+        return self.children[0]
+    @property
+    def AssignmentExpression(self):
+        return self.children[2]
+    @property
+    def Elision(self):
+        return None
+class PN_ElementList_ElementList_COMMA_Elision_SpreadElement(PN_ElementList):
+    @property
+    def ElementList(self):
+        return self.children[0]
+    @property
+    def Elision(self):
+        return self.children[2]
+    @property
+    def SpreadElement(self):
+        return self.children[3]
+    def ArrayAccumulation(self, array, nextIndex):
+        # 12.2.5.2 Runtime Semantics: ArrayAccumulation
+        #   With parameters array and nextIndex.
+        # ElementList : ElementList , Elision SpreadElement
+        # ElementList : ElementList , SpreadElement
+        #   1. Let postIndex be the result of performing ArrayAccumulation for ElementList with arguments array and nextIndex.
+        #   2. ReturnIfAbrupt(postIndex).
+        #   3. Let padding be the ElisionWidth of Elision; if Elision is not present, use the numeric value zero.
+        #   4. Return the result of performing ArrayAccumulation for SpreadElement with arguments array and postIndex+padding.
+        postIndex = self.ElementList.ArrayAccumulation(array, nextIndex)
+        padding = self.Elision.ElisionWidth() if self.Elision else 0
+        return self.SpreadElement.ArrayAccumulation(array, postIndex + padding)
+class PN_ElementList_ElementList_COMMA_SpreadElement(PN_ElementList_ElementList_COMMA_Elision_SpreadElement):
+    @property
+    def ElementList(self):
+        return self.children[0]
+    @property
+    def SpreadElement(self):
+        return self.children[2]
+    @property
+    def Elision(self):
+        return None
+# ------------------------------------ 𝑬𝒍𝒊𝒔𝒊𝒐𝒏 ------------------------------------
 class PN_Elision(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('Elision', p)
@@ -7177,6 +7393,39 @@ class PN_Elision_Elision_COMMA(PN_Elision):
         # 1. Let preceding be the ElisionWidth of Elision.
         # 2. Return preceding+1.
         return 1 + self.Elision.ElisionWidth()
+# ------------------------------------ 𝑺𝒑𝒓𝒆𝒂𝒅𝑬𝒍𝒆𝒎𝒆𝒏𝒕 ------------------------------------
+class PN_SpreadElement(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('SpreadElement', p)
+class PN_SpreadElement_DOTDOTDOT_AssignmentExpression(PN_SpreadElement):
+    @property
+    def AssignmentExpression(self):
+        return self.children[1]
+    def ArrayAccumulation(self, array, nextIndex):
+        # 12.2.5.2 Runtime Semantics: ArrayAccumulation
+        #   With parameters array and nextIndex.
+        # SpreadElement : ... AssignmentExpression
+        #   1. Let spreadRef be the result of evaluating AssignmentExpression.
+        #   2. Let spreadObj be ? GetValue(spreadRef).
+        #   3. Let iteratorRecord be ? GetIterator(spreadObj).
+        #   4. Repeat,
+        #       a. Let next be ? IteratorStep(iteratorRecord).
+        #       b. If next is false, return nextIndex.
+        #       c. Let nextValue be ? IteratorValue(next).
+        #       d. Let status be CreateDataProperty(array, ToString(ToUint32(nextIndex)), nextValue).
+        #       e. Assert: status is true.
+        #       f. Let nextIndex be nextIndex + 1.
+        spreadRef = self.AssignmentExpression.evaluate()
+        spreadObj = GetValue(spreadRef)
+        iteratorRecord = GetIterator(spreadObj)
+        while 1:
+            next = IteratorStep(iteratorRecord)
+            if not next:
+                return nextIndex
+            nextValue = IteratorValue(next)
+            status = CreateDataProperty(array, ToString(ToUint32(nextIndex)), nextValue)
+            assert status
+            nextIndex += 1
 
 # ------------------------------------ 𝟏𝟐.𝟐.𝟔 𝑶𝒃𝒋𝒆𝒄𝒕 𝑰𝒏𝒊𝒕𝒊𝒂𝒍𝒊𝒛𝒆𝒓 ------------------------------------
 # NOTE 1
@@ -13698,6 +13947,21 @@ class Ecma262Parser(Parser):
     #           [ ElementList[?Yield, ?Await] ]
     #           [ ElementList[?Yield, ?Await] , ]
     #           [ ElementList[?Yield, ?Await] , Elision ]
+    @_('LBRACKET RBRACKET')  # pytest: disable=undefined-variable
+    def ArrayLiteral(self, p):
+        return PN_ArrayLiteral_LBRACKET_RBRACKET(self.context, p)
+    @_('LBRACKET Elision RBRACKET')  # pytest: disable=undefined-variable
+    def ArrayLiteral(self, p):
+        return PN_ArrayLiteral_LBRACKET_Elision_RBRACKET(self.context, p)
+    @_('LBRACKET ElementList RBRACKET')  # pytest: disable=undefined-variable
+    def ArrayLiteral(self, p):
+        return PN_ArrayLiteral_LBRACKET_ElementList_RBRACKET(self.context, p)
+    @_('LBRACKET ElementList COMMA RBRACKET')  # pytest: disable=undefined-variable
+    def ArrayLiteral(self, p):
+        return PN_ArrayLiteral_LBRACKET_ElementList_COMMA_RBRACKET(self.context, p)
+    @_('LBRACKET ElementList COMMA Elision RBRACKET')  # pytest: disable=undefined-variable
+    def ArrayLiteral(self, p):
+        return PN_ArrayLiteral_LBRACKET_ElementList_COMMA_Elision_RBRACKET(self.context, p)
     #
     # ElementList[Yield, Await] :
     #           AssignmentExpression[+In, ?Yield, ?Await]
@@ -13707,7 +13971,31 @@ class Ecma262Parser(Parser):
     #           ElementList[?Yield, ?Await] , AssignmentExpression[+In, ?Yield, ?Await]
     #           ElementList[?Yield, ?Await] , Elision AssignmentExpression[+In, ?Yield, ?Await]
     #           ElementList[?Yield, ?Await] , SpreadElement[?Yield, ?Await]
-    #           ElementList[?Yield, ?Await] , Elisionopt SpreadElement[?Yield, ?Await]
+    #           ElementList[?Yield, ?Await] , Elision SpreadElement[?Yield, ?Await]
+    @_('AssignmentExpression_In')
+    def ElementList(self, p):
+        return PN_ElementList_AssignmentExpression(self.context, p)
+    @_('Elision AssignmentExpression_In')
+    def ElementList(self, p):
+        return PN_ElementList_Elision_AssignmentExpression(self.context, p)
+    @_('SpreadElement')
+    def ElementList(self, p):
+        return PN_ElementList_SpreadElement(self.context, p)
+    @_('Elision SpreadElement')
+    def ElementList(self, p):
+        return PN_ElementList_Elision_SpreadElement(self.context, p)
+    @_('ElementList COMMA AssignmentExpression_In')
+    def ElementList(self, p):
+        return PN_ElementList_ElementList_COMMA_AssignmentExpression(self.context, p)
+    @_('ElementList COMMA Elision AssignmentExpression_In')
+    def ElementList(self, p):
+        return PN_ElementList_ElementList_COMMA_Elision_AssignmentExpression(self.context, p)
+    @_('ElementList COMMA SpreadElement')
+    def ElementList(self, p):
+        return PN_ElementList_ElementList_COMMA_SpreadElement(self.context, p)
+    @_('ElementList COMMA Elision SpreadElement')
+    def ElementList(self, p):
+        return PN_ElementList_ElementList_COMMA_Elision_SpreadElement(self.context, p)
     #
     # Elision :
     #           ,
@@ -13721,8 +14009,34 @@ class Ecma262Parser(Parser):
     #
     # SpreadElement[Yield, Await] :
     #           ... AssignmentExpression[+In, ?Yield, ?Await]
+    @_('DOTDOTDOT AssignmentExpression_In')  # pylint: disable=undefined-variable
+    def SpreadElement(self, p):
+        return PN_SpreadElement_DOTDOTDOT_AssignmentExpression(self.context, p)
     ########################################################################################################################
 
+    ########################################################################################################################
+    # 12.2.4 Literals
+    #
+    # Syntax
+    #
+    # Literal:
+    #           NullLiteral
+    #           BooleanLiteral
+    #           NumericLiteral
+    #           StringLiteral
+    @_('NULL')  # pylint: disable=undefined-variable
+    def Literal(self, p):
+        return PN_Literal_NULL(self.context, p)
+    @_('TRUE', 'FALSE')  # pylint: disable=undefined-variable
+    def Literal(self, p):
+        return PN_Literal_BOOLEAN(self.context, p)
+    @_('NUMERIC')  # pylint: disable=undefined-variable
+    def Literal(self, p):
+        return PN_Literal_NUMERIC(self.context, p)
+    @_('STRING')  # pylint: disable=undefined-variable
+    def Literal(self, p):
+        return PN_Literal_STRING(self.context, p)
+    ########################################################################################################################
 
     ########################################################################################################################
     # 12.2 Primary Expression
@@ -13767,6 +14081,9 @@ class Ecma262Parser(Parser):
     @_('ObjectLiteral')  # pylint: disable=undefined-variable
     def PrimaryExpression(self, p):
         return PN_PrimaryExpression_ObjectLiteral(self.context, p)
+    @_('ArrayLiteral')  # pylint: disable=undefined-variable
+    def PrimaryExpression(self, p):
+        return PN_PrimaryExpression_ArrayLiteral(self.context, p)
     @_('CoverParenthesizedExpressionAndArrowParameterList')  # pylint: disable=undefined-variable
     def PrimaryExpression(self, p):
         return PN_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(self.context, p)
@@ -13779,6 +14096,9 @@ class Ecma262Parser(Parser):
     @_('Literal')  # pylint: disable=undefined-variable
     def PrimaryExpression_Restricted(self, p):
         return PN_PrimaryExpression_Literal(self.context, p)
+    @_('ArrayLiteral')  # pylint: disable=undefined-variable
+    def PrimaryExpression_Restricted(self, p):
+        return PN_PrimaryExpression_ArrayLiteral(self.context, p)
     @_('CoverParenthesizedExpressionAndArrowParameterList')  # pylint: disable=undefined-variable
     def PrimaryExpression_Restricted(self, p):
         return PN_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(self.context, p)
@@ -13885,19 +14205,6 @@ class Ecma262Parser(Parser):
     @_('IDENTIFIER', 'OF', 'LET')  # pylint: disable=undefined-variable
     def Identifier(self, p):
         return PN_Identifier(self.context, p)
-
-    @_('NULL')  # pylint: disable=undefined-variable
-    def Literal(self, p):
-        return PN_Literal_NULL(self.context, p)
-    @_('TRUE', 'FALSE')  # pylint: disable=undefined-variable
-    def Literal(self, p):
-        return PN_Literal_BOOLEAN(self.context, p)
-    @_('NUMERIC')  # pylint: disable=undefined-variable
-    def Literal(self, p):
-        return PN_Literal_NUMERIC(self.context, p)
-    @_('STRING')  # pylint: disable=undefined-variable
-    def Literal(self, p):
-        return PN_Literal_STRING(self.context, p)
 
 # 15.1.8 Script Records
 class ScriptRecord(Record):
