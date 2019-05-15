@@ -2549,6 +2549,204 @@ def CopyDataProperties(target, source, excludedItems):
                 CreateDataProperty(target, nextKey, propValue)
     return target
 
+##################################################################################################################################################################################################################################################################################
+#
+# 8888888888         d8888       .d88888b.                                     888    d8b                                                      8888888 888                              888                          .d88888b.  888         d8b                   888
+#       d88P        d8P888      d88P" "Y88b                                    888    Y8P                                                        888   888                              888                         d88P" "Y88b 888         Y8P                   888
+#      d88P        d8P 888      888     888                                    888                                                               888   888                              888                         888     888 888                               888
+#     d88P        d8P  888      888     888 88888b.   .d88b.  888d888  8888b.  888888 888  .d88b.  88888b.  .d8888b       .d88b.  88888b.        888   888888  .d88b.  888d888  8888b.  888888  .d88b.  888d888     888     888 88888b.    8888  .d88b.   .d8888b 888888 .d8888b
+#  88888888      d88   888      888     888 888 "88b d8P  Y8b 888P"       "88b 888    888 d88""88b 888 "88b 88K          d88""88b 888 "88b       888   888    d8P  Y8b 888P"       "88b 888    d88""88b 888P"       888     888 888 "88b   "888 d8P  Y8b d88P"    888    88K
+#   d88P         8888888888     888     888 888  888 88888888 888     .d888888 888    888 888  888 888  888 "Y8888b.     888  888 888  888       888   888    88888888 888     .d888888 888    888  888 888         888     888 888  888    888 88888888 888      888    "Y8888b.
+#  d88P      d8b       888      Y88b. .d88P 888 d88P Y8b.     888     888  888 Y88b.  888 Y88..88P 888  888      X88     Y88..88P 888  888       888   Y88b.  Y8b.     888     888  888 Y88b.  Y88..88P 888         Y88b. .d88P 888 d88P    888 Y8b.     Y88b.    Y88b.       X88
+# d88P       Y8P       888       "Y88888P"  88888P"   "Y8888  888     "Y888888  "Y888 888  "Y88P"  888  888  88888P'      "Y88P"  888  888     8888888  "Y888  "Y8888  888     "Y888888  "Y888  "Y88P"  888          "Y88888P"  88888P"     888  "Y8888   "Y8888P  "Y888  88888P'
+#                                           888                                                                                                                                                                                             888
+#                                           888                                                                                                                                                                                            d88P
+#                                           888                                                                                                                                                                                          888P"
+#
+##################################################################################################################################################################################################################################################################################
+# ------------------------------------ 𝟕.𝟒.𝟏 𝑮𝒆𝒕𝑰𝒕𝒆𝒓𝒂𝒕𝒐𝒓 ( 𝒐𝒃𝒋 [ , 𝒉𝒊𝒏𝒕 [ , 𝒎𝒆𝒕𝒉𝒐𝒅 ] ] ) ------------------------------------
+# 7.4.1 GetIterator ( obj [ , hint [ , method ] ] )
+@unique
+class IteratorHint(Enum):
+    SYNC = auto()
+    ASYNC = auto()
+SYNC = IteratorHint.SYNC
+ASYNC = IteratorHint.ASYNC
+def GetIterator(obj, hint=SYNC, method=EMPTY):
+    # The abstract operation GetIterator with argument obj and optional arguments hint and method performs the
+    # following steps:
+    #
+    #   1. If hint is not present, set hint to sync.
+    #   2. Assert: hint is either sync or async.
+    #   3. If method is not present, then
+    #       a. If hint is async, then
+    #           i. Set method to ? GetMethod(obj, @@asyncIterator).
+    #           ii. If method is undefined, then
+    #               1. Let syncMethod be ? GetMethod(obj, @@iterator).
+    #               2. Let syncIteratorRecord be ? GetIterator(obj, sync, syncMethod).
+    #               3. Return ? CreateAsyncFromSyncIterator(syncIteratorRecord).
+    #       b. Otherwise, set method to ? GetMethod(obj, @@iterator).
+    #   4. Let iterator be ? Call(method, obj).
+    #   5. If Type(iterator) is not Object, throw a TypeError exception.
+    #   6. Let nextMethod be ? GetV(iterator, "next").
+    #   7. Let iteratorRecord be Record { [[Iterator]]: iterator, [[NextMethod]]: nextMethod, [[Done]]: false }.
+    #   8. Return iteratorRecord.
+    assert hint in [SYNC, ASYNC]
+    if method == EMPTY:
+        if hint == ASYNC:
+            method = GetMethod(obj, wks_async_iterator)
+            if method is None:
+                syncMethod = GetMethod(obj, wks_iterator)
+                syncIteratorRecord = GetIterator(obj, SYNC, syncMethod)
+                raise NotImplementedError
+                #return CreateAsyncFromSyncIterator(syncIteratorRecord)
+        method = GetMethod(obj, wks_iterator)
+    iterator = Call(method, obj)
+    if not isObject(iterator):
+        raise ESTypeError('Iterator not an object')
+    nextMethod = GetV(iterator, 'next')
+    return Record(Iterator=iterator, NextMethod=nextMethod, Done=False)
+
+# 7.4.2 IteratorNext ( iteratorRecord [ , value ] )
+def IteratorNext(iteratorRecord, value=EMPTY):
+    # The abstract operation IteratorNext with argument iteratorRecord and optional argument value performs the
+    # following steps:
+    #
+    #   1. If value is not present, then
+    #       a. Let result be ? Call(iteratorRecord.[[NextMethod]], iteratorRecord.[[Iterator]], « »).
+    #   2. Else,
+    #       a. Let result be ? Call(iteratorRecord.[[NextMethod]], iteratorRecord.[[Iterator]], « value »).
+    #   3. If Type(result) is not Object, throw a TypeError exception.
+    #   4. Return result.
+    if value == EMPTY:
+        arglist = []
+    else:
+        arglist = [value]
+    result = Call(iteratorRecord.NextMethod, iteratorRecord.Iterator, arglist)
+    if not isObject(result):
+        raise ESTypeError('Iterator Next Method returned a non-object')
+    return result
+
+# 7.4.3 IteratorComplete ( iterResult )
+def IteratorComplete(iterResult):
+    # The abstract operation IteratorComplete with argument iterResult performs the following steps:
+    #
+    # 1. Assert: Type(iterResult) is Object.
+    # 2. Return ToBoolean(? Get(iterResult, "done")).
+    assert isObject(iterResult)
+    return ToBoolean(Get(iterResult, 'done'))
+
+# 7.4.4 IteratorValue ( iterResult )
+def IteratorValue(iterResult):
+    # The abstract operation IteratorValue with argument iterResult performs the following steps:
+    #
+    # 1. Assert: Type(iterResult) is Object.
+    # 2. Return ? Get(iterResult, "value").
+    assert isObject(iterResult)
+    return Get(iterResult, 'value')
+
+# 7.4.5 IteratorStep ( iteratorRecord )
+def IteratorStep(iteratorRecord):
+    # The abstract operation IteratorStep with argument iteratorRecord requests the next value from
+    # iteratorRecord.[[Iterator]] by calling iteratorRecord.[[NextMethod]] and returns either false indicating that the
+    # iterator has reached its end or the IteratorResult object if a next value is available. IteratorStep performs the
+    # following steps:
+    #
+    # 1. Let result be ? IteratorNext(iteratorRecord).
+    # 2. Let done be ? IteratorComplete(result).
+    # 3. If done is true, return false.
+    # 4. Return result.
+    result = IteratorNext(iteratorRecord)
+    done = IteratorComplete(result)
+    if done:
+        return False
+    return result
+
+# 7.4.6 IteratorClose ( iteratorRecord, completion )
+def IteratorClose(iteratorRecord):
+    # The abstract operation IteratorClose with arguments iteratorRecord and completion is used to notify an iterator
+    # that it should perform any actions it would normally perform when it has reached its completed state:
+    #
+    #   1. Assert: Type(iteratorRecord.[[Iterator]]) is Object.
+    #   2. Assert: completion is a Completion Record.
+    #   3. Let iterator be iteratorRecord.[[Iterator]].
+    #   4. Let return be ? GetMethod(iterator, "return").
+    #   5. If return is undefined, return Completion(completion).
+    #   6. Let innerResult be Call(return, iterator, « »).
+    #   7. If completion.[[Type]] is throw, return Completion(completion).
+    #   8. If innerResult.[[Type]] is throw, return Completion(innerResult).
+    #   9. If Type(innerResult.[[Value]]) is not Object, throw a TypeError exception.
+    #   10. Return Completion(completion).
+    assert isObject(iteratorRecord.Iterator)
+    iterator = iteratorRecord.Iterator
+    return_method = GetMethod(iterator, 'return')
+    if return_method:
+        innerResult = Call(return_method, iterator, [])
+        if not isObject(innerResult):
+            raise CreateTypeError(f'Bad result from iterator \'return\' method. (Got {ToString(innerResult)})')
+
+# ------------------------------------ 𝟕.𝟒.𝟖 𝑪𝒓𝒆𝒂𝒕𝒆𝑰𝒕𝒆𝒓𝑹𝒆𝒔𝒖𝒍𝒕𝑶𝒃𝒋𝒆𝒄𝒕 ( 𝒗𝒂𝒍𝒖𝒆, 𝒅𝒐𝒏𝒆 ) ------------------------------------
+# 7.4.8 CreateIterResultObject ( value, done )
+def CreateIterResultObject(value, done):
+    # The abstract operation CreateIterResultObject with arguments value and done creates an object that supports the
+    #   IteratorResult interface by performing the following steps:
+    #
+    #   1. Assert: Type(done) is Boolean.
+    #   2. Let obj be ObjectCreate(%ObjectPrototype%).
+    #   3. Perform CreateDataProperty(obj, "value", value).
+    #   4. Perform CreateDataProperty(obj, "done", done).
+    #   5. Return obj.
+    assert isBoolean(done)
+    obj = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics['%ObjectPrototype%'])
+    CreateDataProperty(obj, 'value', value)
+    CreateDataProperty(obj, 'done', done)
+    return obj
+
+# ------------------------------------ 𝟕.𝟒.𝟗 𝑪𝒓𝒆𝒂𝒕𝒆𝑳𝒊𝒔𝒕𝑰𝒕𝒆𝒓𝒂𝒕𝒐𝒓𝑹𝒆𝒄𝒐𝒓𝒅 ( 𝒍𝒊𝒔𝒕 ) ------------------------------------
+# 7.4.9 CreateListIteratorRecord ( list )
+def CreateListIteratorRecord(lst):
+    # The abstract operation CreateListIteratorRecord with argument list creates an Iterator (25.1.1.2) object record
+    # whose next method returns the successive elements of list. It performs the following steps:
+    #
+    #   1. Let iterator be ObjectCreate(%IteratorPrototype%, « [[IteratedList]], [[ListIteratorNextIndex]] »).
+    #   2. Set iterator.[[IteratedList]] to list.
+    #   3. Set iterator.[[ListIteratorNextIndex]] to 0.
+    #   4. Let steps be the algorithm steps defined in ListIterator next (7.4.9.1).
+    #   5. Let next be CreateBuiltinFunction(steps, « »).
+    #   6. Return Record { [[Iterator]]: iterator, [[NextMethod]]: next, [[Done]]: false }.
+    # NOTE The list iterator object is never directly accessible to ECMAScript code.
+    iterator = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics['%IteratorPrototype%'], ['IteratedList', 'ListIteratorNextIndex'])
+    iterator.IteratedList = lst
+    iterator.ListIteratorNextIndex = 0
+    next_fcn = CreateBuiltinFunction(ListIterator_next, [])
+    return Record(Iterator=iterator, NextMethod=next_fcn, Done=False)
+
+# ------------------------------------ 𝟕.𝟒.𝟗.𝟏 𝑳𝒊𝒔𝒕𝑰𝒕𝒆𝒓𝒂𝒕𝒐𝒓 𝒏𝒆𝒙𝒕 ( ) ------------------------------------
+# 7.4.9.1 ListIterator next ( )
+def ListIterator_next(this_value, new_target):
+    # The ListIterator next method is a standard built-in function object (clause 17) that performs the following steps:
+    #
+    #   1. Let O be the this value.
+    #   2. Assert: Type(O) is Object.
+    #   3. Assert: O has an [[IteratedList]] internal slot.
+    #   4. Let list be O.[[IteratedList]].
+    #   5. Let index be O.[[ListIteratorNextIndex]].
+    #   6. Let len be the number of elements of list.
+    #   7. If index ≥ len, then
+    #       a. Return CreateIterResultObject(undefined, true).
+    #   8. Set O.[[ListIteratorNextIndex]] to index+1.
+    #   9. Return CreateIterResultObject(list[index], false).
+    O = this_value
+    assert isObject(O)
+    assert hasattr(O, 'IteratedList')
+    lst = O.IteratedList
+    index = O.ListIteratorNextIndex
+    length = len(lst)
+    if index >= length:
+        return CreateIterResultObject(None, True)
+    O.ListIteratorNextIndex = index + 1
+    return CreateIterResultObject(lst[index], False)
+
 ###############################################################################################################################################
 #
 #  .d8888b.  888                        888                          .d8888b.
@@ -3751,6 +3949,7 @@ def CreateIntrinsics(realm_rec):
         intrinsics[f'%{name}Error%'] = CreateNativeErrorConstructor(realm_rec, name)
         intrinsics[f'%{name}ErrorPrototype%'] = CreateNativeErrorPrototype(realm_rec, name)
     NativeErrorFixups(realm_rec)
+    intrinsics['%IteratorPrototype%'] = CreateIteratorPrototype(realm_rec)
     intrinsics['%Boolean%'] = CreateBooleanConstructor(realm_rec)
     intrinsics['%BooleanPrototype%'] = CreateBooleanPrototype(realm_rec)
     BooleanFixups(realm_rec)
@@ -10279,7 +10478,7 @@ class PN_BindingPattern_ArrayBindingPattern(PN_BindingPattern):
         iteratorRecord = GetIterator(value)
         result = self.ArrayBindingPattern.IteratorBindingInitialization(iteratorRecord, environment)
         if not iteratorRecord.Done:
-            return IteratorClose(iteratorRecord, result)
+            IteratorClose(iteratorRecord)
         return result
 class PN_BindingPattern_ObjectBindingPattern(PN_BindingPattern):
     # -------------------------------- 𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑷𝒂𝒕𝒕𝒆𝒓𝒏 : 𝑶𝒃𝒋𝒆𝒄𝒕𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑷𝒂𝒕𝒕𝒆𝒓𝒏 --------------------------------
@@ -15931,6 +16130,21 @@ def ArrayFixups(realm):
     DefinePropertyOrThrow(array_prototype, 'constructor', const_desc)
 
 
+# 25.1.2 The %IteratorPrototype% Object
+# The %IteratorPrototype% object:
+#   * has a [[Prototype]] internal slot whose value is the intrinsic object %ObjectPrototype%.
+#   * is an ordinary object.
+def CreateIteratorPrototype(realm):
+    proto = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
+    func_obj = CreateBuiltinFunction(IteratorPrototype_iterator, [], realm)
+    DefinePropertyOrThrow(func_obj, 'length', PropertyDescriptor(value=0, writable=False, enumerable=False, configurable=True))
+    DefinePropertyOrThrow(func_obj, 'name', PropertyDescriptor(value='[Symbol.iterator]', writable=False, enumerable=False, configurable=False))
+    CreateMethodPropertyOrThrow(proto, wks_iterator, func_obj)
+    return proto
+
+# 25.1.2.1 %IteratorPrototype% [ @@iterator ] ( )
+def IteratorPrototype_iterator(this_value, new_target):
+    return this_value
 
 #######################################################################################################################################################
 if __name__ == '__main__':
