@@ -13091,13 +13091,13 @@ class Ecma262Parser(Parser):
     @_('IterationStatement')  # pylint: disable=undefined-variable
     def BreakableStatement(self, p):
         return PN_BreakableStatement_IterationStatement(self.context, p)
-    #@_('SwitchStatement')  # pylint: disable=undefined-variable
+    #@_('SwitchStatement')
     #def BreakableStatement(self, p):
     #    return PN_BreakableStatement_SwitchStatement(self.context, p)
     @_('IterationStatement_Return')  # pylint: disable=undefined-variable
     def BreakableStatement_Return(self, p):
         return PN_BreakableStatement_IterationStatement(self.context, p)
-    #@_('SwitchStatement_Return')  # pylint: disable=undefined-variable
+    #@_('SwitchStatement_Return')
     #def BreakableStatement_Return(self, p):
     #    return PN_BreakableStatement_SwitchStatement(self.context, p)
     ########################################################################################################################
@@ -13903,7 +13903,7 @@ class Ecma262Parser(Parser):
     #
     # CoverInitializedName[Yield, Await] :
     #           IdentifierReference[?Yield, ?Await] Initializer[+In, ?Yield, ?Await]
-    @_('IdentifierReference Initializer_In')
+    @_('IdentifierReference Initializer_In')  # pylint: disable=undefined-variable
     def CoverInitializedName(self, p):
         return PN_CoverInitializedName_IdentifierReference_Initialzier(self.context, p)
     #
@@ -13947,19 +13947,19 @@ class Ecma262Parser(Parser):
     #           [ ElementList[?Yield, ?Await] ]
     #           [ ElementList[?Yield, ?Await] , ]
     #           [ ElementList[?Yield, ?Await] , Elision ]
-    @_('LBRACKET RBRACKET')  # pytest: disable=undefined-variable
+    @_('LBRACKET RBRACKET')  # pylint: disable=undefined-variable
     def ArrayLiteral(self, p):
         return PN_ArrayLiteral_LBRACKET_RBRACKET(self.context, p)
-    @_('LBRACKET Elision RBRACKET')  # pytest: disable=undefined-variable
+    @_('LBRACKET Elision RBRACKET')  # pylint: disable=undefined-variable
     def ArrayLiteral(self, p):
         return PN_ArrayLiteral_LBRACKET_Elision_RBRACKET(self.context, p)
-    @_('LBRACKET ElementList RBRACKET')  # pytest: disable=undefined-variable
+    @_('LBRACKET ElementList RBRACKET')  # pylint: disable=undefined-variable
     def ArrayLiteral(self, p):
         return PN_ArrayLiteral_LBRACKET_ElementList_RBRACKET(self.context, p)
-    @_('LBRACKET ElementList COMMA RBRACKET')  # pytest: disable=undefined-variable
+    @_('LBRACKET ElementList COMMA RBRACKET')  # pylint: disable=undefined-variable
     def ArrayLiteral(self, p):
         return PN_ArrayLiteral_LBRACKET_ElementList_COMMA_RBRACKET(self.context, p)
-    @_('LBRACKET ElementList COMMA Elision RBRACKET')  # pytest: disable=undefined-variable
+    @_('LBRACKET ElementList COMMA Elision RBRACKET')  # pylint: disable=undefined-variable
     def ArrayLiteral(self, p):
         return PN_ArrayLiteral_LBRACKET_ElementList_COMMA_Elision_RBRACKET(self.context, p)
     #
@@ -13972,28 +13972,28 @@ class Ecma262Parser(Parser):
     #           ElementList[?Yield, ?Await] , Elision AssignmentExpression[+In, ?Yield, ?Await]
     #           ElementList[?Yield, ?Await] , SpreadElement[?Yield, ?Await]
     #           ElementList[?Yield, ?Await] , Elision SpreadElement[?Yield, ?Await]
-    @_('AssignmentExpression_In')
+    @_('AssignmentExpression_In')  # pylint: disable=undefined-variable
     def ElementList(self, p):
         return PN_ElementList_AssignmentExpression(self.context, p)
-    @_('Elision AssignmentExpression_In')
+    @_('Elision AssignmentExpression_In')  # pylint: disable=undefined-variable
     def ElementList(self, p):
         return PN_ElementList_Elision_AssignmentExpression(self.context, p)
-    @_('SpreadElement')
+    @_('SpreadElement')  # pylint: disable=undefined-variable
     def ElementList(self, p):
         return PN_ElementList_SpreadElement(self.context, p)
-    @_('Elision SpreadElement')
+    @_('Elision SpreadElement')  # pylint: disable=undefined-variable
     def ElementList(self, p):
         return PN_ElementList_Elision_SpreadElement(self.context, p)
-    @_('ElementList COMMA AssignmentExpression_In')
+    @_('ElementList COMMA AssignmentExpression_In')  # pylint: disable=undefined-variable
     def ElementList(self, p):
         return PN_ElementList_ElementList_COMMA_AssignmentExpression(self.context, p)
-    @_('ElementList COMMA Elision AssignmentExpression_In')
+    @_('ElementList COMMA Elision AssignmentExpression_In')  # pylint: disable=undefined-variable
     def ElementList(self, p):
         return PN_ElementList_ElementList_COMMA_Elision_AssignmentExpression(self.context, p)
-    @_('ElementList COMMA SpreadElement')
+    @_('ElementList COMMA SpreadElement')  # pylint: disable=undefined-variable
     def ElementList(self, p):
         return PN_ElementList_ElementList_COMMA_SpreadElement(self.context, p)
-    @_('ElementList COMMA Elision SpreadElement')
+    @_('ElementList COMMA Elision SpreadElement')  # pylint: disable=undefined-variable
     def ElementList(self, p):
         return PN_ElementList_ElementList_COMMA_Elision_SpreadElement(self.context, p)
     #
