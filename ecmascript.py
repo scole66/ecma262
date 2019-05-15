@@ -2683,7 +2683,7 @@ def IteratorClose(iteratorRecord):
     if return_method:
         innerResult = Call(return_method, iterator, [])
         if not isObject(innerResult):
-            raise CreateTypeError(f'Bad result from iterator \'return\' method. (Got {ToString(innerResult)})')
+            raise ESTypeError(f'Bad result from iterator \'return\' method. (Got {ToString(innerResult)})')
 
 # ------------------------------------ 𝟕.𝟒.𝟖 𝑪𝒓𝒆𝒂𝒕𝒆𝑰𝒕𝒆𝒓𝑹𝒆𝒔𝒖𝒍𝒕𝑶𝒃𝒋𝒆𝒄𝒕 ( 𝒗𝒂𝒍𝒖𝒆, 𝒅𝒐𝒏𝒆 ) ------------------------------------
 # 7.4.8 CreateIterResultObject ( value, done )
