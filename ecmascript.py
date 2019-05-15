@@ -14063,7 +14063,7 @@ class Ecma262Parser(Parser):
     @_('PropertyName COLON AssignmentExpression_In')  # pylint: disable=undefined-variable
     def PropertyDefinition(self, p):
         return PN_PropertyDefinition_PropertyName_COLON_AssignmentExpression(self.context, p)
-#    @_('MethodDefinition')  # pylint: disable=undefined-variable
+#    @_('MethodDefinition')
 #    def PropertyDefinition(self, p):
 #        return PN_PropertyDefinition_MethodDefinition(self.context, p)
     @_('DOTDOTDOT AssignmentExpression_In')  # pylint: disable=undefined-variable
