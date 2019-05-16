@@ -9892,7 +9892,7 @@ class PN_ArrayAssignmentPattern_LBRACKET_AssignmentElementList_COMMA_Elision_Ass
                 status = self.AssignmentRestElement.IteratorDestructuringAssignmentEvaluation(iteratorRecord)
         finally:
             if not iteratorRecord.Done:
-                iteratorClose(iteratorRecord)
+                IteratorClose(iteratorRecord)
         return status
 class PN_ArrayAssignmentPattern_LBRACKET_AssignmentElementList_COMMA_RBRACKET(PN_ArrayAssignmentPattern_LBRACKET_AssignmentElementList_COMMA_Elision_AssignmentRestElement_RBRACKET):
     @property
