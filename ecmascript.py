@@ -6017,7 +6017,7 @@ class Lexer():
         'OF', # Not marked as a ReservedWord in the spec, but it's used as one in for statements.
         'LET', # Also not marked as a ReservedWord
 
-        'GOAL_SCRIPT', 'GOAL_CALLMEMBEREXPRESSION', 'GOAL_PARENTHESIZEDEXPRESSION'
+        'GOAL_SCRIPT', 'GOAL_CALLMEMBEREXPRESSION', 'GOAL_PARENTHESIZEDEXPRESSION', 'GOAL_ASSIGNMENTPATTERN'
          }
 
     # Tokens we will fiter out (the parser should never see these)
@@ -6027,6 +6027,7 @@ class Lexer():
         'Script': 'GOAL_SCRIPT',
         'CallMemberExpression': 'GOAL_CALLMEMBEREXPRESSION',
         'ParenthesizedExpression': 'GOAL_PARENTHESIZEDEXPRESSION',
+        'AssignmentPattern': 'GOAL_ASSIGNMENTPATTERN',
     }
 
     class TokenValue:
@@ -6854,6 +6855,7 @@ class ParseNode:
     def __init__(self, name, p):
         self.name = name
         self.children = [p[z] for z in range(len(p))]
+        self.ctx = None
     def __repr__(self):
         #return f'{self.name}[{",".join(repr(child) for child in self.children)}]'
         children = ' '.join(ch.name if isinstance(ch, ParseNode) else str(ch.value) for ch in self.children)
@@ -6892,9 +6894,21 @@ class ParseNode:
         l = self.last_terminal()
         end_idx = l.index + l.length
         return (start_idx, end_idx)
+    def covering(self, symbol):
+        start, end = self.source_range()
+        source = self.ctx.source_text[start:end]
+        subparser = Ecma262Parser(start=symbol, source_text=source)
+        sublexer = Lexer(source, symbol)
+        try:
+            tree = subparser.parse(sublexer.lex())
+        except ESError:
+            tree = None
+        return tree
     def Contains(self, symbol):
         return (any(child.name == symbol for child in self.children) or
                 any(child.Contains(symbol) for child in self.children if isinstance(child, ParseNode)))
+    def Is(self, symbol):
+        return len(self.children) == 1 and (self.children[0].name == symbol or (isinstance(self.children[0], ParseNode) and self.children[0].Is(symbol)))
     def EarlyErrorsScan(self):
         errs = []
         # Check the children first
@@ -6947,6 +6961,10 @@ class ParseNode:
         return self.defer_target().IsConstantDeclaration()
     def PropertyDefinitionEvaluation(self, object, enumerable):
         return self.defer_target().PropertyDefinitionEvaluation(object, enumerable)
+    def IteratorDestructuringAssignmentEvaluation(self, iteratorRecord):
+        return self.defer_target().IteratorDestructuringAssignmentEvaluation(iteratorRecord)
+    def DestructuringAssignmentEvaluation(self, value):
+        return self.defer_target().DestructuringAssignmentEvaluation(value)
 
     def evaluate(self):
         # Subclasses need to override this, or we'll throw an AttributeError when we hit a terminal.
@@ -7259,12 +7277,8 @@ class PN_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(PN_
     # 12.2.10 The Grouping Operator
     def __init__(self, ctx, p):
         super().__init__(ctx, p)
-        start, end = self.source_range()
-        source = ctx.source_text[start:end]
-        subparser = Ecma262Parser(start='ParenthesizedExpression', source_text=source)
-        sublexer = Lexer(source, 'ParenthesizedExpression')
-        tree = subparser.parse(sublexer.lex())
-        self.children[0].covered_production = tree
+        self.ctx = ctx
+        self.children[0].covered_production = self.covering('ParenthesizedExpression')
     @property
     def CoverParenthesizedExpressionAndArrowParameterList(self):
         return self.children[0]
@@ -7583,6 +7597,25 @@ class PN_Elision_COMMA(PN_Elision):
         #           Elision : ,
         # 1. Return the numeric value 1.
         return 1
+    def IteratorDestructuringAssignmentEvaluation(self, iteratorRecord):
+        # 12.15.5.5 Runtime Semantics: IteratorDestructuringAssignmentEvaluation
+        #   With parameter iteratorRecord.
+        # Elision : ,
+        #   1. If iteratorRecord.[[Done]] is false, then
+        #       a. Let next be IteratorStep(iteratorRecord).
+        #       b. If next is an abrupt completion, set iteratorRecord.[[Done]] to true.
+        #       c. ReturnIfAbrupt(next).
+        #       d. If next is false, set iteratorRecord.[[Done]] to true.
+        #   2. Return NormalCompletion(empty).
+        if not iteratorRecord.Done:
+            try:
+                nextVal = IteratorStep(iteratorRecord)
+            except (ESError, ESAbrupt):
+                iteratorRecord.Done = True
+                raise
+            if not nextVal:
+                iteratorRecord.Done = True
+        return EMPTY
 class PN_Elision_Elision_COMMA(PN_Elision):
     @property
     def Elision(self):
@@ -7593,6 +7626,27 @@ class PN_Elision_Elision_COMMA(PN_Elision):
         # 1. Let preceding be the ElisionWidth of Elision.
         # 2. Return preceding+1.
         return 1 + self.Elision.ElisionWidth()
+    def IteratorDestructuringAssignmentEvaluation(self, iteratorRecord):
+        # 12.15.5.5 Runtime Semantics: IteratorDestructuringAssignmentEvaluation
+        #   With parameter iteratorRecord.
+        # Elision : Elision ,
+        #   1. Perform ? IteratorDestructuringAssignmentEvaluation of Elision with iteratorRecord as the argument.
+        #   2. If iteratorRecord.[[Done]] is false, then
+        #       a. Let next be IteratorStep(iteratorRecord).
+        #       b. If next is an abrupt completion, set iteratorRecord.[[Done]] to true.
+        #       c. ReturnIfAbrupt(next).
+        #       d. If next is false, set iteratorRecord.[[Done]] to true.
+        #   3. Return NormalCompletion(empty).
+        self.Elision.IteratorDestructuringAssignmentEvaluation(iteratorRecord)
+        if not iteratorRecord.Done:
+            try:
+                nextVal = IteratorStep(iteratorRecord)
+            except (ESError, ESAbrupt):
+                iteratorRecord.Done = True
+                raise
+            if not nextVal:
+                iteratorRecord.Done = True
+        return EMPTY
 # ------------------------------------ 𝑺𝒑𝒓𝒆𝒂𝒅𝑬𝒍𝒆𝒎𝒆𝒏𝒕 ------------------------------------
 class PN_SpreadElement(ParseNode):
     def __init__(self, ctx, p):
@@ -8359,9 +8413,15 @@ class PN_Arguments_LPAREN_ArgumentList_COMMA_RPAREN(PN_Arguments):
 class PN_LeftHandSideExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('LeftHandSideExpression', p)
+        self.ctx = ctx
 class PN_LeftHandSideExpression_NewExpression(PN_LeftHandSideExpression):
-    pass
+    @property
+    def NewExpression(self):
+        return self.children[0]
 class PN_LeftHandSideExpression_CallExpression(PN_LeftHandSideExpression):
+    @property
+    def CallExpression(self):
+        return self.children[0]
     def IsFunctionDefinition(self):
         # 12.3.1.3 Static Semantics: IsFunctionDefinition
         return False
@@ -9400,30 +9460,74 @@ class PN_ConditionalExpression_QUESTION_AssignmentExpression_COLON_AssignmentExp
 #                                                                                   "Y88P"                                                                  888
 #
 ################################################################################################################################################################################################################################
-class PN_AssignmentExpression_ConditionalExpression(ParseNode):
+class PN_AssignmentExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('AssignmentExpression', p)
-class PN_AssignmentExpression_LeftHandSideExpression_EQUALS_AssignmentExpression(ParseNode):
-    def __init__(self, ctx, p):
-        super().__init__('AssignmentExpression', p)
+class PN_AssignmentExpression_ConditionalExpression(PN_AssignmentExpression):
+    @property
+    def ConditionalExpression(self):
+        return self.children[0]
+class PN_AssignmentExpression_LeftHandSideExpression_EQUALS_AssignmentExpression(PN_AssignmentExpression):
+    @property
+    def LeftHandSideExpression(self):
+        return self.children[0]
+    @property
+    def AssignmentExpression(self):
+        return self.children[2]
+    @property
+    def AssignmentPattern(self):
+        if not hasattr(self, '_assignment_pattern'):
+            self._assignment_pattern = self.LeftHandSideExpression.covering('AssignmentPattern')
+        return self._assignment_pattern
     def EarlyErrors(self):
-        if not self.children[0].IsValidSimpleAssignmentTarget():
-            return [CreateReferenceError('Not a valid target for an assignment statement')]
+        # 12.15.1 Static Semantics: Early Errors
+        # AssignmentExpression : LeftHandSideExpression = AssignmentExpression
+        #   * It is a Syntax Error if LeftHandSideExpression is either an ObjectLiteral or an ArrayLiteral and
+        #     LeftHandSideExpression is not covering an AssignmentPattern.
+        #   * It is an early Reference Error if LeftHandSideExpression is neither an ObjectLiteral nor an ArrayLiteral
+        #     and IsValidSimpleAssignmentTarget of LeftHandSideExpression is false.
+        is_structured = self.LeftHandSideExpression.Is('ObjectLiteral') or self.LeftHandSideExpression.Is('ArrayLiteral')
+        if is_structured:
+            if not self.AssignmentPattern:
+                return [CreateSyntaxError('Not a valid target for an assignment statement')]
+        else:
+            if not self.LeftHandSideExpression.IsValidSimpleAssignmentTarget():
+                return [CreateReferenceError('Not a valid target for an assignment statement')]
         return []
     def IsFunctionDefinition(self):
         return False
     def IsValidSimpleAssignmentTarget(self):
         return False
     def evaluate(self):
-        # This is missing the ArrayLiteral and ObjectLiteral steps @@@
-        lref = self.children[0].evaluate()
-        rref = self.children[2].evaluate()
+        # 12.15.4 Runtime Semantics: Evaluation
+        # AssignmentExpression : LeftHandSideExpression = AssignmentExpression
+        #   1. If LeftHandSideExpression is neither an ObjectLiteral nor an ArrayLiteral, then
+        #       a. Let lref be the result of evaluating LeftHandSideExpression.
+        #       b. ReturnIfAbrupt(lref).
+        #       c. Let rref be the result of evaluating AssignmentExpression.
+        #       d. Let rval be ? GetValue(rref).
+        #       e. If IsAnonymousFunctionDefinition(AssignmentExpression) and IsIdentifierRef of LeftHandSideExpression are both true, then
+        #           i. Let hasNameProperty be ? HasOwnProperty(rval, "name").
+        #           ii. If hasNameProperty is false, perform SetFunctionName(rval, GetReferencedName(lref)).
+        #       f. Perform ? PutValue(lref, rval).
+        #       g. Return rval.
+        #   2. Let assignmentPattern be the AssignmentPattern that is covered by LeftHandSideExpression.
+        #   3. Let rref be the result of evaluating AssignmentExpression.
+        #   4. Let rval be ? GetValue(rref).
+        #   5. Perform ? DestructuringAssignmentEvaluation of assignmentPattern using rval as the argument.
+        #   6. Return rval.
+        if not (self.LeftHandSideExpression.Is('ObjectLiteral') or self.LeftHandSideExpression.Is('ArrayLiteral')):
+            lref = self.LeftHandSideExpression.evaluate()
+            rref = self.AssignmentExpression.evaluate()
+            rval = GetValue(rref)
+            if IsAnonymousFunctionDefinition(self.LeftHandSideExpression) and self.LeftHandSideExpression.IsIdentifierRef():
+                if not HasOwnProperty(rval, 'name'):
+                    SetFunctionName(rval, GetReferencedName(lref))
+            PutValue(lref, rval)
+            return rval
+        rref = self.AssignmentExpression.evaluate()
         rval = GetValue(rref)
-        if IsAnonymousFunctionDefinition(self.children[0]) and self.children[0].IsIdentifierRef():
-            hasNameProperty = HasOwnProperty(rval, 'name')
-            if not hasNameProperty:
-                SetFunctionName(rval, GetReferencedName(lref))
-        PutValue(lref, rval)
+        self.AssignmentPattern.DestructuringAssignmentEvaluation(rval)
         return rval
 def prep_for_bitwise(lval, rval):
     lnum = ToInt32(lval)  # 1. Let lnum be ? ToInt32(lval).
@@ -9580,6 +9684,597 @@ class PN_AssignmentExpression_LeftHandSideExpression_AssignmentOperator_Assignme
         # { [[Writable]]: false }, to an accessor property with the attribute value { [[Set]]: undefined }, nor to a
         # non-existent property of an object for which the IsExtensible predicate returns the value false. In these cases a
         # TypeError exception is thrown.
+
+# ------------------------------------ 𝑨𝒔𝒔𝒊𝒈𝒏𝒎𝒆𝒏𝒕𝑷𝒂𝒕𝒕𝒆𝒓𝒏 ------------------------------------
+class PN_AssignmentPattern(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('AssignmentPattern', p)
+class PN_AssignmentPattern_ArrayAssignmentPattern(PN_AssignmentPattern):
+    @property
+    def ArrayAssignmentPattern(self):
+        return self.children[0]
+class PN_AssignmentPattern_ObjectAssignmentPattern(PN_AssignmentPattern):
+    @property
+    def ObjectAssignmentPattern(self):
+        return self.children[0]
+# ------------------------------------ 𝑶𝒃𝒋𝒆𝒄𝒕𝑨𝒔𝒔𝒊𝒈𝒏𝒎𝒆𝒏𝒕𝑷𝒂𝒕𝒕𝒆𝒓𝒏 ------------------------------------
+class PN_ObjectAssignmentPattern(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('ObjectAssignmentPattern', p)
+class PN_ObjectAssignmentPattern_LCURLY_RCURLY(PN_ObjectAssignmentPattern):
+    def DestructuringAssignmentEvaluation(self, value):
+        # 12.15.5.2 Runtime Semantics: DestructuringAssignmentEvaluation
+        #   With parameter value.
+        # ObjectAssignmentPattern : { }
+        #   1. Perform ? RequireObjectCoercible(value).
+        #   2. Return NormalCompletion(empty).
+        RequireObjectCoercible(value)
+        return EMPTY
+class PN_ObjectAssignmentPattern_LCURLY_AssignmentRestProperty_RCURLY(PN_ObjectAssignmentPattern):
+    @property
+    def AssignmentRestProperty(self):
+        return self.children[1]
+    def DestructuringAssignmentEvaluation(self, value):
+        # 12.15.5.2 Runtime Semantics: DestructuringAssignmentEvaluation
+        #   With parameter value.
+        # ObjectAssignmentPattern : { AssignmentRestProperty }
+        #   1. Let excludedNames be a new empty List.
+        #   2. Return the result of performing RestDestructuringAssignmentEvaluation of AssignmentRestProperty with
+        #      value and excludedNames as the arguments.
+        return self.AssignmentRestProperty.RestDestructuringAssignmentEvaluation(value, [])
+class PN_ObjectAssignmentPattern_LCURLY_AssignmentPropertyList_RCURLY(PN_ObjectAssignmentPattern):
+    @property
+    def AssignmentPropertyList(self):
+        return self.children[1]
+    def DestructuringAssignmentEvaluation(self, value):
+        # 12.15.5.2 Runtime Semantics: DestructuringAssignmentEvaluation
+        #   With parameter value.
+        # ObjectAssignmentPattern : { AssignmentPropertyList }
+        # ObjectAssignmentPattern : { AssignmentPropertyList , }
+        #   1. Perform ? RequireObjectCoercible(value).
+        #   2. Perform ? PropertyDestructuringAssignmentEvaluation for AssignmentPropertyList using value as the argument.
+        #   3. Return NormalCompletion(empty).
+        RequireObjectCoercible(value)
+        self.AssignmentPropertyList.PropertyDestructuringAssignmentEvaluation(value)
+        return EMPTY
+class PN_ObjectAssignmentPattern_LCURLY_AssignmentPropertyList_COMMA_RCURLY(PN_ObjectAssignmentPattern_LCURLY_AssignmentPropertyList_RCURLY):
+    pass
+class PN_ObjectAssignmentPattern_LCURLY_AssignmentPropertyList_COMMA_AssignmentRestProperty_RCURLY(PN_ObjectAssignmentPattern):
+    @property
+    def AssignmentPropertyList(self):
+        return self.children[1]
+    @property
+    def AssignmentRestProperty(self):
+        return self.children[3]
+    def DestructuringAssignmentEvaluation(self, value):
+        # 12.15.5.2 Runtime Semantics: DestructuringAssignmentEvaluation
+        #   With parameter value.
+        # ObjectAssignmentPattern : { AssignmentPropertyList , AssignmentRestProperty }
+        #   1. Let excludedNames be the result of performing ? PropertyDestructuringAssignmentEvaluation for
+        #      AssignmentPropertyList using value as the argument.
+        #   2. Return the result of performing RestDestructuringAssignmentEvaluation of AssignmentRestProperty with
+        #      value and excludedNames as the arguments.
+        excludedNames = self.AssignmentPropertyList.PropertyDestructuringAssignmentEvaluation(value)
+        return self.AssignmentRestProperty.RestDestructuringAssignmentEvaluation(value, excludedNames)
+# ------------------------------------ 𝑨𝒓𝒓𝒂𝒚𝑨𝒔𝒔𝒊𝒈𝒏𝒎𝒆𝒏𝒕𝑷𝒂𝒕𝒕𝒆𝒓𝒏 ------------------------------------
+class PN_ArrayAssignmentPattern(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('ArrayAssignmentPattern', p)
+class PN_ArrayAssignmentPattern_LBRACKET_RBRACKET(PN_ArrayAssignmentPattern):
+    def DestructuringAssignmentEvaluation(self, value):
+        # 12.15.5.2 Runtime Semantics: DestructuringAssignmentEvaluation
+        #   With parameter value.
+        # ArrayAssignmentPattern : [ ]
+        #   1. Let iteratorRecord be ? GetIterator(value).
+        #   2. Return ? IteratorClose(iteratorRecord, NormalCompletion(empty)).
+        iteratorRecord = GetIterator(value)
+        IteratorClose(iteratorRecord)
+        return EMPTY
+class PN_ArrayAssignmentPattern_LBRACKET_Elision_RBRACKET(PN_ArrayAssignmentPattern):
+    @property
+    def Elision(self):
+        return self.children[1]
+    def DestructuringAssignmentEvaluation(self, value):
+        # 12.15.5.2 Runtime Semantics: DestructuringAssignmentEvaluation
+        #   With parameter value.
+        # ArrayAssignmentPattern : [ Elision ]
+        #   1. Let iteratorRecord be ? GetIterator(value).
+        #   2. Let result be the result of performing IteratorDestructuringAssignmentEvaluation of Elision with
+        #      iteratorRecord as the argument.
+        #   3. If iteratorRecord.[[Done]] is false, return ? IteratorClose(iteratorRecord, result).
+        #   4. Return result.
+        iteratorRecord = GetIterator(value)
+        try:
+            result = self.Elision.IteratorDestructuringAssignmentEvaluation(iteratorRecord)
+        finally:
+            if not iteratorRecord.Done:
+                IteratorClose(iteratorRecord)
+        return result
+class PN_ArrayAssignmentPattern_LBRACKET_Elision_AssignmentRestElement_RBRACKET(PN_ArrayAssignmentPattern):
+    @property
+    def Elision(self):
+        return self.children[1]
+    @property
+    def AssignmentRestElement(self):
+        return self.children[2]
+    def DestructuringAssignmentEvaluation(self, value):
+        # 12.15.5.2 Runtime Semantics: DestructuringAssignmentEvaluation
+        #   With parameter value.
+        # ArrayAssignmentPattern : [ Elision AssignmentRestElement ]
+        #   1. Let iteratorRecord be ? GetIterator(value).
+        #   2. If Elision is present, then
+        #       a. Let status be the result of performing IteratorDestructuringAssignmentEvaluation of Elision with
+        #          iteratorRecord as the argument.
+        #       b. If status is an abrupt completion, then
+        #           i. Assert: iteratorRecord.[[Done]] is true.
+        #           ii. Return Completion(status).
+        #   3. Let result be the result of performing IteratorDestructuringAssignmentEvaluation of
+        #      AssignmentRestElement with iteratorRecord as the argument.
+        #   4. If iteratorRecord.[[Done]] is false, return ? IteratorClose(iteratorRecord, result).
+        #   5. Return result.
+        iteratorRecord = GetIterator(value)
+        if self.Elision:
+            try:
+                self.Elision.IteratorDestructuringAssignmentEvaluation(iteratorRecord)
+            except (ESError, ESAbrupt):
+                assert iteratorRecord.Done
+                raise
+        try:
+            result = self.AssignmentRestElement.IteratorDestructuringAssignmentEvaluation(iteratorRecord)
+        finally:
+            if not iteratorRecord.Done:
+                IteratorClose(iteratorRecord)
+        return result
+class PN_ArrayAssignmentPattern_LBRACKET_AssignmentRestElement_RBRACKET(PN_ArrayAssignmentPattern_LBRACKET_Elision_AssignmentRestElement_RBRACKET):
+    @property
+    def AssignmentRestElement(self):
+        return self.children[1]
+    @property
+    def Elision(self):
+        return None
+class PN_ArrayAssignmentPattern_LBRACKET_AssignmentElementList_RBRACKET(PN_ArrayAssignmentPattern):
+    @property
+    def AssignmentElementList(self):
+        return self.children[1]
+    def DestructuringAssignmentEvaluation(self, value):
+        # 12.15.5.2 Runtime Semantics: DestructuringAssignmentEvaluation
+        #   With parameter value.
+        # ArrayAssignmentPattern : [ AssignmentElementList ]
+        #   1. Let iteratorRecord be ? GetIterator(value).
+        #   2. Let result be the result of performing IteratorDestructuringAssignmentEvaluation of
+        #      AssignmentElementList using iteratorRecord as the argument.
+        #   3. If iteratorRecord.[[Done]] is false, return ? IteratorClose(iteratorRecord, result).
+        #   4. Return result.
+        iteratorRecord = GetIterator(value)
+        try:
+            result = self.AssignmentElementList.IteratorDestructuringAssignmentEvaluation(iteratorRecord)
+        finally:
+            if not iteratorRecord.Done:
+                IteratorClose(iteratorRecord)
+        return result
+class PN_ArrayAssignmentPattern_LBRACKET_AssignmentElementList_COMMA_Elision_AssignmentRestElement_RBRACKET(PN_ArrayAssignmentPattern):
+    @property
+    def AssignmentElementList(self):
+        return self.children[1]
+    @property
+    def Elision(self):
+        return self.children[3]
+    @property
+    def AssignmentRestElement(self):
+        return self.children[4]
+    def DestructuringAssignmentEvaluation(self, value):
+        # 12.15.5.2 Runtime Semantics: DestructuringAssignmentEvaluation
+        #   With parameter value.
+        # ArrayAssignmentPattern : [ AssignmentElementList , Elision AssignmentRestElement ]
+        #   1. Let iteratorRecord be ? GetIterator(value).
+        #   2. Let status be the result of performing IteratorDestructuringAssignmentEvaluation of
+        #      AssignmentElementList using iteratorRecord as the argument.
+        #   3. If status is an abrupt completion, then
+        #       a. If iteratorRecord.[[Done]] is false, return ? IteratorClose(iteratorRecord, status).
+        #       b. Return Completion(status).
+        #   4. If Elision is present, then
+        #       a. Set status to the result of performing IteratorDestructuringAssignmentEvaluation of Elision with
+        #          iteratorRecord as the argument.
+        #       b. If status is an abrupt completion, then
+        #           i. Assert: iteratorRecord.[[Done]] is true.
+        #           ii. Return Completion(status).
+        #   5. If AssignmentRestElement is present, then
+        #       a. Set status to the result of performing IteratorDestructuringAssignmentEvaluation of
+        #          AssignmentRestElement with iteratorRecord as the argument.
+        #   6. If iteratorRecord.[[Done]] is false, return ? IteratorClose(iteratorRecord, status).
+        #   7. Return Completion(status).
+        iteratorRecord = GetIterator(value)
+        try:
+            status = self.AssignmentElementList.IteratorDestructuringAssignmentEvaluation(iteratorRecord)
+            if self.Elision:
+                status = self.Elision.IteratorDestructuringAssignmentEvaluation(iteratorRecord)
+            if self.AssignmentRestElement:
+                status = self.AssignmentRestElement.IteratorDestructuringAssignmentEvaluation(iteratorRecord)
+        finally:
+            if not iteratorRecord.Done:
+                iteratorClose(iteratorRecord)
+        return status
+class PN_ArrayAssignmentPattern_LBRACKET_AssignmentElementList_COMMA_RBRACKET(PN_ArrayAssignmentPattern_LBRACKET_AssignmentElementList_COMMA_Elision_AssignmentRestElement_RBRACKET):
+    @property
+    def Elision(self):
+        return None
+    @property
+    def AssignmentRestElement(self):
+        return None
+class PN_ArrayAssignmentPattern_LBRACKET_AssignmentElementList_COMMA_Elision_RBRACKET(PN_ArrayAssignmentPattern_LBRACKET_AssignmentElementList_COMMA_Elision_AssignmentRestElement_RBRACKET):
+    @property
+    def AssignmentRestElement(self):
+        return None
+class PN_ArrayAssignmentPattern_LBRACKET_AssignmentElementList_COMMA_AssignmentRestElement_RBRACKET(PN_ArrayAssignmentPattern_LBRACKET_AssignmentElementList_COMMA_Elision_AssignmentRestElement_RBRACKET):
+    @property
+    def Elision(self):
+        return None
+    @property
+    def AssignmentRestElement(self):
+        return self.children[3]
+# ------------------------------------ 𝑨𝒔𝒔𝒊𝒈𝒏𝒎𝒆𝒏𝒕𝑹𝒆𝒔𝒕𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚 ------------------------------------
+class PN_AssignmentRestProperty(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('AssignmentRestProperty', p)
+class PN_AssignmentRestProperty_DOTDOTDOT_DestructuringAssignmentTarget(PN_AssignmentRestProperty):
+    @property
+    def DestructuringAssignmentTarget(self):
+        return self.children[1]
+    def EarlyErrors(self):
+        # 12.15.5.1 Static Semantics: Early Errors
+        # AssignmentRestProperty : ... DestructuringAssignmentTarget
+        #   * It is a Syntax Error if DestructuringAssignmentTarget is an ArrayLiteral or an ObjectLiteral.
+        if self.DestructuringAssignmentTarget.Is('ArrayLiteral') or self.DestructuringAssignmentTarget.Is('ObjectLiteral'):
+            return [CreateSyntaxError('Object and Array literals not allowed here')]
+    def RestDestructuringAssignmentEvaluation(self, value, excludedNames):
+        # 12.15.5.4 Runtime Semantics: RestDestructuringAssignmentEvaluation
+        #   With parameters value and excludedNames.
+        # AssignmentRestProperty : ... DestructuringAssignmentTarget
+        #   1. Let lref be the result of evaluating DestructuringAssignmentTarget.
+        #   2. ReturnIfAbrupt(lref).
+        #   3. Let restObj be ObjectCreate(%ObjectPrototype%).
+        #   4. Perform ? CopyDataProperties(restObj, value, excludedNames).
+        #   5. Return PutValue(lref, restObj).
+        lref = self.DestructuringAssignmentTarget.evaluate()
+        restObj = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics['%ObjectPrototype%'])
+        CopyDataProperties(restObj, value, excludedNames)
+        return PutValue(lref, restObj)
+# ------------------------------------ 𝑨𝒔𝒔𝒊𝒈𝒏𝒎𝒆𝒏𝒕𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚𝑳𝒊𝒔𝒕 ------------------------------------
+class PN_AssignmentPropertyList(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('AssignmentPropertyList', p)
+class PN_AssignmentPropertyList_AssignmentProperty(PN_AssignmentPropertyList):
+    @property
+    def AssignmentProperty(self):
+        return self.children[0]
+class PN_AssignmentPropertyList_AssignmentPropertyList_COMMA_AssignmentProperty(PN_AssignmentPropertyList):
+    @property
+    def AssignmentPropertyList(self):
+        return self.children[0]
+    @property
+    def AssignmentProperty(self):
+        return self.children[2]
+    def PropertyDestructuringAssignmentEvaluation(self, value):
+        # 12.15.5.3 Runtime Semantics: PropertyDestructuringAssignmentEvaluation
+        #   With parameter value.
+        # NOTE
+        # The following operations collect a list of all destructured property names.
+        # AssignmentPropertyList : AssignmentPropertyList , AssignmentProperty
+        #   1. Let propertyNames be the result of performing ? PropertyDestructuringAssignmentEvaluation for
+        #      AssignmentPropertyList using value as the argument.
+        #   2. Let nextNames be the result of performing ? PropertyDestructuringAssignmentEvaluation for
+        #      AssignmentProperty using value as the argument.
+        #   3. Append each item in nextNames to the end of propertyNames.
+        #   4. Return propertyNames.
+        propertyNames = self.AssignmentPropertyList.PropertyDestructuringAssignmentEvaluation(value)
+        nextNames = self.AssignmentProperty.PropertyDestructuringAssignmentEvaluation(value)
+        propertyNames.extend(nextNames)
+        return propertyNames
+# ------------------------------------ 𝑨𝒔𝒔𝒊𝒈𝒏𝒎𝒆𝒏𝒕𝑬𝒍𝒆𝒎𝒆𝒏𝒕𝑳𝒊𝒔𝒕 ------------------------------------
+class PN_AssignmentElementList(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('AssignmentElementList', p)
+class PN_AssignmentElementList_AssignmentElisionElement(PN_AssignmentElementList):
+    @property
+    def AssignmentElisionElement(self):
+        return self.children[0]
+class PN_AssignmentElementList_AssignmentElementList_COMMA_AssignmentElisionElement(PN_AssignmentElementList):
+    @property
+    def AssignmentElementList(self):
+        return self.children[0]
+    @property
+    def AssignmentElisionElement(self):
+        return self.children[2]
+    def IteratorDestructuringAssignmentEvaluation(self, iteratorRecord):
+        # 12.15.5.5 Runtime Semantics: IteratorDestructuringAssignmentEvaluation
+        #   With parameter iteratorRecord.
+        # AssignmentElementList : AssignmentElementList , AssignmentElisionElement
+        #   1. Perform ? IteratorDestructuringAssignmentEvaluation of AssignmentElementList using iteratorRecord as the
+        #      argument.
+        #   2. Return the result of performing IteratorDestructuringAssignmentEvaluation of AssignmentElisionElement
+        #      using iteratorRecord as the argument.
+        self.AssignmentElementList.IteratorDestructuringAssignmentEvaluation(iteratorRecord)
+        return self.AssignmentElisionElement.IteratorDestructuringAssignmentEvaluation(iteratorRecord)
+# ------------------------------------ 𝑨𝒔𝒔𝒊𝒈𝒏𝒎𝒆𝒏𝒕𝑬𝒍𝒊𝒔𝒊𝒐𝒏𝑬𝒍𝒆𝒎𝒆𝒏𝒕 ------------------------------------
+class PN_AssignmentElisionElement(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('AssignmentElisionElement', p)
+class PN_AssignmentElisionElement_AssignmentElement(PN_AssignmentElisionElement):
+    @property
+    def AssignmentElement(self):
+        return self.children[0]
+class PN_AssignmentElisionElement_Elision_AssignmentElement(PN_AssignmentElisionElement):
+    @property
+    def Elision(self):
+        return self.children[0]
+    @property
+    def AssignmentElement(self):
+        return self.children[1]
+    def IteratorDestructuringAssignmentEvaluation(self, iteratorRecord):
+        # 12.15.5.5 Runtime Semantics: IteratorDestructuringAssignmentEvaluation
+        #   With parameter iteratorRecord.
+        # AssignmentElisionElement : Elision AssignmentElement
+        #   1. Perform ? IteratorDestructuringAssignmentEvaluation of Elision with iteratorRecord as the argument.
+        #   2. Return the result of performing IteratorDestructuringAssignmentEvaluation of AssignmentElement with
+        #      iteratorRecord as the argument.
+        self.Elision.IteratorDestructuringAssignmentEvaluation(iteratorRecord)
+        return self.AssignmentElement.IteratorDestructuringAssignmentEvaluation(iteratorRecord)
+# ------------------------------------ 𝑨𝒔𝒔𝒊𝒈𝒏𝒎𝒆𝒏𝒕𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚 ------------------------------------
+class PN_AssignmentProperty(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('AssignmentProperty', p)
+class PN_AssignmentProperty_IdentifierReference_Initializer(PN_AssignmentProperty):
+    @property
+    def IdentifierReference(self):
+        return self.children[0]
+    @property
+    def Initializer(self):
+        return self.children[1]
+    def EarlyErrors(self):
+        # 12.15.5.1 Static Semantics: Early Errors
+        # AssignmentProperty : IdentifierReference Initializer
+        #   * It is a Syntax Error if IsValidSimpleAssignmentTarget of IdentifierReference is false.
+        if not self.IdentifierReference.IsValidSimpleAssignmentTarget():
+            return [CreateSyntaxError(f'Bad assignment target: {self.IdentifierReference}')]
+        return []
+    def PropertyDestructuringAssignmentEvaluation(self, value):
+        # 12.15.5.3 Runtime Semantics: PropertyDestructuringAssignmentEvaluation
+        #   With parameter value.
+        # AssignmentProperty : IdentifierReference Initializer
+        #   1. Let P be StringValue of IdentifierReference.
+        #   2. Let lref be ? ResolveBinding(P).
+        #   3. Let v be ? GetV(value, P).
+        #   4. If Initializer is present and v is undefined, then
+        #       a. Let defaultValue be the result of evaluating Initializer.
+        #       b. Set v to ? GetValue(defaultValue).
+        #       c. If IsAnonymousFunctionDefinition(Initializer) is true, then
+        #           i. Let hasNameProperty be ? HasOwnProperty(v, "name").
+        #           ii. If hasNameProperty is false, perform SetFunctionName(v, P).
+        #   5. Perform ? PutValue(lref, v).
+        #   6. Return a new List containing P.
+        P = self.IdentifierReference.StringValue()
+        lref = ResolveBinding(P)
+        v = GetV(value, P)
+        if self.Initializer and v is None:
+            defaultValue = self.Initializer.evaluate()
+            v = GetValue(defaultValue)
+            if IsAnonymousFunctionDefinition(self.Initializer):
+                hasNameProperty = HasOwnProperty(v, 'name')
+                if not hasNameProperty:
+                    SetFunctionName(v, P)
+        PutValue(lref, v)
+        return [P]
+class PN_AssignmentProperty_IdentifierReference(PN_AssignmentProperty_IdentifierReference_Initializer):
+    @property
+    def Initializer(self):
+        return None
+class PN_AssignmentProperty_PropertyName_COLON_AssignmentElement(PN_AssignmentProperty):
+    @property
+    def PropertyName(self):
+        return self.children[0]
+    @property
+    def AssignmentElement(self):
+        return self.children[2]
+    def PropertyDestructuringAssignmentEvaluation(self, value):
+        # 12.15.5.3 Runtime Semantics: PropertyDestructuringAssignmentEvaluation
+        #   With parameter value.
+        # AssignmentProperty : PropertyName : AssignmentElement
+        #   1. Let name be the result of evaluating PropertyName.
+        #   2. ReturnIfAbrupt(name).
+        #   3. Perform ? KeyedDestructuringAssignmentEvaluation of AssignmentElement with value and name as the arguments.
+        #   4. Return a new List containing name.
+        name = self.PropertyName.evaluate()
+        self.AssignmentElement.KeyedDestructuringAssignmentEvaluation(value, name)
+        return [name]
+# ------------------------------------ 𝑨𝒔𝒔𝒊𝒈𝒏𝒎𝒆𝒏𝒕𝑬𝒍𝒆𝒎𝒆𝒏𝒕 ------------------------------------
+class PN_AssignmentElement(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('AssignmentElement', p)
+class PN_AssignmentElement_DestructuringAssignmentTarget_Initializer(PN_AssignmentElement):
+    def __init__(self, ctx, p):
+        super().__init__(ctx, p)
+        self.ctx = ctx
+    @property
+    def DestructuringAssignmentTarget(self):
+        return self.children[0]
+    @property
+    def Initializer(self):
+        return self.children[1]
+    def IteratorDestructuringAssignmentEvaluation(self, iteratorRecord):
+        # 12.15.5.5 Runtime Semantics: IteratorDestructuringAssignmentEvaluation
+        #   With parameter iteratorRecord.
+        # AssignmentElement : DestructuringAssignmentTarget Initializer
+        #   1. If DestructuringAssignmentTarget is neither an ObjectLiteral nor an ArrayLiteral, then
+        #       a. Let lref be the result of evaluating DestructuringAssignmentTarget.
+        #       b. ReturnIfAbrupt(lref).
+        #   2. If iteratorRecord.[[Done]] is false, then
+        #       a. Let next be IteratorStep(iteratorRecord).
+        #       b. If next is an abrupt completion, set iteratorRecord.[[Done]] to true.
+        #       c. ReturnIfAbrupt(next).
+        #       d. If next is false, set iteratorRecord.[[Done]] to true.
+        #       e. Else,
+        #           i. Let value be IteratorValue(next).
+        #           ii. If value is an abrupt completion, set iteratorRecord.[[Done]] to true.
+        #           iii. ReturnIfAbrupt(value).
+        #   3. If iteratorRecord.[[Done]] is true, let value be undefined.
+        #   4. If Initializer is present and value is undefined, then
+        #       a. Let defaultValue be the result of evaluating Initializer.
+        #       b. Let v be ? GetValue(defaultValue).
+        #   5. Else, let v be value.
+        #   6. If DestructuringAssignmentTarget is an ObjectLiteral or an ArrayLiteral, then
+        #       a. Let nestedAssignmentPattern be the AssignmentPattern that is covered by DestructuringAssignmentTarget.
+        #       b. Return the result of performing DestructuringAssignmentEvaluation of nestedAssignmentPattern with v as the argument.
+        #   7. If Initializer is present and value is undefined and IsAnonymousFunctionDefinition(Initializer) and IsIdentifierRef of DestructuringAssignmentTarget are both true, then
+        #       a. Let hasNameProperty be ? HasOwnProperty(v, "name").
+        #       b. If hasNameProperty is false, perform SetFunctionName(v, GetReferencedName(lref)).
+        #   8. Return ? PutValue(lref, v).
+        is_structured_literal = self.DestructuringAssignmentTarget.Is('ObjectLiteral') or self.DestructuringAssignmentTarget.Is('ArrayLiteral')
+        if not is_structured_literal:
+            lref = self.DestructuringAssignmentTarget.evaluate()
+        if not iteratorRecord.Done:
+            try:
+                nextStep = IteratorStep(iteratorRecord)
+                if not nextStep:
+                    iteratorRecord.Done = True
+                else:
+                    value = IteratorValue(nextStep)
+            except (ESError, ESAbrupt):
+                iteratorRecord.Done = True
+                raise
+        if iteratorRecord.Done:
+            value = None
+        if self.Initializer and value is None:
+            defaultValue = self.Initializer.evaluate()
+            v = GetValue(defaultValue)
+        else:
+            v = value
+        if is_structured_literal:
+            nestedAssignmentPattern = self.DestructuringAssignmentTarget.covering('AssignmentPattern')
+            return nestedAssignmentPattern.DestructuringAssignmentEvaluation(v)
+        if self.Initializer and value is None and IsAnonymousFunctionDefinition(self.Initializer) and self.DestructuringAssignmentTarget.IsIdentifierRef():
+            if not HasOwnProperty(v, 'name'):
+                SetFunctionName(v, GetReferencedName(lref))
+        return PutValue(lref, v)
+        # NOTE
+        # Left to right evaluation order is maintained by evaluating a DestructuringAssignmentTarget that is not a
+        # destructuring pattern prior to accessing the iterator or evaluating the Initializer.
+    def KeyedDestructuringAssignmentEvaluation(self, value, propertyName):
+        # 12.15.5.6 Runtime Semantics: KeyedDestructuringAssignmentEvaluation
+        #   With parameters value and propertyName.
+        # AssignmentElement : DestructuringAssignmentTarget Initializer
+        #   1. If DestructuringAssignmentTarget is neither an ObjectLiteral nor an ArrayLiteral, then
+        #       a. Let lref be the result of evaluating DestructuringAssignmentTarget.
+        #       b. ReturnIfAbrupt(lref).
+        #   2. Let v be ? GetV(value, propertyName).
+        #   3. If Initializer is present and v is undefined, then
+        #       a. Let defaultValue be the result of evaluating Initializer.
+        #       b. Let rhsValue be ? GetValue(defaultValue).
+        #   4. Else, let rhsValue be v.
+        #   5. If DestructuringAssignmentTarget is an ObjectLiteral or an ArrayLiteral, then
+        #       a. Let assignmentPattern be the AssignmentPattern that is covered by DestructuringAssignmentTarget.
+        #       b. Return the result of performing DestructuringAssignmentEvaluation of assignmentPattern with rhsValue as the argument.
+        #   6. If Initializer is present and v is undefined and IsAnonymousFunctionDefinition(Initializer) and IsIdentifierRef of DestructuringAssignmentTarget are both true, then
+        #       a. Let hasNameProperty be ? HasOwnProperty(rhsValue, "name").
+        #       b. If hasNameProperty is false, perform SetFunctionName(rhsValue, GetReferencedName(lref)).
+        #   7. Return ? PutValue(lref, rhsValue).
+        is_structured_literal = self.DestructuringAssignmentTarget.Is('ObjectLiteral') or self.DestructuringAssignmentTarget.Is('ArrayLiteral')
+        if not is_structured_literal:
+            lref = self.DestructuringAssignmentTarget.evaluate()
+        v = GetV(value, propertyName)
+        if self.Initializer and v is None:
+            defaultValue = self.Initializer.evaluate()
+            rhsValue = GetValue(defaultValue)
+        else:
+            rhsValue = v
+        if is_structured_literal:
+            assignmentPattern = self.DestructuringAssignmentTarget.covering('AssignmentPattern')
+            return assignmentPattern.DestructuringAssignmentEvaluation(rhsValue)
+        if self.Initializer and v is None and IsAnonymousFunctionDefinition(self.Initializer) and self.DestructuringAssignmentTarget.IsIdentifierRef():
+            if not HasOwnProperty(rhsValue, 'name'):
+                SetFunctionName(rhsValue, GetReferencedName(lref))
+        return PutValue(lref, rhsValue)
+class PN_AssignmentElement_DestructuringAssignmentTarget(PN_AssignmentElement_DestructuringAssignmentTarget_Initializer):
+    @property
+    def Initializer(self):
+        return None
+# ------------------------------------ 𝑨𝒔𝒔𝒊𝒈𝒏𝒎𝒆𝒏𝒕𝑹𝒆𝒔𝒕𝑬𝒍𝒆𝒎𝒆𝒏𝒕 ------------------------------------
+class PN_AssignmentRestElement(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('AssignmentRestElement', p)
+class PN_AssignmentRestElement_DOTDOTDOT_DestructuringAssignmentTarget(PN_AssignmentRestElement):
+    @property
+    def DestructuringAssignmentTarget(self):
+        return self.children[1]
+    def IteratorDestructuringAssignmentEvaluation(self, iteratorRecord):
+        # 12.15.5.5 Runtime Semantics: IteratorDestructuringAssignmentEvaluation
+        #   With parameter iteratorRecord.
+        # AssignmentRestElement : ... DestructuringAssignmentTarget
+        #   1. If DestructuringAssignmentTarget is neither an ObjectLiteral nor an ArrayLiteral, then
+        #       a. Let lref be the result of evaluating DestructuringAssignmentTarget.
+        #       b. ReturnIfAbrupt(lref).
+        #   2. Let A be ! ArrayCreate(0).
+        #   3. Let n be 0.
+        #   4. Repeat, while iteratorRecord.[[Done]] is false,
+        #       a. Let next be IteratorStep(iteratorRecord).
+        #       b. If next is an abrupt completion, set iteratorRecord.[[Done]] to true.
+        #       c. ReturnIfAbrupt(next).
+        #       d. If next is false, set iteratorRecord.[[Done]] to true.
+        #       e. Else,
+        #           i. Let nextValue be IteratorValue(next).
+        #           ii. If nextValue is an abrupt completion, set iteratorRecord.[[Done]] to true.
+        #           iii. ReturnIfAbrupt(nextValue).
+        #           iv. Let status be CreateDataProperty(A, ! ToString(n), nextValue).
+        #           v. Assert: status is true.
+        #           vi. Increment n by 1.
+        #   5. If DestructuringAssignmentTarget is neither an ObjectLiteral nor an ArrayLiteral, then
+        #       a. Return ? PutValue(lref, A).
+        #   6. Let nestedAssignmentPattern be the AssignmentPattern that is covered by DestructuringAssignmentTarget.
+        #   7. Return the result of performing DestructuringAssignmentEvaluation of nestedAssignmentPattern with A as the argument.
+        is_structured_literal = self.DestructuringAssignmentTarget.Is('ObjectLiteral') or self.DestructuringAssignmentTarget.Is('ArrayLiteral')
+        if not is_structured_literal:
+            lref = self.DestructuringAssignmentTarget.evaluate()
+        A = ArrayCreate(0)
+        n = 0
+        while not iteratorRecord.Done:
+            try:
+                next_step = IteratorStep(iteratorRecord)
+                if not next_step:
+                    iteratorRecord.Done = True
+                else:
+                    nextValue = IteratorValue(next_step)
+            except (ESError, ESAbrupt):
+                iteratorRecord.Done = True
+                raise
+            status = CreateDataProperty(A, ToString(n), nextValue)
+            assert status
+            n += 1
+        if not is_structured_literal:
+            return PutValue(lref, A)
+        nestedAssignmentPattern = self.DestructuringAssignmentTarget.covering('AssignmentPattern')
+        return nestedAssignmentPattern.DestructuringAssignmentEvaluation(A)
+# ------------------------------------ 𝑫𝒆𝒔𝒕𝒓𝒖𝒄𝒕𝒖𝒓𝒊𝒏𝒈𝑨𝒔𝒔𝒊𝒈𝒏𝒎𝒆𝒏𝒕𝑻𝒂𝒓𝒈𝒆𝒕 ------------------------------------
+class PN_DestructuringAssignmentTarget(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('DestructuringAssignmentTarget', p)
+class PN_DestructuringAssignmentTarget_LeftHandSideExpression(PN_DestructuringAssignmentTarget):
+    @property
+    def LeftHandSideExpression(self):
+        return self.children[0]
+    def EarlyErrors(self):
+        # 12.15.5.1 Static Semantics: Early Errors
+        # DestructuringAssignmentTarget : LeftHandSideExpression
+        #   * It is a Syntax Error if LeftHandSideExpression is either an ObjectLiteral or an ArrayLiteral and if
+        #     LeftHandSideExpression is not covering an AssignmentPattern.
+        #   * It is a Syntax Error if LeftHandSideExpression is neither an ObjectLiteral nor an ArrayLiteral and
+        #     IsValidSimpleAssignmentTarget(LeftHandSideExpression) is false.
+        errs = []
+        is_structured_literal = self.LeftHandSideExpression.Is('ObjectLiteral') or self.LeftHandSideExpression.Is('ArrayLiteral')
+        if is_structured_literal and not self.LeftHandSideExpression.covering('AssignmentPattern'):
+            errs.append(CreateSyntaxError(f'Invalid Assignment Pattern: {self.LeftHandSideExpression}'))
+        if not is_structured_literal and not self.LeftHandSideExpression.IsValidSimpleAssignmentTarget():
+            errs.append(CreateSyntaxError(f'Invalid Assignment Target: {self.LeftHandSideExpression}'))
+        return errs
+
 ##################################################################################################################################################################################################################
 #
 #  d888    .d8888b.       d888    .d8888b.       .d8888b.                                                     .d88888b.                                     888                           .d88             88b.
@@ -10296,7 +10991,7 @@ class PN_LexicalBinding_BindingPattern_Initializer(PN_LexicalBinding):
         #    arguments.
         rhs = self.Initializer.evaluate()
         value = GetValue(rhs)
-        env = surrounding_agent.running_ec.LexicalEnvironment
+        env = surrounding_agent.running_ec.lexical_environment
         return self.BindingPattern.BindingInitialization(value, env)
 #######################################################################################################################
 #
@@ -10477,9 +11172,11 @@ class PN_BindingPattern_ArrayBindingPattern(PN_BindingPattern):
         # 3. If iteratorRecord.[[Done]] is false, return ? IteratorClose(iteratorRecord, result).
         # 4. Return result.
         iteratorRecord = GetIterator(value)
-        result = self.ArrayBindingPattern.IteratorBindingInitialization(iteratorRecord, environment)
-        if not iteratorRecord.Done:
-            IteratorClose(iteratorRecord)
+        try:
+            result = self.ArrayBindingPattern.IteratorBindingInitialization(iteratorRecord, environment)
+        finally:
+            if not iteratorRecord.Done:
+                IteratorClose(iteratorRecord)
         return result
 class PN_BindingPattern_ObjectBindingPattern(PN_BindingPattern):
     # -------------------------------- 𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑷𝒂𝒕𝒕𝒆𝒓𝒏 : 𝑶𝒃𝒋𝒆𝒄𝒕𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑷𝒂𝒕𝒕𝒆𝒓𝒏 --------------------------------
@@ -12439,6 +13136,9 @@ class Ecma262Parser(Parser):
     @_('GOAL_PARENTHESIZEDEXPRESSION ParenthesizedExpression')  # pylint: disable=undefined-variable
     def SpecialStart(self, p):
         return p[1]
+    @_('GOAL_ASSIGNMENTPATTERN AssignmentPattern')  # pylint: disable=undefined-variable
+    def SpecialStart(self, p):
+        return p[1]
     ########################################################################################################################
     # 15.1 Scripts
     # Syntax
@@ -13340,6 +14040,23 @@ class Ecma262Parser(Parser):
     @_('Expression_In_Restricted COMMA AssignmentExpression_In')  # pylint: disable=undefined-variable
     def Expression_In_Restricted(self, p):
         return PN_Expression_Expression_COMMA_AssignmentExpression(self.context, p)
+
+    ########################################################################################################################
+    # 12.15 Assignment Operators
+    #
+    # Syntax
+    #
+    # AssignmentExpression[In, Yield, Await] :
+    #       ConditionalExpression[?In, ?Yield, ?Await]
+    #       [+Yield] YieldExpression[?In, ?Await]
+    #       ArrowFunction[?In, ?Yield, ?Await]
+    #       AsyncArrowFunction[?In, ?Yield, ?Await]
+    #       LeftHandSideExpression[?Yield, ?Await] = AssignmentExpression[?In, ?Yield, ?Await]
+    #       LeftHandSideExpression[?Yield, ?Await] AssignmentOperator AssignmentExpression[?In, ?Yield, ?Await]
+    #
+    # AssignmentOperator : one of
+    #       *= /= %= += -= <<= >>= >>>= &= ^= |= **=
+    #
     @_('ConditionalExpression')  # pylint: disable=undefined-variable
     def AssignmentExpression(self, p):
         return PN_AssignmentExpression_ConditionalExpression(self.context, p)
@@ -13370,6 +14087,172 @@ class Ecma262Parser(Parser):
     @_('STAREQ', 'DIVEQ', 'PERCENTEQ', 'PLUSEQ', 'MINUSEQ', 'LTLE', 'GTGE', 'GTGTGE', 'AMPEQ', 'XOREQ', 'PIPEEQ', 'STARSTAREQ')  # pylint: disable=undefined-variable
     def AssignmentOperator(self, p):
         return PN_AssignmentOperator(self.context, p)
+    ########################################################################################################################
+
+    ########################################################################################################################
+    # 12.15.5 Destructuring Assignment
+    #
+    # Supplemental Syntax
+    #
+    # In certain circumstances when processing an instance of the production
+    # AssignmentExpression : LeftHandSideExpression = AssignmentExpression the following grammar is used to refine the
+    # interpretation of LeftHandSideExpression.
+    #
+    # AssignmentPattern[Yield, Await] :
+    #       ObjectAssignmentPattern[?Yield, ?Await]
+    #       ArrayAssignmentPattern[?Yield, ?Await]
+    #
+    @_('ObjectAssignmentPattern')  # pylint: disable=undefined-variable
+    def AssignmentPattern(self, p):
+        return PN_AssignmentPattern_ObjectAssignmentPattern(self.context, p)
+    @_('ArrayAssignmentPattern')  # pylint: disable=undefined-variable
+    def AssignmentPattern(self, p):
+        return PN_AssignmentPattern_ArrayAssignmentPattern(self.context, p)
+    #
+    # ObjectAssignmentPattern[Yield, Await] :
+    #       { }
+    #       { AssignmentRestProperty[?Yield, ?Await] }
+    #       { AssignmentPropertyList[?Yield, ?Await] }
+    #       { AssignmentPropertyList[?Yield, ?Await] , }
+    #       { AssignmentPropertyList[?Yield, ?Await] , AssignmentRestProperty[?Yield, ?Await] }
+    #
+    @_('LCURLY RCURLY')  # pylint: disable=undefined-variable
+    def ObjectAssignmentPattern(self, p):
+        return PN_ObjectAssignmentPattern_LCURLY_RCURLY(self.context, p)
+    @_('LCURLY AssignmentRestProperty RCURLY')  # pylint: disable=undefined-variable
+    def ObjectAssignmentPattern(self, p):
+        return PN_ObjectAssignmentPattern_LCURLY_AssignmentRestProperty_RCURLY(self.context, p)
+    @_('LCURLY AssignmentPropertyList RCURLY')  # pylint: disable=undefined-variable
+    def ObjectAssignmentPattern(self, p):
+        return PN_ObjectAssignmentPattern_LCURLY_AssignmentPropertyList_RCURLY(self.context, p)
+    @_('LCURLY AssignmentPropertyList COMMA RCURLY')  # pylint: disable=undefined-variable
+    def ObjectAssignmentPattern(self, p):
+        return PN_ObjectAssignmentPattern_LCURLY_AssignmentPropertyList_COMMA_RCURLY(self.context, p)
+    @_('LCURLY AssignmentPropertyList COMMA AssignmentRestProperty RCURLY')  # pylint: disable=undefined-variable
+    def ObjectAssignmentPattern(self, p):
+        return PN_ObjectAssignmentPattern_LCURLY_AssignmentPropertyList_COMMA_AssignmentRestProperty_RCURLY(self.context, p)
+    #
+    # ArrayAssignmentPattern[Yield, Await] :
+    #       [ ]
+    #       [ Elision ]
+    #       [ AssignmentRestElement[?Yield, ?Await] ]
+    #       [ Elision AssignmentRestElement[?Yield, ?Await] ]
+    #       [ AssignmentElementList[?Yield, ?Await] ]
+    #       [ AssignmentElementList[?Yield, ?Await] , ]
+    #       [ AssignmentElementList[?Yield, ?Await] , Elision ]
+    #       [ AssignmentElementList[?Yield, ?Await] , AssignmentRestElement[?Yield, ?Await] ]
+    #       [ AssignmentElementList[?Yield, ?Await] , Elision AssignmentRestElement[?Yield, ?Await] ]
+    #
+    @_('LBRACKET RBRACKET')  # pylint: disable=undefined-variable
+    def ArrayAssignmentPattern(self, p):
+        return PN_ArrayAssignmentPattern_LBRACKET_RBRACKET(self.context, p)
+    @_('LBRACKET Elision RBRACKET')  # pylint: disable=undefined-variable
+    def ArrayAssignmentPattern(self, p):
+        return PN_ArrayAssignmentPattern_LBRACKET_Elision_RBRACKET(self.context, p)
+    @_('LBRACKET AssignmentRestElement RBRACKET')  # pylint: disable=undefined-variable
+    def ArrayAssignmentPattern(self, p):
+        return PN_ArrayAssignmentPattern_LBRACKET_AssignmentRestElement_RBRACKET(self.context, p)
+    @_('LBRACKET Elision AssignmentRestElement RBRACKET')  # pylint: disable=undefined-variable
+    def ArrayAssignmentPattern(self, p):
+        return PN_ArrayAssignmentPattern_LBRACKET_Elision_AssignmentRestElement_RBRACKET(self.context, p)
+    @_('LBRACKET AssignmentElementList RBRACKET')  # pylint: disable=undefined-variable
+    def ArrayAssignmentPattern(self, p):
+        return PN_ArrayAssignmentPattern_LBRACKET_AssignmentElementList_RBRACKET(self.context, p)
+    @_('LBRACKET AssignmentElementList COMMA RBRACKET')  # pylint: disable=undefined-variable
+    def ArrayAssignmentPattern(self, p):
+        return PN_ArrayAssignmentPattern_LBRACKET_AssignmentElementList_COMMA_RBRACKET(self.context, p)
+    @_('LBRACKET AssignmentElementList COMMA Elision RBRACKET')  # pylint: disable=undefined-variable
+    def ArrayAssignmentPattern(self, p):
+        return PN_ArrayAssignmentPattern_LBRACKET_AssignmentElementList_COMMA_Elision_RBRACKET(self.context, p)
+    @_('LBRACKET AssignmentElementList COMMA AssignmentRestElement RBRACKET')  # pylint: disable=undefined-variable
+    def ArrayAssignmentPattern(self, p):
+        return PN_ArrayAssignmentPattern_LBRACKET_AssignmentElementList_COMMA_AssignmentRestElement_RBRACKET(self.context, p)
+    @_('LBRACKET AssignmentElementList COMMA Elision AssignmentRestElement RBRACKET')  # pylint: disable=undefined-variable
+    def ArrayAssignmentPattern(self, p):
+        return PN_ArrayAssignmentPattern_LBRACKET_AssignmentElementList_COMMA_Elision_AssignmentRestElement_RBRACKET(self.context, p)
+    #
+    # AssignmentRestProperty[Yield, Await] :
+    #       ... DestructuringAssignmentTarget[?Yield, ?Await]
+    #
+    @_('DOTDOTDOT DestructuringAssignmentTarget')  # pylint: disable=undefined-variable
+    def AssignmentRestProperty(self, p):
+        return PN_AssignmentRestProperty_DOTDOTDOT_DestructuringAssignmentTarget(self.context, p)
+    #
+    # AssignmentPropertyList[Yield, Await] :
+    #       AssignmentProperty[?Yield, ?Await]
+    #       AssignmentPropertyList[?Yield, ?Await] , AssignmentProperty[?Yield, ?Await]
+    #
+    @_('AssignmentProperty')  # pylint: disable=undefined-variable
+    def AssignmentPropertyList(self, p):
+        return PN_AssignmentPropertyList_AssignmentProperty(self.context, p)
+    @_('AssignmentPropertyList COMMA AssignmentProperty')  # pylint: disable=undefined-variable
+    def AssignmentPropertyList(self, p):
+        return PN_AssignmentPropertyList_AssignmentPropertyList_COMMA_AssignmentProperty(self.context, p)
+    #
+    # AssignmentElementList[Yield, Await] :
+    #       AssignmentElisionElement[?Yield, ?Await]
+    #       AssignmentElementList[?Yield, ?Await] , AssignmentElisionElement[?Yield, ?Await]
+    #
+    @_('AssignmentElisionElement')  # pylint: disable=undefined-variable
+    def AssignmentElementList(self, p):
+        return PN_AssignmentElementList_AssignmentElisionElement(self.context, p)
+    @_('AssignmentElementList COMMA AssignmentElisionElement')  # pylint: disable=undefined-variable
+    def AssignmentElementList(self, p):
+        return PN_AssignmentElementList_AssignmentElementList_COMMA_AssignmentElisionElement(self.context, p)
+    #
+    # AssignmentElisionElement[Yield, Await] :
+    #       AssignmentElement[?Yield, ?Await]
+    #       Elision AssignmentElement[?Yield, ?Await]
+    #
+    @_('AssignmentElement')  # pylint: disable=undefined-variable
+    def AssignmentElisionElement(self, p):
+        return PN_AssignmentElisionElement_AssignmentElement(self.context, p)
+    @_('Elision AssignmentElement')  # pylint: disable=undefined-variable
+    def AssignmentElisionElement(self, p):
+        return PN_AssignmentElisionElement_Elision_AssignmentElement(self.context, p)
+    #
+    # AssignmentProperty[Yield, Await] :
+    #       IdentifierReference[?Yield, ?Await]
+    #       IdentifierReference[?Yield, ?Await] Initializer[+In, ?Yield, ?Await]
+    #       PropertyName[?Yield, ?Await] : AssignmentElement[?Yield, ?Await]
+    #
+    @_('IdentifierReference')  # pylint: disable=undefined-variable
+    def AssignmentProperty(self, p):
+        return PN_AssignmentProperty_IdentifierReference(self.context, p)
+    @_('IdentifierReference Initializer_In')  # pylint: disable=undefined-variable
+    def AssignmentProperty(self, p):
+        return PN_AssignmentProperty_IdentifierReference_Initializer(self.context, p)
+    @_('PropertyName COLON AssignmentElement')  # pylint: disable=undefined-variable
+    def AssignmentProperty(self, p):
+        return PN_AssignmentProperty_PropertyName_COLON_AssignmentElement(self.context, p)
+    #
+    # AssignmentElement[Yield, Await] :
+    #       DestructuringAssignmentTarget[?Yield, ?Await]
+    #       DestructuringAssignmentTarget[?Yield, ?Await] Initializer[+In, ?Yield, ?Await]
+    #
+    @_('DestructuringAssignmentTarget')  # pylint: disable=undefined-variable
+    def AssignmentElement(self, p):
+        return PN_AssignmentElement_DestructuringAssignmentTarget(self.context, p)
+    @_('DestructuringAssignmentTarget Initializer_In')  # pylint: disable=undefined-variable
+    def AssignmentElement(self, p):
+        return PN_AssignmentElement_DestructuringAssignmentTarget_Initializer(self.context, p)
+    #
+    # AssignmentRestElement[Yield, Await] :
+    #       ... DestructuringAssignmentTarget[?Yield, ?Await]
+    #
+    @_('DOTDOTDOT DestructuringAssignmentTarget')  # pylint: disable=undefined-variable
+    def AssignmentRestElement(self, p):
+        return PN_AssignmentRestElement_DOTDOTDOT_DestructuringAssignmentTarget(self.context, p)
+    #
+    # DestructuringAssignmentTarget[Yield, Await] :
+    #       LeftHandSideExpression[?Yield, ?Await]
+    #
+    @_('LeftHandSideExpression')  # pylint: disable=undefined-variable
+    def DestructuringAssignmentTarget(self, p):
+        return PN_DestructuringAssignmentTarget_LeftHandSideExpression(self.context, p)
+    ########################################################################################################################
+
+    ########################################################################################################################
     @_('LogicalORExpression')  # pylint: disable=undefined-variable
     def ConditionalExpression(self, p):
         return PN_ConditionalExpression_LogicalORExpression(self.context, p)
@@ -16244,6 +17127,24 @@ def ArrayIteratorPrototype_next(this_value, new_target):
         result = CreateArrayFromList([index, elementValue])
     return CreateIterResultObject(result, False)
 
+# 22.1.5.1 CreateArrayIterator ( array, kind )
+def CreateArrayIterator(array, kind):
+    # Several methods of Array objects return Iterator objects. The abstract operation CreateArrayIterator with
+    # arguments array and kind is used to create such iterator objects. It performs the following steps:
+    #
+    #   1. Assert: Type(array) is Object.
+    #   2. Let iterator be ObjectCreate(%ArrayIteratorPrototype%, « [[IteratedObject]],
+    #      [[ArrayIteratorNextIndex]], [[ArrayIterationKind]] »).
+    #   3. Set iterator.[[IteratedObject]] to array.
+    #   4. Set iterator.[[ArrayIteratorNextIndex]] to 0.
+    #   5. Set iterator.[[ArrayIterationKind]] to kind.
+    #   6. Return iterator.
+    assert isObject(array)
+    iterator = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics['%ArrayIteratorPrototype%'], ['IteratedObject', 'ArrayIteratorNextIndex', 'ArrayIterationKind'])
+    iterator.IteratedObject = array
+    iterator.ArrayIteratorNextIndex = 0
+    iterator.ArrayIterationKind = kind
+    return iterator
 
 # 25.1.2 The %IteratorPrototype% Object
 # The %IteratorPrototype% object:
@@ -16264,8 +17165,7 @@ def IteratorPrototype_iterator(this_value, new_target):
 #######################################################################################################################################################
 if __name__ == '__main__':
     try:
-        rv = RunJobs(scripts=["a=[1, 2, 3, 44, 55];for (it=a.values(), ir=it.next(), s=''; ! ir.done; ir = it.next()) { s += '{ value: ' + ir.value + ', done: ' + ir.done + ' }\\n'; };"])
-        #rv = RunJobs(scripts=["a=[1, 2, 3, 44, 55]; a.length;"])
+        rv = RunJobs(scripts=["let colors = [ 'red', 'green', 'blue' ]; let [ firstColor, secondColor ] = colors; firstColor + '-' + secondColor;"])
     except ESError as err:
         InitializeHostDefinedRealm()
         print(err)
