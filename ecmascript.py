@@ -3962,6 +3962,7 @@ def CreateIntrinsics(realm_rec):
     intrinsics['%Array%'] = CreateArrayConstructor(realm_rec)
     intrinsics['%ArrayPrototype%'] = CreateArrayPrototype(realm_rec)
     ArrayFixups(realm_rec)
+    intrinsics['%ArrayIteratorPrototype%'] = CreateArrayIteratorPrototype(realm_rec)
 
     # 14. Return intrinsics.
     return intrinsics
@@ -16071,7 +16072,9 @@ def CreateArrayPrototype(realm):
     BindBuiltinFunctions(realm, proto, [
         ('toString', ArrayPrototype_toString, 0),
         ('join', ArrayPrototype_join, 1),
+        ('values', ArrayPrototype_values, 0),
     ])
+    Set(proto, wks_iterator, Get(proto, 'values'), True)
     return proto
 
 # 22.1.3.13 Array.prototype.join ( separator )
@@ -16121,6 +16124,16 @@ def ArrayPrototype_toString(this_value, new_target):
         func = surrounding_agent.running_ec.realm.intrinsics['%ObjProto_toString%']
     return Call(func, array)
 
+# 22.1.3.30 Array.prototype.values ( )
+def ArrayPrototype_values(this_value, new_target):
+    # The following steps are taken:
+    #
+    #   1. Let O be ? ToObject(this value).
+    #   2. Return CreateArrayIterator(O, "value").
+    O = ToObject(this_value)
+    return CreateArrayIterator(O, 'value')
+    # This function is the %ArrayProto_values% intrinsic object.
+
 def ArrayFixups(realm):
     array_constructor = realm.intrinsics['%Array%']
     array_prototype = realm.intrinsics['%ArrayPrototype%']
@@ -16128,6 +16141,108 @@ def ArrayFixups(realm):
     DefinePropertyOrThrow(array_constructor, 'prototype', proto_desc)
     const_desc = PropertyDescriptor(value=array_constructor, writable=True, enumerable=False, configurable=True)
     DefinePropertyOrThrow(array_prototype, 'constructor', const_desc)
+    realm.intrinsics['%ArrayProto_values%'] = Get(array_prototype, 'values')
+
+# 22.1.5 Array Iterator Objects
+# An Array Iterator is an object, that represents a specific iteration over some specific Array instance object. There
+# is not a named constructor for Array Iterator objects. Instead, Array iterator objects are created by calling certain
+# methods of Array instance objects.
+
+# 22.1.5.1 CreateArrayIterator ( array, kind )
+def CreateArrayIterator(array, kind):
+    # Several methods of Array objects return Iterator objects. The abstract operation CreateArrayIterator with
+    # arguments array and kind is used to create such iterator objects. It performs the following steps:
+    #
+    #   1. Assert: Type(array) is Object.
+    #   2. Let iterator be ObjectCreate(%ArrayIteratorPrototype%, « [[IteratedObject]],
+    #      [[ArrayIteratorNextIndex]], [[ArrayIterationKind]] »).
+    #   3. Set iterator.[[IteratedObject]] to array.
+    #   4. Set iterator.[[ArrayIteratorNextIndex]] to 0.
+    #   5. Set iterator.[[ArrayIterationKind]] to kind.
+    #   6. Return iterator.
+    assert isObject(array)
+    iterator = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics['%ArrayIteratorPrototype%'], ['IteratedObject', 'ArrayIteratorNextIndex', 'ArrayIterationKind'])
+    iterator.IteratedObject = array
+    iterator.ArrayIteratorNextIndex = 0
+    iterator.ArrayIterationKind = kind
+    return iterator
+
+# 22.1.5.2 The %ArrayIteratorPrototype% Object
+# The %ArrayIteratorPrototype% object:
+#
+#   * has properties that are inherited by all Array Iterator Objects.
+#   * is an ordinary object.
+#   * has a [[Prototype]] internal slot whose value is the intrinsic object %IteratorPrototype%.
+#   * has the following properties:
+
+def CreateArrayIteratorPrototype(realm):
+    proto = ObjectCreate(realm.intrinsics['%IteratorPrototype%'])
+    BindBuiltinFunctions(realm, proto, [
+        ('next', ArrayIteratorPrototype_next, 0),
+    ])
+    # 22.1.5.2.2 %ArrayIteratorPrototype% [ @@toStringTag ]
+    # The initial value of the @@toStringTag property is the String value "Array Iterator".
+    # This property has the attributes { [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true }.
+    pdesc = PropertyDescriptor(value='Array Iterator', writable=False, enumerable=False, configurable=True)
+    DefinePropertyOrThrow(proto, wks_to_string_tag, pdesc)
+    return proto
+
+# 22.1.5.2.1 %ArrayIteratorPrototype%.next ( )
+def ArrayIteratorPrototype_next(this_value, new_target):
+    #   1. Let O be the this value.
+    #   2. If Type(O) is not Object, throw a TypeError exception.
+    #   3. If O does not have all of the internal slots of an Array Iterator Instance (22.1.5.3), throw a TypeError exception.
+    #   4. Let a be O.[[IteratedObject]].
+    #   5. If a is undefined, return CreateIterResultObject(undefined, true).
+    #   6. Let index be O.[[ArrayIteratorNextIndex]].
+    #   7. Let itemKind be O.[[ArrayIterationKind]].
+    #   8. If a has a [[TypedArrayName]] internal slot, then
+    #       a. If IsDetachedBuffer(a.[[ViewedArrayBuffer]]) is true, throw a TypeError exception.
+    #       b. Let len be a.[[ArrayLength]].
+    #   9. Else,
+    #       a. Let len be ? ToLength(? Get(a, "length")).
+    #   10. If index ≥ len, then
+    #       a. Set O.[[IteratedObject]] to undefined.
+    #       b. Return CreateIterResultObject(undefined, true).
+    #   11. Set O.[[ArrayIteratorNextIndex]] to index+1.
+    #   12. If itemKind is "key", return CreateIterResultObject(index, false).
+    #   13. Let elementKey be ! ToString(index).
+    #   14. Let elementValue be ? Get(a, elementKey).
+    #   15. If itemKind is "value", let result be elementValue.
+    #   16. Else,
+    #       a. Assert: itemKind is "key+value".
+    #       b. Let result be CreateArrayFromList(« index, elementValue »).
+    #   17. Return CreateIterResultObject(result, false).
+    O = this_value
+    if not isObject(O):
+        raise ESTypeError('next must be called as a method')
+    if any(not hasattr(O, attr) for attr in ['IteratedObject', 'ArrayIteratorNextIndex', 'ArrayIterationKind']):
+        raise ESTypeError('next must be a method of an array iterator object')
+    a = O.IteratedObject
+    if not a:
+        return CreateIterResultObject(None, True)
+    index = O.ArrayIteratorNextIndex
+    itemKind = O.ArrayIterationKind
+    if hasattr(a, 'TypedArrayName'):
+        if IsDetachedBuffer(a.ViewedArrayBuffer):
+            raise ESTypeError('next can\'t handle detached buffers')
+        length = a.ArrayLength
+    else:
+        length = ToLength(Get(a, 'length'))
+    if index >= length:
+        O.IteratedObject = None
+        return CreateIterResultObject(None, True)
+    O.ArrayIteratorNextIndex = index + 1
+    if itemKind == 'key':
+        return CreateIterResultObject(index, False)
+    elementKey = ToString(index)
+    elementValue = Get(a, elementKey)
+    if itemKind == 'value':
+        result = elementValue
+    else:
+        assert itemKind == 'key+value'
+        result = CreateArrayFromList([index, elementValue])
+    return CreateIterResultObject(result, False)
 
 
 # 25.1.2 The %IteratorPrototype% Object
@@ -16149,7 +16264,8 @@ def IteratorPrototype_iterator(this_value, new_target):
 #######################################################################################################################################################
 if __name__ == '__main__':
     try:
-        rv = RunJobs(scripts=["b = Array(10, 11, 12);"])
+        rv = RunJobs(scripts=["a=[1, 2, 3, 44, 55];for (it=a.values(), ir=it.next(), s=''; ! ir.done; ir = it.next()) { s += '{ value: ' + ir.value + ', done: ' + ir.done + ' }\\n'; };"])
+        #rv = RunJobs(scripts=["a=[1, 2, 3, 44, 55]; a.length;"])
     except ESError as err:
         InitializeHostDefinedRealm()
         print(err)

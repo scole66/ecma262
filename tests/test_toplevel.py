@@ -127,6 +127,8 @@ def cleanup():
     ("'[' + [,,,] + ']';", '[,,]'),
     ("'[' + [66,55,,] + ']';", '[66,55,]'),
     ("'['+[65,99,]+']';", '[65,99]'),
+    ("a=[1, 2, 3, 44, 55];for (it=a.values(), ir=it.next(), s=''; ! ir.done; ir = it.next()) { s += ir.value + '-'; };", '1-2-3-44-55-'),
+    ("a=[1, 2, 3]; it = a.values(); ''+it;", '[object Array Iterator]'),
 ])
 def test_scripts_01(cleanup, script, result):
     rv = RunJobs(scripts=[script])
