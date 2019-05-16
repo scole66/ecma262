@@ -17127,25 +17127,6 @@ def ArrayIteratorPrototype_next(this_value, new_target):
         result = CreateArrayFromList([index, elementValue])
     return CreateIterResultObject(result, False)
 
-# 22.1.5.1 CreateArrayIterator ( array, kind )
-def CreateArrayIterator(array, kind):
-    # Several methods of Array objects return Iterator objects. The abstract operation CreateArrayIterator with
-    # arguments array and kind is used to create such iterator objects. It performs the following steps:
-    #
-    #   1. Assert: Type(array) is Object.
-    #   2. Let iterator be ObjectCreate(%ArrayIteratorPrototype%, « [[IteratedObject]],
-    #      [[ArrayIteratorNextIndex]], [[ArrayIterationKind]] »).
-    #   3. Set iterator.[[IteratedObject]] to array.
-    #   4. Set iterator.[[ArrayIteratorNextIndex]] to 0.
-    #   5. Set iterator.[[ArrayIterationKind]] to kind.
-    #   6. Return iterator.
-    assert isObject(array)
-    iterator = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics['%ArrayIteratorPrototype%'], ['IteratedObject', 'ArrayIteratorNextIndex', 'ArrayIterationKind'])
-    iterator.IteratedObject = array
-    iterator.ArrayIteratorNextIndex = 0
-    iterator.ArrayIterationKind = kind
-    return iterator
-
 # 25.1.2 The %IteratorPrototype% Object
 # The %IteratorPrototype% object:
 #   * has a [[Prototype]] internal slot whose value is the intrinsic object %ObjectPrototype%.
