@@ -133,6 +133,12 @@ def cleanup():
     ("let colors = [ 'red', 'green', 'blue' ]; let [ ,, thirdColor ] = colors; thirdColor;", 'blue'),
     ("let colors = [ 'red', 'green', 'blue' ], firstColor = 'black', secondColor = 'purple'; [ firstColor, secondColor ] = colors; firstColor + '+' + secondColor;", 'red+green'),
     ("let a=1, b=2; [a, b] = [b, a]; ''+a+' '+b;", '2 1'),
+    #("[a, b] = undefined;", None), Need to find a way to test for errors :/
+    ("let colors=['red']; [firstcolor, secondcolor] = colors; 'firstcolor=' + firstcolor + ', secondcolor=' + secondcolor;", 'firstcolor=red, secondcolor=undefined'),
+    ("let colors=['red']; [firstcolor='pink', secondcolor='puce'] = colors; 'firstcolor=' + firstcolor + ', secondcolor=' + secondcolor;", 'firstcolor=red, secondcolor=puce'),
+    ("let colors=['red', ['green', 'lightgreen'], 'blue']; let [ firstcolor, [ secondcolor ]] = colors; 'firstcolor=' + firstcolor + ', secondcolor=' + secondcolor;", 'firstcolor=red, secondcolor=green'),
+    ("let colors=['red','green','blue'];let [firstcolor, ...restcolors]=colors;firstcolor+restcolors.length+restcolors[0]+restcolors[1];", 'red2greenblue'),
+    ("let node={type:'Identifier',name:'foo',loc:{start:{line:1,column:1},end:{line:1,column:4}},range:[0,3]};let{loc:{start},range:[startIndex]}=node;''+start.line+', '+start.column+', '+startIndex;", '1, 1, 0'),
 ])
 def test_scripts_01(cleanup, script, result):
     rv = RunJobs(scripts=[script])

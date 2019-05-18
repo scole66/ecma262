@@ -6965,6 +6965,8 @@ class ParseNode:
         return self.defer_target().IteratorDestructuringAssignmentEvaluation(iteratorRecord)
     def DestructuringAssignmentEvaluation(self, value):
         return self.defer_target().DestructuringAssignmentEvaluation(value)
+    def PropertyBindingInitialization(self, value, environment):
+        return self.defer_target().PropertyBindingInitialization(value, environment)
 
     def evaluate(self):
         # Subclasses need to override this, or we'll throw an AttributeError when we hit a terminal.
