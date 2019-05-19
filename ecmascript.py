@@ -495,6 +495,14 @@ class JSObject:
         # 1. Return ! OrdinaryOwnPropertyKeys(O).
         return OrdinaryOwnPropertyKeys(self)
 
+# 9.1.6.2 IsCompatiblePropertyDescriptor ( Extensible, Desc, Current )
+def IsCompatiblePropertyDescriptor(Extensible, Desc, Current):
+    # When the abstract operation IsCompatiblePropertyDescriptor is called with Boolean value Extensible, and Property
+    # Descriptors Desc, and Current, the following steps are taken:
+    #
+    #   1. Return ValidateAndApplyPropertyDescriptor(undefined, undefined, Extensible, Desc, Current).
+    return ValidateAndApplyPropertyDescriptor(None, None, Extensible, Desc, Current)
+
 # 9.1.6.3 ValidateAndApplyPropertyDescriptor ( O, P, extensible, Desc, current )
 def ValidateAndApplyPropertyDescriptor(obj, propkey, extensible, desc, current):
     # When the abstract operation ValidateAndApplyPropertyDescriptor is called with Object O, property key P, Boolean
@@ -2587,6 +2595,14 @@ class IteratorHint(Enum):
     ASYNC = auto()
 SYNC = IteratorHint.SYNC
 ASYNC = IteratorHint.ASYNC
+class IteratorRecord(Record):
+    __slots__ = ['Iterator', 'NextMethod', 'Done']
+    def __init__(self, Iterator=None, NextMethod=None, Done=None):
+        self.Iterator = Iterator
+        self.NextMethod = NextMethod
+        self.Done = Done
+    def __repr__(self):
+        return f'IteratorRecord(Iterator={self.Iterator}, NextMethod={self.NextMethod}, Done={self.Done})'
 def GetIterator(obj, hint=SYNC, method=EMPTY):
     # The abstract operation GetIterator with argument obj and optional arguments hint and method performs the
     # following steps:
@@ -2620,7 +2636,7 @@ def GetIterator(obj, hint=SYNC, method=EMPTY):
     if not isObject(iterator):
         raise ESTypeError('Iterator not an object')
     nextMethod = GetV(iterator, 'next')
-    return Record(Iterator=iterator, NextMethod=nextMethod, Done=False)
+    return IteratorRecord(Iterator=iterator, NextMethod=nextMethod, Done=False)
 
 # 7.4.2 IteratorNext ( iteratorRecord [ , value ] )
 def IteratorNext(iteratorRecord, value=EMPTY):
@@ -2734,7 +2750,7 @@ def CreateListIteratorRecord(lst):
     iterator.IteratedList = lst
     iterator.ListIteratorNextIndex = 0
     next_fcn = CreateBuiltinFunction(ListIterator_next, [])
-    return Record(Iterator=iterator, NextMethod=next_fcn, Done=False)
+    return IteratorRecord(Iterator=iterator, NextMethod=next_fcn, Done=False)
 
 # ------------------------------------ 𝟕.𝟒.𝟗.𝟏 𝑳𝒊𝒔𝒕𝑰𝒕𝒆𝒓𝒂𝒕𝒐𝒓 𝒏𝒆𝒙𝒕 ( ) ------------------------------------
 # 7.4.9.1 ListIterator next ( )
@@ -13398,7 +13414,7 @@ def EnumerateObjectProperties(O):
         return CreateIterResultObject(val, done)
 
     next_fcn = CreateBuiltinFunction(enum_next, [])
-    return Record(Iterator=iterator_obj, NextMethod=next_fcn, Done=False)
+    return IteratorRecord(Iterator=iterator_obj, NextMethod=next_fcn, Done=False)
 # ------------------------------------ 𝑭𝒐𝒓𝑫𝒆𝒄𝒍𝒂𝒓𝒂𝒕𝒊𝒐𝒏 ------------------------------------
 class PN_ForDeclaration(ParseNode):
     def __init__(self, ctx, p):
