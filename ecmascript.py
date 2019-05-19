@@ -2,7 +2,7 @@
 Scole's ECMAScript 9 system
 """
 from enum import Enum, unique, auto
-from collections import namedtuple, deque
+from collections import namedtuple, deque, Counter
 from copy import copy
 import re
 import math
@@ -3721,11 +3721,11 @@ class GlobalEnvironmentRecord:
         if existing_prop is None or existing_prop['configurable']:
             # a. Let desc be the PropertyDescriptor { [[Value]]: V, [[Writable]]: true, [[Enumerable]]: true,
             #    [[Configurable]]: D }.
-            desc = { 'value': value, 'writable': True, 'enumerable': True, 'configurable': deletable }
+            desc = PropertyDescriptor(value=value, writable=True, enumerable=True, configurable=deletable)
         # 6. Else,
         else:
             # a. Let desc be the PropertyDescriptor { [[Value]]: V }.
-            desc = { 'value': value }
+            desc = PropertyDescriptor(value=value)
         # 7. Perform ? DefinePropertyOrThrow(globalObject, N, desc).
         DefinePropertyOrThrow(global_object, name, desc)
         # 8. Record that the binding for N in ObjRec has been initialized.
@@ -4828,6 +4828,9 @@ class FNKind(Enum):
     NORMAL = auto()
     METHOD = auto()
     ARROW = auto()
+NORMAL = FNKind.NORMAL
+METHOD = FNKind.METHOD
+ARROW = FNKind.ARROW
 def FunctionInitialize(F, kind, ParameterList, Body, Scope):
     # The abstract operation FunctionInitialize requires the arguments: a function object F, kind which is one of (Normal,
     # Method, Arrow), a parameter list Parse Node specified by ParameterList, a body Parse Node specified by Body, a Lexical
@@ -4956,7 +4959,7 @@ def MakeConstructor(F, writeablePrototype=True, prototype=missing.MISSING):
         DefinePropertyOrThrow(prototype, 'constructor', PropertyDescriptor(value=F, writable=writeablePrototype, enumerable=False, configurable=True))
     # 6. Perform ! DefinePropertyOrThrow(F, "prototype", PropertyDescriptor { [[Value]]: prototype, [[Writable]]: writablePrototype, [[Enumerable]]: false, [[Configurable]]: false }).
     DefinePropertyOrThrow(F, 'prototype', PropertyDescriptor(value=prototype, writable=writeablePrototype, enumerable=False, configurable=False))
-    # 7. Return undefined)
+    # 7. Return undefined
     return None
 
 # 9.2.11 MakeClassConstructor ( F )
@@ -5126,6 +5129,7 @@ def FunctionDeclarationInstantiation(func, argumentsList):
             # i. Let ao be CreateUnmappedArgumentsObject(argumentsList).
             ao = CreateUnmappedArgumentsObject(argumentsList)
         # b. Else,
+        else:
             # i. NOTE: mapped argument object is only provided for non-strict functions that don't have a rest parameter, any
             #    parameter default value initializers, or any destructured parameters.
             # ii. Let ao be CreateMappedArgumentsObject(func, formals, argumentsList, envRec).
@@ -5135,6 +5139,7 @@ def FunctionDeclarationInstantiation(func, argumentsList):
             # i. Perform ! envRec.CreateImmutableBinding("arguments", false).
             envRec.CreateImmutableBinding('arguments', False)
         # d. Else,
+        else:
             # i. Perform ! envRec.CreateMutableBinding("arguments", false).
             envRec.CreateMutableBinding('arguments', False)
         # e. Call envRec.InitializeBinding("arguments", ao).
@@ -5142,6 +5147,7 @@ def FunctionDeclarationInstantiation(func, argumentsList):
         # f. Let parameterBindings be a new List of parameterNames with "arguments" appended.
         parameterBindings = parameterNames + ['arguments']
     # 23. Else,
+    else:
         # a. Let parameterBindings be parameterNames.
         parameterBindings = parameterNames
     # 24. Let iteratorRecord be CreateListIteratorRecord(argumentsList).
@@ -5151,6 +5157,7 @@ def FunctionDeclarationInstantiation(func, argumentsList):
         # a. Perform ? IteratorBindingInitialization for formals with iteratorRecord and undefined as arguments.
         formals.IteratorBindingInitialization(iteratorRecord, None)
     # 26. Else,
+    else:
         # a. Perform ? IteratorBindingInitialization for formals with iteratorRecord and env as arguments.
         formals.IteratorBindingInitialization(iteratorRecord, env)
     # 27. If hasParameterExpressions is false, then
@@ -5173,6 +5180,7 @@ def FunctionDeclarationInstantiation(func, argumentsList):
         # e. Let varEnvRec be envRec.
         varEnvRec = envRec
     # 28. Else,
+    else:
         # a. NOTE: A separate Environment Record is needed to ensure that closures created by expressions in the formal
         #    parameter list do not have visibility of declarations in the function body.
         # b. Let varEnv be NewDeclarativeEnvironment(env).
@@ -5195,6 +5203,7 @@ def FunctionDeclarationInstantiation(func, argumentsList):
                 if n not in parameterBindings or n in functionNames:
                     initialValue = None
                 # 4. Else,
+                else:
                     # a. Let initialValue be ! envRec.GetBindingValue(n, false).
                     initialValue = envRec.GetBindingValue(n, False)
                 # 5. Call varEnvRec.InitializeBinding(n, initialValue).
@@ -7224,10 +7233,12 @@ ReservedWords = [
             'var', 'void', 'while', 'with', 'yield', 'enum', 'null', 'true',
             'false' ]
 
+def MakeEmptyNode():
+    return ParseNode('[empty]', [])
 class ParseNode:
     def __init__(self, name, p):
         self.name = name
-        self.children = [p[z] for z in range(len(p))]
+        self.children = [p[z] or MakeEmptyNode() for z in range(len(p))]
         self.ctx = None
     def __repr__(self):
         #return f'{self.name}[{",".join(repr(child) for child in self.children)}]'
@@ -7348,6 +7359,18 @@ class ParseNode:
         return self.defer_target().PropertyBindingInitialization(value, environment)
     def IsDestructuring(self):
         return self.defer_target().IsDestructuring()
+    def IsSimpleParameterList(self):
+        return self.defer_target().IsSimpleParameterList()
+    def DirectivePrologue(self):
+        return [] # Gonna need a real implementation of this. :/
+    def ExpectedArgumentCount(self):
+        return self.defer_target().ExpectedArgumentCount()
+    def HasInitializer(self):
+        return self.defer_target().HasInitializer()
+    def ContainsExpression(self):
+        return self.defer_target().ContainsExpression()
+    def IteratorBindingInitialization(self, *args, **kwargs):
+        return self.defer_target().IteratorBindingInitialization(*args, **kwargs)
 
     def evaluate(self):
         # Subclasses need to override this, or we'll throw an AttributeError when we hit a terminal.
@@ -13893,12 +13916,225 @@ class PN_ContinueStatement_CONTINUE_LabelIdentifier_SEMICOLON(PN_ContinueStateme
         # 2. Return Completion { [[Type]]: continue, [[Value]]: empty, [[Target]]: label }.
         return ESContinue(target=self.LabelIdentifier.StringValue())
 
-###############################################################################################################################
-class PN_CoverCallExpressionAndAsyncArrowHead(ParseNode):
-    def __init__(self, context, p):
-        super().__init__('CoverCallExpressionAndAsyncArrowHead', p)
-class PN_CoverCallExpressionAndAsyncArrowHead_MemberExpression_Arguments(PN_CoverCallExpressionAndAsyncArrowHead):
-    pass
+##############################################################################################################################################################################################
+#
+#  d888       d8888       d888       8888888888                            888    d8b                       8888888b.            .d888 d8b          d8b 888    d8b
+# d8888      d8P888      d8888       888                                   888    Y8P                       888  "Y88b          d88P"  Y8P          Y8P 888    Y8P
+#   888     d8P 888        888       888                                   888                              888    888          888                     888
+#   888    d8P  888        888       8888888    888  888 88888b.   .d8888b 888888 888  .d88b.  88888b.      888    888  .d88b.  888888 888 88888b.  888 888888 888  .d88b.  88888b.  .d8888b
+#   888   d88   888        888       888        888  888 888 "88b d88P"    888    888 d88""88b 888 "88b     888    888 d8P  Y8b 888    888 888 "88b 888 888    888 d88""88b 888 "88b 88K
+#   888   8888888888       888       888        888  888 888  888 888      888    888 888  888 888  888     888    888 88888888 888    888 888  888 888 888    888 888  888 888  888 "Y8888b.
+#   888         888  d8b   888       888        Y88b 888 888  888 Y88b.    Y88b.  888 Y88..88P 888  888     888  .d88P Y8b.     888    888 888  888 888 Y88b.  888 Y88..88P 888  888      X88
+# 8888888       888  Y8P 8888888     888         "Y88888 888  888  "Y8888P  "Y888 888  "Y88P"  888  888     8888888P"   "Y8888  888    888 888  888 888  "Y888 888  "Y88P"  888  888  88888P'
+#
+##############################################################################################################################################################################################
+# ------------------------------------ 𝑭𝒖𝒏𝒄𝒕𝒊𝒐𝒏𝑫𝒆𝒄𝒍𝒂𝒓𝒂𝒕𝒊𝒐𝒏 ------------------------------------
+class PN_FunctionDeclaration(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('FunctionDeclaration', p)
+        self.strict = ctx.strict
+def FunctionDecl_EarlyErrors(pn):
+    # 14.1.2 Static Semantics: Early Errors
+    # FunctionDeclaration : function BindingIdentifier ( FormalParameters ) { FunctionBody }
+    # FunctionDeclaration : function ( FormalParameters ) { FunctionBody }
+    # FunctionExpression : function BindingIdentifier ( FormalParameters ) { FunctionBody }
+    #   * If the source code matching this production is strict mode code, the Early Error rules for
+    #     UniqueFormalParameters:FormalParameters are applied.
+    #   * If the source code matching this production is strict mode code, it is a Syntax Error if BindingIdentifier is
+    #     present and the StringValue of BindingIdentifier is "eval" or "arguments".
+    #   * It is a Syntax Error if ContainsUseStrict of FunctionBody is true and IsSimpleParameterList of
+    #     FormalParameters is false.
+    #   * It is a Syntax Error if any element of the BoundNames of FormalParameters also occurs in the
+    #     LexicallyDeclaredNames of FunctionBody.
+    #   * It is a Syntax Error if FormalParameters Contains SuperProperty is true.
+    #   * It is a Syntax Error if FunctionBody Contains SuperProperty is true.
+    #   * It is a Syntax Error if FormalParameters Contains SuperCall is true.
+    #   * It is a Syntax Error if FunctionBody Contains SuperCall is true.
+    # NOTE 1
+    # The LexicallyDeclaredNames of a FunctionBody does not include identifiers bound using var or function
+    # declarations.
+    errs = []
+    if pn.strict:
+        errs.extend(UniqueFormalParameters_EarlyErrors(pn.FormalParameters))
+        if pn.BindingIdentifier and pn.BindingIdentifier.StringValue() in ['eval', 'arguments']:
+            errs.append(CreateSyntaxError(f'Redefining \'{pn.BindingIdentifier.StringValue()}\' is not allowed in strict mode'))
+    if pn.FunctionBody.ContainsUseStrict() and not pn.FormalParameters.IsSimpleParameterList():
+        errs.append('Parameters must be simple for strict mode functions')
+    param_names = set(pn.FormalParameters.BoundNames())
+    body_names = set(pn.FunctionBody.LexicallyDeclaredNames())
+    duplicated_names = param_names.intersection(body_names)
+    if duplicated_names:
+        errs.append(f'Lexical declarations in the function body must be different than parameter names ({", ".join(duplicated_names)})')
+    if pn.FormalParameters.Contains('SuperProperty') or pn.FunctionBody.Contains('SuperProperty'):
+        errs.append('Super properties not allowed in functions')
+    if pn.FormalParameters.Contains('SuperCall') or pn.FunctionBody.Contains('SuperCall'):
+        errs.append('Super calls not allowed in functions')
+    return errs
+class PN_FunctionDeclaration_FUNCTION_BindingIdentifier_LPAREN_FormalParameters_RPAREN_LCURLY_FunctionBody_RCURLY(PN_FunctionDeclaration):
+    @property
+    def BindingIdentifier(self):
+        return self.children[1]
+    @property
+    def FormalParameters(self):
+        return self.children[3]
+    @property
+    def FunctionBody(self):
+        return self.children[6]
+    def EarlyErrors(self):
+        return FunctionDecl_EarlyErrors(self)
+    def BoundNames(self):
+        # 14.1.3 Static Semantics: BoundNames
+        # FunctionDeclaration : function BindingIdentifier ( FormalParameters ) { FunctionBody }
+        #   1. Return the BoundNames of BindingIdentifier.
+        return self.BindingIdentifier.BoundNames()
+    def Contains(self, symbol):
+        # 14.1.4 Static Semantics: Contains
+        #   With parameter symbol.
+        # FunctionDeclaration : function BindingIdentifier ( FormalParameters ) { FunctionBody }
+        #   1. Return false.
+        # NOTE
+        # Static semantic rules that depend upon substructure generally do not look into function definitions.
+        return False
+    def IsConstantDeclaration(self):
+        # 14.1.11 Static Semantics: IsConstantDeclaration
+        # FunctionDeclaration : function BindingIdentifier ( FormalParameters ) { FunctionBody }
+        #   1. Return false.
+        return False
+    def InstantiateFunctionObject(self, scope):
+        # 14.1.20 Runtime Semantics: InstantiateFunctionObject
+        #   With parameter scope.
+        # FunctionDeclaration : function BindingIdentifier ( FormalParameters ) { FunctionBody }
+        #   1. If the function code for FunctionDeclaration is strict mode code, let strict be true. Otherwise let strict be false.
+        #   2. Let name be StringValue of BindingIdentifier.
+        #   3. Let F be FunctionCreate(Normal, FormalParameters, FunctionBody, scope, strict).
+        #   4. Perform MakeConstructor(F).
+        #   5. Perform SetFunctionName(F, name).
+        #   6. Return F.
+        name = self.BindingIdentifier.StringValue()
+        F = FunctionCreate(NORMAL, self.FormalParameters, self.FunctionBody, scope, self.strict)
+        MakeConstructor(F)
+        SetFunctionName(F, name)
+        return F
+    def evaluate(self):
+        # 14.1.21 Runtime Semantics: Evaluation
+        # FunctionDeclaration : function BindingIdentifier ( FormalParameters ) { FunctionBody }
+        #   1. Return NormalCompletion(empty).
+        return EMPTY
+# ------------------------------------ 𝑭𝒖𝒏𝒄𝒕𝒊𝒐𝒏𝑬𝒙𝒑𝒓𝒆𝒔𝒔𝒊𝒐𝒏 ------------------------------------
+class PN_FunctionExpression(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('FunctionExpression', p)
+        self.ctx = ctx
+class PN_FunctionExpression_FUNCTION_BindingIdentifier_LPAREN_FormalParameters_RPAREN_LCURLY_FunctionBody_RCURLY(PN_FunctionExpression):
+    @property
+    def BindingIdentifier(self):
+        return self.children[1]
+    @property
+    def FormalParameters(self):
+        return self.children[3]
+    @property
+    def FunctionBody(self):
+        return self.children[6]
+    def EarlyErrors(self):
+        return FunctionDecl_EarlyErrors(self)
+    def Contains(self, symbol):
+        # 14.1.4 Static Semantics: Contains
+        #   With parameter symbol.
+        # FunctionExpression : function BindingIdentifier ( FormalParameters ) { FunctionBody }
+        #   1. Return false.
+        # NOTE
+        # Static semantic rules that depend upon substructure generally do not look into function definitions.
+        return False
+    def HasName(self):
+        # 14.1.9 Static Semantics: HasName
+        # FunctionExpression : function BindingIdentifier ( FormalParameters ) { FunctionBody }
+        #   1. Return true.
+        return True
+    def IsFunctionDefinition(self):
+        # 14.1.12 Static Semantics: IsFunctionDefinition
+        # FunctionExpression : function BindingIdentifier ( FormalParameters ) { FunctionBody }
+        #   1. Return true.
+        return True
+    def evaluate(self):
+        # 14.1.22 Runtime Semantics: Evaluation
+        # FunctionExpression : function BindingIdentifier ( FormalParameters ) { FunctionBody }
+        #   1. If the function code for FunctionExpression is strict mode code, let strict be true. Otherwise let
+        #      strict be false.
+        #   2. Let scope be the running execution context's LexicalEnvironment.
+        #   3. Let funcEnv be NewDeclarativeEnvironment(scope).
+        #   4. Let envRec be funcEnv's EnvironmentRecord.
+        #   5. Let name be StringValue of BindingIdentifier.
+        #   6. Perform envRec.CreateImmutableBinding(name, false).
+        #   7. Let closure be FunctionCreate(Normal, FormalParameters, FunctionBody, funcEnv, strict).
+        #   8. Perform MakeConstructor(closure).
+        #   9. Perform SetFunctionName(closure, name).
+        #   10. Set closure.[[SourceText]] to the source text matched by FunctionExpression.
+        #   11. Perform envRec.InitializeBinding(name, closure).
+        #   12. Return closure.
+        #
+        # NOTE 2
+        # The BindingIdentifier in a FunctionExpression can be referenced from inside the FunctionExpression's
+        # FunctionBody to allow the function to call itself recursively. However, unlike in a FunctionDeclaration, the
+        # BindingIdentifier in a FunctionExpression cannot be referenced from and does not affect the scope enclosing
+        # the FunctionExpression.
+        #
+        # NOTE 3
+        # A prototype property is automatically created for every function defined using a FunctionDeclaration or
+        # FunctionExpression, to allow for the possibility that the function will be used as a constructor.
+        strict = self.ctx.strict
+        scope = surrounding_agent.running_ec.lexical_environment
+        funcEnv = NewDeclarativeEnvironment(scope)
+        envRec = funcEnv.environment_record
+        name = self.BindingIdentifier.StringValue()
+        envRec.CreateImmutableBinding(name, False)
+        closure = FunctionCreate(NORMAL, self.FormalParameters, self.FunctionBody, funcEnv, strict)
+        MakeConstructor(closure)
+        SetFunctionName(closure, name)
+        src_start, src_end = self.source_range()
+        closure.SourceText = self.ctx.source_text[src_start:src_end]
+        envRec.InitializeBinding(name, closure)
+        return closure
+class PN_FunctionExpression_FUNCTION_LPAREN_FormalParameters_RPAREN_LCURLY_FunctionBody_RCURLY(PN_FunctionExpression_FUNCTION_BindingIdentifier_LPAREN_FormalParameters_RPAREN_LCURLY_FunctionBody_RCURLY):
+    @property
+    def FormalParameters(self):
+        return self.children[2]
+    @property
+    def FunctionBody(self):
+        return self.children[5]
+    @property
+    def BindingIdentifier(self):
+        return None
+    def HasName(self):
+        # 14.1.9 Static Semantics: HasName
+        # FunctionExpression : function ( FormalParameters ) { FunctionBody }
+        #   1. Return false.
+        return False
+    def NamedEvaluation(self, name):
+        # 14.1.21 Runtime Semantics: NamedEvaluation
+        #   With parameter name.
+        # FunctionExpression : function ( FormalParameters ) { FunctionBody }
+        #   1. Let closure be the result of evaluating this FunctionExpression.
+        #   2. Perform SetFunctionName(closure, name).
+        #   3. Return closure.
+        closure = self.evaluate()
+        SetFunctionName(closure, name)
+        return closure
+    def evaluate(self):
+        # 14.1.22 Runtime Semantics: Evaluation
+        # FunctionExpression : function ( FormalParameters ) { FunctionBody }
+        #   1. If the function code for FunctionExpression is strict mode code, let strict be true. Otherwise let strict be false.
+        #   2. Let scope be the LexicalEnvironment of the running execution context.
+        #   3. Let closure be FunctionCreate(Normal, FormalParameters, FunctionBody, scope, strict).
+        #   4. Perform MakeConstructor(closure).
+        #   5. Set closure.[[SourceText]] to the source text matched by FunctionExpression.
+        #   6. Return closure.
+        strict = self.ctx.strict
+        scope = surrounding_agent.running_ec.lexical_environment
+        closure = FunctionCreate(NORMAL, self.FormalParameters, self.FunctionBody, scope, strict)
+        MakeConstructor(closure)
+        src_start, src_end = self.source_range()
+        closure.SourceText = self.ctx.source_text[src_start:src_end]
+        return closure
 # 14.1.10 Static Semantics: IsAnonymousFunctionDefinition ( expr )
 def IsAnonymousFunctionDefinition(expr):
     # The abstract operation IsAnonymousFunctionDefinition determines if its argument is a function definition that
@@ -13910,6 +14146,403 @@ def IsAnonymousFunctionDefinition(expr):
     # 3. If hasName is true, return false.
     # 4. Return true.
     return expr.IsFunctionDefinition() and not expr.HasName()
+# ------------------------------------ 𝑼𝒏𝒊𝒒𝒖𝒆𝑭𝒐𝒓𝒎𝒂𝒍𝑷𝒂𝒓𝒂𝒎𝒆𝒕𝒆𝒓𝒔 ------------------------------------
+class PN_UniqueFormalParameters(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('UniqueFormalParameters', p)
+def UniqueFormalParameters_EarlyErrors(pn):
+    # 14.1.2 Static Semantics: Early Errors
+    # UniqueFormalParameters : FormalParameters
+    #   * It is a Syntax Error if BoundNames of FormalParameters contains any duplicate elements.
+    bn = pn.FormalParameters.BoundNames()
+    duplicates = [name for name, count in Counter(bn).items() if count > 1]
+    if duplicates:
+        return [CreateSyntaxError(f"Multiple definitions in parameter list: {', '.join(duplicates)}")]
+    return []
+class PN_UniqueFormalParameters_FormalParameters(PN_UniqueFormalParameters):
+    @property
+    def FormalParameters(self):
+        return self.children[0]
+    def EarlyErrors(self):
+        return UniqueFormalParameters_EarlyErrors(self)
+# ------------------------------------ 𝑭𝒐𝒓𝒎𝒂𝒍𝑷𝒂𝒓𝒂𝒎𝒆𝒕𝒆𝒓𝒔 ------------------------------------
+class PN_FormalParameters(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('FormalParameters', p)
+class PN_FormalParameters_empty(PN_FormalParameters):
+    def BoundNames(self):
+        # 14.1.3 Static Semantics: BoundNames
+        # FormalParameters : [empty]
+        #   1. Return a new empty List.
+        return []
+    def ContainsExpression(self):
+        # 14.1.5 Static Semantics: ContainsExpression
+        # FormalParameters : [empty]
+        #   1. Return false.
+        return False
+    def ExpectedArgumentCount(self):
+        # 14.1.7 Static Semantics: ExpectedArgumentCount
+        # FormalParameters : [empty]
+        #   1. Return 0.
+        return 0
+    def IsSimpleParameterList(self):
+        # 14.1.13 Static Semantics: IsSimpleParameterList
+        # FormalParameters : [empty]
+        #   1. Return true.
+        return True
+    def IteratorBindingInitialization(self, iteratorRecord, environment):
+        # 14.1.19 Runtime Semantics: IteratorBindingInitialization
+        #   With parameters iteratorRecord and environment.
+        # FormalParameters : [empty]
+        #   1. Return NormalCompletion(empty).
+        return EMPTY
+class PN_FormalParameters_FunctionRestParameter(PN_FormalParameters):
+    @property
+    def FunctionRestParameter(self):
+        return self.children[0]
+    def ExpectedArgumentCount(self):
+        return 0
+class PN_FormalParameters_FormalParameterList(PN_FormalParameters):
+    @property
+    def FormalParameterList(self):
+        return self.children[0]
+    def EarlyErrors(self):
+        # 14.1.2 Static Semantics: Early Errors
+        # FormalParameters : FormalParameterList
+        #   * It is a Syntax Error if IsSimpleParameterList of FormalParameterList is false and BoundNames of
+        #     FormalParameterList contains any duplicate elements.
+        # NOTE 2
+        # Multiple occurrences of the same BindingIdentifier in a FormalParameterList is only allowed for functions
+        # which have simple parameter lists and which are not defined in strict mode code.
+        if not self.FormalParameterList.IsSimpleParameterList():
+            duplicates = [name for name, count in Counter(self.FormalParameterList.BoundNames()).items() if count > 1]
+            if duplicates:
+                 return [CreateSyntaxError(f"Multiple definitions in parameter list: {', '.join(duplicates)}")]
+        return []
+        # One wonders if this is sufficient. What about the COMMA production? The "rest" productions?
+class PN_FormalParameters_FormalParameterList_COMMA(PN_FormalParameters):
+    @property
+    def FormalParameterList(self):
+        return self.children[0]
+class PN_FormalParameters_FormalParameterList_COMMA_FunctionRestParameter(PN_FormalParameters):
+    @property
+    def FormalParameterList(self):
+        return self.children[0]
+    @property
+    def FunctionRestParameter(self):
+        return self.children[2]
+    def BoundNames(self):
+        # FormalParameters : FormalParameterList , FunctionRestParameter
+        #   1. Let names be BoundNames of FormalParameterList.
+        #   2. Append to names the BoundNames of FunctionRestParameter.
+        #   3. Return names.
+        names = self.FormalParameterList.BoundNames()
+        names.extend(self.FunctionRestParameter.BoundNames())
+        return names
+    def ContainsExpression(self):
+        # 14.1.5 Static Semantics: ContainsExpression
+        # FormalParameters : FormalParameterList , FunctionRestParameter
+        #   1. If ContainsExpression of FormalParameterList is true, return true.
+        #   2. Return ContainsExpression of FunctionRestParameter.
+        return self.FormalParameterList.ContainsExpression() or self.FunctionRestParameter.ContainsExpression()
+    def ExpectedArgumentCount(self):
+        # 14.1.7 Static Semantics: ExpectedArgumentCount
+        # FormalParameters:FormalParameterList,FunctionRestParameter
+        #   1. Return ExpectedArgumentCount of FormalParameterList.
+        # NOTE
+        # The ExpectedArgumentCount of a FormalParameterList is the number of FormalParameters to the left of either
+        # the rest parameter or the first FormalParameter with an Initializer. A FormalParameter without an initializer
+        # is allowed after the first parameter with an initializer but such parameters are considered to be optional
+        # with undefined as their default value.
+        return self.FormalParameterList.ExpectedArgumentCount()
+    def IsSimpleParameterList(self):
+        # 14.1.13 Static Semantics: IsSimpleParameterList
+        # FormalParameters : FormalParameterList , FunctionRestParameter
+        #   1. Return false.
+        return False
+    def IteratorBindingInitialization(self, iteratorRecord, environment):
+        # 14.1.19Runtime Semantics: IteratorBindingInitialization
+        #   With parameters iteratorRecord and environment.
+        # FormalParameters : FormalParameterList , FunctionRestParameter
+        #   1. Perform ? IteratorBindingInitialization for FormalParameterList using iteratorRecord and environment as
+        #      the arguments.
+        #   2. Return the result of performing IteratorBindingInitialization for FunctionRestParameter using
+        #      iteratorRecord and environment as the arguments.
+        self.FormalParameterList.IteratorBindingInitialization(iteratorRecord, environment)
+        return self.FunctionRestParameter.IteratorBindingInitialization(iteratorRecord, environment)
+# ------------------------------------ 𝑭𝒐𝒓𝒎𝒂𝒍𝑷𝒂𝒓𝒂𝒎𝒆𝒕𝒆𝒓𝑳𝒊𝒔𝒕 ------------------------------------
+class PN_FormalParameterList(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('FormalParameterList', p)
+class PN_FormalParameterList_FormalParameter(PN_FormalParameterList):
+    @property
+    def FormalParameter(self):
+        return self.children[0]
+    def ExpectedArgumentCount(self):
+        return 1 if not self.FormalParameter.HasInitializer() else 0
+class PN_FormalParameterList_FormalParameterList_COMMA_FormalParameter(PN_FormalParameterList):
+    @property
+    def FormalParameterList(self):
+        return self.children[0]
+    @property
+    def FormalParameter(self):
+        return self.children[2]
+    def BoundNames(self):
+        # 14.1.3 Static Semantics: BoundNames
+        # FormalParameterList : FormalParameterList , FormalParameter
+        #   1. Let names be BoundNames of FormalParameterList.
+        #   2. Append to names the BoundNames of FormalParameter.
+        #   3. Return names.
+        names = self.FormalParameterList.BoundNames()
+        names.extend(self.FormalParameter.BoundNames())
+        return names
+    def ContainsExpression(self):
+        # 14.1.5 Static Semantics: ContainsExpression
+        # FormalParameterList : FormalParameterList , FormalParameter
+        #   1. If ContainsExpression of FormalParameterList is true, return true.
+        #   2. Return ContainsExpression of FormalParameter.
+        return self.FormalParameterList.ContainsExpression() or self.FormalParameter.ContainsExpression()
+    def ExpectedArgumentCount(self):
+        # 14.1.7 Static Semantics: ExpectedArgumentCount
+        # FormalParameterList : FormalParameterList , FormalParameter
+        #   1. Let count be ExpectedArgumentCount of FormalParameterList.
+        #   2. If HasInitializer of FormalParameterList is true or HasInitializer of FormalParameter is true, return count.
+        #   3. Return count + 1.
+        count = self.FormalParameterList.ExpectedArgumentCount()
+        if self.FormalParameterList.HasInitializer() or self.FormalParameter.HasInitializer():
+            return count
+        return count + 1
+    def HasInitializer(self):
+        # 14.1.8 Static Semantics: HasInitializer
+        # FormalParameterList : FormalParameterList , FormalParameter
+        #   1. If HasInitializer of FormalParameterList is true, return true.
+        #   2. Return HasInitializer of FormalParameter.
+        return self.FormalParameterList.HasInitializer() or self.FormalParameter.HasInitializer()
+    def IsSimpleParameterList(self):
+        # 14.1.13 Static Semantics: IsSimpleParameterList
+        # FormalParameterList : FormalParameterList , FormalParameter
+        #   1. If IsSimpleParameterList of FormalParameterList is false, return false.
+        #   2. Return IsSimpleParameterList of FormalParameter.
+        return self.FormalParameterList.IsSimpleParameterList() and self.FormalParameter.IsSimpleParameterList()
+    def IteratorBindingInitialization(self, iteratorRecord, environment):
+        # 14.1.19 Runtime Semantics: IteratorBindingInitialization
+        #   With parameters iteratorRecord and environment.
+        # FormalParameterList : FormalParameterList , FormalParameter
+        #   1. Perform ? IteratorBindingInitialization for FormalParameterList using iteratorRecord and environment as
+        #      the arguments.
+        #   2. Return the result of performing IteratorBindingInitialization for FormalParameter using iteratorRecord
+        #      and environment as the arguments.
+        self.FormalParameterList.IteratorBindingInitialization(iteratorRecord, environment)
+        return self.FormalParameter.IteratorBindingInitialization(iteratorRecord, environment)
+# ------------------------------------ 𝑭𝒖𝒏𝒄𝒕𝒊𝒐𝒏𝑹𝒆𝒔𝒕𝑷𝒂𝒓𝒂𝒎𝒆𝒕𝒆𝒓 ------------------------------------
+class PN_FunctionRestParameter(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('FunctionRestParameter', p)
+class PN_FunctionRestParameter_BindingRestElement(PN_FunctionRestParameter):
+    @property
+    def BindingRestElement(self):
+        return self.children[0]
+    def IteratorBindingInitialization(self, iteratorRecord, environment):
+        # 14.1.19 Runtime Semantics: IteratorBindingInitialization
+        #   With parameters iteratorRecord and environment.
+        # FunctionRestParameter : BindingRestElement
+        #   1. If ContainsExpression of BindingRestElement is false, return the result of performing
+        #      IteratorBindingInitialization for BindingRestElement using iteratorRecord and environment as the
+        #      arguments.
+        #   2. Let currentContext be the running execution context.
+        #   3. Let originalEnv be the VariableEnvironment of currentContext.
+        #   4. Assert: The VariableEnvironment and LexicalEnvironment of currentContext are the same.
+        #   5. Assert: environment and originalEnv are the same.
+        #   6. Let paramVarEnv be NewDeclarativeEnvironment(originalEnv).
+        #   7. Set the VariableEnvironment of currentContext to paramVarEnv.
+        #   8. Set the LexicalEnvironment of currentContext to paramVarEnv.
+        #   9. Let result be the result of performing IteratorBindingInitialization for BindingRestElement using
+        #      iteratorRecord and environment as the arguments.
+        #   10. Set the VariableEnvironment of currentContext to originalEnv.
+        #   11. Set the LexicalEnvironment of currentContext to originalEnv.
+        #   12. Return result.
+        # NOTE 3
+        # The new Environment Record created in step 6 is only used if the BindingRestElement contains a direct eval.
+        if not self.BindingRestElement.ContainsExpression():
+            return self.BindingRestElement.IteratorBindingInitialization(iteratorRecord, environment)
+        currentContext = surrounding_agent.running_ec
+        originalEnv = currentContext.variable_environment
+        assert originalEnv == currentContext.lexical_environment
+        assert environment == originalEnv
+        paramVarEnv = NewDeclarativeEnvironment(originalEnv)
+        currentContext.variable_environment = paramVarEnv
+        currentContext.lexical_environment = paramVarEnv
+        try:
+            return self.BindingRestElement.IteratorBindingInitialization(iteratorRecord, environment)
+        finally:
+            currentContext.variable_environment = originalEnv
+            currentContext.lexical_environment = originalEnv
+# ------------------------------------ 𝑭𝒐𝒓𝒎𝒂𝒍𝑷𝒂𝒓𝒂𝒎𝒆𝒕𝒆𝒓 ------------------------------------
+class PN_FormalParameter(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('FormalParameter', p)
+class PN_FormalParameter_BindingElement(PN_FormalParameter):
+    @property
+    def BindingElement(self):
+        return self.children[0]
+    def IteratorBindingInitialization(self, iteratorRecord, environment):
+        # 14.1.19 Runtime Semantics: IteratorBindingInitialization
+        #   With parameters iteratorRecord and environment.
+        # FormalParameter : BindingElement
+        #   1. If ContainsExpression of BindingElement is false, return the result of performing
+        #      IteratorBindingInitialization for BindingElement using iteratorRecord and environment as the arguments.
+        #   2. Let currentContext be the running execution context.
+        #   3. Let originalEnv be the VariableEnvironment of currentContext.
+        #   4. Assert: The VariableEnvironment and LexicalEnvironment of currentContext are the same.
+        #   5. Assert: environment and originalEnv are the same.
+        #   6. Let paramVarEnv be NewDeclarativeEnvironment(originalEnv).
+        #   7. Set the VariableEnvironment of currentContext to paramVarEnv.
+        #   8. Set the LexicalEnvironment of currentContext to paramVarEnv.
+        #   9. Let result be the result of performing IteratorBindingInitialization for BindingElement using
+        #      iteratorRecord and environment as the arguments.
+        #   10. Set the VariableEnvironment of currentContext to originalEnv.
+        #   11. Set the LexicalEnvironment of currentContext to originalEnv.
+        #   12. Return result.
+        # NOTE 2
+        # The new Environment Record created in step 6 is only used if the BindingElement contains a direct eval.
+        if not self.BindingElement.ContainsExpression():
+            return self.BindingElement.IteratorBindingInitialization(iteratorRecord, environment)
+        currentContext = surrounding_agent.running_ec
+        originalEnv = currentContext.variable_environment
+        assert originalEnv == currentContext.lexical_environment
+        assert originalEnv == environment
+        paramVarEnv = NewDeclarativeEnvironment(originalEnv)
+        currentContext.variable_environment = paramVarEnv
+        currentContext.lexical_environment = paramVarEnv
+        try:
+            return self.BindingElement.IteratorBindingInitialization(iteratorRecord, environment)
+        finally:
+            currentContext.variable_environment = originalEnv
+            currentContext.lexical_environment = originalEnv
+# ------------------------------------ 𝑭𝒖𝒏𝒄𝒕𝒊𝒐𝒏𝑩𝒐𝒅𝒚 ------------------------------------
+class PN_FunctionBody(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('FunctionBody', p)
+class PN_FunctionBody_FunctionStatementList(PN_FunctionBody):
+    @property
+    def FunctionStatementList(self):
+        return self.children[0]
+    def EarlyErrors(self):
+        # 14.1.2 Static Semantics: Early Errors
+        # FunctionBody : FunctionStatementList
+        #   * It is a Syntax Error if the LexicallyDeclaredNames of FunctionStatementList contains any duplicate
+        #     entries.
+        #   * It is a Syntax Error if any element of the LexicallyDeclaredNames of FunctionStatementList also occurs in
+        #     the VarDeclaredNames of FunctionStatementList.
+        #   * It is a Syntax Error if ContainsDuplicateLabels of FunctionStatementList with argument « » is true.
+        #   * It is a Syntax Error if ContainsUndefinedBreakTarget of FunctionStatementList with argument « » is true.
+        #   * It is a Syntax Error if ContainsUndefinedContinueTarget of FunctionStatementList with arguments « » and
+        #     « » is true.
+        errs = []
+        fsl = self.FunctionStatementList
+        ldn = fsl.LexicallyDeclaredNames()
+        ldn_duplicates = [name for name, count in Counter(ldn).items() if count > 1]
+        if ldn_duplicates:
+            errs.append(CreateSyntaxError(f'Identifiers with multiple lexical declarations: {", ".join(ldn_duplicates)}'))
+        vdn = fsl.VarDeclaredNames()
+        in_common_names = set(vdn).intersection(set(ldn))
+        if in_common_names:
+            errs.append(CreateSyntaxError(f'Identifiers with lexical declarations and var declarations: {", ".join(in_common_names)}'))
+        if fsl.ContainsDuplicateLabels([]):
+            errs.append(CreateSyntaxError('Duplicated labels detected in function body'))
+        if fsl.ContainsUndefinedBreakTarget([]):
+            errs.append(CreateSyntaxError('Undefined break target detected in function body'))
+        if fsl.ContainsUndefinedContinueTarget([], []):
+            errs.append(CreateSyntaxError('Undefined continue target detected in function body'))
+        return errs
+    def ContainsUseStrict(self):
+        # 14.1.6 Static Semantics: ContainsUseStrict
+        # FunctionBody : FunctionStatementList
+        #   1. If the Directive Prologue of FunctionStatementList contains a Use Strict Directive, return true;
+        #      otherwise, return false.
+        dp = self.FunctionStatementList.DirectivePrologue()
+        return "'use strict'" in dp or '"use strict"' in dp
+    def EvaluateBody(self, functionObject, argumentsList):
+        # 14.1.18 Runtime Semantics: EvaluateBody
+        #   With parameters functionObject and List argumentsList.
+        # FunctionBody : FunctionStatementList
+        #   1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
+        #   2. Return the result of evaluating FunctionStatementList.
+        FunctionDeclarationInstantiation(functionObject, argumentsList)
+        return self.FunctionStatementList.evaluate()
+# ------------------------------------ 𝑭𝒖𝒏𝒄𝒕𝒊𝒐𝒏𝑺𝒕𝒂𝒕𝒆𝒎𝒆𝒏𝒕𝑳𝒊𝒔𝒕 ------------------------------------
+class PN_FunctionStatementList(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('FunctionStatementList', p)
+class PN_FunctionStatementList_empty(PN_FunctionStatementList):
+    def LexicallyDeclaredNames(self):
+        # 14.1.14 Static Semantics: LexicallyDeclaredNames
+        # FunctionStatementList : [empty]
+        #   1. Return a new empty List.
+        return []
+    def LexicallyScopedDeclarations(self):
+        # 14.1.15 Static Semantics: LexicallyScopedDeclarations
+        # FunctionStatementList : [empty]
+        #   1. Return a new empty List.
+        return []
+    def VarDeclaredNames(self):
+        # 14.1.16 Static Semantics: VarDeclaredNames
+        # FunctionStatementList : [empty]
+        #   1. Return a new empty List.
+        return []
+    def VarScopedDeclarations(self):
+        # 14.1.17 Static Semantics: VarScopedDeclarations
+        # FunctionStatementList : [empty]
+        #   1. Return a new empty List.
+        return []
+    def evaluate(self):
+        # 14.1.21 Runtime Semantics: Evaluation
+        #   1. Return NormalCompletion(undefined).
+        return None
+    def ContainsDuplicateLabels(self, labelSet):
+        return False
+    def ContainsUndefinedBreakTarget(self, labelSet):
+        return False
+    def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
+        return False
+    def DirectivePrologue(self):
+        return []
+class PN_FunctionStatementList_StatementList(PN_FunctionStatementList):
+    @property
+    def StatementList(self):
+        return self.children[0]
+    def LexicallyDeclaredNames(self):
+        # 14.1.14 Static Semantics: LexicallyDeclaredNames
+        # FunctionStatementList : StatementList
+        #   1. Return TopLevelLexicallyDeclaredNames of StatementList.
+        return self.StatementList.TopLevelLexicallyDeclaredNames()
+    def LexicallyScopedDeclarations(self):
+        # 14.1.15 Static Semantics: LexicallyScopedDeclarations
+        # FunctionStatementList : StatementList
+        #   1. Return the TopLevelLexicallyScopedDeclarations of StatementList.
+        return self.StatementList.TopLevelLexicallyScopedDeclarations()
+    def VarDeclaredNames(self):
+        # 14.1.16 Static Semantics: VarDeclaredNames
+        # FunctionStatementList : StatementList
+        #   1. Return TopLevelVarDeclaredNames of StatementList.
+        return self.StatementList.TopLevelVarDeclaredNames()
+    def VarScopedDeclarations(self):
+        # 14.1.17 Static Semantics: VarScopedDeclarations
+        # FunctionStatementList : StatementList
+        #   1. Return the TopLevelVarScopedDeclarations of StatementList.
+        return self.StatementList.TopLevelVarScopedDeclarations()
+# 14.8 Async Arrow Function Definitions
+# ------------------------------------ 𝑪𝒐𝒗𝒆𝒓𝑪𝒂𝒍𝒍𝑬𝒙𝒑𝒓𝒆𝒔𝒔𝒊𝒐𝒏𝑨𝒏𝒅𝑨𝒔𝒚𝒏𝒄𝑨𝒓𝒓𝒐𝒘𝑯𝒆𝒂𝒅 ------------------------------------
+class PN_CoverCallExpressionAndAsyncArrowHead(ParseNode):
+    def __init__(self, context, p):
+        super().__init__('CoverCallExpressionAndAsyncArrowHead', p)
+class PN_CoverCallExpressionAndAsyncArrowHead_MemberExpression_Arguments(PN_CoverCallExpressionAndAsyncArrowHead):
+    @property
+    def MemberExpression(self):
+        return self.children[0]
+    @property
+    def Arguments(self):
+        return self.children[1]
 ###############################################################################################################################
 #
 #  d888   888888888       d888        .d8888b.                   d8b          888
@@ -14093,16 +14726,28 @@ class Ecma262Parser(Parser):
     # FunctionDeclaration[Yield, Await, Default] :
     #           function BindingIdentifier[?Yield, ?Await] ( FormalParameters[~Yield, ~Await] ) { FunctionBody[~Yield, ~Await] }
     #           [+Default] function ( FormalParameters[~Yield, ~Await] ) { FunctionBody[~Yield, ~Await] }
-    @_('FUNCTION BindingIdentifier LPAREN FormalParameters RPAREN LBRACKET FunctionBody RBRACKET')  # pylint: disable=undefined-variable
+    #
+    @_('FUNCTION BindingIdentifier LPAREN FormalParameters RPAREN LCURLY FunctionBody RCURLY')  # pylint: disable=undefined-variable
     def FunctionDeclaration(self, p):
-        return PN_FUNCTION_BindingIdentifier_LPAREN_FormalParameters_RPAREN_LBRACKET_FunctionBody_RBRACKET(self.context, p)
+        return PN_FunctionDeclaration_FUNCTION_BindingIdentifier_LPAREN_FormalParameters_RPAREN_LCURLY_FunctionBody_RCURLY(self.context, p)
     #
     # FunctionExpression :
     #           function BindingIdentifier[~Yield, ~Await] ( FormalParameters[~Yield, ~Await] ) { FunctionBody[~Yield, ~Await] }
     #           function ( FormalParameters[~Yield, ~Await] ) { FunctionBody[~Yield, ~Await] }
     #
+    @_('FUNCTION BindingIdentifier LPAREN FormalParameters RPAREN LCURLY FunctionBody RCURLY')  # pylint: disable=undefined-variable
+    def FunctionExpression(self, p):
+        return PN_FunctionExpression_FUNCTION_BindingIdentifier_LPAREN_FormalParameters_RPAREN_LCURLY_FunctionBody_RCURLY(self.context, p)
+    @_('FUNCTION LPAREN FormalParameters RPAREN LCURLY FunctionBody RCURLY')  # pylint: disable=undefined-variable
+    def FunctionExpression(self, p):
+        return PN_FunctionExpression_FUNCTION_LPAREN_FormalParameters_RPAREN_LCURLY_FunctionBody_RCURLY(self.context, p)
+    #
     # UniqueFormalParameters[Yield, Await] :
     #           FormalParameters[?Yield, ?Await]
+    #
+    @_('FormalParameters')  # pylint: disable=undefined-variable
+    def UniqueFormalParameters(self, p):
+        return PN_UniqueFormalParameters_FormalParameters(self.context, p)
     #
     # FormalParameters[Yield, Await] :
     #           [empty]
@@ -18051,7 +18696,7 @@ def IteratorPrototype_iterator(this_value, new_target):
 #######################################################################################################################################################
 if __name__ == '__main__':
     try:
-        rv = RunJobs(scripts=["for ([a,b] of c) {;}"])
+        rv = RunJobs(scripts=["a = {field: 67}; function alter(obj) { obj.field = 88; }; alter(a); a.field;"])
     except ESError as err:
         InitializeHostDefinedRealm()
         print(err)
