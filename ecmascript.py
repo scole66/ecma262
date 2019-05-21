@@ -438,34 +438,7 @@ class JSObject:
     def Get(self, propkey, receiver):
         """Return the value of the property whose key is propertyKey from this object. If any ECMAScript code must be executed
            to retrieve the property value, Receiver is used as the this value when evaluating the code."""
-        # When the abstract operation OrdinaryGet is called with Object O, property key P, and ECMAScript language
-        # value Receiver, the following steps are taken:
-        #
-        # 1. Assert: IsPropertyKey(P) is true.
-        assert IsPropertyKey(propkey)
-        # 2. Let desc be ? O.[[GetOwnProperty]](P).
-        desc = self.GetOwnProperty(propkey)
-        # 3. If desc is undefined, then
-        if desc is None:
-            # a. Let parent be ? O.[[GetPrototypeOf]]().
-            parent = self.GetPrototypeOf()
-            # b. If parent is null, return undefined.
-            if isNull(parent):
-                return None
-            # c. Return ? parent.[[Get]](P, Receiver).
-            return parent.Get(propkey, receiver)
-        # 4. If IsDataDescriptor(desc) is true, return desc.[[Value]].
-        if desc.is_data_descriptor():
-            return desc.value
-        # 5. Assert: IsAccessorDescriptor(desc) is true.
-        assert desc.is_accessor_descriptor()
-        # 6. Let getter be desc.[[Get]].
-        getter = desc.Get
-        # 7. If getter is undefined, return undefined.
-        if getter is None:
-            return None
-        # 8. Return ? Call(getter, Receiver).
-        return Call(getter, receiver)
+        return OrdinaryGet(self, propkey, receiver)
 
     # 9.1.9 [[Set]] ( P, V, Receiver )
     def Set(self, propkey, value, receiver):
@@ -620,6 +593,37 @@ def ValidateAndApplyPropertyDescriptor(obj, propkey, extensible, desc, current):
             setattr(obj.properties[propkey], fieldname, getattr(desc, fieldname))
     # 10. Return true.
     return True
+
+# 9.1.8.1 OrdinaryGet ( O, P, Receiver )
+def OrdinaryGet(obj, propkey, receiver):
+    # When the abstract operation OrdinaryGet is called with Object O, property key P, and ECMAScript language
+    # value Receiver, the following steps are taken:
+    #
+    # 1. Assert: IsPropertyKey(P) is true.
+    assert IsPropertyKey(propkey)
+    # 2. Let desc be ? O.[[GetOwnProperty]](P).
+    desc = obj.GetOwnProperty(propkey)
+    # 3. If desc is undefined, then
+    if desc is None:
+        # a. Let parent be ? O.[[GetPrototypeOf]]().
+        parent = obj.GetPrototypeOf()
+        # b. If parent is null, return undefined.
+        if isNull(parent):
+            return None
+        # c. Return ? parent.[[Get]](P, Receiver).
+        return parent.Get(propkey, receiver)
+    # 4. If IsDataDescriptor(desc) is true, return desc.[[Value]].
+    if desc.is_data_descriptor():
+        return desc.value
+    # 5. Assert: IsAccessorDescriptor(desc) is true.
+    assert desc.is_accessor_descriptor()
+    # 6. Let getter be desc.[[Get]].
+    getter = desc.Get
+    # 7. If getter is undefined, return undefined.
+    if getter is None:
+        return None
+    # 8. Return ? Call(getter, Receiver).
+    return Call(getter, receiver)
 
 # 9.1.9.1 OrdinarySet ( O, P, V, Receiver )
 def OrdinarySet(obj, propkey, value, receiver):
@@ -5890,6 +5894,342 @@ def StringGetOwnProperty(S, P):
         return None
     return PropertyDescriptor(value=S.StringData[int(index)], writable=False,
                                                enumerable=True, configurable=False)
+
+# ------------------------------------ 𝟗.𝟒.𝟒 𝑨𝒓𝒈𝒖𝒎𝒆𝒏𝒕𝒔 𝑬𝒙𝒐𝒕𝒊𝒄 𝑶𝒃𝒋𝒆𝒄𝒕𝒔 ------------------------------------
+# 9.4.4 Arguments Exotic Objects
+# Most ECMAScript functions make an arguments object available to their code. Depending upon the characteristics of the
+# function definition, its arguments object is either an ordinary object or an arguments exotic object. An arguments
+# exotic object is an exotic object whose array index properties map to the formal parameters bindings of an invocation
+# of its associated ECMAScript function.
+#
+# Arguments exotic objects have the same internal slots as ordinary objects. They also have a [[ParameterMap]] internal
+# slot. Ordinary arguments objects also have a [[ParameterMap]] internal slot whose value is always undefined. For
+# ordinary argument objects the [[ParameterMap]] internal slot is only used by  Object.prototype.toString (19.1.3.6) to
+# identify them as such.
+#
+# Arguments exotic objects provide alternative definitions for the following internal methods. All of the other
+# arguments exotic object essential internal methods that are not defined below are as specified in 9.1
+#
+# NOTE 1
+# The integer-indexed data properties of an arguments exotic object whose numeric name values are less than the number
+# of formal parameters of the corresponding function object initially share their values with the corresponding
+# argument bindings in the function's execution context. This means that changing the property changes the
+# corresponding value of the argument binding and vice-versa. This correspondence is broken if such a property is
+# deleted and then redefined or if the property is changed into an accessor property. If the arguments object is an
+# ordinary object, the values of its properties are simply a copy of the arguments passed to the function and there is
+# no dynamic linkage between the property values and the formal parameter values.
+#
+# NOTE 2
+# The ParameterMap object and its property values are used as a device for specifying the arguments object
+# correspondence to argument bindings. The ParameterMap object and the objects that are the values of its properties
+# are not directly observable from ECMAScript code. An ECMAScript implementation does not need to actually create or
+# use such objects to implement the specified semantics.
+#
+# NOTE 3
+# Ordinary arguments objects define a non-configurable accessor property named "callee" which throws a TypeError
+# exception on access. The "callee" property has a more specific meaning for arguments exotic objects, which are
+# created only for some class of non-strict functions. The definition of this property in the ordinary variant exists
+# to ensure that it is not defined in any other manner by conforming ECMAScript implementations.
+#
+# NOTE 4
+# ECMAScript implementations of arguments exotic objects have historically contained an accessor property named
+# "caller". Prior to ECMAScript 2017, this specification included the definition of a throwing "caller" property on
+# ordinary arguments objects. Since implementations do not contain this extension any longer, ECMAScript 2017 dropped
+# the requirement for a throwing "caller" accessor.
+class ArgumentsObject(JSObject):
+    def __init__(self):
+        super().__init__()
+        self.ParameterMap = None
+    def __repr__(self):
+        return f'Arguments(_something_)'
+    # -------------------------------- 𝟗.𝟒.𝟒.𝟏 [[𝑮𝒆𝒕𝑶𝒘𝒏𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚]] ( 𝑷 ) ------------------------------------
+    def GetOwnProperty(self, P):
+        # 9.4.4.1 [[GetOwnProperty]] ( P )
+        # The [[GetOwnProperty]] internal method of an arguments exotic object when called with a property key P
+        # performs the following steps:
+        #
+        #   1. Let args be the arguments object.
+        #   2. Let desc be OrdinaryGetOwnProperty(args, P).
+        #   3. If desc is undefined, return desc.
+        #   4. Let map be args.[[ParameterMap]].
+        #   5. Let isMapped be ! HasOwnProperty(map, P).
+        #   6. If isMapped is true, then
+        #   7. Set desc.[[Value]] to Get(map, P).
+        #   8. Return desc.
+        desc = OrdinaryGetOwnProperty(self, P)
+        if desc:
+            map = self.ParameterMap
+            if HasOwnProperty(map, P):
+                desc.value = Get(map, P)
+        return desc
+    # -------------------------------- 𝟗.𝟒.𝟒.𝟐 [[𝑫𝒆𝒇𝒊𝒏𝒆𝑶𝒘𝒏𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚]] ( 𝑷, 𝑫𝒆𝒔𝒄 ) ------------------------------------
+    def DefineOwnProperty(self, P, Desc):
+        # 9.4.4.2 [[DefineOwnProperty]] ( P, Desc )
+        # The [[DefineOwnProperty]] internal method of an arguments exotic object when called with a property key P and
+        # Property Descriptor Desc performs the following steps:
+        #   1. Let args be the arguments object.
+        #   2. Let map be args.[[ParameterMap]].
+        #   3. Let isMapped be HasOwnProperty(map, P).
+        #   4. Let newArgDesc be Desc.
+        #   5. If isMapped is true and IsDataDescriptor(Desc) is true, then
+        #       a. If Desc.[[Value]] is not present and Desc.[[Writable]] is present and its value is false, then
+        #           i. Set newArgDesc to a copy of Desc.
+        #           ii. Set newArgDesc.[[Value]] to Get(map, P).
+        #   6. Let allowed be ? OrdinaryDefineOwnProperty(args, P, newArgDesc).
+        #   7. If allowed is false, return false.
+        #   8. If isMapped is true, then
+        #       a. If IsAccessorDescriptor(Desc) is true, then
+        #           i. Call map.[[Delete]](P).
+        #       b. Else,
+        #           i. If Desc.[[Value]] is present, then
+        #               1. Let setStatus be Set(map, P, Desc.[[Value]], false).
+        #               2. Assert: setStatus is true because formal parameters mapped by argument objects are always writable.
+        #           ii. If Desc.[[Writable]] is present and its value is false, then
+        #               1. Call map.[[Delete]](P).
+        #   9. Return true.
+        map = self.ParameterMap
+        isMapped = HasOwnProperty(map, P)
+        newArgDesc = Desc
+        if isMapped and IsDataDescriptor(Desc):
+            if not hasattr('value', Desc) and hasattr('writable', Desc) and not Desc.writable:
+                newArgDesc = copy(Desc)
+                newArgDesc.value = Get(map, P)
+        allowed = OrdinaryDefineOwnProperty(self, P, newArgDesc)
+        if not allowed:
+            return False
+        if isMapped:
+            if IsAccessorDescriptor(Desc):
+                map.Delete(P)
+            else:
+                if hasattr('value', Desc):
+                    setStatus = Set(map, P, Desc.value, False)
+                    assert setStatus
+                if hasattr('writable', Desc) and not Desc.writable:
+                    map.Delete(P)
+        return True
+    # -------------------------------- 𝟗.𝟒.𝟒.𝟑 [[𝑮𝒆𝒕]] ( 𝑷, 𝑹𝒆𝒄𝒆𝒊𝒗𝒆𝒓 ) ------------------------------------
+    def Get(self, P, Receiver):
+        # 9.4.4.3 [[Get]] ( P, Receiver )
+        # The [[Get]] internal method of an arguments exotic object when called with a property key P and ECMAScript
+        # language value Receiver performs the following steps:
+        #
+        #   1. Let args be the arguments object.
+        #   2. Let map be args.[[ParameterMap]].
+        #   3. Let isMapped be ! HasOwnProperty(map, P).
+        #   4. If isMapped is false, then
+        #       a. Return ? OrdinaryGet(args, P, Receiver).
+        #   5. Else map contains a formal parameter mapping for P,
+        #   6. Return Get(map, P).
+        map = self.ParameterMap
+        if not HasOwnProperty(map, P):
+            return OrdinaryGet(self, P, Receiver)
+        return Get(map, P)
+    # -------------------------------- 𝟗.𝟒.𝟒.𝟒 [[𝑺𝒆𝒕]] ( 𝑷, 𝑽, 𝑹𝒆𝒄𝒆𝒊𝒗𝒆𝒓 ) ------------------------------------
+    def Set(self, P, V, Receiver):
+        # 9.4.4.4 [[Set]] ( P, V, Receiver )
+        # The [[Set]] internal method of an arguments exotic object when called with property key P, value V, and
+        # ECMAScript language value Receiver performs the following steps:
+        #
+        #   1. Let args be the arguments object.
+        #   2. If SameValue(args, Receiver) is false, then
+        #       a. Let isMapped be false.
+        #   3. Else,
+        #       a. Let map be args.[[ParameterMap]].
+        #       b. Let isMapped be ! HasOwnProperty(map, P).
+        #   4. If isMapped is true, then
+        #       a. Let setStatus be Set(map, P, V, false).
+        #       b. Assert: setStatus is true because formal parameters mapped by argument objects are always writable.
+        #   5. Return ? OrdinarySet(args, P, V, Receiver).
+        if not SameValue(self, Receiver):
+            isMapped = False
+        else:
+            map = self.ParameterMap
+            isMapped = HasOwnProperty(map, P)
+        if isMapped:
+            setStatus = Set(map, P, V, False)
+            assert setStatus
+        return OrdinarySet(self, P, V, Receiver)
+
+    def Delete(self, P):
+        # 9.4.4.5 [[Delete]] ( P )
+        # The [[Delete]] internal method of an arguments exotic object when called with a property key P performs the
+        # following steps:
+        #
+        #   1. Let args be the arguments object.
+        #   2. Let map be args.[[ParameterMap]].
+        #   3. Let isMapped be ! HasOwnProperty(map, P).
+        #   4. Let result be ? OrdinaryDelete(args, P).
+        #   5. If result is true and isMapped is true, then
+        #       a. Call map.[[Delete]](P).
+        #   6. Return result.
+        map = self.ParameterMap
+        isMapped = HasOwnProperty(map, P)
+        result = OrdinaryDelete(self, P)
+        if result and isMapped:
+            map.Delete(P)
+        return result
+
+# 9.4.4.6 CreateUnmappedArgumentsObject ( argumentsList )
+def CreateUnmappedArgumentsObject(argumentsList):
+    # The abstract operation CreateUnmappedArgumentsObject called with an argument argumentsList performs the following
+    # steps:
+    #
+    #   1. Let len be the number of elements in argumentsList.
+    #   2. Let obj be ObjectCreate(%ObjectPrototype%, « [[ParameterMap]] »).
+    #   3. Set obj.[[ParameterMap]] to undefined.
+    #   4. Perform DefinePropertyOrThrow(obj, "length", PropertyDescriptor { [[Value]]: len, [[Writable]]: true,
+    #      [[Enumerable]]: false, [[Configurable]]: true }).
+    #   5. Let index be 0.
+    #   6. Repeat, while index < len,
+    #       a. Let val be argumentsList[index].
+    #       b. Perform CreateDataProperty(obj, ! ToString(index), val).
+    #       c. Increase index by 1.
+    #   7. Perform ! DefinePropertyOrThrow(obj, @@iterator, PropertyDescriptor { [[Value]]: %ArrayProto_values%,
+    #      [[Writable]]: true, [[Enumerable]]: false, [[Configurable]]: true }).
+    #   8. Perform ! DefinePropertyOrThrow(obj, "callee", PropertyDescriptor { [[Get]]: %ThrowTypeError%,
+    #      [[Set]]: %ThrowTypeError%, [[Enumerable]]: false, [[Configurable]]: false }).
+    #   9. Return obj.
+    length = len(argumentsList)
+    obj = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics['%ObjectPrototype%'], ['ParameterMap'])
+    obj.ParameterMap = None
+    desc = PropertyDescriptor(value=length, writable=True, enumerable=False, configurable=True)
+    DefinePropertyOrThrow(obj, 'length', desc)
+    for index, val in enumerate(argumentsList):
+        CreateDataProperty(obj, ToString(index), val)
+    arrayproto_values = surrounding_agent.running_ec.intrinsics['%ArrayProto_values%']
+    desc = PropertyDescriptor(value=arrayproto_values, writable=True, enumerable=False, configurable=True)
+    DefinePropertyOrThrow(obj, wks_iterator, desc)
+    throw_type_error = surrounding_agent.running_ec.intrinsics['%ThrowTypeError%']
+    desc = PropertyDescriptor(Get=throw_type_error, Set=throw_type_error, enumerable=False, configurable=False)
+    DefinePropertyOrThrow(obj, 'callee', desc)
+    return obj
+
+# 9.4.4.7 CreateMappedArgumentsObject ( func, formals, argumentsList, env )
+def CreateMappedArgumentsObject(func, formals, argumentsList, env):
+    # The abstract operation CreateMappedArgumentsObject is called with object func, Parse Node formals, List
+    # argumentsList, and Environment Record env. The following steps are performed:
+    #
+    #   1. Assert: formals does not contain a rest parameter, any binding patterns, or any initializers. It may contain
+    #      duplicate identifiers.
+    #   2. Let len be the number of elements in argumentsList.
+    #   3. Let obj be a newly created arguments exotic object with a [[ParameterMap]] internal slot.
+    #   4. Set obj's essential internal methods to the default ordinary object definitions specified in 9.1.
+    #   5. Set obj.[[GetOwnProperty]] as specified in 9.4.4.1.
+    #   6. Set obj.[[DefineOwnProperty]] as specified in 9.4.4.2.
+    #   7. Set obj.[[Get]] as specified in 9.4.4.3.
+    #   8. Set obj.[[Set]] as specified in 9.4.4.4.
+    #   9. Set obj.[[Delete]] as specified in 9.4.4.5.
+    #   10. Set obj.[[Prototype]] to %ObjectPrototype%.
+    #   11. Set obj.[[Extensible]] to true.
+    #   12. Let map be ObjectCreate(null).
+    #   13. Set obj.[[ParameterMap]] to map.
+    #   14. Let parameterNames be the BoundNames of formals.
+    #   15. Let numberOfParameters be the number of elements in parameterNames.
+    #   16. Let index be 0.
+    #   17. Repeat, while index < len,
+    #       a. Let val be argumentsList[index].
+    #       b. Perform CreateDataProperty(obj, ! ToString(index), val).
+    #       c. Increase index by 1.
+    #   18. Perform DefinePropertyOrThrow(obj, "length", PropertyDescriptor { [[Value]]: len, [[Writable]]: true,
+    #       [[Enumerable]]: false, [[Configurable]]: true }).
+    #   19. Let mappedNames be a new empty List.
+    #   20. Let index be numberOfParameters - 1.
+    #   21. Repeat, while index ≥ 0,
+    #       a. Let name be parameterNames[index].
+    #       b. If name is not an element of mappedNames, then
+    #           i. Add name as an element of the list mappedNames.
+    #           ii. If index < len, then
+    #               1. Let g be MakeArgGetter(name, env).
+    #               2. Let p be MakeArgSetter(name, env).
+    #               3. Perform map.[[DefineOwnProperty]](! ToString(index), PropertyDescriptor { [[Set]]: p,
+    #                  [[Get]]: g, [[Enumerable]]: false, [[Configurable]]: true }).
+    #       c. Decrease index by 1.
+    #   22. Perform ! DefinePropertyOrThrow(obj, @@iterator, PropertyDescriptor { [[Value]]: %ArrayProto_values%,
+    #       [[Writable]]: true, [[Enumerable]]: false, [[Configurable]]: true }).
+    #   23. Perform ! DefinePropertyOrThrow(obj, "callee", PropertyDescriptor { [[Value]]: func, [[Writable]]: true,
+    #       [[Enumerable]]: false, [[Configurable]]: true }).
+    #   24. Return obj.
+    length = len(argumentsList)
+    obj = ArgumentsObject()
+    obj.Prototype = surrounding_agent.running_ec.realm.intrinsics['%ObjectPrototype%']
+    obj.Extensible = True
+    map = ObjectCreate(JSNull.NULL)
+    obj.ParameterMap = map
+    parameterNames = formals.BoundNames()
+    numberOfParameters = len(parameterNames)
+    for index, val in enumerate(argumentsList):
+        CreateDataProperty(obj, ToString(index), val)
+    DefinePropertyOrThrow(obj, 'length', PropertyDescriptor(value=length, writable=True, enumerable=False, configurable=True))
+    mappedNames = []
+    for index in range(numberOfParameters -1, -1, -1):
+        name = parameterNames[index]
+        if name not in mappedNames:
+            mappedNames += name
+            if index < length:
+                g = MakeArgGetter(name, env)
+                p = MakeArgSetter(name, env)
+                map.DefineOwnProperty(ToString(index), PropertyDescriptor(Set=p, Get=g, enumerable=False, configurable=True))
+    DefinePropertyOrThrow(obj, wks_iterator, PropertyDescriptor(value=surrounding_agent.running_ec.realm.intrinsics['%ArrayProto_values%'], writable=True, enumerable=False, configurable=True))
+    DefinePropertyOrThrow(obj, 'callee', PropertyDescriptor(value=func, writable=True, enumerable=False, configurable=True))
+    return obj
+
+# 9.4.4.7.1 MakeArgGetter ( name, env )
+def MakeArgGetter(name, env):
+    # The abstract operation MakeArgGetter called with String name and Environment Record env creates a built-in
+    # function object that when executed returns the value bound for name in env. It performs the following steps:
+    #
+    #   1. Let steps be the steps of an ArgGetter function as specified below.
+    #   2. Let getter be CreateBuiltinFunction(steps, « [[Name]], [[Env]] »).
+    #   3. Set getter.[[Name]] to name.
+    #   4. Set getter.[[Env]] to env.
+    #   5. Return getter.
+    #
+    # An ArgGetter function is an anonymous built-in function with [[Name]] and [[Env]] internal slots. When an
+    # ArgGetter function that expects no arguments is called it performs the following steps:
+    #
+    #   1. Let f be the active function object.
+    #   2. Let name be f.[[Name]].
+    #   3. Let env be f.[[Env]].
+    #   4. Return env.GetBindingValue(name, false).
+    # NOTE
+    # ArgGetter functions are never directly accessible to ECMAScript code.
+    def ArgGetter():
+        f = GetActiveFunction()
+        return f.Env.GetBindingValue(f.Name, False)
+    getter = CreateBuiltinFunction(ArgGetter, ['Name', 'Env'])
+    getter.Name = name
+    getter.Env = env
+    return getter
+
+# 9.4.4.7.2 MakeArgSetter ( name, env )
+def MakeArgSetter(name, env):
+    # The abstract operation MakeArgSetter called with String name and Environment Record env creates a built-in
+    # function object that when executed sets the value bound for name in env. It performs the following steps:
+    #
+    #   1. Let steps be the steps of an ArgSetter function as specified below.
+    #   2. Let setter be CreateBuiltinFunction(steps, « [[Name]], [[Env]] »).
+    #   3. Set setter.[[Name]] to name.
+    #   4. Set setter.[[Env]] to env.
+    #   5. Return setter.
+    #
+    # An ArgSetter function is an anonymous built-in function with [[Name]] and [[Env]] internal slots. When an
+    # ArgSetter function is called with argument value it performs the following steps:
+    #
+    #   1. Let f be the active function object.
+    #   2. Let name be f.[[Name]].
+    #   3. Let env be f.[[Env]].
+    #   4. Return env.SetMutableBinding(name, value, false).
+    #
+    # NOTE
+    # ArgSetter functions are never directly accessible to ECMAScript code.
+    def ArgSetter(value):
+        f = GetActiveFunction()
+        return f.Env.SetMutableBinding(f.Name, value, False)
+    setter = CreateBuiltinFunction(ArgSetter, ['Name', 'Env'])
+    setter.Name = name
+    setter.Env = env
+    return setter
+# ------------------------------------ 𝟗.𝟒.𝟕 𝑰𝒎𝒎𝒖𝒕𝒂𝒃𝒍𝒆 𝑷𝒓𝒐𝒕𝒐𝒕𝒚𝒑𝒆 𝑬𝒙𝒐𝒕𝒊𝒄 𝑶𝒃𝒋𝒆𝒄𝒕𝒔 ------------------------------------
 # 9.4.7 Immutable Prototype Exotic Objects
 #
 # An immutable prototype exotic object is an exotic object that has a [[Prototype]] internal slot that will not change
