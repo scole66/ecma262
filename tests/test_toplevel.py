@@ -148,6 +148,8 @@ def cleanup():
     ("let ary=[[1,2],[3,4],[5,6]];let s='';for ([a,b] of ary){s+=(a*b)+'-';}", '2-12-30-'),
     ('let a={f:10};function b(o) {o.f=2;}; b(a); a.f;', 2),
     ('let a={f:1};function d(){a.f=100;}; d(); a.f;', 100),
+    ("let s='';for(let ch of['a','b','c','d','e','f']){s+=ch;if(ch=='d'){break;}}s;", 'abcd'),
+    ("let s='',i=0;while(true){s+=i++;if(i>=10)break;}s;", '0123456789'),
 ])
 def test_scripts_01(cleanup, script, result):
     rv = RunJobs(scripts=[script])
