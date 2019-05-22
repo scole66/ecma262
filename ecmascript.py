@@ -10784,10 +10784,17 @@ class PN_Statement_VariableStatement(PN_Statement):
     def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
         return False
 class PN_Statement_IfStatement(PN_Statement):
-    pass
+    @property
+    def IfStatement(self):
+        return self.children[0]
 class PN_Statement_BreakableStatement(PN_Statement):
-    pass
+    @property
+    def BreakableStatement(self):
+        return self.children[0]
 class PN_Statement_ContinueStatement(PN_Statement):
+    @property
+    def ContinueStatement(self):
+        return self.children[0]
     def ContainsDuplicateLabels(self, lst):
         return False
     def ContainsUndefinedBreakTarget(self, labelSet):
@@ -10796,6 +10803,19 @@ class PN_Statement_ContinueStatement(PN_Statement):
         return []
     def VarScopedDeclarations(self):
         return []
+class PN_Statement_BreakStatement(PN_Statement):
+    @property
+    def BreakStatement(self):
+        return self.children[0]
+    def ContainsDuplicateLabels(self, lst):
+        return False
+    def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
+        return False
+    def VarDeclaredNames(self):
+        return []
+    def VarScopedDeclarations(self):
+        return []
+
 
 class PN_BreakableStatement(ParseNode):
     def __init__(self, ctx, p):
@@ -12803,7 +12823,7 @@ class PN_IterationStatement_WHILE_LPAREN_Expression_RPAREN_Statement(PN_Iteratio
                 stmtResult = self.Statement.evaluate()
             except ESAbrupt as abrupt:
                 c = abrupt.completion
-                if not LoopContinues(c.value, labelSet):
+                if not LoopContinues(c, labelSet):
                     raise type(abrupt)(value=UpdateEmpty(c.value, V), target=c.target)
                 stmtResult = c.value
             if stmtResult != Empty.EMPTY:
@@ -13711,7 +13731,7 @@ def ForInOfBodyEvaluation(lhs, stmt, iteratorRecord, iterationKind, lhsKind, lab
             result = stmt.evaluate()
         except ESAbrupt as abrupt:
             c = abrupt.completion
-            if not LoopContinues(c.value, labelSet):
+            if not LoopContinues(c, labelSet):
                 if iterationKind == ITERATE:
                     if iteratorKind == ASYNC:
                         return AsyncIteratorClose(iteratorRecord, abrupt)
@@ -13916,6 +13936,46 @@ class PN_ContinueStatement_CONTINUE_LabelIdentifier_SEMICOLON(PN_ContinueStateme
         # 2. Return Completion { [[Type]]: continue, [[Value]]: empty, [[Target]]: label }.
         return ESContinue(target=self.LabelIdentifier.StringValue())
 
+# 13.9 The break statement
+class PN_BreakStatement(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('BreakStatement', p)
+class PN_BreakStatement_BREAK_SEMICOLON(PN_BreakStatement):
+    def EarlyErrors(self):
+        # 13.9.1 Static Semantics: Early Errors
+        # BreakStatement : break ;
+        #   * It is a Syntax Error if this BreakStatement is not nested, directly or indirectly (but not crossing
+        #     function boundaries), within an IterationStatement or a SwitchStatement.
+        # @@@@@ Implement me!
+        return []
+    def ContainsUndefinedBreakTarget(self, labelSet):
+        # 13.9.2 Static Semantics: ContainsUndefinedBreakTarget
+        #   With parameter labelSet.
+        # BreakStatement : break ;
+        #   1. Return false.
+        return False
+    def evaluate(self):
+        # 13.9.3 Runtime Semantics: Evaluation
+        # BreakStatement : break ;
+        #   1. Return Completion { [[Type]]: break, [[Value]]: empty, [[Target]]: empty }.
+        raise ESBreak()
+class PN_BreakStatement_BREAK_LabelIdentifier_SEMICOLON(PN_BreakStatement):
+    @property
+    def LabelIdentifier(self):
+        return self.children[1]
+    def ContainsUndefinedBreakTarget(self, labelSet):
+        # 13.9.2 Static Semantics: ContainsUndefinedBreakTarget
+        #   With parameter labelSet.
+        # BreakStatement : break LabelIdentifier ;
+        #   1. If the StringValue of LabelIdentifier is not an element of labelSet, return true.
+        #   2. Return false.
+        return self.LabelIdentifier.StringValue() not in labelSet
+    def evaluate(self):
+        # 13.9.3 Runtime Semantics: Evaluation
+        # BreakStatement : break LabelIdentifier ;
+        #   1. Let label be the StringValue of LabelIdentifier.
+        #   2. Return Completion { [[Type]]: break, [[Value]]: empty, [[Target]]: label }.
+        raise ESBreak(target=self.LabelIdentifier.StringValue())
 ##############################################################################################################################################################################################
 #
 #  d888       d8888       d888       8888888888                            888    d8b                       8888888b.            .d888 d8b          d8b 888    d8b
@@ -14811,6 +14871,22 @@ class Ecma262Parser(Parser):
     ########################################################################################################################
 
     ########################################################################################################################
+    # 13.9 The break statement
+    #
+    # Syntax
+    #
+    # BreakStatement[Yield, Await] :
+    #       break ;
+    #       break [no LineTerminator here] LabelIdentifier[?Yield, ?Await] ;
+    #
+    @_('BREAK SEMICOLON')  # pylint: disable=undefined-variable
+    def BreakStatement(self, p):
+        return PN_BreakStatement_BREAK_SEMICOLON(self.context, p)
+    @_('BREAK LabelIdentifier SEMICOLON')  # pylint: disable=undefined-variable
+    def BreakStatement(self, p):
+        return PN_BreakStatement_BREAK_LabelIdentifier_SEMICOLON(self.context, p)
+
+    ########################################################################################################################
     # 13.8 The continue statement
     #
     # Syntax
@@ -15505,6 +15581,9 @@ class Ecma262Parser(Parser):
     @_('ContinueStatement')  # pylint: disable=undefined-variable
     def Statement(self, p):
         return PN_Statement_ContinueStatement(self.context, p)
+    @_('BreakStatement')  # pylint: disable=undefined-variable
+    def Statement(self, p):
+        return PN_Statement_BreakStatement(self.context, p)
     @_('BlockStatement_Return')  # pylint: disable=undefined-variable
     def Statement_Return(self, p):
         return PN_Statement_BlockStatement(self.context, p)
@@ -15526,6 +15605,9 @@ class Ecma262Parser(Parser):
     @_('ContinueStatement')  # pylint: disable=undefined-variable
     def Statement_Return(self, p):
         return PN_Statement_ContinueStatement(self.context, p)
+    @_('BreakStatement')  # pylint: disable=undefined-variable
+    def Statement_Return(self, p):
+        return PN_Statement_BreakStatement(self.context, p)
 
     @_('LexicalDeclaration_In')  # pylint: disable=undefined-variable
     def Declaration(self, p):
@@ -18696,7 +18778,9 @@ def IteratorPrototype_iterator(this_value, new_target):
 #######################################################################################################################################################
 if __name__ == '__main__':
     try:
-        rv = RunJobs(scripts=["a = {field: 67}; function alter(obj) { obj.field = 88; }; alter(a); a.field;"])
+        rv = RunJobs(scripts=["""
+        let s='',i=0;while(true){s+=i++;if(i>=10)break;}s;
+        """])
     except ESError as err:
         InitializeHostDefinedRealm()
         print(err)
