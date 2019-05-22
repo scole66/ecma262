@@ -145,7 +145,9 @@ def cleanup():
     ("let ary=['first','second','third'];s='';for (h of ary){s+=h+'-';}", 'first-second-third-'), # for ( LeftHandSideExpression of Expression ) Statement
     ("let ary=['first','second','third'];s='';for (var h of ary){s+=h+'-';}", 'first-second-third-'), # for ( var ForBinding of Expression ) Statement
     ("let ary=['first','second','third'];s='';for (let h of ary){s+=h+'-';}", 'first-second-third-'), # for ( ForDeclaration of Expression ) Statement
-    ("let ary=[[1,2],[3,4],[5,6]];let s='';for ([a,b] of ary){s+=(a*b)+'-';}", '2-12-30-')
+    ("let ary=[[1,2],[3,4],[5,6]];let s='';for ([a,b] of ary){s+=(a*b)+'-';}", '2-12-30-'),
+    ('let a={f:10};function b(o) {o.f=2;}; b(a); a.f;', 2),
+    ('let a={f:1};function d(){a.f=100;}; d(); a.f;', 100),
 ])
 def test_scripts_01(cleanup, script, result):
     rv = RunJobs(scripts=[script])
