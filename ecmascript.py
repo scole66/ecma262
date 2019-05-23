@@ -4665,9 +4665,10 @@ class JSFunction(JSObject):
             result = None
         except ESReturn as abrupt:
             result = abrupt.completion.value
-        surrounding_agent.ec_stack.pop()                          # 8. Remove calleeContext from the execution context stack and
-        surrounding_agent.running_ec = surrounding_agent.ec_stack[-1]   # restore callerContext as the running execution context.
-        assert surrounding_agent.running_ec == callerContext
+        finally:
+            surrounding_agent.ec_stack.pop()                          # 8. Remove calleeContext from the execution context stack and
+            surrounding_agent.running_ec = surrounding_agent.ec_stack[-1]   # restore callerContext as the running execution context.
+            assert surrounding_agent.running_ec == callerContext
         return result
         # NOTE
         # When calleeContext is removed from the execution context stack in step 8 it must not be destroyed if it is suspended
@@ -5312,13 +5313,13 @@ class BuiltinFunction(JSObject):
         # 10. Let result be the Completion Record that is the result of evaluating F in an implementation-defined
         #     manner that conforms to the specification of F. thisArgument is the this value, argumentsList provides
         #     the named parameters, and the NewTarget value is undefined.
-        result = self.steps(this_argument, None, *arguments_list)
-        if not isinstance(result, Completion):
-            result = result
-        # 11. Remove calleeContext from the execution context stack and restore callerContext as the running execution
-        #     context.
-        surrounding_agent.ec_stack.pop()
-        surrounding_agent.running_ec = caller_context
+        try:
+            result = self.steps(this_argument, None, *arguments_list)
+        finally:
+            # 11. Remove calleeContext from the execution context stack and restore callerContext as the running execution
+            #     context.
+            surrounding_agent.ec_stack.pop()
+            surrounding_agent.running_ec = caller_context
         # 12. Return result.
         return result
         # NOTE
@@ -17048,6 +17049,8 @@ def ScriptEvaluation(scriptRecord):
         # a. Set result to NormalCompletion(undefined).
         if result == Empty.EMPTY:
             result = None
+    except ESAbrupt as err:
+        raise RuntimeError(f'Had an abrupt completion ({err.completion!r}) at the top level.')
     finally:
         # 14. Suspend scriptCxt and remove it from the execution context stack.
         scriptCtx.suspend()
@@ -18854,10 +18857,8 @@ def GetGeneratorKind():
 if __name__ == '__main__':
     try:
         rv = RunJobs(scripts=["""
-        function mathme(a, b, c) {
-            return (a+b) * c;
-        }
-        mathme(1, 2, 3) * mathme(100, 200, 300);
+        s = new String('hi');
+        Object.defineProperty(s, '0', {value: 6});
         """])
     except ESError as err:
         InitializeHostDefinedRealm()
