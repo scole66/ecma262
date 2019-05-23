@@ -1309,7 +1309,6 @@ def test_TestIntegrityLevel_08(obj, mocker, props):
     assert res == True
 
 # 7.3.16 CreateArrayFromList ( elements )
-@pytest.mark.xfail(reason='Waiting for ArrayCreate to work')
 @pytest.mark.parametrize('lst', [ [], [5, 1221, 'boop']])
 def test_CreateArrayFromList_01(realm, lst):
     ary = CreateArrayFromList(lst)
