@@ -150,6 +150,7 @@ def cleanup():
     ('let a={f:1};function d(){a.f=100;}; d(); a.f;', 100),
     ("let s='';for(let ch of['a','b','c','d','e','f']){s+=ch;if(ch=='d'){break;}}s;", 'abcd'),
     ("let s='',i=0;while(true){s+=i++;if(i>=10)break;}s;", '0123456789'),
+    ("function mathme(a,b,c){return(a+b)*c;}mathme(1,2,3)*mathme(100,200,300);", 810000),
 ])
 def test_scripts_01(cleanup, script, result):
     rv = RunJobs(scripts=[script])
