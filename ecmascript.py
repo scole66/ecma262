@@ -7689,6 +7689,14 @@ class PN_PrimaryExpression_ObjectLiteral(PN_PrimaryExpression):
         return False
     def IsValidSimpleAssignmentTarget(self):
         return False
+class PN_PrimaryExpression_FunctionExpression(PN_PrimaryExpression):
+    @property
+    def FunctionExpression(self):
+        return self.children[0]
+    def IsIdentifierRef(self):
+        return False
+    def IsValidSimpleAssignmentTarget(self):
+        return False
 class PN_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(PN_PrimaryExpression):
     # 12.2.10 The Grouping Operator
     def __init__(self, ctx, p):
@@ -10828,6 +10836,20 @@ class PN_Statement_BreakStatement(PN_Statement):
 class PN_Statement_ReturnStatement(PN_Statement):
     @property
     def ReturnStatement(self):
+        return self.children[0]
+    def ContainsDuplicateLabels(self, lst):
+        return False
+    def ContainsUndefinedBreakTarget(self, labelSet):
+        return False
+    def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
+        return False
+    def VarDeclaredNames(self):
+        return []
+    def VarScopedDeclarations(self):
+        return []
+class PN_Statement_ThrowStatement(PN_Statement):
+    @property
+    def ThrowStatement(self):
         return self.children[0]
     def ContainsDuplicateLabels(self, lst):
         return False
@@ -14018,6 +14040,24 @@ class PN_ReturnStatement_RETURN_Expression_SEMICOLON(PN_ReturnStatement):
         if GetGeneratorKind() == ASYNC:
             exprValue = Await(exprValue)
         raise ESReturn(value=exprValue)
+
+# 13.14 The throw Statement
+class PN_ThrowStatement(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('ThrowStatement', p)
+class PN_ThrowStatement_THROW_Expression_SEMICOLON(PN_ThrowStatement):
+    @property
+    def Expression(self):
+        return self.children[1]
+    def evaluate(self):
+        # 13.14.1 Runtime Semantics: Evaluation
+        # ThrowStatement : throw Expression ;
+        #   1. Let exprRef be the result of evaluating Expression.
+        #   2. Let exprValue be ? GetValue(exprRef).
+        #   3. Return ThrowCompletion(exprValue).
+        exprValue = GetValue(self.Expression.evaluate())
+        raise ESError(exprValue)
+
 ##############################################################################################################################################################################################
 #
 #  d888       d8888       d888       8888888888                            888    d8b                       8888888b.            .d888 d8b          d8b 888    d8b
@@ -14127,6 +14167,7 @@ class PN_FunctionExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('FunctionExpression', p)
         self.ctx = ctx
+        self.strict = ctx.strict
 class PN_FunctionExpression_FUNCTION_BindingIdentifier_LPAREN_FormalParameters_RPAREN_LCURLY_FunctionBody_RCURLY(PN_FunctionExpression):
     @property
     def BindingIdentifier(self):
@@ -14913,6 +14954,18 @@ class Ecma262Parser(Parser):
     ########################################################################################################################
 
     ########################################################################################################################
+    # 13.14 The throw Statement
+    #
+    # Syntax
+    #
+    # ThrowStatement[Yield, Await] :
+    #       throw [no LineTerminator here] Expression[+In, ?Yield, ?Await] ;
+    @_('THROW Expression_In SEMICOLON')  # pylint: disable=undefined-variable
+    def ThrowStatement(self, p):
+        return PN_ThrowStatement_THROW_Expression_SEMICOLON(self.context, p)
+    ########################################################################################################################
+
+    ########################################################################################################################
     # 13.10 The return Statement
     #
     # Syntax
@@ -15643,6 +15696,9 @@ class Ecma262Parser(Parser):
     @_('BreakStatement')  # pylint: disable=undefined-variable
     def Statement(self, p):
         return PN_Statement_BreakStatement(self.context, p)
+    @_('ThrowStatement')  # pylint: disable=undefined-variable
+    def Statement(self, p):
+        return PN_Statement_ThrowStatement(self.context, p)
     @_('BlockStatement_Return')  # pylint: disable=undefined-variable
     def Statement_Return(self, p):
         return PN_Statement_BlockStatement(self.context, p)
@@ -15670,6 +15726,9 @@ class Ecma262Parser(Parser):
     @_('ReturnStatement')  # pylint: disable=undefined-variable
     def Statement_Return(self, p):
         return PN_Statement_ReturnStatement(self.context, p)
+    @_('ThrowStatement')  # pylint: disable=undefined-variable
+    def Statement_Return(self, p):
+        return PN_Statement_ThrowStatement(self.context, p)
 
     @_('LexicalDeclaration_In')  # pylint: disable=undefined-variable
     def Declaration(self, p):
@@ -16861,6 +16920,9 @@ class Ecma262Parser(Parser):
     @_('ArrayLiteral')  # pylint: disable=undefined-variable
     def PrimaryExpression(self, p):
         return PN_PrimaryExpression_ArrayLiteral(self.context, p)
+    @_('FunctionExpression')  # pylint: disable=undefined-variable
+    def PrimaryExpression(self, p):
+        return PN_PrimaryExpression_FunctionExpression(self.context, p)
     @_('CoverParenthesizedExpressionAndArrowParameterList')  # pylint: disable=undefined-variable
     def PrimaryExpression(self, p):
         return PN_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(self.context, p)
@@ -18857,8 +18919,24 @@ def GetGeneratorKind():
 if __name__ == '__main__':
     try:
         rv = RunJobs(scripts=["""
-        s = new String('hi');
-        Object.defineProperty(s, '0', {value: 6});
+        function Test262Error(message) {
+          this.message = message || '';
+        }
+
+        Test262Error.prototype.toString = function () {
+          return 'Test262Error: ' + this.message;
+        };
+
+        var $ERROR;
+        $ERROR = function $ERROR(message) {
+          throw new Test262Error(message);
+        };
+
+        function $DONOTEVALUATE() {
+          throw 'Test262: This statement should not be evaluated.';
+        }
+
+        throw $ERROR('I am a teapot.');
         """])
     except ESError as err:
         InitializeHostDefinedRealm()
