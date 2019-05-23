@@ -36,12 +36,18 @@ class ECMAScriptEnum(Enum):
     LEXICALBINDING = auto()
     ITERATE = auto()
     ASYNC_ITERATE = auto()
+    SYNC = auto()
+    ASYNC = auto()
+    NON_GENERATOR = auto()
 ENUMERATE = ECMAScriptEnum.ENUMERATE
 ASSIGNMENT = ECMAScriptEnum.ASSIGNMENT
 VARBINDING = ECMAScriptEnum.VARBINDING
 LEXICALBINDING = ECMAScriptEnum.LEXICALBINDING
 ITERATE = ECMAScriptEnum.ITERATE
 ASYNC_ITERATE = ECMAScriptEnum.ASYNC_ITERATE
+SYNC = ECMAScriptEnum.SYNC
+ASYNC = ECMAScriptEnum.ASYNC
+NON_GENERATOR = ECMAScriptEnum.NON_GENERATOR
 
 Completion = namedtuple('Completion', ['ctype', 'value', 'target'])
 
@@ -2593,12 +2599,6 @@ def CopyDataProperties(target, source, excludedItems):
 ##################################################################################################################################################################################################################################################################################
 # ------------------------------------ 𝟕.𝟒.𝟏 𝑮𝒆𝒕𝑰𝒕𝒆𝒓𝒂𝒕𝒐𝒓 ( 𝒐𝒃𝒋 [ , 𝒉𝒊𝒏𝒕 [ , 𝒎𝒆𝒕𝒉𝒐𝒅 ] ] ) ------------------------------------
 # 7.4.1 GetIterator ( obj [ , hint [ , method ] ] )
-@unique
-class IteratorHint(Enum):
-    SYNC = auto()
-    ASYNC = auto()
-SYNC = IteratorHint.SYNC
-ASYNC = IteratorHint.ASYNC
 class IteratorRecord(Record):
     __slots__ = ['Iterator', 'NextMethod', 'Done']
     def __init__(self, Iterator=None, NextMethod=None, Done=None):
@@ -7245,6 +7245,15 @@ class ParseNode:
         children = ' '.join(ch.name if isinstance(ch, ParseNode) else str(ch.value) for ch in self.children)
         terms = ' '.join(repr(trm.value) if trm.name == 'STRING' else str(trm.value) for trm in self.terminals())
         return f'ParseNode[{self.name} : ' + children + '] (' + terms + ')'
+    def dump(self, leftpad=0):
+        children = ' '.join(ch.name if isinstance(ch, ParseNode) else str(ch.value) for ch in self.children)
+        terms = ' '.join(repr(trm.value) if trm.name == 'STRING' else str(trm.value) for trm in self.terminals())
+        result = [' '*leftpad + f'[{self.name} : {children}] ({terms})']
+        for child in self.children:
+            if isinstance(child, ParseNode):
+                lines = child.dump(leftpad+2)
+                result.extend(lines)
+        return result
     def terminals(self):
         for child in self.children:
             if not isinstance(child, ParseNode):
@@ -10815,6 +10824,21 @@ class PN_Statement_BreakStatement(PN_Statement):
         return []
     def VarScopedDeclarations(self):
         return []
+class PN_Statement_ReturnStatement(PN_Statement):
+    @property
+    def ReturnStatement(self):
+        return self.children[0]
+    def ContainsDuplicateLabels(self, lst):
+        return False
+    def ContainsUndefinedBreakTarget(self, labelSet):
+        return False
+    def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
+        return False
+    def VarDeclaredNames(self):
+        return []
+    def VarScopedDeclarations(self):
+        return []
+
 
 
 class PN_BreakableStatement(ParseNode):
@@ -13976,6 +14000,23 @@ class PN_BreakStatement_BREAK_LabelIdentifier_SEMICOLON(PN_BreakStatement):
         #   1. Let label be the StringValue of LabelIdentifier.
         #   2. Return Completion { [[Type]]: break, [[Value]]: empty, [[Target]]: label }.
         raise ESBreak(target=self.LabelIdentifier.StringValue())
+
+# 13.10 The return Statement
+class PN_ReturnStatement(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('ReturnStatement', p)
+class PN_ReturnStatement_RETURN_SEMICOLON(PN_ReturnStatement):
+    def evaluate(self):
+        raise ESReturn(value=None)
+class PN_ReturnStatement_RETURN_Expression_SEMICOLON(PN_ReturnStatement):
+    @property
+    def Expression(self):
+        return self.children[1]
+    def evaluate(self):
+        exprValue = GetValue(self.Expression.evaluate())
+        if GetGeneratorKind() == ASYNC:
+            exprValue = Await(exprValue)
+        raise ESReturn(value=exprValue)
 ##############################################################################################################################################################################################
 #
 #  d888       d8888       d888       8888888888                            888    d8b                       8888888b.            .d888 d8b          d8b 888    d8b
@@ -14871,6 +14912,22 @@ class Ecma262Parser(Parser):
     ########################################################################################################################
 
     ########################################################################################################################
+    # 13.10 The return Statement
+    #
+    # Syntax
+    #
+    # ReturnStatement[Yield, Await] :
+    #       return ;
+    #       return [no LineTerminator here] Expression [+In, ?Yield, ?Await] ;
+    @_('RETURN SEMICOLON')  # pylint: disable=undefined-variable
+    def ReturnStatement(self, p):
+        return PN_ReturnStatement_RETURN_SEMICOLON(self.context, p)
+    @_('RETURN Expression_In SEMICOLON')  # pylint: disable=undefined-variable
+    def ReturnStatement(self, p):
+        return PN_ReturnStatement_RETURN_Expression_SEMICOLON(self.context, p)
+    ########################################################################################################################
+
+    ########################################################################################################################
     # 13.9 The break statement
     #
     # Syntax
@@ -14885,6 +14942,7 @@ class Ecma262Parser(Parser):
     @_('BREAK LabelIdentifier SEMICOLON')  # pylint: disable=undefined-variable
     def BreakStatement(self, p):
         return PN_BreakStatement_BREAK_LabelIdentifier_SEMICOLON(self.context, p)
+    ########################################################################################################################
 
     ########################################################################################################################
     # 13.8 The continue statement
@@ -15608,6 +15666,9 @@ class Ecma262Parser(Parser):
     @_('BreakStatement')  # pylint: disable=undefined-variable
     def Statement_Return(self, p):
         return PN_Statement_BreakStatement(self.context, p)
+    @_('ReturnStatement')  # pylint: disable=undefined-variable
+    def Statement_Return(self, p):
+        return PN_Statement_ReturnStatement(self.context, p)
 
     @_('LexicalDeclaration_In')  # pylint: disable=undefined-variable
     def Declaration(self, p):
@@ -16940,6 +17001,7 @@ def ParseScript(sourceText, realm, hostDefined):
     lex = Lexer(sourceText)
     psr = Ecma262Parser(start='Script', source_text=sourceText)
     tree = psr.parse(lex.lex())
+    #for line in tree.dump(): print(line)
     errs = tree.EarlyErrorsScan()
     body = errs or tree
     # 3. If body is a List of errors, return body.
@@ -18775,11 +18837,27 @@ def CreateIteratorPrototype(realm):
 def IteratorPrototype_iterator(this_value, new_target):
     return this_value
 
+# 25.4.3.5 GetGeneratorKind ( )
+def GetGeneratorKind():
+    #   1. Let genContext be the running execution context.
+    #   2. If genContext does not have a Generator component, return non-generator.
+    #   3. Let generator be the Generator component of genContext.
+    #   4. If generator has an [[AsyncGeneratorState]] internal slot, return async.
+    #   5. Else, return sync.
+    genContext = surrounding_agent.running_ec
+    if genContext.generator:
+        return ASYNC if hasattr('AsyncGeneratorState', genContext.generator) else SYNC
+    return NON_GENERATOR
+
+
 #######################################################################################################################################################
 if __name__ == '__main__':
     try:
         rv = RunJobs(scripts=["""
-        let s='',i=0;while(true){s+=i++;if(i>=10)break;}s;
+        function mathme(a, b, c) {
+            return (a+b) * c;
+        }
+        mathme(1, 2, 3) * mathme(100, 200, 300);
         """])
     except ESError as err:
         InitializeHostDefinedRealm()
