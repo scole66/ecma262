@@ -6542,10 +6542,9 @@ class Lexer():
                 return (self._ident_start_escape, [])
             return (self._ident_capture, [])
 
-        elif ch == "'":
-            return (self._single_string_capture, [])
-        elif ch == '"':
-            return (self._double_string_capture, [])
+        elif ch == "'" or ch == '"':
+            self._string_delim = ch
+            return (self._string_capture, [])
 
         # More to add still...
         return (self._initial, [])
@@ -7050,8 +7049,8 @@ class Lexer():
         raise LexerError('Invalid IdentifierName escape sequence')
 
     @classmethod
-    def _single_string_value(cls, chars):
-        assert chars[0] == "'" and chars[-1] == "'"
+    def _string_value(cls, chars):
+        assert (chars[0] == "'" and chars[-1] == "'") or (chars[0] == '"' and chars[-1] == '"')
         # Remove the quotes
         chars = chars[1:len(chars)-1]
         # Translate any escape sequences
@@ -7109,14 +7108,14 @@ class Lexer():
                 index += 2
         return decoded
 
-    def _single_string_capture(self, ch, lookahead):
-        if ch == "'":
-            return (self._initial, [self._make_token('STRING', self._single_string_value(self.source[self.start:self.pos]), False)])
+    def _string_capture(self, ch, lookahead):
+        if ch == self._string_delim:
+            return (self._initial, [self._make_token('STRING', self._string_value(self.source[self.start:self.pos]), False)])
         if ch == '\\':
             return (self._string_escape, [])
         if ch == '' or ch in self.line_terminators:
             raise LexerError('Unterminated String')
-        return (self._single_string_capture, [])
+        return (self._string_capture, [])
 
     def _string_escape(self, ch, lookahead):
         # We've already consumed the leading slash of one of:
@@ -7128,56 +7127,56 @@ class Lexer():
             # This is the LineContinuation bit
             if ch != '\r' or lookahead != '\n':
                 self.linenum += 1
-                return (self._single_string_capture, [])
-            return (self._single_string_lfonly, [])
+                return (self._string_capture, [])
+            return (self._string_lfonly, [])
         if ch == '0' and (lookahead == '' or lookahead not in '0123456789'):
             # EscapeSequence :: 0 (lookahead not in DecimalDigit)
-            return (self._single_string_capture, [])
+            return (self._string_capture, [])
         if ch == 'x':
-            return (self._single_string_hex_escape, [])
+            return (self._string_hex_escape, [])
         if ch == 'u':
-            return (self._single_string_unicode_escape, [])
+            return (self._string_unicode_escape, [])
         if ch in '0123456789':
             raise LexerError('Syntax Error in string escape')
-        return (self._single_string_capture, [])
+        return (self._string_capture, [])
 
-    def _single_string_lfonly(self, ch, lookahead):
+    def _string_lfonly(self, ch, lookahead):
         # we already know ch is \n, so just capture and move on
-        return (self._single_string_capture, [])
+        return (self._string_capture, [])
 
-    def _single_string_hex_escape(self, ch, lookahead):
+    def _string_hex_escape(self, ch, lookahead):
         if ch and ch in '0123456789abcdefABCDEF':
             if self.source[self.pos-2] == 'x':
-                return (self._single_string_hex_escape, [])
-            return (self._single_string_capture, [])
+                return (self._string_hex_escape, [])
+            return (self._string_capture, [])
         raise LexerError('Syntax Error in Hex Value for String Escape')
 
-    def _single_string_unicode_escape(self, ch, lookahead):
+    def _string_unicode_escape(self, ch, lookahead):
         # Either 4 hex digits, or '{' <many hex digits> '}'
         if ch and ch in '0123456789abcdefABCDEF':
-            return (self._single_string_unicode_4digits, [])
+            return (self._string_unicode_4digits, [])
         if ch == '{':
-            return (self._single_string_unicode_brackets, [])
+            return (self._string_unicode_brackets, [])
         raise LexerError('Syntax Error in Unicode String Escape')
 
-    def _single_string_unicode_4digits(self, ch, lookahead):
+    def _string_unicode_4digits(self, ch, lookahead):
         # We've gotten \u<digit> .. with maybe more digits.
         if ch and ch in '0123456789abcdefABCDEF':
             upos = self.source.rfind('u', self.start, self.pos)
             if self.pos - upos == 5:
-                return (self._single_string_capture, [])
-            return (self._single_string_unicode_4digits, [])
+                return (self._string_capture, [])
+            return (self._string_unicode_4digits, [])
         raise LexerError('Syntax Error in Unicode String Escape')
 
-    def _single_string_unicode_brackets(self, ch, lookahead):
+    def _string_unicode_brackets(self, ch, lookahead):
         # We've gotten \u{ and maybe digits
         if ch and ch in '0123456789abcdefABCDEF':
-            return (self._single_string_unicode_brackets, [])
+            return (self._string_unicode_brackets, [])
         if ch == '}' and self.source[self.pos-2] != '{':
             bracket = self.source.rfind('{', self.start, self.pos)
             charcode = int(self.source[bracket+1:self.pos-1], 16)
             if charcode <= 0x10FFFF:
-                return (self._single_string_capture, [])
+                return (self._string_capture, [])
         raise LexerError('Syntax Error in Unicode String Escape')
 
     def lex(self, goal=Goal.InputElementDiv):
