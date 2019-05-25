@@ -7381,6 +7381,8 @@ class ParseNode:
         return self.defer_target().ContainsExpression()
     def IteratorBindingInitialization(self, *args, **kwargs):
         return self.defer_target().IteratorBindingInitialization(*args, **kwargs)
+    def BindingInitialization(self, *args, **kwargs):
+        return self.defer_target().BindingInitialization(*args, **kwargs)
 
     def evaluate(self):
         # Subclasses need to override this, or we'll throw an AttributeError when we hit a terminal.
@@ -10870,6 +10872,10 @@ class PN_Statement_ThrowStatement(PN_Statement):
         return []
     def VarScopedDeclarations(self):
         return []
+class PN_Statement_TryStatement(PN_Statement):
+    @property
+    def TryStatement(self):
+        return self.children[0]
 
 
 
@@ -14067,6 +14073,214 @@ class PN_ThrowStatement_THROW_Expression_SEMICOLON(PN_ThrowStatement):
         exprValue = GetValue(self.Expression.evaluate())
         raise ESError(exprValue)
 
+# 13.15 The try Statement
+class PN_TryStatement(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('TryStatement', p)
+class PN_TryStatement_TRY_Block_Catch(PN_TryStatement):
+    @property
+    def Block(self):
+        return self.children[1]
+    @property
+    def Catch(self):
+        return self.children[2]
+    def ContainsDuplicateLabels(self, labelSet):
+        return any(pn.ContainsDuplicateLabels(labelSet) for pn in (self.Block, self.Catch))
+    def ContainsUndefinedBreakTarget(self, labelSet):
+        return any(pn.ContainsUndefinedBreakTarget(labelSet) for pn in (self.Block, self.Catch))
+    def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
+        return any(pn.ContainsUndefinedContinueTarget(iterationSet, []) for pn in (self.Block, self.Catch))
+    def VarDeclaredNames(self):
+        res = []
+        for pn in (self.Block, self.Catch):
+            res.extend(pn.VarDeclaredNames())
+        return res
+    def VarScopedDeclarations(self):
+        res = []
+        for pn in (self.Block, self.Catch):
+            res.extend(pn.VarScopedDeclarations())
+        return res
+    def evaluate(self):
+        # 13.15.8 Runtime Semantics: Evaluation
+        # TryStatement : try Block Catch
+        #   1. Let B be the result of evaluating Block.
+        #   2. If B.[[Type]] is throw, let C be CatchClauseEvaluation of Catch with argument B.[[Value]].
+        #   3. Else, let C be B.
+        #   4. Return Completion(UpdateEmpty(C, undefined)).
+        try:
+            C = self.Block.evaluate()
+        except ESError as err:
+            C = self.Catch.CatchClauseEvaluation(err.ecma_object)
+        return UpdateEmpty(C, None)
+class PN_TryStatement_TRY_Block_Finally(PN_TryStatement):
+    @property
+    def Block(self):
+        return self.children[1]
+    @property
+    def Finally(self):
+        return self.children[2]
+    def ContainsDuplicateLabels(self, labelSet):
+        return any(pn.ContainsDuplicateLabels(labelSet) for pn in (self.Block, self.Finally))
+    def ContainsUndefinedBreakTarget(self, labelSet):
+        return any(pn.ContainsUndefinedBreakTarget(labelSet) for pn in (self.Block, self.Finally))
+    def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
+        return any(pn.ContainsUndefinedContinueTarget(iterationSet, []) for pn in (self.Block, self.Finally))
+    def VarDeclaredNames(self):
+        res = []
+        for pn in (self.Block, self.Finally):
+            res.extend(pn.VarDeclaredNames())
+        return res
+    def VarScopedDeclarations(self):
+        res = []
+        for pn in (self.Block, self.Finally):
+            res.extend(pn.VarScopedDeclarations())
+        return res
+    def evaluate(self):
+        # 13.15.8 Runtime Semantics: Evaluation
+        # TryStatement : try Block Finally
+        #   1. Let B be the result of evaluating Block.
+        #   2. Let F be the result of evaluating Finally.
+        #   3. If F.[[Type]] is normal, set F to B.
+        #   4. Return Completion(UpdateEmpty(F, undefined)).
+        try:
+            B = self.Block.evaluate()
+        finally:
+            self.Finally.evaluate()
+        return UpdateEmpty(B, None)
+
+class PN_TryStatement_TRY_Block_Catch_Finally(PN_TryStatement):
+    @property
+    def Block(self):
+        return self.children[1]
+    @property
+    def Catch(self):
+        return self.children[2]
+    @property
+    def Finally(self):
+        return self.children[3]
+    def ContainsDuplicateLabels(self, labelSet):
+        return any(pn.ContainsDuplicateLabels(labelSet) for pn in (self.Block, self.Catch, self.Finally))
+    def ContainsUndefinedBreakTarget(self, labelSet):
+        return any(pn.ContainsUndefinedBreakTarget(labelSet) for pn in (self.Block, self.Catch, self.Finally))
+    def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
+        return any(pn.ContainsUndefinedContinueTarget(iterationSet, []) for pn in (self.Block, self.Catch, self.Finally))
+    def VarDeclaredNames(self):
+        res = []
+        for pn in (self.Block, self.Catch, self.Finally):
+            res.extend(pn.VarDeclaredNames())
+        return res
+    def VarScopedDeclarations(self):
+        res = []
+        for pn in (self.Block, self.Catch, self.Finally):
+            res.extend(pn.VarScopedDeclarations())
+        return res
+    def evaluate(self):
+        # 13.15.8 Runtime Semantics: Evaluation
+        # TryStatement : try Block Catch Finally
+        #   1. Let B be the result of evaluating Block.
+        #   2. If B.[[Type]] is throw, let C be CatchClauseEvaluation of Catch with argument B.[[Value]].
+        #   3. Else, let C be B.
+        #   4. Let F be the result of evaluating Finally.
+        #   5. If F.[[Type]] is normal, set F to C.
+        #   6. Return Completion(UpdateEmpty(F, undefined)).
+        try:
+            C = self.Block.evaluate()
+        except ESError as err:
+            C = self.Catch.CatchClauseEvaluation(err.ecma_object)
+        finally:
+            self.Finally.evaluate()
+        return UpdateEmpty(C, None)
+class PN_Catch(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('Catch', p)
+class PN_Catch_CATCH_LPAREN_CatchParameter_RPAREN_Block(PN_Catch):
+    @property
+    def CatchParameter(self):
+        return self.children[2]
+    @property
+    def Block(self):
+        return self.children[4]
+    def EarlyErrors(self):
+        # 13.15.1 Static Semantics: Early Errors
+        # Catch : catch ( CatchParameter ) Block
+        #   * It is a Syntax Error if BoundNames of CatchParameter contains any duplicate elements.
+        #   * It is a Syntax Error if any element of the BoundNames of CatchParameter also occurs in the
+        #     LexicallyDeclaredNames of Block.
+        #   * It is a Syntax Error if any element of the BoundNames of CatchParameter also occurs in the
+        #     VarDeclaredNames of Block.
+        errs = []
+        bn = self.CatchParameter.BoundNames()
+        duplicates = [name for name, count in Counter(bn).items() if count > 1]
+        if duplicates:
+            errs.append(CreateSyntaxError(f"Multiple definitions in parameter list: {', '.join(duplicates)}"))
+        common = set(bn).intersection(set(self.Block.LexicallyDeclaredNames()))
+        if common:
+            errs.append(CreateSyntaxError(f"Parameters duplicated in lexical declarations: {', '.join(common)}"))
+        common = set(bn).intersection(set(self.Block.VarDeclaredNames()))
+        if common:
+            errs.append(CreateSyntaxError(f"Parameters duplicated in var declarations: {', '.join(common)}"))
+        return errs
+    def ContainsDuplicateLabels(self, labelSet):
+        return self.Block.ContainsDuplicateLabels(labelSet)
+    def ContainsUndefinedBreakTarget(self, labelSet):
+        return self.Block.ContainsUndefinedBreakTarget(labelSet)
+    def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
+        return self.Block.ContainsUndefinedContinueTarget(iterationSet, [])
+    def VarDeclaredNames(self):
+        return self.Block.VarDeclaredNames()
+    def VarScopedDeclarations(self):
+        return self.Block.VarScopedDeclarations()
+    def CatchClauseEvaluation(self, thrownValue):
+        # 13.15.7 Runtime Semantics: CatchClauseEvaluation
+        #   With parameter thrownValue.
+        # Catch : catch ( CatchParameter ) Block
+        #   1. Let oldEnv be the running execution context's LexicalEnvironment.
+        #   2. Let catchEnv be NewDeclarativeEnvironment(oldEnv).
+        #   3. Let catchEnvRec be catchEnv's EnvironmentRecord.
+        #   4. For each element argName of the BoundNames of CatchParameter, do
+        #       a. Perform ! catchEnvRec.CreateMutableBinding(argName, false).
+        #   5. Set the running execution context's LexicalEnvironment to catchEnv.
+        #   6. Let status be the result of performing BindingInitialization for CatchParameter passing thrownValue and catchEnv as arguments.
+        #   7. If status is an abrupt completion, then
+        #       a. Set the running execution context's LexicalEnvironment to oldEnv.
+        #       b. Return Completion(status).
+        #   8. Let B be the result of evaluating Block.
+        #   9. Set the running execution context's LexicalEnvironment to oldEnv.
+        #   10. Return Completion(B).
+        # NOTE
+        # No matter how control leaves the Block the LexicalEnvironment is always restored to its former state.
+        oldEnv = surrounding_agent.running_ec.lexical_environment
+        catchEnv = NewDeclarativeEnvironment(oldEnv)
+        catchEnvRec = catchEnv.environment_record
+        for argName in self.CatchParameter.BoundNames():
+            catchEnvRec.CreateMutableBinding(argName, False)
+        surrounding_agent.running_ec.lexical_environment = catchEnv
+        try:
+            self.CatchParameter.BindingInitialization(thrownValue, catchEnv)
+            return self.Block.evaluate()
+        finally:
+            surrounding_agent.running_ec.lexical_environment = oldEnv
+
+class PN_Finally(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('Finally', p)
+class PN_Finally_FINALLY_Block(PN_Finally):
+    @property
+    def Block(self):
+        return self.children[1]
+
+class PN_CatchParameter(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('CatchParameter', p)
+class PN_CatchParameter_BindingIdentifier(PN_CatchParameter):
+    @property
+    def BindingIdentifier(self):
+        return self.children[1]
+class PN_CatchParameter_BindingPattern(PN_CatchParameter):
+    @property
+    def BindingPattern(self):
+        return self.children[1]
+
 ##############################################################################################################################################################################################
 #
 #  d888       d8888       d888       8888888888                            888    d8b                       8888888b.            .d888 d8b          d8b 888    d8b
@@ -14963,6 +15177,68 @@ class Ecma262Parser(Parser):
     ########################################################################################################################
 
     ########################################################################################################################
+    # 13.15 The try Statement
+    #
+    # Syntax
+    #
+    # TryStatement[Yield, Await, Return] :
+    #       try Block[?Yield, ?Await, ?Return] Catch[?Yield, ?Await, ?Return]
+    #       try Block[?Yield, ?Await, ?Return] Finally[?Yield, ?Await, ?Return]
+    #       try Block[?Yield, ?Await, ?Return] Catch[?Yield, ?Await, ?Return] Finally[?Yield, ?Await, ?Return]
+    @_('TRY Block Catch')  # pylint: disable=undefined-variable
+    def TryStatement(self, p):
+        return PN_TryStatement_TRY_Block_Catch(self.context, p)
+    @_('TRY Block Finally')  # pylint: disable=undefined-variable
+    def TryStatement(self, p):
+        return PN_TryStatement_TRY_Block_Finally(self.context, p)
+    @_('TRY Block Catch Finally')  # pylint: disable=undefined-variable
+    def TryStatement(self, p):
+        return PN_TryStatement_TRY_Block_Catch_Finally(self.context, p)
+    @_('TRY Block_Return Catch_Return')  # pylint: disable=undefined-variable
+    def TryStatement_Return(self, p):
+        return PN_TryStatement_TRY_Block_Catch(self.context, p)
+    @_('TRY Block_Return Finally_Return')  # pylint: disable=undefined-variable
+    def TryStatement_Return(self, p):
+        return PN_TryStatement_TRY_Block_Finally(self.context, p)
+    @_('TRY Block_Return Catch_Return Finally_Return')  # pylint: disable=undefined-variable
+    def TryStatement_Return(self, p):
+        return PN_TryStatement_TRY_Block_Catch_Finally(self.context, p)
+    #
+    # Catch[Yield, Await, Return] :
+    #       catch ( CatchParameter[?Yield, ?Await] ) Block[?Yield, ?Await, ?Return]
+    @_('CATCH LPAREN CatchParameter RPAREN Block')  # pylint: disable=undefined-variable
+    def Catch(self, p):
+        return PN_Catch_CATCH_LPAREN_CatchParameter_RPAREN_Block(self.context, p)
+    @_('CATCH LPAREN CatchParameter RPAREN Block_Return')  # pylint: disable=undefined-variable
+    def Catch_Return(self, p):
+        return PN_Catch_CATCH_LPAREN_CatchParameter_RPAREN_Block(self.context, p)
+    #
+    # Finally[Yield, Await, Return] :
+    #       finally Block[?Yield, ?Await, ?Return]
+    @_('FINALLY Block')  # pylint: disable=undefined-variable
+    def Finally(self, p):
+        return PN_Finally_FINALLY_Block(self.context, p)
+    @_('FINALLY Block_Return')  # pylint: disable=undefined-variable
+    def Finally_Return(self, p):
+        return PN_Finally_FINALLY_Block(self.context, p)
+    #
+    # CatchParameter[Yield, Await] :
+    #       BindingIdentifier[?Yield, ?Await]
+    #       BindingPattern[?Yield, ?Await]
+    @_('BindingIdentifier')  # pylint: disable=undefined-variable
+    def CatchParameter(self, p):
+        return PN_CatchParameter_BindingIdentifier(self.context, p)
+    @_('BindingPattern')  # pylint: disable=undefined-variable
+    def CatchParameter(self, p):
+        return PN_CatchParameter_BindingPattern(self.context, p)
+    #
+    # NOTE
+    # The try statement encloses a block of code in which an exceptional condition can occur, such as a runtime error
+    # or a throw statement. The catch clause provides the exception-handling code. When a catch clause catches an
+    # exception, its CatchParameter is bound to that exception.
+    ########################################################################################################################
+
+    ########################################################################################################################
     # 13.14 The throw Statement
     #
     # Syntax
@@ -15708,6 +15984,9 @@ class Ecma262Parser(Parser):
     @_('ThrowStatement')  # pylint: disable=undefined-variable
     def Statement(self, p):
         return PN_Statement_ThrowStatement(self.context, p)
+    @_('TryStatement')  # pylint: disable=undefined-variable
+    def Statement(self, p):
+        return PN_Statement_TryStatement(self.context, p)
     @_('BlockStatement_Return')  # pylint: disable=undefined-variable
     def Statement_Return(self, p):
         return PN_Statement_BlockStatement(self.context, p)
@@ -15738,6 +16017,9 @@ class Ecma262Parser(Parser):
     @_('ThrowStatement')  # pylint: disable=undefined-variable
     def Statement_Return(self, p):
         return PN_Statement_ThrowStatement(self.context, p)
+    @_('TryStatement_Return')  # pylint: disable=undefined-variable
+    def Statement_Return(self, p):
+        return PN_Statement_TryStatement(self.context, p)
 
     @_('LexicalDeclaration_In')  # pylint: disable=undefined-variable
     def Declaration(self, p):
@@ -17073,7 +17355,6 @@ def ParseScript(sourceText, realm, hostDefined):
     lex = Lexer(sourceText)
     psr = Ecma262Parser(start='Script', source_text=sourceText)
     tree = psr.parse(lex.lex())
-    #for line in tree.dump(): print(line)
     errs = tree.EarlyErrorsScan()
     body = errs or tree
     # 3. If body is a List of errors, return body.
@@ -18041,7 +18322,7 @@ def CreateErrorConstructor(realm):
     return obj
 
 # 19.5.1.1 Error ( message )
-def ErrorFunction(this_value, new_target, message):
+def ErrorFunction(this_value, new_target, message=None):
     # When the Error function is called with argument message, the following steps are taken:
     #
     # 1. If NewTarget is undefined, let newTarget be the active function object, else let newTarget be NewTarget.
@@ -18138,7 +18419,7 @@ def CreateNativeErrorConstructor(realm, errorname):
     return obj
 
 def CreateErrorConstructorFunction(name):
-    def native_error_function(this_value, new_target, message):
+    def native_error_function(this_value, new_target, message=None):
         newTarget = new_target or surrounding_agent.running_ec.function
         O = OrdinaryCreateFromConstructor(newTarget, f'%{name}ErrorPrototype%', ['ErrorData'])
         if message is not None:
@@ -18945,7 +19226,99 @@ if __name__ == '__main__':
           throw 'Test262: This statement should not be evaluated.';
         }
 
-        throw $ERROR('I am a teapot.');
+        function assert(mustBeTrue, message) {
+          if (mustBeTrue === true) {
+            return;
+          }
+
+          if (message === undefined) {
+            message = 'Expected true but got ' + String(mustBeTrue);
+          }
+          $ERROR(message);
+        }
+
+        assert._isSameValue = function (a, b) {
+          if (a === b) {
+            // Handle +/-0 vs. -/+0
+            return a !== 0 || 1 / a === 1 / b;
+          }
+
+          // Handle NaN vs. NaN
+          return a !== a && b !== b;
+        };
+
+        assert.sameValue = function (actual, expected, message) {
+          try {
+            if (assert._isSameValue(actual, expected)) {
+              return;
+            }
+          } catch (error) {
+            $ERROR(message + ' (_isSameValue operation threw) ' + error);
+            return;
+          }
+
+          if (message === undefined) {
+            message = '';
+          } else {
+            message += ' ';
+          }
+
+          message += 'Expected SameValue(«' + String(actual) + '», «' + String(expected) + '») to be true';
+
+          $ERROR(message);
+        };
+
+        assert.notSameValue = function (actual, unexpected, message) {
+          if (!assert._isSameValue(actual, unexpected)) {
+            return;
+          }
+
+          if (message === undefined) {
+            message = '';
+          } else {
+            message += ' ';
+          }
+
+          message += 'Expected SameValue(«' + String(actual) + '», «' + String(unexpected) + '») to be false';
+
+          $ERROR(message);
+        };
+
+        assert.throws = function (expectedErrorConstructor, func, message) {
+          if (typeof func !== 'function') {
+            $ERROR('assert.throws requires two arguments: the error constructor ' +
+              'and a function to run');
+            return;
+          }
+          if (message === undefined) {
+            message = '';
+          } else {
+            message += ' ';
+          }
+
+          try {
+            func();
+          } catch (thrown) {
+            if (typeof thrown !== 'object' || thrown === null) {
+              message += 'Thrown value was not an object!';
+              $ERROR(message);
+            } else if (thrown.constructor !== expectedErrorConstructor) {
+              message += 'Expected a ' + expectedErrorConstructor.name + ' but got a ' + thrown.constructor.name;
+              $ERROR(message);
+            }
+            return;
+          }
+
+          message += 'Expected a ' + expectedErrorConstructor.name + ' to be thrown but no exception was thrown at all';
+          $ERROR(message);
+        };
+
+
+
+assert(typeof Test262Error === "function");
+assert(typeof Test262Error.prototype.toString === "function");
+assert(typeof $ERROR === "function");
+assert(typeof $DONOTEVALUATE === "function");
         """])
     except ESError as err:
         InitializeHostDefinedRealm()
