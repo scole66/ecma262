@@ -116,7 +116,7 @@ multiple lines!
                             ('\\ufd69thing', [{'type': 'IDENTIFIER', 'value': '\ufd69thing'}]),
                             ('_\\u0068pop', [{'type': 'IDENTIFIER', 'value': '_hpop'}]),
                             ('\\u{10330}it', [{'type': 'IDENTIFIER', 'value': chr(0x10330)+'it'}]),
-                            #('""', [{'type': Lexer.Type.Token, 'value': '""'}]),
+                            ('""', [{'type': 'STRING', 'value': ''}]),
                             ("''", [{'type': 'STRING', 'value': ''}]),
                             ("'\\b'", [{'type': 'STRING', 'value': '\x08'}]),
                             ("'abcd'", [{'type': 'STRING', 'value': 'abcd'}]),
