@@ -4766,9 +4766,10 @@ def JSFunction_Construct(F, argumentsList, newTarget):
     except ESReturn as abrupt:
         result = abrupt.completion.value
         saw_return = True
-    # 12. Remove calleeContext from the execution context stack and restore callerContext as the running execution context.
-    surrounding_agent.ec_stack.pop()
-    surrounding_agent.running_ec = surrounding_agent.ec_stack[-1]
+    finally:
+        # 12. Remove calleeContext from the execution context stack and restore callerContext as the running execution context.
+        surrounding_agent.ec_stack.pop()
+        surrounding_agent.running_ec = surrounding_agent.ec_stack[-1]
     # 13. If result.[[Type]] is return, then
     if saw_return:
         # a. If Type(result.[[Value]]) is Object, return result.[[Value]])
@@ -5361,13 +5362,13 @@ def BuiltinFunction_Construct(self, arguments_list, new_target):
     # 10. Let result be the Completion Record that is the result of evaluating F in an implementation-defined manner that
     #     conforms to the specification of F. The this value is uninitialized, argumentsList provides the named parameters, and
     #     newTarget provides the NewTarget value.
-    result = self.steps(None, new_target, *arguments_list)
-    if not isinstance(result, Completion):
-        result = result
+    try:
+        result = self.steps(None, new_target, *arguments_list)
     # 11. Remove calleeContext from the execution context stack and restore callerContext as the running execution
     #     context.
-    surrounding_agent.ec_stack.pop()
-    surrounding_agent.running_ec = caller_context
+    finally:
+        surrounding_agent.ec_stack.pop()
+        surrounding_agent.running_ec = caller_context
     # 12. Return result.
     return result
     # NOTE
