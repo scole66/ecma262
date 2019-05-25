@@ -10001,6 +10001,15 @@ def DivideOperation(lval, rval):
     operands = prep_for_math(lval, rval)
     lnum, rnum = operands
     # Return the result of dividing lnum and rnum.
+    if math.isnan(lnum) or math.isnan(rnum):
+        return math.nan
+    if math.isinf(lnum) and math.isinf(rnum):
+        return math.nan
+    if lnum == 0.0 and rnum == 0.0:
+        return math.nan
+    result_sign = math.copysign(1.0, lnum) * math.copysign(1.0, rnum)
+    if rnum == 0.0:
+        return result_sign * math.inf
     return lnum / rnum
 def ModuloOperation(lval, rval):
     # Do number conversion on the operands, forming lnum and rnum
