@@ -17564,6 +17564,10 @@ def ScriptEvaluationJob(source_text, host_defined):
     return ScriptEvaluation(script_nodes)
 
 # 16.1 HostReportErrors ( errorList )
+HostErrorReporter = None
+def SetHostErrorCallback(fcn):
+    global HostErrorReporter
+    HostErrorReporter = fcn
 def HostReportErrors(errorList):
     # HostReportErrors is an implementation-defined abstract operation that allows host environments to report parsing
     # errors, early errors, and runtime errors.
@@ -17575,8 +17579,11 @@ def HostReportErrors(errorList):
     # errorList will be a List of ECMAScript language values. If the errors are parsing errors or early errors, these
     # will always be SyntaxError or ReferenceError objects. Runtime errors, however, can be any ECMAScript value.
 
-    for err in errorList:
-        print(ToString(err))
+    if HostErrorReporter:
+        HostErrorReporter(errorList)
+    else:
+        for err in errorList:
+            print(ToString(err))
 
     return Empty.EMPTY
 
