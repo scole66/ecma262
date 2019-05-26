@@ -1,6 +1,7 @@
 """
 Scole's ECMAScript 9 system
 """
+import datetime
 from enum import Enum, unique, auto
 from collections import namedtuple, deque, Counter
 from copy import copy
@@ -3998,6 +3999,9 @@ def CreateIntrinsics(realm_rec):
     intrinsics['%ArrayPrototype%'] = CreateArrayPrototype(realm_rec)
     ArrayFixups(realm_rec)
     intrinsics['%ArrayIteratorPrototype%'] = CreateArrayIteratorPrototype(realm_rec)
+    intrinsics['%Date%'] = CreateDateConstructor(realm_rec)
+    intrinsics['%DatePrototype%'] = CreateDatePrototype(realm_rec)
+    DateFixups(realm_rec)
 
     # 14. Return intrinsics.
     return intrinsics
@@ -18879,6 +18883,427 @@ def NumberFixups(realm):
     proto_desc = PropertyDescriptor(value=number_prototype, writable=False, enumerable=False, configurable=False)
     DefinePropertyOrThrow(number_constructor, 'prototype', proto_desc)
     DefinePropertyOrThrow(number_prototype, 'constructor', PropertyDescriptor(value=number_constructor))
+    return None
+
+# 20.3 Date Objects
+# 20.3.1.2 Day Number and Time within Day
+# A given time value t belongs to day number
+#   Day(t) = floor(t / msPerDay)
+# where the number of milliseconds per day is
+#   msPerDay = 86400000
+# The remainder is called the time within the day:
+#   TimeWithinDay(t) = t modulo msPerDay
+msPerDay = 86400000
+def Day(t):
+    return math.floor(t / msPerDay)
+def TimeWithinDay(t):
+    return t % msPerDay
+# 20.3.1.3 Year Number
+# ECMAScript uses a proleptic Gregorian calendar to map a day number to a year number and to determine the month and
+# date within that year. In this calendar, leap years are precisely those which are (divisible by 4) and ((not
+# divisible by 100) or (divisible by 400)). The number of days in year number y is therefore defined by
+#
+#   DaysInYear(y)
+#     = 365 if (y modulo 4) ≠ 0
+#     = 366 if (y modulo 4) = 0 and (y modulo 100) ≠ 0
+#     = 365 if (y modulo 100) = 0 and (y modulo 400) ≠ 0
+#     = 366 if (y modulo 400) = 0
+#
+# All non-leap years have 365 days with the usual number of days per month and leap years have an extra day in
+# February. The day number of the first day of year y is given by:
+#
+#   DayFromYear(y) = 365 × (y-1970) + floor((y-1969)/4) - floor((y-1901)/100) + floor((y-1601)/400)
+#
+# The time value of the start of a year is:
+#
+#   TimeFromYear(y) = msPerDay × DayFromYear(y)
+#
+# A time value determines a year by:
+#
+#   YearFromTime(t) = the largest integer y (closest to positive infinity) such that TimeFromYear(y) ≤ t
+#
+# The leap-year function is 1 for a time within a leap year and otherwise is zero:
+#
+#   InLeapYear(t)
+#       = 0 if DaysInYear(YearFromTime(t)) = 365
+#       = 1 if DaysInYear(YearFromTime(t)) = 366
+def DaysInYear(y):
+    return (365 if y % 4 != 0 else
+            366 if y % 100 != 0 else
+            365 if y % 400 != 0 else
+            366)
+def DayFromYear(y):
+    return 365 * (y-1970) + math.floor((y-1969)/4) - math.floor((y-1901)/100) + math.floor((y-1601)/400)
+def TimeFromYear(y):
+    return msPerDay * DayFromYear(y)
+def YearFromTime(t):
+    year = math.floor(1970 + t/365/msPerDay)  # First guess. Should only be wrong on the high side
+    assert (TimeFromYear(year) > t or TimeFromYear(year+1) > t)
+    while TimeFromYear(year) > t:
+        year -= 1
+    return year
+def InLeapYear(t):
+    return 0 if DaysInYear(YearFromTime(t)) == 365 else 1
+# 20.3.1.4 Month Number
+# Months are identified by an integer in the range 0 to 11, inclusive. The mapping MonthFromTime(t) from a time value t
+# to a month number is defined by:
+#
+#   MonthFromTime(t)
+#       = 0 if 0 ≤ DayWithinYear(t) < 31
+#       = 1 if 31 ≤ DayWithinYear(t) < 59+InLeapYear(t)
+#       = 2 if 59+InLeapYear(t) ≤ DayWithinYear(t) < 90+InLeapYear(t)
+#       = 3 if 90+InLeapYear(t) ≤ DayWithinYear(t) < 120+InLeapYear(t)
+#       = 4 if 120+InLeapYear(t) ≤ DayWithinYear(t) < 151+InLeapYear(t)
+#       = 5 if 151+InLeapYear(t) ≤ DayWithinYear(t) < 181+InLeapYear(t)
+#       = 6 if 181+InLeapYear(t) ≤ DayWithinYear(t) < 212+InLeapYear(t)
+#       = 7 if 212+InLeapYear(t) ≤ DayWithinYear(t) < 243+InLeapYear(t)
+#       = 8 if 243+InLeapYear(t) ≤ DayWithinYear(t) < 273+InLeapYear(t)
+#       = 9 if 273+InLeapYear(t) ≤ DayWithinYear(t) < 304+InLeapYear(t)
+#       = 10 if 304+InLeapYear(t) ≤ DayWithinYear(t) < 334+InLeapYear(t)
+#       = 11 if 334+InLeapYear(t) ≤ DayWithinYear(t) < 365+InLeapYear(t)
+#
+# where
+#
+#   DayWithinYear(t) = Day(t)-DayFromYear(YearFromTime(t))
+#
+# A month value of 0 specifies January; 1 specifies February; 2 specifies March; 3 specifies April; 4 specifies May; 5
+# specifies June; 6 specifies July; 7 specifies August; 8 specifies September; 9 specifies October; 10 specifies
+# November; and 11 specifies December. Note that MonthFromTime(0) = 0, corresponding to Thursday, 01 January, 1970.
+def DayWithinYear(t):
+    return Day(t) - DayFromYear(YearFromTime(t))
+def MonthFromTime(t):
+    day = DayWithinYear(t)
+    monthend = [31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365]
+    leapend = [31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335, 366]
+    checker = monthend if not InLeapYear(t) else leapend
+    for idx, endday in enumerate(checker):
+        if day < endday:
+            return idx
+# 20.3.1.5 Date Number
+# A date number is identified by an integer in the range 1 through 31, inclusive. The mapping DateFromTime(t) from a
+# time value t to a date number is defined by:
+#
+#   DateFromTime(t)
+#       = DayWithinYear(t)+1 if MonthFromTime(t)=0
+#       = DayWithinYear(t)-30 if MonthFromTime(t)=1
+#       = DayWithinYear(t)-58-InLeapYear(t) if MonthFromTime(t)=2
+#       = DayWithinYear(t)-89-InLeapYear(t) if MonthFromTime(t)=3
+#       = DayWithinYear(t)-119-InLeapYear(t) if MonthFromTime(t)=4
+#       = DayWithinYear(t)-150-InLeapYear(t) if MonthFromTime(t)=5
+#       = DayWithinYear(t)-180-InLeapYear(t) if MonthFromTime(t)=6
+#       = DayWithinYear(t)-211-InLeapYear(t) if MonthFromTime(t)=7
+#       = DayWithinYear(t)-242-InLeapYear(t) if MonthFromTime(t)=8
+#       = DayWithinYear(t)-272-InLeapYear(t) if MonthFromTime(t)=9
+#       = DayWithinYear(t)-303-InLeapYear(t) if MonthFromTime(t)=10
+#       = DayWithinYear(t)-333-InLeapYear(t) if MonthFromTime(t)=11
+def DateFromTime(t):
+    non_leap = [1, -30, -58, -89, -119, -150, -180, -211, -242, -272, -303, -333]
+    leap = [1, -30, -59, -90, -120, -151, -181, -212, -243, -273, -304, -334]
+    deltas = leap if InLeapYear(t) else non_leap
+    return DayWithinYear(t) + deltas[MonthFromTime(t)]
+# 20.3.1.6 Week Day
+# The weekday for a particular time value t is defined as
+#
+#   WeekDay(t) = (Day(t) + 4) modulo 7
+#
+# A weekday value of 0 specifies Sunday; 1 specifies Monday; 2 specifies Tuesday; 3 specifies Wednesday; 4 specifies
+# Thursday; 5 specifies Friday; and 6 specifies Saturday. Note that WeekDay(0) = 4, corresponding to Thursday, 01
+# January, 1970.
+def WeekDay(t):
+    return (Day(t) + 4) % 7
+# 20.3.1.7 LocalTZA ( t, isUTC )
+# LocalTZA( t, isUTC ) is an implementation-defined algorithm that must return a number representing milliseconds
+# suitable for adding to a Time Value. The local political rules for standard time and daylight saving time in effect
+# at t should be used to determine the result in the way specified in the following three paragraphs.
+#
+# When isUTC is true, LocalTZA( t, true ) should return the offset of the local time zone from UTC measured in
+# milliseconds at time represented by time value t (UTC). When the result is added to t (UTC), it should yield the
+# local time.
+#
+# When isUTC is false, LocalTZA( t, false ) should return the offset of the local time zone from UTC measured in
+# milliseconds at local time represented by time value tlocal = t. When the result is subtracted from the local time
+# tlocal, it should yield the corresponding UTC.
+#
+# When tlocal represents local time repeating multiple times at a negative time zone transition (e.g. when the
+# daylight saving time ends or the time zone adjustment is decreased due to a time zone rule change) or skipped local
+# time at a positive time zone transitions (e.g. when the daylight saving time starts or the time zone adjustment is
+# increased due to a time zone rule change), tlocal must be interpreted with the time zone adjustment before the
+# transition.
+#
+# If an implementation does not support a conversion described above or if political rules for time t are not available
+# within the implementation, the result must be 0.
+#
+# NOTE
+# It is recommended that implementations use the time zone information of the IANA Time Zone Database
+# https://www.iana.org/time-zones/.
+#
+# 1:30 AM on November 5, 2017 in America/New_York is repeated twice (fall backward), but it must be interpreted as
+# 1:30 AM UTC-04 instead of 1:30 AM UTC-05. LocalTZA(TimeClip(MakeDate(MakeDay(2017, 10, 5), MakeTime(1, 30, 0, 0))),
+# false) is -4 × msPerHour.
+#
+# 2:30 AM on March 12, 2017 in America/New_York does not exist, but it must be interpreted as 2:30 AM UTC-05
+# (equivalent to 3:30 AM UTC-04). LocalTZA(TimeClip(MakeDate(MakeDay(2017, 2, 12), MakeTime(2, 30, 0, 0))), false) is
+# -5 × msPerHour.
+def LocalTZA(t, isUTC):
+    return 0 # @@@ deal with this some other time
+def LocalTime(t):
+    return t + LocalTZA(t, True)
+def UTC(t):
+    return t - LocalTZA(t, False)
+
+HoursPerDay = 24
+MinutesPerHour = 60
+SecondsPerMinute = 60
+msPerSecond = 1000
+msPerMinute = msPerSecond * SecondsPerMinute
+msPerHour = msPerMinute * MinutesPerHour
+# 20.3.1.11 MakeTime ( hour, min, sec, ms )
+# The abstract operation MakeTime calculates a number of milliseconds from its four arguments, which must be ECMAScript
+# Number values. This operator functions as follows:
+#
+#   1. If hour is not finite or min is not finite or sec is not finite or ms is not finite, return NaN.
+#   2. Let h be ! ToInteger(hour).
+#   3. Let m be ! ToInteger(min).
+#   4. Let s be ! ToInteger(sec).
+#   5. Let milli be ! ToInteger(ms).
+#   6. Let t be h * msPerHour + m * msPerMinute + s * msPerSecond + milli, performing the arithmetic according to
+#      IEEE 754-2008 rules (that is, as if using the ECMAScript operators * and +).
+#   7. Return t.
+def MakeTime(hour, min, sec, ms):
+    if any(not math.isfinite(x) for x in (hour, min, sec, ms)):
+        return math.nan
+    h = ToInteger(hour)
+    m = ToInteger(min)
+    s = ToInteger(sec)
+    milli = ToInteger(ms)
+    return h * msPerHour + m * msPerMinute + s * msPerSecond + milli
+# 20.3.1.12 MakeDay ( year, month, date )
+# The abstract operation MakeDay calculates a number of days from its three arguments, which must be ECMAScript Number
+# values. This operator functions as follows:
+#
+#   1. If year is not finite or month is not finite or date is not finite, return NaN.
+#   2. Let y be ! ToInteger(year).
+#   3. Let m be ! ToInteger(month).
+#   4. Let dt be ! ToInteger(date).
+#   5. Let ym be y + floor(m / 12).
+#   6. Let mn be m modulo 12.
+#   7. Find a value t such that YearFromTime(t) is ym and MonthFromTime(t) is mn and DateFromTime(t) is 1; but if this
+#      is not possible (because some argument is out of range), return NaN.
+#   8. Return Day(t) + dt - 1.
+def MakeDay(year, month, date):
+    if any(not math.isfinite(x) for x in (year, month, date)):
+        return math.nan
+    y = ToInteger(year)
+    m = ToInteger(month)
+    dt = ToInteger(date)
+    ym = y + math.floor(m/12)
+    mn = round(m % 12)
+    t = TimeFromYear(y)
+    days_to_start_of_month = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]
+    days_to_start_of_month_leap = [ 0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335]
+    t += msPerDay * (days_to_start_of_month_leap if InLeapYear(t) else days_to_start_of_month)[mn]
+    assert YearFromTime(t) == ym and MonthFromTime(t) == mn and DateFromTime(t) == 1
+    return Day(t) + dt - 1
+# 20.3.1.13 MakeDate ( day, time )
+# The abstract operation MakeDate calculates a number of milliseconds from its two arguments, which must be ECMAScript
+# Number values. This operator functions as follows:
+#
+#   1. If day is not finite or time is not finite, return NaN.
+#   2. Return day × msPerDay + time.
+def MakeDate(day, time):
+    if any(not math.isfinite(x) for x in (day, time)):
+        return math.nan
+    return day * msPerDay + time
+# 20.3.1.14 TimeClip ( time )
+# The abstract operation TimeClip calculates a number of milliseconds from its argument, which must be an ECMAScript
+# Number value. This operator functions as follows:
+#
+#   1. If time is not finite, return NaN.
+#   2. If abs(time) > 8.64 × 10^15, return NaN.
+#   3. Let clippedTime be ! ToInteger(time).
+#   4. If clippedTime is -0, set clippedTime to +0.
+#   5. Return clippedTime.
+def TimeClip(time):
+    if not math.isfinite(time) or abs(time) > 8.64e15:
+        return math.nan
+    clippedTime = ToInteger(time)
+    if clippedTime == 0.0:
+        clippedTime = 0
+    return clippedTime
+# 20.3.2 The Date Constructor
+# The Date constructor:
+#
+#   * is the intrinsic object %Date%.
+#   * is the initial value of the Date property of the global object.
+#   * creates and initializes a new Date object when called as a constructor.
+#   * returns a String representing the current time (UTC) when called as a function rather than as a constructor.
+#   * is a single function whose behaviour is overloaded based upon the number and types of its arguments.
+#   * is designed to be subclassable. It may be used as the value of an extends clause of a class definition. Subclass
+#     constructors that intend to inherit the specified Date behaviour must include a super call to the Date
+#     constructor to create and initialize the subclass instance with a [[DateValue]] internal slot.
+#   * has a length property whose value is 7.
+def CreateDateConstructor(realm):
+    obj = CreateBuiltinFunction(DateFunction, ['Construct'], realm=realm)
+    for key, value in (('length', 7), ('name', 'Date')):
+        desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)
+        DefinePropertyOrThrow(obj, key, desc)
+    return obj
+# 20.3.2.1 Date ( year, month [ , date [ , hours [ , minutes [ , seconds [ , ms ] ] ] ] ] )
+# This description applies only if the Date constructor is called with at least two arguments.
+#
+# When the Date function is called, the following steps are taken:
+#
+#   1. Let numberOfArgs be the number of arguments passed to this function call.
+#   2. Assert: numberOfArgs ≥ 2.
+#   3. If NewTarget is undefined, then
+#       a. Let now be the Number that is the time value (UTC) identifying the current time.
+#       b. Return ToDateString(now).
+#   4. Else,
+#       a. Let y be ? ToNumber(year).
+#       b. Let m be ? ToNumber(month).
+#       c. If date is present, let dt be ? ToNumber(date); else let dt be 1.
+#       d. If hours is present, let h be ? ToNumber(hours); else let h be 0.
+#       e. If minutes is present, let min be ? ToNumber(minutes); else let min be 0.
+#       f. If seconds is present, let s be ? ToNumber(seconds); else let s be 0.
+#       g. If ms is present, let milli be ? ToNumber(ms); else let milli be 0.
+#       h. If y is not NaN and 0 ≤ ToInteger(y) ≤ 99, let yr be 1900+ToInteger(y); otherwise, let yr be y.
+#       i. Let finalDate be MakeDate(MakeDay(yr, m, dt), MakeTime(h, min, s, milli)).
+#       j. Let O be ? OrdinaryCreateFromConstructor(NewTarget, "%DatePrototype%", « [[DateValue]] »).
+#       k. Set O.[[DateValue]] to TimeClip(UTC(finalDate)).
+#       l. Return O.
+def Date_Function_2plus(this_value, new_target, year, month, date=EMPTY, hours=EMPTY, minutes=EMPTY, seconds=EMPTY, ms=EMPTY):
+    assert new_target is not None
+    y = ToNumber(year)
+    m = ToNumber(month)
+    dt = ToNumber(date) if date != EMPTY else 1
+    h = ToNumber(hours) if hours != EMPTY else 0
+    min = ToNumber(minutes) if minutes != EMPTY else 0
+    s = ToNumber(seconds) if seconds != EMPTY else 0
+    milli = ToNumber(ms) if ms != EMPTY else 0
+    if not math.isnan(y) and 0 <= ToInteger(y) <= 99:
+        yr = 1900 + ToInteger(y)
+    else:
+        yr = y
+    finalDate = MakeDate(MakeDay(yr, m, dt), MakeTime(h, min, s, milli))
+    O = OrdinaryCreateFromConstructor(new_target, '%DatePrototype%', ['DateValue'])
+    O.DateValue = TimeClip(UTC(finalDate))
+    return O
+
+def date_parse(sval):
+    e262_interchange_fmt = re.compile(
+        r'(?P<year>([-+][0-9]{6}|[0-9]{4}))(-(?P<month>[0-9]{2})(-(?P<day>[0-9]{2}))?)?(T(?P<hour>[0-9]{2}):(?P<minute>[0-9]{2})(:(?P<second>[0-9]{2})(\.(?P<milli>[0-9]{3}))?(?P<tz>(Z|[-+][0-9]{2}:[0-9]{2}))?)?)?'
+    )
+    m = e262_interchange_fmt.match(sval)
+    if not m:
+        return math.nan
+    year = int(m['year'])
+    month = int(m['month'] or 1)
+    day = int(m['day'] or 1)
+    hour = int(m['hour'] or 0)
+    minute = int(m['minute'] or 0)
+    second = int(m['second'] or 0)
+    milli = int(m['milli'] or 0)
+    # gonna ignore tz for the time being @@@
+    finalDate = MakeDate(MakeDay(year, month, day), MakeTime(hour, minute, second, milli))
+    return TimeClip(finalDate)
+
+# 20.3.2.2 Date ( value )
+# This description applies only if the Date constructor is called with exactly one argument.
+#
+# When the Date function is called, the following steps are taken:
+#
+#   1. Let numberOfArgs be the number of arguments passed to this function call.
+#   2. Assert: numberOfArgs = 1.
+#   3. If NewTarget is undefined, then
+#       a. Let now be the Number that is the time value (UTC) identifying the current time.
+#       b. Return ToDateString(now).
+#   4. Else,
+#       a. If Type(value) is Object and value has a [[DateValue]] internal slot, then
+#           i. Let tv be thisTimeValue(value).
+#       b. Else,
+#           i. Let v be ? ToPrimitive(value).
+#           ii. If Type(v) is String, then
+#               1. Assert: The next step never returns an abrupt completion because v is a String value.
+#               2. Let tv be the result of parsing v as a date, in exactly the same manner as for the parse method (20.3.3.2).
+#           iii. Else,
+#               1. Let tv be ? ToNumber(v).
+#       c. Let O be ? OrdinaryCreateFromConstructor(NewTarget, "%DatePrototype%", « [[DateValue]] »).
+#       d. Set O.[[DateValue]] to TimeClip(tv).
+#       e. Return O.
+def Date_Function_1arg(this_value, new_target, value):
+    assert new_target is not None
+    if isObject(value) and hasattr(value, 'DateValue'):
+        tv = value.DateValue
+    else:
+        v = ToPrimitive(value)
+        if isString(v):
+            tv = date_parse(v)
+        else:
+            tv = ToNumber(v)
+    O = OrdinaryCreateFromConstructor(new_target, '%DatePrototype%', ['DateValue'])
+    O.DateValue = TimeClip(tv)
+    return O
+# 20.3.2.3 Date ( )
+def Date_Function_noargs(this_value, new_target):
+    # This description applies only if the Date constructor is called with no arguments.
+    #
+    # When the Date function is called, the following steps are taken:
+    #
+    #   1. Let numberOfArgs be the number of arguments passed to this function call.
+    #   2. Assert: numberOfArgs = 0.
+    #   3. If NewTarget is undefined, then
+    #       a. Let now be the Number that is the time value (UTC) identifying the current time.
+    #       b. Return ToDateString(now).
+    #   4. Else,
+    #       a. Let O be ? OrdinaryCreateFromConstructor(NewTarget, "%DatePrototype%", « [[DateValue]] »).
+    #       b. Set O.[[DateValue]] to the time value (UTC) identifying the current time.
+    #       c. Return O.
+    O = OrdinaryCreateFromConstructor(new_target, '%DatePrototype%', ['DateValue'])
+    O.DateValue = datetime.datetime.utcnow().timestamp() * 1000
+    return O
+def DateFunction(this_value, new_target, *args):
+    if new_target is None:
+        now = datetime.datetime.utcnow().timestamp() * 1000
+        return ToDateString(now)
+    if len(args) == 0:
+        return Date_Function_noargs(this_value, new_target)
+    if len(args) == 1:
+        return Date_Function_1arg(this_value, new_target, *args)
+    return Date_Function_2plus(this_value, new_target, *args)
+
+def thisTimeValue(obj):
+    if isObject(obj) and hasattr(obj, 'DateValue'):
+        return obj.DateValue
+    raise ESTypeError(f'{ToString(obj)}: not a date object')
+
+def CreateDatePrototype(realm):
+    date_prototype = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
+    BindBuiltinFunctions(realm, date_prototype, [
+        ('getTimezoneOffset', DatePrototype_getTimezoneOffset, 0),
+        ('valueOf', DatePrototype_valueOf, 0),
+    ])
+    return date_prototype
+
+# 20.3.4.11 Date.prototype.getTimezoneOffset ( )
+def DatePrototype_getTimezoneOffset(this_value, new_target):
+    # The following steps are performed:
+    #
+    #   1. Let t be ? thisTimeValue(this value).
+    #   2. If t is NaN, return NaN.
+    #   3. Return (t - LocalTime(t)) / msPerMinute.
+    t = thisTimeValue(this_value)
+    if math.isnan(t):
+        return t
+    return (t - LocalTime(t)) / msPerMinute
+def DatePrototype_valueOf(this_value, new_target):
+    return thisTimeValue(this_value)
+
+def DateFixups(realm):
+    date_constructor = realm.intrinsics['%Date%']
+    date_prototype = realm.intrinsics['%DatePrototype%']
+    proto_desc = PropertyDescriptor(value=date_prototype, writable=False, enumerable=False, configurable=False)
+    DefinePropertyOrThrow(date_constructor, 'prototype', proto_desc)
+    DefinePropertyOrThrow(date_prototype, 'constructor', PropertyDescriptor(value=date_constructor))
     return None
 
 # ------------------------------------ 𝟐𝟏 𝑻𝒆𝒙𝒕 𝑷𝒓𝒐𝒄𝒆𝒔𝒔𝒊𝒏𝒈 ------------------------------------
