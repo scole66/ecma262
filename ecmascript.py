@@ -6398,6 +6398,8 @@ class Lexer():
 
         'OF', # Not marked as a ReservedWord in the spec, but it's used as one in for statements.
         'LET', # Also not marked as a ReservedWord
+        'SET',
+        'GET',
 
         'GOAL_SCRIPT', 'GOAL_CALLMEMBEREXPRESSION', 'GOAL_PARENTHESIZEDEXPRESSION', 'GOAL_ASSIGNMENTPATTERN'
          }
@@ -6922,7 +6924,7 @@ class Lexer():
             'finally', 'for', 'function', 'if', 'import', 'in', 'instanceof',
             'new', 'return', 'super', 'switch', 'this', 'throw', 'try', 'typeof',
             'var', 'void', 'while', 'with', 'yield', 'enum', 'null', 'true',
-            'false', 'of', 'let' ] # ('of' and 'let' are not technically reserved, but we have to treat them as word tokens)
+            'false', 'of', 'let', 'get', 'set' ] # ('of' and 'let' are not technically reserved, but we have to treat them as word tokens)
         return word.upper() if word in reserved_word_tokens else None
 
     @staticmethod
@@ -8274,6 +8276,7 @@ class PN_PropertyDefinition_MethodDefinition(PN_PropertyDefinition):
         # * It is a Syntax Error if HasDirectSuper of MethodDefinition is true.
         if self.MethodDefinition.HasDirectSuper():
             return [CreateSyntaxError('super not allowed in object literal creation')]
+        return []
     def Contains(self, symbol):
         # 12.2.6.3 Static Semantics: Contains
         #   With parameter symbol.
@@ -8737,9 +8740,9 @@ def EvaluateCall(func, ref, arguments, tailPosition):
         thisValue = None
     argList = arguments.ArgumentListEvaluation()
     if not isObject(func):
-        raise ESTypeError('Not a function')
+        raise ESTypeError(f'Not a function: {ToString(func)}')
     if not IsCallable(func):
-        raise ESTypeError('Not a function')
+        raise ESTypeError(f'Not a function: {ToString(func)}')
     if tailPosition:
         PrepareForTailCall()
     result = Call(func, thisValue, argList)
@@ -14897,6 +14900,245 @@ class PN_FunctionStatementList_StatementList(PN_FunctionStatementList):
         # FunctionStatementList : StatementList
         #   1. Return the TopLevelVarScopedDeclarations of StatementList.
         return self.StatementList.TopLevelVarScopedDeclarations()
+
+# 14.3 Method Definitions
+# ------------------------------------ 𝑴𝒆𝒕𝒉𝒐𝒅𝑫𝒆𝒇𝒊𝒏𝒊𝒕𝒊𝒐𝒏 ------------------------------------
+class PN_MethodDefinition(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('MethodDefinition', p)
+        self.context = ctx
+class PN_MethodDefinition_PropertyName(PN_MethodDefinition):
+    # For the productions that have a PropertyName:
+    #   MethodDefinition : PropertyName ( UniqueFormalParameters ) { FunctionBody }
+    #   MethodDefinition : get PropertyName ( ) { FunctionBody }
+    #   MethodDefinition : set PropertyName ( PropertySetParameterList ) { FunctionBody }
+    @property
+    def PropertyName(self):
+        raise NotImplementedError('Abstract class should not be instantiated')
+    def ComputedPropertyContains(self, symbol):
+        # 14.3.2 Static Semantics: ComputedPropertyContains
+        #   With parameter symbol.
+        #   1. Return the result of ComputedPropertyContains for PropertyName with argument symbol.
+        return self.PropertyName.ComputedPropertyContains(symbol)
+    def PropName(self):
+        # 14.3.5 Static Semantics: PropName
+        #   1. Return PropName of PropertyName.
+        return self.PropertyName.PropName()
+class PN_MethodDefinition_PropertyName_LPAREN_UniqueFormalParameters_RPAREN_LCURLY_FunctionBody_RCURLY(PN_MethodDefinition_PropertyName):
+    # 𝑴𝒆𝒕𝒉𝒐𝒅𝑫𝒆𝒇𝒊𝒏𝒊𝒕𝒊𝒐𝒏 : 𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚𝑵𝒂𝒎𝒆 ( 𝑼𝒏𝒊𝒒𝒖𝒆𝑭𝒐𝒓𝒎𝒂𝒍𝑷𝒂𝒓𝒂𝒎𝒆𝒕𝒆𝒓𝒔 ) { 𝑭𝒖𝒏𝒄𝒕𝒊𝒐𝒏𝑩𝒐𝒅𝒚 }
+    @property
+    def PropertyName(self):
+        return self.children[0]
+    @property
+    def UniqueFormalParameters(self):
+        return self.children[2]
+    @property
+    def FunctionBody(self):
+        return self.children[5]
+    def EarlyErrors(self):
+        # 14.3.1 Static Semantics: Early Errors
+        #   * It is a Syntax Error if ContainsUseStrict of FunctionBody is true and IsSimpleParameterList of UniqueFormalParameters is false.
+        #   * It is a Syntax Error if any element of the BoundNames of UniqueFormalParameters also occurs in the LexicallyDeclaredNames of FunctionBody.
+        errs = []
+        if self.FunctionBody.ContainsUseStrict() and not self.UniqueFormalParameters.IsSimpleParameterList():
+            errs.append(CreateSyntaxError('Complex parameter lists not allowed in strict mode'))
+        bn = self.UniqueFormalParameters.BoundNames()
+        ldn = self.FunctionBody.LexicallyDeclaredNames()
+        duplicates = set(bn).intersection(set(ldn))
+        if duplicates:
+            errs.append(CreateSyntaxError(f'Parameter names and lexical declarations must not clash. (Clashing identifiers: {", ".join(duplicates)})'))
+        return errs
+    def HasDirectSuper(self):
+        # 14.3.4 Static Semantics: HasDirectSuper
+        #   1. If UniqueFormalParameters Contains SuperCall is true, return true.
+        #   2. Return FunctionBody Contains SuperCall.
+        return any(pn.Contains('SuperCall') for pn in (self.UniqueFormalParameters, self.FunctionBody))
+    def SpecialMethod(self):
+        # 14.3.6 Static Semantics: SpecialMethod
+        #   1. Return false.
+        return False
+    def DefineMethod(self, object, functionPrototype=EMPTY):
+        # 14.3.7 Runtime Semantics: DefineMethod
+        #   With parameters object and optional parameter functionPrototype.
+        #   1. Let propKey be the result of evaluating PropertyName.
+        #   2. ReturnIfAbrupt(propKey).
+        #   3. If the function code for this MethodDefinition is strict mode code, let strict be true. Otherwise let strict be false.
+        #   4. Let scope be the running execution context's LexicalEnvironment.
+        #   5. If functionPrototype is present as a parameter, then
+        #       a. Let kind be Normal.
+        #       b. Let prototype be functionPrototype.
+        #   6. Else,
+        #       a. Let kind be Method.
+        #       b. Let prototype be the intrinsic object %FunctionPrototype%.
+        #   7. Let closure be FunctionCreate(kind, UniqueFormalParameters, FunctionBody, scope, strict, prototype).
+        #   8. Perform MakeMethod(closure, object).
+        #   9. Set closure.[[SourceText]] to the source text matched by MethodDefinition.
+        #   10. Return the Record { [[Key]]: propKey, [[Closure]]: closure }.
+        propKey = self.PropertyName.evaluate()
+        scope = surrounding_agent.running_ec.lexical_environment
+        if functionPrototype != EMPTY:
+            kind = NORMAL
+            prototype = functionPrototype
+        else:
+            kind = METHOD
+            prototype = surrounding_agent.running_ec.realm.intrinsics['%FunctionPrototype%']
+        closure = FunctionCreate(kind, self.UniqueFormalParameters, self.FunctionBody, scope, self.context.strict, prototype)
+        MakeMethod(closure, object)
+        start, end = self.source_range()
+        closure.SourceText = self.context.source_text[start:end]
+        return Record(Key=propKey, Closure=closure)
+    def PropertyDefinitionEvaluation(self, object, enumerable):
+        # 14.3.8 Runtime Semantics: PropertyDefinitionEvaluation
+        #   With parameters object and enumerable.
+        #   1. Let methodDef be DefineMethod of MethodDefinition with argument object.
+        #   2. ReturnIfAbrupt(methodDef).
+        #   3. Perform SetFunctionName(methodDef.[[Closure]], methodDef.[[Key]]).
+        #   4. Let desc be the PropertyDescriptor { [[Value]]: methodDef.[[Closure]], [[Writable]]: true, [[Enumerable]]: enumerable, [[Configurable]]: true }.
+        #   5. Return ? DefinePropertyOrThrow(object, methodDef.[[Key]], desc).
+        methodDef = self.DefineMethod(object)
+        SetFunctionName(methodDef.Closure, methodDef.Key)
+        desc = PropertyDescriptor(value=methodDef.Closure, writable=True, enumerable=enumerable, configurable=True)
+        return DefinePropertyOrThrow(object, methodDef.Key, desc)
+class PN_MethodDefinition_GeneratorMethod(PN_MethodDefinition):
+    @property
+    def GeneratorMethod(self):
+        return self.children[0]
+    def SpecialMethod(self):
+        # 14.3.6 Static Semantics: SpecialMethod
+        #   1. Return true.
+        return True
+class PN_MethodDefinition_AsyncMethod(PN_MethodDefinition):
+    @property
+    def AsyncMethod(self):
+        return self.children[0]
+    def SpecialMethod(self):
+        # 14.3.6 Static Semantics: SpecialMethod
+        #   1. Return true.
+        return True
+class PN_MethodDefinition_AsyncGeneratorMethod(PN_MethodDefinition):
+    @property
+    def AsyncGeneratorMethod(self):
+        return self.children[0]
+    def SpecialMethod(self):
+        # 14.3.6 Static Semantics: SpecialMethod
+        #   1. Return true.
+        return True
+class PN_MethodDefinition_GET_PropertyName_LPAREN_RPAREN_LCURLY_FunctionBody_RCURLY(PN_MethodDefinition_PropertyName):
+    # 𝑴𝒆𝒕𝒉𝒐𝒅𝑫𝒆𝒇𝒊𝒏𝒊𝒕𝒊𝒐𝒏 : 𝗴𝗲𝘁 𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚𝑵𝒂𝒎𝒆 ( ) { 𝑭𝒖𝒏𝒄𝒕𝒊𝒐𝒏𝑩𝒐𝒅𝒚 }
+    @property
+    def PropertyName(self):
+        return self.children[1]
+    @property
+    def FunctionBody(self):
+        return self.children[5]
+    def HasDirectSuper(self):
+        # 14.3.4 Static Semantics: HasDirectSuper
+        #   1. Return FunctionBody Contains SuperCall.
+        return self.FunctionBody.Contains('SuperCall')
+    def SpecialMethod(self):
+        # 14.3.6 Static Semantics: SpecialMethod
+        #   1. Return true.
+        return True
+    def PropertyDefinitionEvaluation(self, object, enumerable):
+        # 14.3.8 Runtime Semantics: PropertyDefinitionEvaluation
+        #   With parameters object and enumerable.
+        #   1. Let propKey be the result of evaluating PropertyName.
+        #   2. ReturnIfAbrupt(propKey).
+        #   3. If the function code for this MethodDefinition is strict mode code, let strict be true. Otherwise let strict be false.
+        #   4. Let scope be the running execution context's LexicalEnvironment.
+        #   5. Let formalParameterList be an instance of the production FormalParameters:[empty] .
+        #   6. Let closure be FunctionCreate(Method, formalParameterList, FunctionBody, scope, strict).
+        #   7. Perform MakeMethod(closure, object).
+        #   8. Perform SetFunctionName(closure, propKey, "get").
+        #   9. Set closure.[[SourceText]] to the source text matched by MethodDefinition.
+        #   10. Let desc be the PropertyDescriptor { [[Get]]: closure, [[Enumerable]]: enumerable, [[Configurable]]: true }.
+        #   11. Return ? DefinePropertyOrThrow(object, propKey, desc).
+        propKey = self.PropertyName.evaluate()
+        scope = surrounding_agent.running_ec.lexical_environment
+        formalParameterList = PN_FormalParameters_empty(self.context, [MakeEmptyNode()])
+        closure = FunctionCreate(METHOD, formalParameterList, self.FunctionBody, scope, self.context.strict)
+        MakeMethod(closure, object)
+        SetFunctionName(closure, propKey, 'get')
+        src_start, src_end = self.source_range()
+        closure.SourceText = self.context.source_text[src_start:src_end]
+        desc = PropertyDescriptor(Get=closure, enumerable=enumerable, configurable=True)
+        return DefinePropertyOrThrow(object, propKey, desc)
+class PN_MethodDefinition_SET_PropertyName_LPAREN_PropertySetParameterList_RPAREN_LCURLY_FunctionBody_RCURLY(PN_MethodDefinition_PropertyName):
+    # 𝑴𝒆𝒕𝒉𝒐𝒅𝑫𝒆𝒇𝒊𝒏𝒊𝒕𝒊𝒐𝒏 : 𝘀𝗲𝘁 𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚𝑵𝒂𝒎𝒆 ( 𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚𝑺𝒆𝒕𝑷𝒂𝒓𝒂𝒎𝒆𝒕𝒆𝒓𝑳𝒊𝒔𝒕 ) { 𝑭𝒖𝒏𝒄𝒕𝒊𝒐𝒏𝑩𝒐𝒅𝒚 }
+    @property
+    def PropertyName(self):
+        return self.children[1]
+    @property
+    def PropertySetParameterList(self):
+        return self.children[3]
+    @property
+    def FunctionBody(self):
+        return self.children[6]
+    def EarlyErrors(self):
+        # 14.3.1 Static Semantics: Early Errors
+        #   * It is a Syntax Error if BoundNames of PropertySetParameterList contains any duplicate elements.
+        #   * It is a Syntax Error if ContainsUseStrict of FunctionBody is true and IsSimpleParameterList of PropertySetParameterList is false.
+        #   * It is a Syntax Error if any element of the BoundNames of PropertySetParameterList also occurs in the LexicallyDeclaredNames of FunctionBody.
+        errs = []
+        bn = self.PropertySetParameterList.BoundNames()
+        duplicates = [name for name, count in Counter(bn).items() if count > 1]
+        if duplicates:
+            errs.append(CreateSyntaxError(f'Multiple definitions in parameter list: {", ".join(duplicates)}'))
+        if self.FunctionBody.ContainsUseStrict() and not self.PropertySetParameterList.IsSimpleParameterList():
+            errs.append(CreateSyntaxError('Complex parameter lists not allowed for strict functions'))
+        ldn = self.FunctionBody.LexicallyDeclaredNames()
+        clashes = set(bn).intersection(set(ldn))
+        if clashes:
+            errs.append(CreateSyntaxError(f'Parameter names and lexical declarations must not clash. (Clashing identifiers: {", ".join(clashes)})'))
+        return errs
+    def HasDirectSuper(self):
+        # 14.3.4 Static Semantics: HasDirectSuper
+        #   1. If PropertySetParameterList Contains SuperCall is true, return true.
+        #   2. Return FunctionBody Contains SuperCall.
+        return any(pn.contains('SuperCall') for pn in (self.PropertySetParameterList, self.FunctionBody))
+    def SpecialMethod(self):
+        # 14.3.6 Static Semantics: SpecialMethod
+        #   1. Return true.
+        return True
+    def PropertyDefinitionEvaluation(self, object, enumerable):
+        # 14.3.8 Runtime Semantics: PropertyDefinitionEvaluation
+        #   With parameters object and enumerable.
+        #   1. Let propKey be the result of evaluating PropertyName.
+        #   2. ReturnIfAbrupt(propKey).
+        #   3. If the function code for this MethodDefinition is strict mode code, let strict be true. Otherwise let strict be false.
+        #   4. Let scope be the running execution context's LexicalEnvironment.
+        #   5. Let closure be FunctionCreate(Method, PropertySetParameterList, FunctionBody, scope, strict).
+        #   6. Perform MakeMethod(closure, object).
+        #   7. Perform SetFunctionName(closure, propKey, "set").
+        #   8. Set closure.[[SourceText]] to the source text matched by MethodDefinition.
+        #   9. Let desc be the PropertyDescriptor { [[Set]]: closure, [[Enumerable]]: enumerable, [[Configurable]]: true }.
+        #   10. Return ? DefinePropertyOrThrow(object, propKey, desc).
+        propKey = self.PropertyName.evaluate()
+        scope = surrounding_agent.running_ec.lexical_environment
+        formalParameterList = PN_FormalParameters_empty(self.context, [MakeEmptyNode()])
+        closure = FunctionCreate(METHOD, self.PropertySetParameterList, self.FunctionBody, scope, self.context.strict)
+        MakeMethod(closure, object)
+        SetFunctionName(closure, propKey, 'set')
+        src_start, src_end = self.source_range()
+        closure.SourceText = self.context.source_text[src_start:src_end]
+        desc = PropertyDescriptor(Set=closure, enumerable=enumerable, configurable=True)
+        return DefinePropertyOrThrow(object, propKey, desc)
+
+# ------------------------------------ 𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚𝑺𝒆𝒕𝑷𝒂𝒓𝒂𝒎𝒆𝒕𝒆𝒓𝑳𝒊𝒔𝒕 ------------------------------------
+class PN_PropertySetParameterList(ParseNode):
+    def __init__(self, ctx, p):
+        super().__init__('PropertySetParameterList', p)
+class PN_PropertySetParameterList_FormalParameter(PN_PropertySetParameterList):
+    # 𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚𝑺𝒆𝒕𝑷𝒂𝒓𝒂𝒎𝒆𝒕𝒆𝒓𝑳𝒊𝒔𝒕 : 𝑭𝒐𝒓𝒎𝒂𝒍𝑷𝒂𝒓𝒂𝒎𝒆𝒕𝒆𝒓
+    @property
+    def FormalParameter(self):
+        return self.children[0]
+    def ExpectedArgumentCount(self):
+        # 14.3.3 Static Semantics: ExpectedArgumentCount
+        #   1. If HasInitializer of FormalParameter is true, return 0.
+        #   2. Return 1.
+        return 0 if self.FormalParameter.HasInitializer() else 1
+
 # 14.8 Async Arrow Function Definitions
 # ------------------------------------ 𝑪𝒐𝒗𝒆𝒓𝑪𝒂𝒍𝒍𝑬𝒙𝒑𝒓𝒆𝒔𝒔𝒊𝒐𝒏𝑨𝒏𝒅𝑨𝒔𝒚𝒏𝒄𝑨𝒓𝒓𝒐𝒘𝑯𝒆𝒂𝒅 ------------------------------------
 class PN_CoverCallExpressionAndAsyncArrowHead(ParseNode):
@@ -15013,7 +15255,7 @@ class Ecma262Parser(Parser):
     debugfile = 'parser.out'
 
     def error(self, p):
-        raise SyntaxError(f'Syntax Error in script. Offending token: {p!r}')
+        raise ESSyntaxError(f'Syntax Error in script. Offending token: {p!r}')
 
     class ParseContext:
         __slots__ = ['goal', 'strict', 'direct_eval', 'source_text']
@@ -15082,6 +15324,44 @@ class Ecma262Parser(Parser):
     @_('MemberExpression_Restricted Arguments')  # pylint: disable=undefined-variable
     def CoverCallExpressionAndAsyncArrowHead_Restricted(self, p):
         return PN_CoverCallExpressionAndAsyncArrowHead_MemberExpression_Arguments(self.context, p)
+    ########################################################################################################################
+
+    ########################################################################################################################
+    # 14.3 Method Definitions
+    #
+    # Syntax
+    #
+    # MethodDefinition[Yield, Await] :
+    #       PropertyName[?Yield, ?Await] ( UniqueFormalParameters[~Yield, ~Await] ) { FunctionBody[~Yield, ~Await] }
+    #       GeneratorMethod[?Yield, ?Await]
+    #       AsyncMethod[?Yield, ?Await]
+    #       AsyncGeneratorMethod[?Yield, ?Await]
+    #       get PropertyName[?Yield, ?Await] ( ) { FunctionBody[~Yield, ~Await] }
+    #       set PropertyName[?Yield, ?Await] ( PropertySetParameterList ) { FunctionBody[~Yield, ~Await] }
+    @_('PropertyName LPAREN UniqueFormalParameters RPAREN LCURLY FunctionBody RCURLY')  # pylint: disable=undefined-variable
+    def MethodDefinition(self, p):
+        return PN_MethodDefinition_PropertyName_LPAREN_UniqueFormalParameters_RPAREN_LCURLY_FunctionBody_RCURLY(self.context, p)
+    # @_('GeneratorMethod')  # pyxxxlint: disable=undefined-variable
+    # def MethodDefinition(self, p):
+    #     return PN_MethodDefinition_GeneratorMethod(self.context, p)
+    # @_('AsyncMethod')  # pyxxxlint: disable=undefined-variable
+    # def MethodDefinition(self, p):
+    #     return PN_MethodDefinition_AsyncMethod(self.context, p)
+    # @_('AsyncGeneratorMethod')  # pyxxxlint: disable=undefined-variable
+    # def MethodDefinition(self, p):
+    #     return PN_MethodDefinition_AsyncGeneratorMethod(self.context, p)
+    @_('GET PropertyName LPAREN RPAREN LCURLY FunctionBody RCURLY')  # pylint: disable=undefined-variable
+    def MethodDefinition(self, p):
+        return PN_MethodDefinition_GET_PropertyName_LPAREN_RPAREN_LCURLY_FunctionBody_RCURLY(self.context, p)
+    @_('SET PropertyName LPAREN PropertySetParameterList RPAREN LCURLY FunctionBody RCURLY')  # pylint: disable=undefined-variable
+    def MethodDefinition(self, p):
+        return PN_MethodDefinition_SET_PropertyName_LPAREN_PropertySetParameterList_RPAREN_LCURLY_FunctionBody_RCURLY(self.context, p)
+    #
+    # PropertySetParameterList :
+    #       FormalParameter[~Yield, ~Await]
+    @_('FormalParameter')  # pylint: disable=undefined-variable
+    def PropertySetParameterList(self, p):
+        return PN_PropertySetParameterList_FormalParameter(self.context, p)
     ########################################################################################################################
 
     ########################################################################################################################
@@ -16991,9 +17271,9 @@ class Ecma262Parser(Parser):
     @_('PropertyName COLON AssignmentExpression_In')  # pylint: disable=undefined-variable
     def PropertyDefinition(self, p):
         return PN_PropertyDefinition_PropertyName_COLON_AssignmentExpression(self.context, p)
-#    @_('MethodDefinition')
-#    def PropertyDefinition(self, p):
-#        return PN_PropertyDefinition_MethodDefinition(self.context, p)
+    @_('MethodDefinition')  # pylint: disable=undefined-variable
+    def PropertyDefinition(self, p):
+        return PN_PropertyDefinition_MethodDefinition(self.context, p)
     @_('DOTDOTDOT AssignmentExpression_In')  # pylint: disable=undefined-variable
     def PropertyDefinition(self, p):
         return PN_PropertyDefinition_DOTDOTDOT_AssignmentExpression(self.context, p)
@@ -19215,117 +19495,12 @@ def GetGeneratorKind():
 #######################################################################################################################################################
 if __name__ == '__main__':
     try:
-        rv = RunJobs(scripts=["""
-        function Test262Error(message) {
-          this.message = message || '';
-        }
-
-        Test262Error.prototype.toString = function () {
-          return 'Test262Error: ' + this.message;
-        };
-
-        var $ERROR;
-        $ERROR = function $ERROR(message) {
-          throw new Test262Error(message);
-        };
-
-        function $DONOTEVALUATE() {
-          throw 'Test262: This statement should not be evaluated.';
-        }
-
-        function assert(mustBeTrue, message) {
-          if (mustBeTrue === true) {
-            return;
-          }
-
-          if (message === undefined) {
-            message = 'Expected true but got ' + String(mustBeTrue);
-          }
-          $ERROR(message);
-        }
-
-        assert._isSameValue = function (a, b) {
-          if (a === b) {
-            // Handle +/-0 vs. -/+0
-            return a !== 0 || 1 / a === 1 / b;
-          }
-
-          // Handle NaN vs. NaN
-          return a !== a && b !== b;
-        };
-
-        assert.sameValue = function (actual, expected, message) {
-          try {
-            if (assert._isSameValue(actual, expected)) {
-              return;
+        rv = RunJobs(scripts=[""" // Needs MethodDefinition
+        var thing = {
+            routine(obj) {
+                obj.eatme = true;
             }
-          } catch (error) {
-            $ERROR(message + ' (_isSameValue operation threw) ' + error);
-            return;
-          }
-
-          if (message === undefined) {
-            message = '';
-          } else {
-            message += ' ';
-          }
-
-          message += 'Expected SameValue(«' + String(actual) + '», «' + String(expected) + '») to be true';
-
-          $ERROR(message);
         };
-
-        assert.notSameValue = function (actual, unexpected, message) {
-          if (!assert._isSameValue(actual, unexpected)) {
-            return;
-          }
-
-          if (message === undefined) {
-            message = '';
-          } else {
-            message += ' ';
-          }
-
-          message += 'Expected SameValue(«' + String(actual) + '», «' + String(unexpected) + '») to be false';
-
-          $ERROR(message);
-        };
-
-        assert.throws = function (expectedErrorConstructor, func, message) {
-          if (typeof func !== 'function') {
-            $ERROR('assert.throws requires two arguments: the error constructor ' +
-              'and a function to run');
-            return;
-          }
-          if (message === undefined) {
-            message = '';
-          } else {
-            message += ' ';
-          }
-
-          try {
-            func();
-          } catch (thrown) {
-            if (typeof thrown !== 'object' || thrown === null) {
-              message += 'Thrown value was not an object!';
-              $ERROR(message);
-            } else if (thrown.constructor !== expectedErrorConstructor) {
-              message += 'Expected a ' + expectedErrorConstructor.name + ' but got a ' + thrown.constructor.name;
-              $ERROR(message);
-            }
-            return;
-          }
-
-          message += 'Expected a ' + expectedErrorConstructor.name + ' to be thrown but no exception was thrown at all';
-          $ERROR(message);
-        };
-
-
-
-assert(typeof Test262Error === "function");
-assert(typeof Test262Error.prototype.toString === "function");
-assert(typeof $ERROR === "function");
-assert(typeof $DONOTEVALUATE === "function");
         """])
     except ESError as err:
         InitializeHostDefinedRealm()
