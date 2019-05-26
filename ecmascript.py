@@ -40,6 +40,8 @@ class ECMAScriptEnum(Enum):
     SYNC = auto()
     ASYNC = auto()
     NON_GENERATOR = auto()
+    SIMPLE = auto()
+    INVALID = auto()
 ENUMERATE = ECMAScriptEnum.ENUMERATE
 ASSIGNMENT = ECMAScriptEnum.ASSIGNMENT
 VARBINDING = ECMAScriptEnum.VARBINDING
@@ -49,6 +51,8 @@ ASYNC_ITERATE = ECMAScriptEnum.ASYNC_ITERATE
 SYNC = ECMAScriptEnum.SYNC
 ASYNC = ECMAScriptEnum.ASYNC
 NON_GENERATOR = ECMAScriptEnum.NON_GENERATOR
+SIMPLE = ECMAScriptEnum.SIMPLE
+INVALID = ECMAScriptEnum.INVALID
 
 Completion = namedtuple('Completion', ['ctype', 'value', 'target'])
 
@@ -8515,13 +8519,14 @@ class PN_MemberExpression_MemberExpression_LBRACKET_Expression_RBRACKET(PN_Membe
         # 6. Let propertyKey be ? ToPropertyKey(propertyNameValue).
         # 7. If the code matched by this MemberExpression is strict mode code, let strict be true, else let strict be false.
         # 8. Return a value of type Reference whose base value component is bv, whose referenced name component is propertyKey, and whose strict reference flag is strict.
-        baseReference = self.MemberExpression.evaluate()
-        baseValue = GetValue(baseReference)
-        propertyNameReference = self.Expression.evaluate()
-        propertyNameValue = GetValue(propertyNameReference)
-        bv = RequireObjectCoercible(baseValue)
-        propertyKey = ToPropertyKey(propertyNameValue)
-        return Reference(bv, propertyKey, self.strict)
+        return MemberBracketCore(self, self.MemberExpression.evaluate())
+def MemberBracketCore(pn, baseReference):
+    baseValue = GetValue(baseReference)
+    propertyNameReference = pn.Expression.evaluate()
+    propertyNameValue = GetValue(propertyNameReference)
+    bv = RequireObjectCoercible(baseValue)
+    propertyKey = ToPropertyKey(propertyNameValue)
+    return Reference(bv, propertyKey, pn.strict)
 class PN_MemberExpression_MemberExpression_DOT_IdentifierName(PN_MemberExpression_NotPassThru):
     @property
     def MemberExpression(self):
@@ -8553,11 +8558,12 @@ class PN_MemberExpression_MemberExpression_DOT_IdentifierName(PN_MemberExpressio
         # 4. Let propertyNameString be StringValue of IdentifierName.
         # 5. If the code matched by this MemberExpression is strict mode code, let strict be true, else let strict be false.
         # 6. Return a value of type Reference whose base value component is bv, whose referenced name component is propertyNameString, and whose strict reference flag is strict.
-        baseReference = self.MemberExpression.evaluate()
-        baseValue = GetValue(baseReference)
-        bv = RequireObjectCoercible(baseValue)
-        propertyNameString = self.IdentifierName.StringValue()
-        return Reference(bv, propertyNameString, self.strict)
+        return MemberDotEvaluation(self, self.MemberExpression.evaluate())
+def MemberDotEvaluation(pn, baseReference):
+    baseValue = GetValue(baseReference)
+    bv = RequireObjectCoercible(baseValue)
+    propertyNameString = pn.IdentifierName.StringValue()
+    return Reference(bv, propertyNameString, pn.strict)
 # = - = - = - = - = - = - = - = - = NewExpression - = - = - = - = - = - = - = - = - = - = - = - = - = - = - = -
 class PN_NewExpression(ParseNode):
     def __init__(self, ctx, p):
@@ -8614,34 +8620,8 @@ def EvaluateNew(constructExpr, arguments):
 class PN_CallExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('CallExpression', p)
-class PN_CallExpression_CallExpression_Arguments(PN_CallExpression):
-    @property
-    def CallExpression(self):
-        return self.children[0]
-    @property
-    def Arguments(self):
-        return self.children[1]
-    def IsValidSimpleAssignmentTarget(self):
-        # 12.3.1.6 Static Semantics: IsValidSimpleAssignmentTarget
-        #           CallExpression : CallExpression Arguments
-        # 1. Return false.
-        return False
-    def evaluate(self):
-        # 12.3.4.1 Runtime Semantics: Evaluation
-        #           CallExpression : CallExpression Arguments
-        # 1. Let ref be the result of evaluating CallExpression.
-        # 2. Let func be ? GetValue(ref).
-        # 3. Let thisCall be this CallExpression.
-        # 4. Let tailCall be IsInTailPosition(thisCall).
-        # 5. Return ? EvaluateCall(func, ref, Arguments, tailCall).
-        CallExpression = self.CallExpression
-        Arguments = self.Arguments
-        ref = CallExpression.evaluate()
-        func = GetValue(ref)
-        thisCall = CallExpression
-        tailCall = IsInTailPosition(thisCall)
-        return EvaluateCall(func, ref, Arguments, tailCall)
 class PN_CallExpression_CoverCallExpressionAndAsyncArrowHead(PN_CallExpression):
+    # 𝑪𝒂𝒍𝒍𝑬𝒙𝒑𝒓𝒆𝒔𝒔𝒊𝒐𝒏 : 𝑪𝒐𝒗𝒆𝒓𝑪𝒂𝒍𝒍𝑬𝒙𝒑𝒓𝒆𝒔𝒔𝒊𝒐𝒏𝑨𝒏𝒅𝑨𝒔𝒚𝒏𝒄𝑨𝒓𝒓𝒐𝒘𝑯𝒆𝒂𝒅
     def __init__(self, context, p):
         super().__init__(context, p)
         start, end = self.source_range()
@@ -8654,6 +8634,10 @@ class PN_CallExpression_CoverCallExpressionAndAsyncArrowHead(PN_CallExpression):
     @property
     def CoverCallExpressionAndAsyncArrowHead(self):
         return self.children[0]
+    def AssignmentTargetType(self):
+        # 12.3.1.6 Static Semantics: AssignmentTargetType
+        #   1. Return invalid.
+        return INVALID
     def CoveredCallExpression(self):
         # 12.3.1.1 Static Semantics: CoveredCallExpression
         return self.covered_production
@@ -8701,6 +8685,106 @@ class PN_CallExpression_CoverCallExpressionAndAsyncArrowHead(PN_CallExpression):
         #thisCall = self
         tailCall = False #IsInTailPosition(thisCall)
         return EvaluateCall(func, ref, arguments, tailCall)
+class PN_CallExpression_SuperCall(PN_CallExpression):
+    # 𝑪𝒂𝒍𝒍𝑬𝒙𝒑𝒓𝒆𝒔𝒔𝒊𝒐𝒏 : 𝑺𝒖𝒑𝒆𝒓𝑪𝒂𝒍𝒍
+    @property
+    def SuperCall(self):
+        return self.children[0]
+    def AssignmentTargetType(self):
+        # 12.3.1.6 Static Semantics: AssignmentTargetType
+        #   1. Return invalid.
+        return INVALID
+class PN_CallExpression_CallExpression_Arguments(PN_CallExpression):
+    # 𝑪𝒂𝒍𝒍𝑬𝒙𝒑𝒓𝒆𝒔𝒔𝒊𝒐𝒏 : 𝑪𝒂𝒍𝒍𝑬𝒙𝒑𝒓𝒆𝒔𝒔𝒊𝒐𝒏 𝑨𝒓𝒈𝒖𝒎𝒆𝒏𝒕𝒔
+    @property
+    def CallExpression(self):
+        return self.children[0]
+    @property
+    def Arguments(self):
+        return self.children[1]
+    def AssignmentTargetType(self):
+        # 12.3.1.6 Static Semantics: AssignmentTargetType
+        #   1. Return invalid.
+        return INVALID
+    def IsValidSimpleAssignmentTarget(self):
+        # 12.3.1.6 Static Semantics: IsValidSimpleAssignmentTarget
+        #           CallExpression : CallExpression Arguments
+        # 1. Return false.
+        return False
+    def evaluate(self):
+        # 12.3.4.1 Runtime Semantics: Evaluation
+        #           CallExpression : CallExpression Arguments
+        # 1. Let ref be the result of evaluating CallExpression.
+        # 2. Let func be ? GetValue(ref).
+        # 3. Let thisCall be this CallExpression.
+        # 4. Let tailCall be IsInTailPosition(thisCall).
+        # 5. Return ? EvaluateCall(func, ref, Arguments, tailCall).
+        CallExpression = self.CallExpression
+        Arguments = self.Arguments
+        ref = CallExpression.evaluate()
+        func = GetValue(ref)
+        thisCall = CallExpression
+        tailCall = IsInTailPosition(thisCall)
+        return EvaluateCall(func, ref, Arguments, tailCall)
+class PN_CallExpression_CallExpression_LBRACKET_Expression_RBRACKET(PN_CallExpression):
+    # 𝑪𝒂𝒍𝒍𝑬𝒙𝒑𝒓𝒆𝒔𝒔𝒊𝒐𝒏 : 𝑪𝒂𝒍𝒍𝑬𝒙𝒑𝒓𝒆𝒔𝒔𝒊𝒐𝒏 [ 𝑬𝒙𝒑𝒓𝒆𝒔𝒔𝒊𝒐𝒏 ]
+    @property
+    def CallExpression(self):
+        return self.children[0]
+    @property
+    def Expression(self):
+        return self.children[2]
+    def AssignmentTargetType(self):
+        # 12.3.1.6 Static Semantics: AssignmentTargetType
+        #   1. Return simple.
+        return SIMPLE
+    def evaluate(self):
+        # 12.3.2.1 Runtime Semantics: Evaluation
+        # Is evaluated in exactly the same manner as MemberExpression:MemberExpression[Expression] except that the
+        # contained CallExpression is evaluated in step 1.
+        return MemberBracketCore(self, self.CallExpression.evaluate())
+class PN_CallExpression_CallExpression_PERIOD_IdentifierName(PN_CallExpression):
+    # 𝑪𝒂𝒍𝒍𝑬𝒙𝒑𝒓𝒆𝒔𝒔𝒊𝒐𝒏 : 𝑪𝒂𝒍𝒍𝑬𝒙𝒑𝒓𝒆𝒔𝒔𝒊𝒐𝒏 . 𝑰𝒅𝒆𝒏𝒕𝒊𝒇𝒊𝒆𝒓𝑵𝒂𝒎𝒆
+    @property
+    def CallExpression(self):
+        return self.children[0]
+    @property
+    def IdentifierName(self):
+        return self.children[2]
+    def Contains(self, symbol):
+        # 12.3.1.2 Static Semantics: Contains
+        #   With parameter symbol.
+        #   1. If CallExpression Contains symbol is true, return true.
+        #   2. If symbol is a ReservedWord, return false.
+        #   3. If symbol is an Identifier and StringValue of symbol is the same value as the StringValue of IdentifierName, return true.
+        #   4. Return false.
+        if self.CallExpression.Contains(symbol):
+            return True
+        if symbol in ReservedWords:
+            return False
+        return self.IdentifierName.StringValue() == symbol
+    def AssignmentTargetType(self):
+        # 12.3.1.6 Static Semantics: AssignmentTargetType
+        #   1. Return simple.
+        return SIMPLE
+    def evaluate(self):
+        # 12.3.2.1 Runtime Semantics: Evaluation
+        # Is evaluated in exactly the same manner as MemberExpression:MemberExpression.IdentifierName except that the
+        # contained CallExpression is evaluated in step 1.
+        return MemberDotEvaluation(self, self.CallExpression.evaluate())
+class PN_CallExpression_CallExpression_TemplateLiteral(PN_CallExpression):
+    # 𝑪𝒂𝒍𝒍𝑬𝒙𝒑𝒓𝒆𝒔𝒔𝒊𝒐𝒏 : 𝑪𝒂𝒍𝒍𝑬𝒙𝒑𝒓𝒆𝒔𝒔𝒊𝒐𝒏 𝑻𝒆𝒎𝒑𝒍𝒂𝒕𝒆𝑳𝒊𝒕𝒆𝒓𝒂𝒍
+    @property
+    def CallExpression(self):
+        return self.children[0]
+    @property
+    def TemplateLiteral(self):
+        return self.children[1]
+    def AssignmentTargetType(self):
+        # 12.3.1.6 Static Semantics: AssignmentTargetType
+        #   1. Return invalid.
+        return INVALID
+
 class PN_CallMemberExpression_MemberExpression_Arguments(ParseNode):
     def __init__(self, context, p):
         super().__init__('CallMemberExpression', p)
@@ -16346,6 +16430,14 @@ class Ecma262Parser(Parser):
     # AsyncGeneratorDeclaration. An ExpressionStatement cannot start with the two token sequence let [ because that
     # would make it ambiguous with a let LexicalDeclaration whose first LexicalBinding was an ArrayBindingPattern.
     #
+    # So let me put that into coding terms. All of the productions labelled "_Restricted" are those that match the
+    # lookahead rule above. Restricted productions are NOT to start with any of these token streams:
+    #       {
+    #       function
+    #       async function
+    #       class
+    #       let [
+    #
     @_('Expression_In_Restricted SEMICOLON')  # pylint: disable=undefined-variable
     def ExpressionStatement(self, p):
         return PN_ExpressionStatement_Expression(self.context, p)
@@ -17099,107 +17191,6 @@ class Ecma262Parser(Parser):
     #           SuperProperty[?Yield, ?Await]
     #           MetaProperty
     #           new MemberExpression[?Yield, ?Await] Arguments[?Yield, ?Await]
-    #
-    # SuperProperty[Yield, Await] :
-    #           super [ Expression[+In, ?Yield, ?Await] ]
-    #           super . IdentifierName
-    #
-    # MetaProperty :
-    #           NewTarget
-    #
-    # NewTarget :
-    #           new . target
-    #
-    # NewExpression[Yield, Await] :
-    #           MemberExpression[?Yield, ?Await]
-    #           new NewExpression[?Yield, ?Await]
-    #
-    # CallExpression[Yield, Await] :
-    #           CoverCallExpressionAndAsyncArrowHead[?Yield, ?Await]
-    #           SuperCall[?Yield, ?Await]
-    #           CallExpression[?Yield, ?Await] Arguments[?Yield, ?Await]
-    #           CallExpression[?Yield, ?Await] [ Expression[+In, ?Yield, ?Await] ]
-    #           CallExpression[?Yield, ?Await] . IdentifierName
-    #           CallExpression[?Yield, ?Await] TemplateLiteral[?Yield, ?Await, +Tagged]
-    #
-    # SuperCall[Yield, Await] :
-    #           super Arguments[?Yield, ?Await]
-    #
-    # Arguments[Yield, Await] :
-    #           ( )
-    #           ( ArgumentList[?Yield, ?Await] )
-    #           ( ArgumentList[?Yield, ?Await] , )
-    #
-    # ArgumentList[Yield, Await] :
-    #           AssignmentExpression[+In, ?Yield, ?Await]
-    #           ... AssignmentExpression[+In, ?Yield, ?Await]
-    #           ArgumentList[?Yield, ?Await] , AssignmentExpression[+In, ?Yield, ?Await]
-    #           ArgumentList[?Yield, ?Await] , ...AssignmentExpression[+In, ?Yield, ?Await]
-    #
-    # LeftHandSideExpression[Yield, Await] :
-    #           NewExpression[?Yield, ?Await]
-    #           CallExpression[?Yield, ?Await]
-    #
-    @_('NewExpression')  # pylint: disable=undefined-variable
-    def LeftHandSideExpression(self, p):
-        return PN_LeftHandSideExpression_NewExpression(self.context, p)
-    @_('CallExpression')  # pylint: disable=undefined-variable
-    def LeftHandSideExpression(self, p):
-        return PN_LeftHandSideExpression_CallExpression(self.context, p)
-    @_('NewExpression_Restricted')  # pylint: disable=undefined-variable
-    def LeftHandSideExpression_Restricted(self, p):
-        return PN_LeftHandSideExpression_NewExpression(self.context, p)
-    @_('CallExpression_Restricted')  # pylint: disable=undefined-variable
-    def LeftHandSideExpression_Restricted(self, p):
-        return PN_LeftHandSideExpression_CallExpression(self.context, p)
-    @_('CoverCallExpressionAndAsyncArrowHead')  # pylint: disable=undefined-variable
-    def CallExpression(self, p):
-        return PN_CallExpression_CoverCallExpressionAndAsyncArrowHead(self.context, p)
-    @_('CallExpression Arguments')  # pylint: disable=undefined-variable
-    def CallExpression(self, p):
-        return PN_CallExpression_CallExpression_Arguments(self.context, p)
-    @_('CoverCallExpressionAndAsyncArrowHead_Restricted')  # pylint: disable=undefined-variable
-    def CallExpression_Restricted(self, p):
-        return PN_CallExpression_CoverCallExpressionAndAsyncArrowHead(self.context, p)
-    @_('CallExpression_Restricted Arguments')  # pylint: disable=undefined-variable
-    def CallExpression_Restricted(self, p):
-        return PN_CallExpression_CallExpression_Arguments(self.context, p)
-    @_('MemberExpression Arguments')  # pylint: disable=undefined-variable
-    def CallMemberExpression(self, p):
-        return PN_CallMemberExpression_MemberExpression_Arguments(self.context, p)
-    @_('AssignmentExpression_In')  # pylint: disable=undefined-variable
-    def ArgumentList(self, p):
-        return PN_ArgumentList_AssignmentExpression(self.context, p)
-    @_('DOTDOTDOT AssignmentExpression_In')  # pylint: disable=undefined-variable
-    def ArgumentList(self, p):
-        return PN_ArgumentList_DOTDOTDOT_AssignmentExpression(self.context, p)
-    @_('ArgumentList COMMA AssignmentExpression_In')  # pylint: disable=undefined-variable
-    def ArgumentList(self, p):
-        return PN_ArgumentList_ArgumentList_COMMA_AssignmentExpression(self.context, p)
-    @_('ArgumentList COMMA DOTDOTDOT AssignmentExpression_In')  # pylint: disable=undefined-variable
-    def ArgumentList(self, p):
-        return PN_ArgumentList_ArgumentList_COMMA_DOTDOTDOT_AssignmentExpression(self.context, p)
-    @_('LPAREN RPAREN')  # pylint: disable=undefined-variable
-    def Arguments(self, p):
-        return PN_Arguments_LPAREN_RPAREN(self.context, p)
-    @_('LPAREN ArgumentList RPAREN')  # pylint: disable=undefined-variable
-    def Arguments(self, p):
-        return PN_Arguments_LPAREN_ArgumentList_RPAREN(self.context, p)
-    @_('LPAREN ArgumentList COMMA RPAREN')  # pylint: disable=undefined-variable
-    def Arguments(self, p):
-        return PN_Arguments_LPAREN_ArgumentList_COMMA_RPAREN(self.context, p)
-    @_('MemberExpression')  # pylint: disable=undefined-variable
-    def NewExpression(self, p):
-        return PN_NewExpression_MemberExpression(self.context, p)
-    @_('NEW NewExpression')  # pylint: disable=undefined-variable
-    def NewExpression(self, p):
-        return PN_NewExpression_NEW_NewExpression(self.context, p)
-    @_('MemberExpression_Restricted')  # pylint: disable=undefined-variable
-    def NewExpression_Restricted(self, p):
-        return PN_NewExpression_MemberExpression(self.context, p)
-    @_('NEW NewExpression')  # pylint: disable=undefined-variable
-    def NewExpression_Restricted(self, p):
-        return PN_NewExpression_NEW_NewExpression(self.context, p)
     @_('PrimaryExpression')  # pylint: disable=undefined-variable
     def MemberExpression(self, p):
         return PN_MemberExpression_PrimaryExpression(self.context, p)
@@ -17224,6 +17215,136 @@ class Ecma262Parser(Parser):
     @_('MemberExpression_Restricted PERIOD  IdentifierName')  # pylint: disable=undefined-variable
     def MemberExpression_Restricted(self, p):
         return PN_MemberExpression_MemberExpression_DOT_IdentifierName(self.context, p)
+    #
+    # SuperProperty[Yield, Await] :
+    #           super [ Expression[+In, ?Yield, ?Await] ]
+    #           super . IdentifierName
+    #
+    # MetaProperty :
+    #           NewTarget
+    #
+    # NewTarget :
+    #           new . target
+    #
+    # NewExpression[Yield, Await] :
+    #           MemberExpression[?Yield, ?Await]
+    #           new NewExpression[?Yield, ?Await]
+    @_('MemberExpression')  # pylint: disable=undefined-variable
+    def NewExpression(self, p):
+        return PN_NewExpression_MemberExpression(self.context, p)
+    @_('NEW NewExpression')  # pylint: disable=undefined-variable
+    def NewExpression(self, p):
+        return PN_NewExpression_NEW_NewExpression(self.context, p)
+    @_('MemberExpression_Restricted')  # pylint: disable=undefined-variable
+    def NewExpression_Restricted(self, p):
+        return PN_NewExpression_MemberExpression(self.context, p)
+    @_('NEW NewExpression')  # pylint: disable=undefined-variable
+    def NewExpression_Restricted(self, p):
+        return PN_NewExpression_NEW_NewExpression(self.context, p)
+    #
+    # CallExpression[Yield, Await] :
+    #           CoverCallExpressionAndAsyncArrowHead[?Yield, ?Await]
+    #           SuperCall[?Yield, ?Await]
+    #           CallExpression[?Yield, ?Await] Arguments[?Yield, ?Await]
+    #           CallExpression[?Yield, ?Await] [ Expression[+In, ?Yield, ?Await] ]
+    #           CallExpression[?Yield, ?Await] . IdentifierName
+    #           CallExpression[?Yield, ?Await] TemplateLiteral[?Yield, ?Await, +Tagged]
+    @_('CoverCallExpressionAndAsyncArrowHead')  # pylint: disable=undefined-variable
+    def CallExpression(self, p):
+        return PN_CallExpression_CoverCallExpressionAndAsyncArrowHead(self.context, p)
+    @_('CoverCallExpressionAndAsyncArrowHead_Restricted')  # pylint: disable=undefined-variable
+    def CallExpression_Restricted(self, p):
+        return PN_CallExpression_CoverCallExpressionAndAsyncArrowHead(self.context, p)
+    @_('SuperCall')
+    def CallExpression(self, p):
+        return PN_CallExpression_SuperCall(self.context, p)
+    @_('SuperCall')
+    def CallExpression_Restricted(self, p):
+        return PN_CallExpression_SuperCall(self.context, p)
+    @_('CallExpression Arguments')  # pylint: disable=undefined-variable
+    def CallExpression(self, p):
+        return PN_CallExpression_CallExpression_Arguments(self.context, p)
+    @_('CallExpression_Restricted Arguments')  # pylint: disable=undefined-variable
+    def CallExpression_Restricted(self, p):
+        return PN_CallExpression_CallExpression_Arguments(self.context, p)
+    @_('CallExpression LBRACKET Expression_In RBRACKET')
+    def CallExpression(self, p):
+        return PN_CallExpression_CallExpression_LBRACKET_Expression_RBRACKET(self.context, p)
+    @_('CallExpression_Restricted LBRACKET Expression_In RBRACKET')
+    def CallExpression_Restricted(self, p):
+        return PN_CallExpression_CallExpression_LBRACKET_Expression_RBRACKET(self.context, p)
+    @_('CallExpression PERIOD IdentifierName')
+    def CallExpression(self, p):
+        return PN_CallExpression_CallExpression_PERIOD_IdentifierName(self.context, p)
+    @_('CallExpression_Restricted PERIOD IdentifierName')
+    def CallExpression_Restricted(self, p):
+        return PN_CallExpression_CallExpression_PERIOD_IdentifierName(self.context, p)
+    # @_('CallExpression TemplateLiteral_Tagged')
+    # def CallExpression(self, p):
+    #     return PN_CallExpression_CallExpression_TemplateLiteral(self.context, p)
+    # @_('CallExpression_Restricted TemplateLiteral_Tagged')
+    # def CallExpression_Restricted(self, p):
+    #     return PN_CallExpression_CallExpression_TemplateLiteral(self.context, p)
+    #
+    # CallMemberExpression[Yield, Await] :
+    #           MemberExpression[?Yield, ?Await] Arguments[?Yield, ?Await]
+    @_('MemberExpression Arguments')  # pylint: disable=undefined-variable
+    def CallMemberExpression(self, p):
+        return PN_CallMemberExpression_MemberExpression_Arguments(self.context, p)
+    #
+    # SuperCall[Yield, Await] :
+    #           super Arguments[?Yield, ?Await]
+    @_('SUPER Arguments')
+    def SuperCall(self, p):
+        return PN_SuperCall_SUPER_Arguments(self.context, p)
+    #
+    # Arguments[Yield, Await] :
+    #           ( )
+    #           ( ArgumentList[?Yield, ?Await] )
+    #           ( ArgumentList[?Yield, ?Await] , )
+    @_('LPAREN RPAREN')  # pylint: disable=undefined-variable
+    def Arguments(self, p):
+        return PN_Arguments_LPAREN_RPAREN(self.context, p)
+    @_('LPAREN ArgumentList RPAREN')  # pylint: disable=undefined-variable
+    def Arguments(self, p):
+        return PN_Arguments_LPAREN_ArgumentList_RPAREN(self.context, p)
+    @_('LPAREN ArgumentList COMMA RPAREN')  # pylint: disable=undefined-variable
+    def Arguments(self, p):
+        return PN_Arguments_LPAREN_ArgumentList_COMMA_RPAREN(self.context, p)
+    #
+    # ArgumentList[Yield, Await] :
+    #           AssignmentExpression[+In, ?Yield, ?Await]
+    #           ... AssignmentExpression[+In, ?Yield, ?Await]
+    #           ArgumentList[?Yield, ?Await] , AssignmentExpression[+In, ?Yield, ?Await]
+    #           ArgumentList[?Yield, ?Await] , ...AssignmentExpression[+In, ?Yield, ?Await]
+    @_('AssignmentExpression_In')  # pylint: disable=undefined-variable
+    def ArgumentList(self, p):
+        return PN_ArgumentList_AssignmentExpression(self.context, p)
+    @_('DOTDOTDOT AssignmentExpression_In')  # pylint: disable=undefined-variable
+    def ArgumentList(self, p):
+        return PN_ArgumentList_DOTDOTDOT_AssignmentExpression(self.context, p)
+    @_('ArgumentList COMMA AssignmentExpression_In')  # pylint: disable=undefined-variable
+    def ArgumentList(self, p):
+        return PN_ArgumentList_ArgumentList_COMMA_AssignmentExpression(self.context, p)
+    @_('ArgumentList COMMA DOTDOTDOT AssignmentExpression_In')  # pylint: disable=undefined-variable
+    def ArgumentList(self, p):
+        return PN_ArgumentList_ArgumentList_COMMA_DOTDOTDOT_AssignmentExpression(self.context, p)
+    #
+    # LeftHandSideExpression[Yield, Await] :
+    #           NewExpression[?Yield, ?Await]
+    #           CallExpression[?Yield, ?Await]
+    @_('NewExpression')  # pylint: disable=undefined-variable
+    def LeftHandSideExpression(self, p):
+        return PN_LeftHandSideExpression_NewExpression(self.context, p)
+    @_('CallExpression')  # pylint: disable=undefined-variable
+    def LeftHandSideExpression(self, p):
+        return PN_LeftHandSideExpression_CallExpression(self.context, p)
+    @_('NewExpression_Restricted')  # pylint: disable=undefined-variable
+    def LeftHandSideExpression_Restricted(self, p):
+        return PN_LeftHandSideExpression_NewExpression(self.context, p)
+    @_('CallExpression_Restricted')  # pylint: disable=undefined-variable
+    def LeftHandSideExpression_Restricted(self, p):
+        return PN_LeftHandSideExpression_CallExpression(self.context, p)
     ########################################################################################################################
 
     ########################################################################################################################
@@ -19920,12 +20041,8 @@ def GetGeneratorKind():
 #######################################################################################################################################################
 if __name__ == '__main__':
     try:
-        rv = RunJobs(scripts=[""" // Needs MethodDefinition
-        var thing = {
-            routine(obj) {
-                obj.eatme = true;
-            }
-        };
+        rv = RunJobs(scripts=["""
+        f(a,b).p;
         """])
     except ESError as err:
         InitializeHostDefinedRealm()
