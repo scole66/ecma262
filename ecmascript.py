@@ -6002,7 +6002,7 @@ class ArgumentsObject(JSObject):
         isMapped = HasOwnProperty(map, P)
         newArgDesc = Desc
         if isMapped and IsDataDescriptor(Desc):
-            if not hasattr('value', Desc) and hasattr('writable', Desc) and not Desc.writable:
+            if not hasattr(Desc, 'value') and hasattr(Desc, 'writable') and not Desc.writable:
                 newArgDesc = copy(Desc)
                 newArgDesc.value = Get(map, P)
         allowed = OrdinaryDefineOwnProperty(self, P, newArgDesc)
@@ -6012,10 +6012,10 @@ class ArgumentsObject(JSObject):
             if IsAccessorDescriptor(Desc):
                 map.Delete(P)
             else:
-                if hasattr('value', Desc):
+                if hasattr(Desc, 'value'):
                     setStatus = Set(map, P, Desc.value, False)
                     assert setStatus
-                if hasattr('writable', Desc) and not Desc.writable:
+                if hasattr(Desc, 'writable') and not Desc.writable:
                     map.Delete(P)
         return True
     # -------------------------------- 𝟗.𝟒.𝟒.𝟑 [[𝑮𝒆𝒕]] ( 𝑷, 𝑹𝒆𝒄𝒆𝒊𝒗𝒆𝒓 ) ------------------------------------
@@ -19208,7 +19208,7 @@ def GetGeneratorKind():
     #   5. Else, return sync.
     genContext = surrounding_agent.running_ec
     if genContext.generator:
-        return ASYNC if hasattr('AsyncGeneratorState', genContext.generator) else SYNC
+        return ASYNC if hasattr(genContext.generator, 'AsyncGeneratorState') else SYNC
     return NON_GENERATOR
 
 
