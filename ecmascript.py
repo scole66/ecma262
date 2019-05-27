@@ -8837,6 +8837,16 @@ def EvaluateCall(func, ref, arguments, tailPosition):
     # assert not tailPosition
     # assert (isinstance(result, Completion) and (result.ctype != CompletionType.NORMAL or isEcmaValue(result.value))) or isEcmaValue(result)
     return result
+
+class PN_SuperCall(ParseNode):
+    def __init__(self, context, p):
+        super().__init__('SuperCall', p)
+class PN_SuperCall_SUPER_Arguments(PN_SuperCall):
+    # 𝑺𝒖𝒑𝒆𝒓𝑪𝒂𝒍𝒍 : 𝘀𝘂𝗽𝗲𝗿 𝑨𝒓𝒈𝒖𝒎𝒆𝒏𝒕𝒔
+    @property
+    def Arguments(self):
+        return self.children[1]
+
 # = - = - = - = - = - = - = - = - = ArgumentList - = - = - = - = - = - = - = - = - = - = - = - = - = - = - = -
 # 12.3.6 Argument Lists
 # NOTE
@@ -15012,6 +15022,12 @@ class PN_MethodDefinition_PropertyName(PN_MethodDefinition):
         # 14.3.5 Static Semantics: PropName
         #   1. Return PropName of PropertyName.
         return self.PropertyName.PropName()
+class MethodDefinitionRecord(Record):
+    __slots__ = ['Closure', 'Key']
+    def __init__(self, *args, **kwargs):
+        self.Closure = None
+        self.Key = None
+        super().__init__(*args, **kwargs)
 class PN_MethodDefinition_PropertyName_LPAREN_UniqueFormalParameters_RPAREN_LCURLY_FunctionBody_RCURLY(PN_MethodDefinition_PropertyName):
     # 𝑴𝒆𝒕𝒉𝒐𝒅𝑫𝒆𝒇𝒊𝒏𝒊𝒕𝒊𝒐𝒏 : 𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚𝑵𝒂𝒎𝒆 ( 𝑼𝒏𝒊𝒒𝒖𝒆𝑭𝒐𝒓𝒎𝒂𝒍𝑷𝒂𝒓𝒂𝒎𝒆𝒕𝒆𝒓𝒔 ) { 𝑭𝒖𝒏𝒄𝒕𝒊𝒐𝒏𝑩𝒐𝒅𝒚 }
     @property
@@ -15074,7 +15090,7 @@ class PN_MethodDefinition_PropertyName_LPAREN_UniqueFormalParameters_RPAREN_LCUR
         MakeMethod(closure, object)
         start, end = self.source_range()
         closure.SourceText = self.context.source_text[start:end]
-        return Record(Key=propKey, Closure=closure)
+        return MethodDefinitionRecord(Key=propKey, Closure=closure)
     def PropertyDefinitionEvaluation(self, object, enumerable):
         # 14.3.8 Runtime Semantics: PropertyDefinitionEvaluation
         #   With parameters object and enumerable.
@@ -15203,7 +15219,6 @@ class PN_MethodDefinition_SET_PropertyName_LPAREN_PropertySetParameterList_RPARE
         #   10. Return ? DefinePropertyOrThrow(object, propKey, desc).
         propKey = self.PropertyName.evaluate()
         scope = surrounding_agent.running_ec.lexical_environment
-        formalParameterList = PN_FormalParameters_empty(self.context, [MakeEmptyNode()])
         closure = FunctionCreate(METHOD, self.PropertySetParameterList, self.FunctionBody, scope, self.context.strict)
         MakeMethod(closure, object)
         SetFunctionName(closure, propKey, 'set')
@@ -17255,10 +17270,10 @@ class Ecma262Parser(Parser):
     @_('CoverCallExpressionAndAsyncArrowHead_Restricted')  # pylint: disable=undefined-variable
     def CallExpression_Restricted(self, p):
         return PN_CallExpression_CoverCallExpressionAndAsyncArrowHead(self.context, p)
-    @_('SuperCall')
+    @_('SuperCall')  # pylint: disable=undefined-variable
     def CallExpression(self, p):
         return PN_CallExpression_SuperCall(self.context, p)
-    @_('SuperCall')
+    @_('SuperCall')  # pylint: disable=undefined-variable
     def CallExpression_Restricted(self, p):
         return PN_CallExpression_SuperCall(self.context, p)
     @_('CallExpression Arguments')  # pylint: disable=undefined-variable
@@ -17267,16 +17282,16 @@ class Ecma262Parser(Parser):
     @_('CallExpression_Restricted Arguments')  # pylint: disable=undefined-variable
     def CallExpression_Restricted(self, p):
         return PN_CallExpression_CallExpression_Arguments(self.context, p)
-    @_('CallExpression LBRACKET Expression_In RBRACKET')
+    @_('CallExpression LBRACKET Expression_In RBRACKET')  # pylint: disable=undefined-variable
     def CallExpression(self, p):
         return PN_CallExpression_CallExpression_LBRACKET_Expression_RBRACKET(self.context, p)
-    @_('CallExpression_Restricted LBRACKET Expression_In RBRACKET')
+    @_('CallExpression_Restricted LBRACKET Expression_In RBRACKET')  # pylint: disable=undefined-variable
     def CallExpression_Restricted(self, p):
         return PN_CallExpression_CallExpression_LBRACKET_Expression_RBRACKET(self.context, p)
-    @_('CallExpression PERIOD IdentifierName')
+    @_('CallExpression PERIOD IdentifierName')  # pylint: disable=undefined-variable
     def CallExpression(self, p):
         return PN_CallExpression_CallExpression_PERIOD_IdentifierName(self.context, p)
-    @_('CallExpression_Restricted PERIOD IdentifierName')
+    @_('CallExpression_Restricted PERIOD IdentifierName')  # pylint: disable=undefined-variable
     def CallExpression_Restricted(self, p):
         return PN_CallExpression_CallExpression_PERIOD_IdentifierName(self.context, p)
     # @_('CallExpression TemplateLiteral_Tagged')
@@ -17294,7 +17309,7 @@ class Ecma262Parser(Parser):
     #
     # SuperCall[Yield, Await] :
     #           super Arguments[?Yield, ?Await]
-    @_('SUPER Arguments')
+    @_('SUPER Arguments')  # pylint: disable=undefined-variable
     def SuperCall(self, p):
         return PN_SuperCall_SUPER_Arguments(self.context, p)
     #
