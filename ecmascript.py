@@ -6397,6 +6397,8 @@ class Lexer():
         'DIV',
         'DIVEQ',
         'TILDE',
+
+        # Reserved words. They may not be used as identifier names. (Although yield and await have special treatment.)
         'AWAIT', 'BREAK', 'CASE', 'CATCH', 'CLASS', 'CONST', 'CONTINUE',
         'DEBUGGER', 'DEFAULT', 'DELETE', 'DO', 'ELSE', 'EXPORT', 'EXTENDS',
         'FINALLY', 'FOR', 'FUNCTION', 'IF', 'IMPORT', 'IN', 'INSTANCEOF',
@@ -6404,7 +6406,9 @@ class Lexer():
         'VAR', 'VOID', 'WHILE', 'WITH', 'YIELD', 'ENUM', 'NULL', 'TRUE',
         'FALSE',
 
-        'OF', # Not marked as a ReservedWord in the spec, but it's used as one in for statements.
+        # Pseudo reserved words. They have particular meaning in some spots, but may still be used as identifier names.
+        # If you add something here, please update the 'Identifier' production in the parser class.
+        'OF', # Not marked as a ReservedWord in the spec, but it's used as a token in for statements.
         'LET', # Also not marked as a ReservedWord
         'SET',
         'GET',
@@ -17752,7 +17756,7 @@ class Ecma262Parser(Parser):
     def ReservedWord(self, p):
         return PN_ReservedWord(self.context, p)
 
-    @_('IDENTIFIER', 'OF', 'LET')  # pylint: disable=undefined-variable
+    @_('IDENTIFIER', 'OF', 'LET', 'SET', 'GET')  # pylint: disable=undefined-variable
     def Identifier(self, p):
         return PN_Identifier(self.context, p)
 
