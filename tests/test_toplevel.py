@@ -152,6 +152,8 @@ def cleanup():
     ("let s='',i=0;while(true){s+=i++;if(i>=10)break;}s;", '0123456789'),
     ("function mathme(a,b,c){return(a+b)*c;}mathme(1,2,3)*mathme(100,200,300);", 810000),
     ("let s=new String('hi');''+Object.defineProperty(s, '0', {value: 'h'});", 'hi'), # Should exercise IsCompatiblePropertyDescriptor
+    ('let get=3; get;', 3), # Make sure 'get' works as an identifier.
+    ('let set=4; set;', 4), # Make sure 'set' works as an identifier.
 ])
 def test_scripts_01(cleanup, script, result):
     rv = RunJobs(scripts=[script])
