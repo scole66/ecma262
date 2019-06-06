@@ -34,7 +34,7 @@ def test_lex_simple_sample():
                              ('&', [{'type': 'AMP', 'value': '&'}]),
                              ('&&', [{'type': 'AMPAMP', 'value': '&&'}]),
                              ('&=', [{'type': 'AMPEQ', 'value': '&='}]),
-                             ('(', [{'type': 'LPAREN', 'value': '('}]),
+                             ('(', [{'type': 'LPAREN_', 'value': '('}]),
                              (')', [{'type': 'RPAREN', 'value': ')'}]),
                              ('*', [{'type': 'STAR', 'value': '*'}]),
                              ('**', [{'type': 'STARSTAR', 'value': '**'}]),
