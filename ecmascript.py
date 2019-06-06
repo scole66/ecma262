@@ -43,6 +43,7 @@ class ECMAScriptEnum(Enum):
     NON_GENERATOR = auto()
     SIMPLE = auto()
     INVALID = auto()
+    DONE = auto()
 ENUMERATE = ECMAScriptEnum.ENUMERATE
 ASSIGNMENT = ECMAScriptEnum.ASSIGNMENT
 VARBINDING = ECMAScriptEnum.VARBINDING
@@ -54,6 +55,7 @@ ASYNC = ECMAScriptEnum.ASYNC
 NON_GENERATOR = ECMAScriptEnum.NON_GENERATOR
 SIMPLE = ECMAScriptEnum.SIMPLE
 INVALID = ECMAScriptEnum.INVALID
+DONE = ECMAScriptEnum.DONE
 
 Completion = namedtuple('Completion', ['ctype', 'value', 'target'])
 
@@ -6456,6 +6458,7 @@ class Lexer():
         self.start = 0
         self.pos = 0
         self.first_token = self.GoalTokens[first_token]
+        self.lex_nolooks_setup()
 
     def _swallow(self, end_prior):
         self.start = self.pos
@@ -6495,7 +6498,7 @@ class Lexer():
     def _initial(self, ch, lookahead):
         # Empty string means we're done
         if ch == '':
-            return (self._done, [])
+            return (DONE, [])
         # Initial State for InputElementDiv:
         # We're looking at the first char for the production
         # InputElementDiv ::
@@ -6563,9 +6566,6 @@ class Lexer():
 
         # More to add still...
         return (self._initial, [])
-
-    def _done(self, ch, lookahead):
-        pass  # should never get here, honestly.
 
     def _bang(self, ch, lookahead):
         # We already have !. Might be !, !=, or !==.
@@ -7194,52 +7194,88 @@ class Lexer():
                 return (self._string_capture, [])
         raise LexerError('Syntax Error in Unicode String Escape')
 
+    def lex_setup(self):
+        self.lex_nolooks_setup()
+    def lex_next_token(self, goal=Goal.InputElementDiv):
+        token = self.lex_nolooks(goal=goal)
+        if token:
+            if token.type == 'LPAREN':
+                # Look ahead one token; we have some "follows" rules for left-parentheses.
+                lookahead = self.lex_nolooks(goal=goal, consume=False)
+                if lookahead and lookahead.type == 'LBRACKET':
+                    token.type = 'LPAREN_LBRACKET'  # A left-parenthesis, where lookahead = [
+                elif lookahead and lookahead.type == 'LET':
+                    token.type = 'LPAREN_LET' #  left-parenthesis, where lookahead = let
+                else:
+                    token.type = 'LPAREN_'  # left-parenthesis, where lookahead isn't something we care about
+            return token
     def lex(self, goal=Goal.InputElementDiv):
-        token_buffer = deque([])
-        for token in self.lex_nolooks(goal):
-            token_buffer.append(token)
-            if len(token_buffer) > 1:
-                src = token_buffer.popleft()
-                if src.type == 'LPAREN':
-                    if token_buffer[0].type == 'LBRACKET':
-                        src.type = 'LPAREN_LBRACKET'  # A left-parenthesis, where lookahead = [
-                    elif token_buffer[0].type == 'LET':
-                        src.type = 'LPAREN_LET' #  left-parenthesis, where lookahead = let
-                    else:
-                        src.type = 'LPAREN_'  # left-parenthesis, where lookahead isn't something we care about
-                yield src
-        for tok in token_buffer:
+        self.lex_setup()
+        while 1:
+            tok = self.lex_next_token(goal)
+            if not tok:
+                return
             yield tok
-    def lex_nolooks(self, goal=Goal.InputElementDiv):
-        state = self._initial
-        token_buffer = deque([self._make_token(self.first_token, None, False)])
 
+    def lex_nolooks_setup(self):
+        """Do any setup needed to start lexing."""
+        self.state = self._initial
+        self.token_buffer = deque()
+        self.ch = None
+        self.lookahead = None
+        self.goal = None
+
+    def lex_nolooks(self, goal=Goal.InputElementDiv, consume=True):
+        '''Scan the input text, and generate a token. The "goal" input adjusts what makes a valid token.'''
+
+        if self.first_token:
+            rval = self._make_token(self.first_token, None, False)
+            self.first_token = None
+            return rval
+
+        if self.goal != goal:
+            # Reset the lexer to the start of the first element of the token_buffer (if any), and then empty the token_buffer.
+            try:
+                self.pos = self.token_buffer[0].index
+            except IndexError:
+                # Leave pos unchanged in this case (there's nothing to rewind)
+                pass
+            self.token_buffer = deque()
+            self.goal = goal
+
+        if self.token_buffer:
+            rval = self.token_buffer.popleft() if consume else self.token_buffer[0]
+            return rval # We've broken the "lt_follows" stuff here. Put it back before auto-semicolon implementation.
+
+        # Get the next 2 chars in ch and lookahead
         try:
-            ch = self.source[self.pos]
+            self.ch = self.source[self.pos]
         except IndexError:
-            ch = ''
+            self.ch = ''
         try:
-            lookahead = self.source[self.pos+1]
+            self.lookahead = self.source[self.pos+1]
         except IndexError:
-            lookahead = ''
+            self.lookahead = ''
         self.pos += 1
 
-        while state != self._done:
-            state, results = state(ch, lookahead)
-            token_buffer.extend(results)
+        # Loop over input tokens, stopping when we've collected a token (which we then return)
+        while self.state != DONE:
+            self.state, results = self.state(self.ch, self.lookahead)
+            self.token_buffer.extend(results)
 
-            while len(token_buffer) > 1:
-                if token_buffer[0].lineno < token_buffer[1].lineno:
-                    token_buffer[0].value.lt_follows = True
-                yield token_buffer.popleft()
-            ch = lookahead
+            if self.token_buffer:
+                return self.token_buffer.popleft() if consume else self.token_buffer[0]
+
+            self.ch = self.lookahead
             try:
-                lookahead = self.source[self.pos+1]
+                self.lookahead = self.source[self.pos+1]
             except IndexError:
-                lookahead = ''
+                self.lookahead = ''
             self.pos += 1
-        while len(token_buffer) > 0:
-            yield token_buffer.popleft()
+
+        # No more input, so just pull tokens off the buffer, if there are any.
+        if self.token_buffer:
+            return self.token_buffer.popleft() if consume else self.token_buffer[0]
 
 ReservedWords = [
             'await', 'break', 'case', 'catch', 'class', 'const', 'continue',
@@ -20183,7 +20219,7 @@ def GetGeneratorKind():
 if __name__ == '__main__':
     try:
         rv = RunJobs(scripts=["""
-        f(a,b).p;
+        String(new Date());
         """])
     except ESError as err:
         InitializeHostDefinedRealm()
