@@ -2,6 +2,7 @@
 Scole's ECMAScript 9 system
 """
 import datetime
+import dateutil.tz
 from enum import Enum, unique, auto
 from collections import namedtuple, deque, Counter
 from copy import copy
@@ -19185,7 +19186,12 @@ def WeekDay(t):
 # (equivalent to 3:30 AM UTC-04). LocalTZA(TimeClip(MakeDate(MakeDay(2017, 2, 12), MakeTime(2, 30, 0, 0))), false) is
 # -5 × msPerHour.
 def LocalTZA(t, isUTC):
-    return 0 # @@@ deal with this some other time
+    if isUTC:
+        dt = datetime.datetime.fromtimestamp(t/1000, datetime.timezone.utc).astimezone()
+        return dt.tzinfo.utcoffset(dt).total_seconds() * 1000
+    local = dateutil.tz.gettz()
+    dt = datetime.datetime.fromtimestamp(t/1000, local)
+    return dt.tzinfo.utcoffset(dt).total_seconds() * 1000
 def LocalTime(t):
     return t + LocalTZA(t, True)
 def UTC(t):
@@ -19197,6 +19203,14 @@ SecondsPerMinute = 60
 msPerSecond = 1000
 msPerMinute = msPerSecond * SecondsPerMinute
 msPerHour = msPerMinute * MinutesPerHour
+def HourFromTime(t):
+    return math.floor(t / msPerHour) % HoursPerDay
+def MinFromTime(t):
+    return math.floor(t / msPerMinute) % MinutesPerHour
+def SecFromTime(t):
+    return math.floor(t / msPerSecond) % SecondsPerMinute
+def msFromTime(t):
+    return t % msPerSecond
 # 20.3.1.11 MakeTime ( hour, min, sec, ms )
 # The abstract operation MakeTime calculates a number of milliseconds from its four arguments, which must be ECMAScript
 # Number values. This operator functions as follows:
@@ -19399,17 +19413,122 @@ def Date_Function_noargs(this_value, new_target):
     #       b. Set O.[[DateValue]] to the time value (UTC) identifying the current time.
     #       c. Return O.
     O = OrdinaryCreateFromConstructor(new_target, '%DatePrototype%', ['DateValue'])
-    O.DateValue = datetime.datetime.utcnow().timestamp() * 1000
+    O.DateValue = datetime.datetime.now(datetime.timezone.utc).timestamp() * 1000
     return O
 def DateFunction(this_value, new_target, *args):
     if new_target is None:
-        now = datetime.datetime.utcnow().timestamp() * 1000
+        now = datetime.datetime.now(datetime.timezone.utc).timestamp() * 1000
         return ToDateString(now)
     if len(args) == 0:
         return Date_Function_noargs(this_value, new_target)
     if len(args) == 1:
         return Date_Function_1arg(this_value, new_target, *args)
     return Date_Function_2plus(this_value, new_target, *args)
+
+# 20.3.4.41.4 Runtime Semantics: ToDateString ( tv )
+def ToDateString(tv):
+    # The following steps are performed:
+    #
+    #   1. Assert: Type(tv) is Number.
+    #   2. If tv is NaN, return "Invalid Date".
+    #   3. Let t be LocalTime(tv).
+    #   4. Return the string-concatenation of DateString(t), the code unit 0x0020 (SPACE), TimeString(t), and TimeZoneString(tv).
+    assert isNumber(tv)
+    if math.isnan(tv):
+        return 'Invalid Date'
+    t = LocalTime(tv)
+    return f'{DateString(t)} {TimeString(t)}{TimeZoneString(tv)}'
+
+# 20.3.4.41.2 Runtime Semantics: DateString ( tv )
+def DateString(tv):
+    # The following steps are performed:
+    #
+    #   1. Assert: Type(tv) is Number.
+    #   2. Assert: tv is not NaN.
+    #   3. Let weekday be the Name of the entry in Table 46 with the Number WeekDay(tv).
+    #   4. Let month be the Name of the entry in Table 47 with the Number MonthFromTime(tv).
+    #   5. Let day be the String representation of DateFromTime(tv), formatted as a two-digit decimal number, padded to
+    #      the left with a zero if necessary.
+    #   6. Let year be the String representation of YearFromTime(tv), formatted as a decimal number of at least four
+    #      digits, padded to the left with zeroes if necessary.
+    #   7. Return the string-concatenation of weekday, the code unit 0x0020 (SPACE), month, the code unit 0x0020
+    #      (SPACE), day, the code unit 0x0020 (SPACE), and year.
+    #
+    # Table 46: Names of days of the week
+    # +--------+-------+
+    # | Number | Name  |
+    # +--------+-------+
+    # | 0      | "Sun" |
+    # | 1      | "Mon" |
+    # | 2      | "Tue" |
+    # | 3      | "Wed" |
+    # | 4      | "Thu" |
+    # | 5      | "Fri" |
+    # | 6      | "Sat" |
+    # +--------+-------+
+    # Table 47: Names of months of the year
+    # +--------+-------+
+    # | Number | Name  |
+    # +--------+-------+
+    # | 0      | "Jan" |
+    # | 1      | "Feb" |
+    # | 2      | "Mar" |
+    # | 3      | "Apr" |
+    # | 4      | "May" |
+    # | 5      | "Jun" |
+    # | 6      | "Jul" |
+    # | 7      | "Aug" |
+    # | 8      | "Sep" |
+    # | 9      | "Oct" |
+    # | 10     | "Nov" |
+    # | 11     | "Dec" |
+    # +--------+-------+
+    assert isNumber(tv) and not math.isnan(tv)
+    weekday_names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+    month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    return f'{weekday_names[WeekDay(tv)]} {month_names[MonthFromTime(tv)]} {DateFromTime(tv):02d} {YearFromTime(tv):04d}'
+
+# 20.3.4.41.1 Runtime Semantics: TimeString ( tv )
+def TimeString(tv):
+    # The following steps are performed:
+    #
+    #   1. Assert: Type(tv) is Number.
+    #   2. Assert: tv is not NaN.
+    #   3. Let hour be the String representation of HourFromTime(tv), formatted as a two-digit decimal number, padded
+    #      to the left with a zero if necessary.
+    #   4. Let minute be the String representation of MinFromTime(tv), formatted as a two-digit decimal number, padded
+    #      to the left with a zero if necessary.
+    #   5. Let second be the String representation of SecFromTime(tv), formatted as a two-digit decimal number, padded
+    #      to the left with a zero if necessary.
+    #   6. Return the string-concatenation of hour, ":", minute, ":", second, the code unit 0x0020 (SPACE), and "GMT".
+    assert isNumber(tv) and not math.isnan(tv)
+    return f'{HourFromTime(tv):02d}:{MinFromTime(tv):02d}:{SecFromTime(tv):02d} GMT'
+
+# 20.3.4.41.3 Runtime Semantics: TimeZoneString ( tv )
+def TimeZoneString(tv):
+    # The following steps are performed:
+    #
+    #   1. Assert: Type(tv) is Number.
+    #   2. Assert: tv is not NaN.
+    #   3. Let offset be LocalTZA(tv, true).
+    #   4. If offset ≥ 0, let offsetSign be "+"; otherwise, let offsetSign be "-".
+    #   5. Let offsetMin be the String representation of MinFromTime(abs(offset)), formatted as a two-digit decimal
+    #      number, padded to the left with a zero if necessary.
+    #   6. Let offsetHour be the String representation of HourFromTime(abs(offset)), formatted as a two-digit decimal
+    #      number, padded to the left with a zero if necessary.
+    #   7. Let tzName be an implementation-defined string that is either the empty string or the string-concatenation
+    #      of the code unit 0x0020 (SPACE), the code unit 0x0028 (LEFT PARENTHESIS), an implementation-dependent
+    #      timezone name, and the code unit 0x0029 (RIGHT PARENTHESIS).
+    #   8. Return the string-concatenation of offsetSign, offsetHour, offsetMin, and tzName.
+    assert isNumber(tv) and not math.isnan(tv)
+    offset = LocalTZA(tv, True)
+    offsetSign = ('-', '+')[offset >= 0]
+    offsetMin = f'{MinFromTime(abs(offset)):02d}'
+    offsetHour = f'{HourFromTime(abs(offset)):02d}'
+    local = dateutil.tz.gettz()
+    dt = datetime.datetime.fromtimestamp(tv/1000, local)
+    tzName = f' ({local.tzname(dt)})'
+    return f'{offsetSign}{offsetHour}{offsetMin}{tzName}'
 
 def thisTimeValue(obj):
     if isObject(obj) and hasattr(obj, 'DateValue'):
@@ -19420,6 +19539,7 @@ def CreateDatePrototype(realm):
     date_prototype = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
     BindBuiltinFunctions(realm, date_prototype, [
         ('getTimezoneOffset', DatePrototype_getTimezoneOffset, 0),
+        ('toString', DatePrototype_toString, 0),
         ('valueOf', DatePrototype_valueOf, 0),
     ])
     return date_prototype
@@ -19437,6 +19557,8 @@ def DatePrototype_getTimezoneOffset(this_value, new_target):
     return (t - LocalTime(t)) / msPerMinute
 def DatePrototype_valueOf(this_value, new_target):
     return thisTimeValue(this_value)
+def DatePrototype_toString(this_value, new_target):
+    return ToDateString(thisTimeValue(this_value))
 
 def DateFixups(realm):
     date_constructor = realm.intrinsics['%Date%']
