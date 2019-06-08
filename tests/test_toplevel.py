@@ -154,6 +154,15 @@ def cleanup():
     ("let s=new String('hi');''+Object.defineProperty(s, '0', {value: 'h'});", 'hi'), # Should exercise IsCompatiblePropertyDescriptor
     ('let get=3; get;', 3), # Make sure 'get' works as an identifier.
     ('let set=4; set;', 4), # Make sure 'set' works as an identifier.
+    ('new Date(2016, 6).getMonth();', 6), # first millisecond
+    ('new Date(2016, 6, 0, 0, 0, 0, -1).getMonth();', 5), # previous millisecond
+    ('new Date(2016, 6, 31, 23, 59, 59, 999).getMonth();', 6), # final millisecond
+    ('new Date(2016, 6, 31, 23, 59, 59, 1000).getMonth();', 7),
+    ('new Date(2016, 11, 31).getMonth();', 11),
+    ('new Date(2016, 11, 0, 0, 0, 0, -1).getMonth();', 10),
+    ('new Date(2016, 11, 31, 23, 59, 59, 999).getMonth();', 11),
+    ('new Date(2016, 11, 31, 23, 59, 59, 1000).getMonth();', 0),
+
 ])
 def test_scripts_01(cleanup, script, result):
     rv = RunJobs(scripts=[script])

@@ -6215,7 +6215,7 @@ def MakeArgGetter(name, env):
     #   4. Return env.GetBindingValue(name, false).
     # NOTE
     # ArgGetter functions are never directly accessible to ECMAScript code.
-    def ArgGetter():
+    def ArgGetter(this_value, new_target, *_):
         f = GetActiveFunction()
         return f.Env.GetBindingValue(f.Name, False)
     getter = CreateBuiltinFunction(ArgGetter, ['Name', 'Env'])
@@ -6244,7 +6244,7 @@ def MakeArgSetter(name, env):
     #
     # NOTE
     # ArgSetter functions are never directly accessible to ECMAScript code.
-    def ArgSetter(value):
+    def ArgSetter(this_value, new_target, value=None, *_):
         f = GetActiveFunction()
         return f.Env.SetMutableBinding(f.Name, value, False)
     setter = CreateBuiltinFunction(ArgSetter, ['Name', 'Env'])
@@ -13991,7 +13991,7 @@ def EnumerateObjectProperties(O):
     iterator_obj = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics['%IteratorPrototype%'], ['python_iter'])
     iterator_obj.python_iter = py_enum_props(O)
 
-    def enum_next(this_value, new_target):
+    def enum_next(this_value, new_target, *_):
         done = False
         try:
             val = next(this_value.python_iter)
@@ -18111,7 +18111,7 @@ def CreateObjectConstructor(realm):
     return obj
 
 # 19.1.1.1 Object ( [ value ] )
-def ObjectFunction(_, new_target, value=None):
+def ObjectFunction(this_value, new_target, value=None, *_):
     # When the Object function is called with optional argument value, the following steps are taken:
     #
     # 1. If NewTarget is neither undefined nor the active function, then
@@ -18126,7 +18126,7 @@ def ObjectFunction(_, new_target, value=None):
     return ToObject(value)
 
 # 19.1.2.1 Object.assign ( target, ...sources )
-def ObjectMethod_assign(_a, _b, target, *sources):
+def ObjectMethod_assign(_a, _b, target=None, *sources):
     # The assign function is used to copy the values of all of the enumerable own properties from one or more source
     # objects to a target object. When the assign function is called, the following steps are taken:
     #
@@ -18161,7 +18161,7 @@ def ObjectMethod_assign(_a, _b, target, *sources):
     return to_obj
 
 # 19.1.2.2 Object.create ( O, Properties )
-def ObjectMethod_create(_a, _b, o_value, properties):
+def ObjectMethod_create(_a, _b, o_value=None, properties=None, *_):
     # The create function creates a new object with a specified prototype. When the create function is called, the
     # following steps are taken:
     #
@@ -18178,7 +18178,7 @@ def ObjectMethod_create(_a, _b, o_value, properties):
     return obj
 
 # 19.1.2.3 Object.defineProperties ( O, Properties )
-def ObjectMethod_defineProperties(_a, _b, o_value, properties):
+def ObjectMethod_defineProperties(_a, _b, o_value=None, properties=None, *_):
     # The defineProperties function is used to add own properties and/or update the attributes of existing own
     # properties of an object. When the defineProperties function is called, the following steps are taken:
     #
@@ -18220,7 +18220,7 @@ def ObjectDefineProperties(o_value, properties):
     return o_value
 
 # 19.1.2.4 Object.defineProperty ( O, P, Attributes )
-def ObjectMethod_defineProperty(_a, _b, o_value, prop, attributes):
+def ObjectMethod_defineProperty(_a, _b, o_value=None, prop=None, attributes=None, *_):
     # The defineProperty function is used to add an own property and/or update the attributes of an existing own
     # property of an object. When the defineProperty function is called, the following steps are taken:
     #
@@ -18237,7 +18237,7 @@ def ObjectMethod_defineProperty(_a, _b, o_value, prop, attributes):
     return o_value
 
 # 19.1.2.5 Object.entries ( O )
-def ObjectMethod_entries(_a, _b, o_value):
+def ObjectMethod_entries(_a, _b, o_value=None, *_):
     # When the entries function is called with argument O, the following steps are taken:
     #
     # 1. Let obj be ? ToObject(O).
@@ -18248,7 +18248,7 @@ def ObjectMethod_entries(_a, _b, o_value):
     return CreateArrayFromList(name_list)
 
 # 19.1.2.6 Object.freeze ( O )
-def ObjectMethod_freeze(_a, _b, o_value):
+def ObjectMethod_freeze(_a, _b, o_value=None, *_):
     # When the freeze function is called, the following steps are taken:
     #
     # 1. If Type(O) is not Object, return O.
@@ -18263,7 +18263,7 @@ def ObjectMethod_freeze(_a, _b, o_value):
     return o_value
 
 # 19.1.2.7 Object.getOwnPropertyDescriptor ( O, P )
-def ObjectMethod_getOwnPropertyDescriptor(_a, _b, o_value, propkey):
+def ObjectMethod_getOwnPropertyDescriptor(_a, _b, o_value=None, propkey=None, *_):
     # When the getOwnPropertyDescriptor function is called, the following steps are taken:
     #
     # 1. Let obj be ? ToObject(O).
@@ -18276,7 +18276,7 @@ def ObjectMethod_getOwnPropertyDescriptor(_a, _b, o_value, propkey):
     return FromPropertyDescriptor(desc)
 
 # 19.1.2.8 Object.getOwnPropertyDescriptors ( O )
-def ObjectMethod_getOwnPropertyDescriptors(_a, _b, o_value):
+def ObjectMethod_getOwnPropertyDescriptors(_a, _b, o_value=None, *_):
     # When the getOwnPropertyDescriptors function is called, the following steps are taken:
     #
     # 1. Let obj be ? ToObject(O).
@@ -18298,14 +18298,14 @@ def ObjectMethod_getOwnPropertyDescriptors(_a, _b, o_value):
     return descriptors
 
 # 19.1.2.9 Object.getOwnPropertyNames ( O )
-def ObjectMethod_getOwnPropertyNames(_a, _b, o_value):
+def ObjectMethod_getOwnPropertyNames(_a, _b, o_value=None, *_):
     # When the getOwnPropertyNames function is called, the following steps are taken:
     #
     # 1. Return ? GetOwnPropertyKeys(O, String).
     return GetOwnPropertyKeys(o_value, isString)
 
 # 19.1.2.10 Object.getOwnPropertySymbols ( O )
-def ObjectMethod_getOwnPropertySymbols(_a, _b, o_value):
+def ObjectMethod_getOwnPropertySymbols(_a, _b, o_value=None, *_):
     # When the getOwnPropertySymbols function is called with argument O, the following steps are taken:
     #
     # 1. Return ? GetOwnPropertyKeys(O, Symbol).
@@ -18329,7 +18329,7 @@ def GetOwnPropertyKeys(o_value, type_checker):
     return CreateArrayFromList(name_list)
 
 # 19.1.2.11 Object.getPrototypeOf ( O )
-def ObjectMethod_getPrototypeOf(_a, _b, o_value):
+def ObjectMethod_getPrototypeOf(_a, _b, o_value=None, *_):
     # When the getPrototypeOf function is called with argument O, the following steps are taken:
     #
     # 1. Let obj be ? ToObject(O).
@@ -18338,14 +18338,14 @@ def ObjectMethod_getPrototypeOf(_a, _b, o_value):
     return obj.GetPrototypeOf()
 
 # 19.1.2.12 Object.is ( value1, value2 )
-def ObjectMethod_is(_a, _b, value1, value2):
+def ObjectMethod_is(_a, _b, value1=None, value2=None, *_):
     # When the is function is called with arguments value1 and value2, the following steps are taken:
     #
     # 1. Return SameValue(value1, value2).
     return SameValue(value1, value2)
 
 # 19.1.2.13 Object.isExtensible ( O )
-def ObjectMethod_isExtensible(_a, _b, o_value):
+def ObjectMethod_isExtensible(_a, _b, o_value=None, *_):
     # When the isExtensible function is called with argument O, the following steps are taken:
     #
     # 1. If Type(O) is not Object, return false.
@@ -18355,7 +18355,7 @@ def ObjectMethod_isExtensible(_a, _b, o_value):
     return IsExtensible(o_value)
 
 # 19.1.2.14 Object.isFrozen ( O )
-def ObjectMethod_isFrozen(_a, _b, o_value):
+def ObjectMethod_isFrozen(_a, _b, o_value= None, *_):
     # When the isFrozen function is called with argument O, the following steps are taken:
     #
     # 1. If Type(O) is not Object, return true.
@@ -18365,7 +18365,7 @@ def ObjectMethod_isFrozen(_a, _b, o_value):
     return TestIntegrityLevel(o_value, 'frozen')
 
 # 19.1.2.15 Object.isSealed ( O )
-def ObjectMethod_isSealed(_a, _b, o_value):
+def ObjectMethod_isSealed(_a, _b, o_value=None, *_):
     # When the isSealed function is called with argument O, the following steps are taken:
     #
     # 1. If Type(O) is not Object, return true.
@@ -18375,7 +18375,7 @@ def ObjectMethod_isSealed(_a, _b, o_value):
     return TestIntegrityLevel(o_value, 'sealed')
 
 # 19.1.2.16 Object.keys ( O )
-def ObjectMethod_keys(_a, _b, o_value):
+def ObjectMethod_keys(_a, _b, o_value=None, *_):
     # When the keys function is called with argument O, the following steps are taken:
     #
     # 1. Let obj be ? ToObject(O).
@@ -18386,7 +18386,7 @@ def ObjectMethod_keys(_a, _b, o_value):
     return CreateArrayFromList(name_list)
 
 # 19.1.2.17 Object.preventExtensions ( O )
-def ObjectMethod_preventExtensions(_a, _b, o_value):
+def ObjectMethod_preventExtensions(_a, _b, o_value=None, *_):
     # When the preventExtensions function is called, the following steps are taken:
     #
     # 1. If Type(O) is not Object, return O.
@@ -18401,7 +18401,7 @@ def ObjectMethod_preventExtensions(_a, _b, o_value):
     return o_value
 
 # 19.1.2.19 Object.seal ( O )
-def ObjectMethod_seal(_a, _b, o_value):
+def ObjectMethod_seal(_a, _b, o_value=None, *_):
     # When the seal function is called, the following steps are taken:
     #
     # 1. If Type(O) is not Object, return O.
@@ -18416,7 +18416,7 @@ def ObjectMethod_seal(_a, _b, o_value):
     return o_value
 
 # 19.1.2.20 Object.setPrototypeOf ( O, proto )
-def ObjectMethod_setPrototypeOf(_a, _b, o_value, proto):
+def ObjectMethod_setPrototypeOf(_a, _b, o_value=None, proto=None, *_):
     # When the setPrototypeOf function is called with arguments O and proto, the following steps are taken:
     #
     # 1. Let O be ? RequireObjectCoercible(O).
@@ -18436,7 +18436,7 @@ def ObjectMethod_setPrototypeOf(_a, _b, o_value, proto):
     return o_value
 
 # 19.1.2.21 Object.values ( O )
-def ObjectMethod_values(_a, _b, o_value):
+def ObjectMethod_values(_a, _b, o_value=None, *_):
     # When the values function is called with argument O, the following steps are taken:
     #
     # 1. Let obj be ? ToObject(O).
@@ -18470,7 +18470,7 @@ def AddObjectPrototypeProps(realm_rec):
     return None
 
 # 19.1.3.2 Object.prototype.hasOwnProperty ( V )
-def ObjectPrototype_hasOwnProperty(this_value, _, key):
+def ObjectPrototype_hasOwnProperty(this_value, _nt, key=None, *_):
     # When the hasOwnProperty method is called with argument V, the following steps are taken:
     #
     # 1. Let P be ? ToPropertyKey(V).
@@ -18484,7 +18484,7 @@ def ObjectPrototype_hasOwnProperty(this_value, _, key):
     # previous editions of this specification will continue to be thrown even if the this value is undefined or null.
 
 # 19.1.3.3 Object.prototype.isPrototypeOf ( V )
-def ObjectPrototype_isPrototypeOf(this_value, _, obj):
+def ObjectPrototype_isPrototypeOf(this_value, _nt, obj=None, *_):
     # When the isPrototypeOf method is called with argument V, the following steps are taken:
     #
     # 1. If Type(V) is not Object, return false.
@@ -18507,7 +18507,7 @@ def ObjectPrototype_isPrototypeOf(this_value, _, obj):
     # the case where V is not an object and the this value is undefined or null.
 
 # 19.1.3.4 Object.prototype.propertyIsEnumerable ( V )
-def ObjectPrototype_propertyIsEnumerable(this_value, _, v):
+def ObjectPrototype_propertyIsEnumerable(this_value, _nt, v=None, *_):
     # When the propertyIsEnumerable method is called with argument V, the following steps are taken:
     #
     # 1. Let P be ? ToPropertyKey(V).
@@ -18528,7 +18528,7 @@ def ObjectPrototype_propertyIsEnumerable(this_value, _, v):
     # previous editions of this specification will continue to be thrown even if the this value is undefined or null.
 
 # 19.1.3.5 Object.prototype.toLocaleString ( [ reserved1 [ , reserved2 ] ] )
-def ObjectPrototype_toLocaleString(this_value, _, reserved1=None, reserved2=None):
+def ObjectPrototype_toLocaleString(this_value, _nt, reserved1=EMPTY, reserved2=EMPTY, *_):
     # When the toLocaleString method is called, the following steps are taken:
     #
     # 1. Let O be the this value.
@@ -18546,7 +18546,7 @@ def ObjectPrototype_toLocaleString(this_value, _, reserved1=None, reserved2=None
     # ECMA-402 intentionally does not provide an alternative to this default implementation.
 
 # 19.1.3.6 Object.prototype.toString ( )
-def ObjectPrototype_toString(this_value, _):
+def ObjectPrototype_toString(this_value, new_target, *_):
     # When the toString method is called, the following steps are taken:
     #
     # 1. If the this value is undefined, return "[object Undefined]".
@@ -18606,7 +18606,7 @@ def ObjectPrototype_toString(this_value, _):
     # of such legacy type tests.
 
 # 19.1.3.7 Object.prototype.valueOf ( )
-def ObjectPrototype_valueOf(this_value, _):
+def ObjectPrototype_valueOf(this_value, new_target, *_):
     # When the valueOf method is called, the following steps are taken:
     #
     # 1. Return ? ToObject(this value).
@@ -18665,7 +18665,7 @@ def CreateBooleanConstructor(realm):
     return obj
 
 # 19.3.1.1 Boolean ( value )
-def BooleanFunction(_, new_target, value):
+def BooleanFunction(_tv, new_target, value=None, *_):
     # When Boolean is called with argument value, the following steps are taken:
     #
     # 1. Let b be ToBoolean(value).
@@ -18723,7 +18723,7 @@ def thisBooleanValue(value):
     raise ESTypeError()
 
 # 19.3.3.2 Boolean.prototype.toString ( )
-def BooleanPrototype_toString(this_value, _):
+def BooleanPrototype_toString(this_value, *_):
     # The following steps are taken:
     #
     # 1. Let b be ? thisBooleanValue(this value).
@@ -18732,7 +18732,7 @@ def BooleanPrototype_toString(this_value, _):
     return 'true' if b else 'false'
 
 # 19.3.3.3 Boolean.prototype.valueOf ( )
-def BooleanPrototype_valueOf(this_value, _):
+def BooleanPrototype_valueOf(this_value, *_):
     # The following steps are taken:
     #
     # 1. Return ? thisBooleanValue(this value).
@@ -18790,7 +18790,7 @@ def CreateErrorConstructor(realm):
     return obj
 
 # 19.5.1.1 Error ( message )
-def ErrorFunction(this_value, new_target, message=None):
+def ErrorFunction(this_value, new_target, message=None, *_):
     # When the Error function is called with argument message, the following steps are taken:
     #
     # 1. If NewTarget is undefined, let newTarget be the active function object, else let newTarget be NewTarget.
@@ -18848,7 +18848,7 @@ def CreateErrorPrototype(realm):
     return error_prototype
 
 # 19.5.3.4 Error.prototype.toString ( )
-def ErrorPrototype_toString(this_value, _):
+def ErrorPrototype_toString(this_value, *_):
     # The following steps are taken:
     #
     # 1. Let O be the this value.
@@ -18887,7 +18887,7 @@ def CreateNativeErrorConstructor(realm, errorname):
     return obj
 
 def CreateErrorConstructorFunction(name):
-    def native_error_function(this_value, new_target, message=None):
+    def native_error_function(this_value, new_target, message=None, *_):
         newTarget = new_target or surrounding_agent.running_ec.function
         O = OrdinaryCreateFromConstructor(newTarget, f'%{name}ErrorPrototype%', ['ErrorData'])
         if message is not None:
@@ -18962,11 +18962,11 @@ def CreateNumberConstructor(realm):
     return obj
 
 # 20.1.1.1 Number ( value )
-def NumberFunction(_, new_target, value=missing.MISSING):
+def NumberFunction(this_value, new_target, value=EMPTY, *_):
     # When Number is called with argument value, the following steps are taken:
     #
     # 1. If no arguments were passed to this function invocation, let n be +0.
-    if value == missing.MISSING:
+    if value == EMPTY:
         n = 0
     # 2. Else, let n be ? ToNumber(value).
     else:
@@ -19020,7 +19020,7 @@ def thisNumberValue(value):
     # operation thisNumberValue with the this value of the method invocation passed as the argument.
 
 # 20.1.3.6 Number.prototype.toString ( [ radix ] )
-def NumberPrototype_toString(this_value, _, radix=None):
+def NumberPrototype_toString(this_value, _, radix=None, *args):
     # NOTE
     # The optional radix should be an integer value in the inclusive range 2 to 36. If radix is not present or is undefined the
     # Number 10 is used as the value of radix.
@@ -19050,7 +19050,7 @@ def NumberPrototype_toString(this_value, _, radix=None):
     # object. Therefore, it cannot be transferred to other kinds of objects for use as a method.
 
 # 20.1.3.7 Number.prototype.valueOf ( )
-def NumberPrototype_valueOf(this_value, _):
+def NumberPrototype_valueOf(this_value, *_):
     # 1. Return ? thisNumberValue(this value).
     return thisNumberValue(this_value)
 
@@ -19222,6 +19222,13 @@ def WeekDay(t):
 # (equivalent to 3:30 AM UTC-04). LocalTZA(TimeClip(MakeDate(MakeDay(2017, 2, 12), MakeTime(2, 30, 0, 0))), false) is
 # -5 × msPerHour.
 def LocalTZA(t, isUTC):
+    # Except for getting the current time, this is the only place we use the datetime module.
+    # Sadly, it fails for years with >4 digits. So this doesn't work correctly (i.e.: it raises
+    # an exception) for ecmascript's extended years.
+    #
+    # The only reason LocalTZA even _cares_ about the timestamp is to determine whether DST is on
+    # or off at the time we're calculating an adjustment. It might be possible to simply use
+    # the information in the tzinfo data to do that work ourselves.
     if isUTC:
         dt = datetime.datetime.fromtimestamp(t/1000, datetime.timezone.utc).astimezone()
         return dt.tzinfo.utcoffset(dt).total_seconds() * 1000
@@ -19229,8 +19236,12 @@ def LocalTZA(t, isUTC):
     dt = datetime.datetime.fromtimestamp(t/1000, local)
     return dt.tzinfo.utcoffset(dt).total_seconds() * 1000
 def LocalTime(t):
+    if not math.isfinite(t):
+        return t
     return t + LocalTZA(t, True)
 def UTC(t):
+    if not math.isfinite(t):
+        return t
     return t - LocalTZA(t, False)
 
 HoursPerDay = 24
@@ -19361,7 +19372,7 @@ def CreateDateConstructor(realm):
 #       j. Let O be ? OrdinaryCreateFromConstructor(NewTarget, "%DatePrototype%", « [[DateValue]] »).
 #       k. Set O.[[DateValue]] to TimeClip(UTC(finalDate)).
 #       l. Return O.
-def Date_Function_2plus(this_value, new_target, year, month, date=EMPTY, hours=EMPTY, minutes=EMPTY, seconds=EMPTY, ms=EMPTY):
+def Date_Function_2plus(this_value, new_target, year, month, date=EMPTY, hours=EMPTY, minutes=EMPTY, seconds=EMPTY, ms=EMPTY, *_):
     assert new_target is not None
     y = ToNumber(year)
     m = ToNumber(month)
@@ -19475,6 +19486,9 @@ def ToDateString(tv):
     t = LocalTime(tv)
     return f'{DateString(t)} {TimeString(t)}{TimeZoneString(tv)}'
 
+weekday_names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
 # 20.3.4.41.2 Runtime Semantics: DateString ( tv )
 def DateString(tv):
     # The following steps are performed:
@@ -19520,8 +19534,6 @@ def DateString(tv):
     # | 11     | "Dec" |
     # +--------+-------+
     assert isNumber(tv) and not math.isnan(tv)
-    weekday_names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-    month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     return f'{weekday_names[WeekDay(tv)]} {month_names[MonthFromTime(tv)]} {DateFromTime(tv):02d} {YearFromTime(tv):04d}'
 
 # 20.3.4.41.1 Runtime Semantics: TimeString ( tv )
@@ -19574,14 +19586,93 @@ def thisTimeValue(obj):
 def CreateDatePrototype(realm):
     date_prototype = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
     BindBuiltinFunctions(realm, date_prototype, [
+        ('getDate', DatePrototype_getDate, 0),
+        ('getDay', DatePrototype_getDay, 0),
+        ('getFullYear', DatePrototype_getFullYear, 0),
+        ('getHours', DatePrototype_getHours, 0),
+        ('getMilliseconds', DatePrototype_getMilliseconds, 0),
+        ('getMinutes', DatePrototype_getMinutes, 0),
+        ('getMonth', DatePrototype_getMonth, 0),
+        ('getSeconds', DatePrototype_getSeconds, 0),
+        ('getTime', DatePrototype_getTime, 0),
         ('getTimezoneOffset', DatePrototype_getTimezoneOffset, 0),
+        ('getUTCDate', DatePrototype_getUTCDate, 0),
+        ('getUTCDay', DatePrototype_getUTCDay, 0),
+        ('getUTCFullYear', DatePrototype_getUTCFullYear, 0),
+        ('getUTCHours', DatePrototype_getUTCHours, 0),
+        ('getUTCMilliseconds', DatePrototype_getUTCMilliseconds, 0),
+        ('getUTCMinutes', DatePrototype_getUTCMinutes, 0),
+        ('getUTCMonth', DatePrototype_getUTCMonth, 0),
+        ('getUTCSeconds', DatePrototype_getUTCSeconds, 0),
+        ('setDate', DatePrototype_setDate, 1),
+        ('setFullYear', DatePrototype_setFullYear, 3),
+        ('setHours', DatePrototype_setHours, 4),
+        ('setMilliseconds', DatePrototype_setMilliseconds, 1),
+        ('setMinutes', DatePrototype_setMinutes, 3),
+        ('setMonth', DatePrototype_setMonth, 2),
+        ('setSeconds', DatePrototype_setSeconds, 2),
+        ('setTime', DatePrototype_setTime, 1),
+        ('setUTCDate', DatePrototype_setUTCDate, 1),
+        ('setUTCFullYear', DatePrototype_setUTCFullYear, 3),
+        ('setUTCHours', DatePrototype_setUTCHours, 4),
+        ('setUTCMilliseconds', DatePrototype_setUTCMilliseconds, 1),
+        ('setUTCMinutes', DatePrototype_setUTCMinutes, 3),
+        ('setUTCMonth', DatePrototype_setUTCMonth, 2),
+        ('setUTCSeconds', DatePrototype_setUTCSeconds, 2),
+        ('toDateString', DatePrototype_toDateString, 0),
+        ('toISOString', DatePrototype_toISOString, 0),
+        ('toJSON', DatePrototype_toJSON, 1),
+        ('toLocaleDateString', DatePrototype_toLocaleDateString, 0),
+        ('toLocaleString', DatePrototype_toLocaleString, 0),
+        ('toLocaleTimeString', DatePrototype_toLocaleTimeString, 0),
         ('toString', DatePrototype_toString, 0),
+        ('toTimeString', DatePrototype_toTimeString, 0),
+        ('toUTCString', DatePrototype_toUTCString, 0),
         ('valueOf', DatePrototype_valueOf, 0),
     ])
+    func_obj = CreateBuiltinFunction(DatePrototype_toPrimitive, [], realm)
+    DefinePropertyOrThrow(func_obj, 'length', PropertyDescriptor(value=1, writable=False, enumerable=False, configurable=True))
+    DefinePropertyOrThrow(func_obj, 'name', PropertyDescriptor(value='[Symbol.toPrimitive]', writable=False, enumerable=False, configurable=False))
+    CreateMethodPropertyOrThrow(date_prototype, wks_to_primitive, func_obj)
     return date_prototype
 
+def DateLocalHelper(this_value, func):
+    t = thisTimeValue(this_value)
+    if math.isnan(t):
+        return t
+    return func(LocalTime(t))
+# 20.3.4.2 Date.prototype.getDate ( )
+def DatePrototype_getDate(this_value, new_target, *_):
+    # The following steps are performed:
+    #
+    #   1. Let t be ? thisTimeValue(this value).
+    #   2. If t is NaN, return NaN.
+    #   3. Return DateFromTime(LocalTime(t)).
+    return DateLocalHelper(this_value, DateFromTime)
+# 20.3.4.3 Date.prototype.getDay ( )
+def DatePrototype_getDay(this_value, new_target, *_):
+    # The following steps are performed:
+    #
+    #   1. Let t be ? thisTimeValue(this value).
+    #   2. If t is NaN, return NaN.
+    #   3. Return WeekDay(LocalTime(t)).
+    return DateLocalHelper(this_value, WeekDay)
+def DatePrototype_getFullYear(this_value, new_target, *_):
+    return DateLocalHelper(this_value, YearFromTime)
+def DatePrototype_getHours(this_value, new_target, *_):
+    return DateLocalHelper(this_value, HourFromTime)
+def DatePrototype_getMilliseconds(this_value, new_target, *_):
+    return DateLocalHelper(this_value, msFromTime)
+def DatePrototype_getMinutes(this_value, new_target, *_):
+    return DateLocalHelper(this_value, MinFromTime)
+def DatePrototype_getMonth(this_value, new_target, *_):
+    return DateLocalHelper(this_value, MonthFromTime)
+def DatePrototype_getSeconds(this_value, new_target, *_):
+    return DateLocalHelper(this_value, SecFromTime)
+def DatePrototype_getTime(this_value, new_target, *_):
+    return thisTimeValue(this_value)
 # 20.3.4.11 Date.prototype.getTimezoneOffset ( )
-def DatePrototype_getTimezoneOffset(this_value, new_target):
+def DatePrototype_getTimezoneOffset(this_value, new_target, *_):
     # The following steps are performed:
     #
     #   1. Let t be ? thisTimeValue(this value).
@@ -19591,10 +19682,646 @@ def DatePrototype_getTimezoneOffset(this_value, new_target):
     if math.isnan(t):
         return t
     return (t - LocalTime(t)) / msPerMinute
-def DatePrototype_valueOf(this_value, new_target):
-    return thisTimeValue(this_value)
-def DatePrototype_toString(this_value, new_target):
+def DateUTCHelper(this_value, func):
+    t = thisTimeValue(this_value)
+    if math.isnan(t):
+        return t
+    return func(t)
+def DatePrototype_getUTCDate(this_value, new_target, *_):
+    return DateUTCHelper(this_value, DateFromTime)
+def DatePrototype_getUTCDay(this_value, new_target, *_):
+    return DateUTCHelper(this_value, WeekDay)
+def DatePrototype_getUTCFullYear(this_value, new_target, *_):
+    return DateUTCHelper(this_value, YearFromTime)
+def DatePrototype_getUTCHours(this_value, new_target, *_):
+    return DateUTCHelper(this_value, HourFromTime)
+def DatePrototype_getUTCMilliseconds(this_value, new_target, *_):
+    return DateUTCHelper(this_value, msFromTime)
+def DatePrototype_getUTCMinutes(this_value, new_target, *_):
+    return DateUTCHelper(this_value, MinFromTime)
+def DatePrototype_getUTCMonth(this_value, new_target, *_):
+    return DateUTCHelper(this_value, MonthFromTime)
+def DatePrototype_getUTCSeconds(this_value, new_target, *_):
+    return DateUTCHelper(this_value, SecFromTime)
+# 20.3.4.20 Date.prototype.setDate ( date )
+def DatePrototype_setDate(this_value, new_target, date=None, *_):
+    # The following steps are performed:
+    #
+    #   1. Let t be LocalTime(? thisTimeValue(this value)).
+    #   2. Let dt be ? ToNumber(date).
+    #   3. Let newDate be MakeDate(MakeDay(YearFromTime(t), MonthFromTime(t), dt), TimeWithinDay(t)).
+    #   4. Let u be TimeClip(UTC(newDate)).
+    #   5. Set the [[DateValue]] internal slot of this Date object to u.
+    #   6. Return u.
+    t = LocalTime(thisTimeValue(this_value))
+    dt = ToNumber(date)
+    newDate = MakeDate(MakeDay(YearFromTime(t), MonthFromTime(t), dt), TimeWithinDay(t))
+    u = TimeClip(UTC(newDate))
+    this_value.DateValue = u
+    return u
+# 20.3.4.21 Date.prototype.setFullYear ( year [ , month [ , date ] ] )
+def DatePrototype_setFullYear(this_value, new_target, year=None, month=EMPTY, date=EMPTY, *_):
+    # The following steps are performed:
+    #
+    #   1. Let t be ? thisTimeValue(this value).
+    #   2. If t is NaN, let t be +0; otherwise, let t be LocalTime(t).
+    #   3. Let y be ? ToNumber(year).
+    #   4. If month is not present, let m be MonthFromTime(t); otherwise, let m be ? ToNumber(month).
+    #   5. If date is not present, let dt be DateFromTime(t); otherwise, let dt be ? ToNumber(date).
+    #   6. Let newDate be MakeDate(MakeDay(y, m, dt), TimeWithinDay(t)).
+    #   7. Let u be TimeClip(UTC(newDate)).
+    #   8. Set the [[DateValue]] internal slot of this Date object to u.
+    #   9. Return u.
+    t = thisTimeValue(this_value)
+    if math.isnan(t):
+        t = 0
+    else:
+        t = LocalTime(t)
+    y = ToNumber(year)
+    if month == EMPTY:
+        m = MonthFromTime(t)
+    else:
+        m = ToNumber(month)
+    if date == EMPTY:
+        dt = DateFromTime(t)
+    else:
+        dt = ToNumber(date)
+    newDate = MakeDate(MakeDay(y, m, dt), TimeWithinDay(t))
+    u = TimeClip(UTC(newDate))
+    this_value.DateValue = u
+    return u
+    # The length property of the setFullYear method is 3.
+    # NOTE
+    # If month is not present, this method behaves as if month was present with the value getMonth(). If date is not
+    # present, it behaves as if date was present with the value getDate().
+
+# 20.3.4.22 Date.prototype.setHours ( hour [ , min [ , sec [ , ms ] ] ] )
+def DatePrototype_setHours(this_value, new_target, hour=None, min=EMPTY, sec=EMPTY, ms=EMPTY, *_):
+    # The following steps are performed:
+    #
+    #   1. Let t be LocalTime(? thisTimeValue(this value)).
+    #   2. Let h be ? ToNumber(hour).
+    #   3. If min is not present, let m be MinFromTime(t); otherwise, let m be ? ToNumber(min).
+    #   4. If sec is not present, let s be SecFromTime(t); otherwise, let s be ? ToNumber(sec).
+    #   5. If ms is not present, let milli be msFromTime(t); otherwise, let milli be ? ToNumber(ms).
+    #   6. Let date be MakeDate(Day(t), MakeTime(h, m, s, milli)).
+    #   7. Let u be TimeClip(UTC(date)).
+    #   8. Set the [[DateValue]] internal slot of this Date object to u.
+    #   9. Return u.
+    t = LocalTime(thisTimeValue(this_value))
+    h = ToNumber(hour)
+    if min == EMPTY:
+        m = MinFromTime(t)
+    else:
+        m = ToNumber(min)
+    if sec == EMPTY:
+        s = SecFromTime(t)
+    else:
+        s = ToNumber(sec)
+    if ms == EMPTY:
+        milli = msFromTime(t)
+    else:
+        milli = ToNumber(ms)
+    date = MakeDate(Day(t), MakeTime(h, m, s, milli))
+    u = TimeClip(UTC(date))
+    this_value.DateValue = u
+    return u
+    # The length property of the setHours method is 4.
+    #
+    # NOTE
+    # If min is not present, this method behaves as if min was present with the value getMinutes(). If sec is not
+    # present, it behaves as if sec was present with the value getSeconds(). If ms is not present, it behaves as if ms
+    # was present with the value getMilliseconds().
+
+# 20.3.4.23 Date.prototype.setMilliseconds ( ms )
+def DatePrototype_setMilliseconds(this_value, new_target, ms=None, *_):
+    # The following steps are performed:
+    #
+    #   1. Let t be LocalTime(? thisTimeValue(this value)).
+    #   2. Let ms be ? ToNumber(ms).
+    #   3. Let time be MakeTime(HourFromTime(t), MinFromTime(t), SecFromTime(t), ms).
+    #   4. Let u be TimeClip(UTC(MakeDate(Day(t), time))).
+    #   5. Set the [[DateValue]] internal slot of this Date object to u.
+    #   6. Return u.
+    t = LocalTime(thisTimeValue(this_value))
+    ms = ToNumber(ms)
+    time = MakeTime(HourFromTime(t), MinFromTime(t), SecFromTime(t), ms)
+    u = TimeClip(UTC(MakeDate(Day(t), time)))
+    this_value.DateValue = u
+    return u
+
+# 20.3.4.24 Date.prototype.setMinutes ( min [ , sec [ , ms ] ] )
+def DatePrototype_setMinutes(this_value, new_target, min=None, sec=EMPTY, ms=EMPTY, *_):
+    # The following steps are performed:
+    #
+    #   1. Let t be LocalTime(? thisTimeValue(this value)).
+    #   2. Let m be ? ToNumber(min).
+    #   3. If sec is not present, let s be SecFromTime(t); otherwise, let s be ? ToNumber(sec).
+    #   4. If ms is not present, let milli be msFromTime(t); otherwise, let milli be ? ToNumber(ms).
+    #   5. Let date be MakeDate(Day(t), MakeTime(HourFromTime(t), m, s, milli)).
+    #   6. Let u be TimeClip(UTC(date)).
+    #   7. Set the [[DateValue]] internal slot of this Date object to u.
+    #   8. Return u.
+    t = LocalTime(thisTimeValue(this_value))
+    m = ToNumber(min)
+    if sec == EMPTY:
+        s = SecFromTime(t)
+    else:
+        s = ToNumber(sec)
+    if ms == EMPTY:
+        milli = msFromTime(t)
+    else:
+        milli = ToNumber(ms)
+    date = MakeDate(Day(t), MakeTime(HourFromTime(t), m, s, milli))
+    u = TimeClip(UTC(date))
+    this_value.DateValue = u
+    return u
+    # The length property of the setMinutes method is 3.
+    #
+    # NOTE
+    # If sec is not present, this method behaves as if sec was present with the value getSeconds(). If ms is not
+    # present, this behaves as if ms was present with the value getMilliseconds().
+
+# 20.3.4.25 Date.prototype.setMonth ( month [ , date ] )
+def DatePrototype_setMonth(this_value, new_target, month=None, date=EMPTY, *_):
+    # The following steps are performed:
+    #
+    #   1. Let t be LocalTime(? thisTimeValue(this value)).
+    #   2. Let m be ? ToNumber(month).
+    #   3. If date is not present, let dt be DateFromTime(t); otherwise, let dt be ? ToNumber(date).
+    #   4. Let newDate be MakeDate(MakeDay(YearFromTime(t), m, dt), TimeWithinDay(t)).
+    #   5. Let u be TimeClip(UTC(newDate)).
+    #   6. Set the [[DateValue]] internal slot of this Date object to u.
+    #   7. Return u.
+    t = LocalTime(thisTimeValue(this_value))
+    m = ToNumber(month)
+    if date == EMPTY:
+        dt = DateFromTime(t)
+    else:
+        dt = ToNumber(date)
+    newDate = MakeDate(MakeDay(YearFromTime(t), m, dt), TimeWithinDay(t))
+    u = TimeCLip(UTC(newDate))
+    this_value.DateValue = u
+    return u
+    # The length property of the setMonth method is 2.
+    #
+    # NOTE
+    # If date is not present, this method behaves as if date was present with the value getDate().
+
+# 20.3.4.26 Date.prototype.setSeconds ( sec [ , ms ] )
+def DatePrototype_setSeconds(this_value, new_target, sec=None, ms=EMPTY, *_):
+    # The following steps are performed:
+    #
+    #   1. Let t be LocalTime(? thisTimeValue(this value)).
+    #   2. Let s be ? ToNumber(sec).
+    #   3. If ms is not present, let milli be msFromTime(t); otherwise, let milli be ? ToNumber(ms).
+    #   4. Let date be MakeDate(Day(t), MakeTime(HourFromTime(t), MinFromTime(t), s, milli)).
+    #   5. Let u be TimeClip(UTC(date)).
+    #   6. Set the [[DateValue]] internal slot of this Date object to u.
+    #   7. Return u.
+    t = LocalTime(thisTimeValue(this_value))
+    s = ToNumber(sec)
+    if ms == EMPTY:
+        milli = msFromTime(t)
+    else:
+        milli = ToNumber(ms)
+    date = MakeDate(Day(t), MakeTime(HourFromTime(t), MinFromTime(t), s, milli))
+    u = TimeClip(UTC(date))
+    this_value.DateValue = u
+    return u
+    # The length property of the setSeconds method is 2.
+    #
+    # NOTE
+    # If ms is not present, this method behaves as if ms was present with the value getMilliseconds().
+
+# 20.3.4.27 Date.prototype.setTime ( time )
+def DatePrototype_setTime(this_value, new_target, time=None, *_):
+    # The following steps are performed:
+    #
+    #   1. Perform ? thisTimeValue(this value).
+    #   2. Let t be ? ToNumber(time).
+    #   3. Let v be TimeClip(t).
+    #   4. Set the [[DateValue]] internal slot of this Date object to v.
+    #   5. Return v.
+    thisTimeValue(this_value) # essentially, just to generate an exception for non-date objects
+    t = ToNumber(time)
+    v = TimeClip(t)
+    this_value.DateValue = v
+    return v
+
+# 20.3.4.28 Date.prototype.setDate ( date )
+def DatePrototype_setUTCDate(this_value, new_target, date=None, *_):
+    # The following steps are performed:
+    #
+    #   1. Let t be ? thisTimeValue(this value).
+    #   2. Let dt be ? ToNumber(date).
+    #   3. Let newDate be MakeDate(MakeDay(YearFromTime(t), MonthFromTime(t), dt), TimeWithinDay(t)).
+    #   4. Let v be TimeClip(newDate).
+    #   5. Set the [[DateValue]] internal slot of this Date object to v.
+    #   6. Return v.
+    t = thisTimeValue(this_value)
+    dt = ToNumber(date)
+    newDate = MakeDate(MakeDay(YearFromTime(t), MonthFromTime(t), dt), TimeWithinDay(t))
+    v = TimeClip(newDate)
+    this_value.DateValue = v
+    return v
+
+# 20.3.4.29 Date.prototype.setUTCFullYear ( year [ , month [ , date ] ] )
+def DatePrototype_setUTCFullYear(this_value, new_target, year=None, month=EMPTY, date=EMPTY, *_):
+    # The following steps are performed:
+    #
+    #   1. Let t be ? thisTimeValue(this value).
+    #   2. If t is NaN, let t be +0.
+    #   3. Let y be ? ToNumber(year).
+    #   4. If month is not present, let m be MonthFromTime(t); otherwise, let m be ? ToNumber(month).
+    #   5. If date is not present, let dt be DateFromTime(t); otherwise, let dt be ? ToNumber(date).
+    #   6. Let newDate be MakeDate(MakeDay(y, m, dt), TimeWithinDay(t)).
+    #   7. Let v be TimeClip(newDate).
+    #   8. Set the [[DateValue]] internal slot of this Date object to v.
+    #   9. Return v.
+    t = thisTimeValue(this_value)
+    if math.isnan(t):
+        t = 0
+    y = ToNumber(year)
+    if month == EMPTY:
+        m = MonthFromTime(t)
+    else:
+        m = ToNumber(month)
+    if date == EMPTY:
+        dt = DateFromTime(t)
+    else:
+        dt = ToNumber(date)
+    newDate = MakeDate(MakeDay(y, m, dt), TimeWithinDay(t))
+    v = TimeClip(newDate)
+    this_value.DateValue = v
+    return v
+    # The length property of the setUTCFullYear method is 3.
+    #
+    # NOTE
+    # If month is not present, this method behaves as if month was present with the value getUTCMonth(). If date is not
+    # present, it behaves as if date was present with the value getUTCDate().
+
+
+# 20.3.4.30 Date.prototype.setUTCHours ( hour [ , min [ , sec [ , ms ] ] ] )
+def DatePrototype_setUTCHours(this_value, new_target, hour=None, min=EMPTY, sec=EMPTY, ms=EMPTY, *_):
+    # The following steps are performed:
+    #
+    #   1. Let t be ? thisTimeValue(this value).
+    #   2. Let h be ? ToNumber(hour).
+    #   3. If min is not present, let m be MinFromTime(t); otherwise, let m be ? ToNumber(min).
+    #   4. If sec is not present, let s be SecFromTime(t); otherwise, let s be ? ToNumber(sec).
+    #   5. If ms is not present, let milli be msFromTime(t); otherwise, let milli be ? ToNumber(ms).
+    #   6. Let newDate be MakeDate(Day(t), MakeTime(h, m, s, milli)).
+    #   7. Let v be TimeClip(newDate).
+    #   8. Set the [[DateValue]] internal slot of this Date object to v.
+    #   9. Return v.
+    t = thisTimeValue(this_value)
+    h = ToNumber(hour)
+    if min == EMPTY:
+        m = MinFromTime(t)
+    else:
+        m = ToNumber(m)
+    if sec == EMPTY:
+        s = SecFromTime(t)
+    else:
+        s = ToNumber(sec)
+    if ms == EMPTY:
+        milli = msFromTime(t)
+    else:
+        milli = ToNumber(ms)
+    newDate = MakeDate(Day(t), MakeTime(h, m, s, milli))
+    v = TimeClip(newDate)
+    this_value.DateValue = v
+    return v
+    # The length property of the setUTCHours method is 4.
+    #
+    # NOTE
+    # If min is not present, this method behaves as if min was present with the value getUTCMinutes(). If sec is not
+    # present, it behaves as if sec was present with the value getUTCSeconds(). If ms is not present, it behaves as if
+    # ms was present with the value getUTCMilliseconds().
+
+# 20.3.4.31 Date.prototype.setUTCMilliseconds ( ms )
+def DatePrototype_setUTCMilliseconds(this_value, new_target, ms=None, *_):
+    # The following steps are performed:
+    #
+    #   1. Let t be ? thisTimeValue(this value).
+    #   2. Let milli be ? ToNumber(ms).
+    #   3. Let time be MakeTime(HourFromTime(t), MinFromTime(t), SecFromTime(t), milli).
+    #   4. Let v be TimeClip(MakeDate(Day(t), time)).
+    #   5. Set the [[DateValue]] internal slot of this Date object to v.
+    #   6. Return v.
+    t = thisTimeValue(this_value)
+    milli = ToNumber(ms)
+    time = MakeTime(HourFromTime(t), MinFromTime(t), SecFromTime(t), milli)
+    v = TimeClip(MakeDate(Day(t), time))
+    this_value.DateValue = v
+    return v
+
+# 20.3.4.32 Date.prototype.setUTCMinutes ( min [ , sec [ , ms ] ] )
+def DatePrototype_setUTCMinutes(this_value, new_target, min=None, sec=EMPTY, ms=EMPTY, *_):
+    # The following steps are performed:
+    #
+    #   1. Let t be ? thisTimeValue(this value).
+    #   2. Let m be ? ToNumber(min).
+    #   3. If sec is not present, let s be SecFromTime(t).
+    #   4. Else,
+    #       a. Let s be ? ToNumber(sec).
+    #   5. If ms is not present, let milli be msFromTime(t).
+    #   6. Else,
+    #       a. Let milli be ? ToNumber(ms).
+    #   7. Let date be MakeDate(Day(t), MakeTime(HourFromTime(t), m, s, milli)).
+    #   8. Let v be TimeClip(date).
+    #   9. Set the [[DateValue]] internal slot of this Date object to v.
+    #   10. Return v.
+    t = thisTimeValue(this_value)
+    m = ToNumber(min)
+    if sec == EMPTY:
+        s = SecFromTime(t)
+    else:
+        s = ToNumber(sec)
+    if ms == EMPTY:
+        milli = msFromTime(t)
+    else:
+        milli = ToNumber(ms)
+    date = MakeDate(Day(t), MakeTime(HourFromTime(t), m, s, milli))
+    v = TimeClip(date)
+    this_value.DateValue = v
+    return v
+    # The length property of the setUTCMinutes method is 3.
+    #
+    # NOTE
+    # If sec is not present, this method behaves as if sec was present with the value getUTCSeconds(). If ms is not
+    # present, it function behaves as if ms was present with the value return by getUTCMilliseconds().
+
+# 20.3.4.33 Date.prototype.setUTCMonth ( month [ , date ] )
+def DatePrototype_setUTCMonth(this_value, new_target, month=None, date=EMPTY, *_):
+    # The following steps are performed:
+    #
+    #   1. Let t be ? thisTimeValue(this value).
+    #   2. Let m be ? ToNumber(month).
+    #   3. If date is not present, let dt be DateFromTime(t).
+    #   4. Else,
+    #       a. Let dt be ? ToNumber(date).
+    #   5. Let newDate be MakeDate(MakeDay(YearFromTime(t), m, dt), TimeWithinDay(t)).
+    #   6. Let v be TimeClip(newDate).
+    #   7. Set the [[DateValue]] internal slot of this Date object to v.
+    #   8. Return v.
+    t = thisTimeValue(this_value)
+    m = ToNumber(month)
+    if date == EMPTY:
+        dt = DateFromTime(t)
+    else:
+        dt = ToNumber(date)
+    newDate = MakeDate(MakeDay(YearFromTime(t), m, dt), TimeWithinDay(t))
+    v = TimeClip(newDate)
+    this_value.DateValue = v
+    return v
+    # The length property of the setUTCMonth method is 2.
+    #
+    # NOTE
+    # If date is not present, this method behaves as if date was present with the value getUTCDate().
+
+# 20.3.4.34 Date.prototype.setUTCSeconds ( sec [ , ms ] )
+def DatePrototype_setUTCSeconds(this_value, new_target, sec=None, ms=EMPTY, *_):
+    # The following steps are performed:
+    #
+    #   1. Let t be ? thisTimeValue(this value).
+    #   2. Let s be ? ToNumber(sec).
+    #   3. If ms is not present, let milli be msFromTime(t).
+    #   4. Else,
+    #       a. Let milli be ? ToNumber(ms).
+    #   5. Let date be MakeDate(Day(t), MakeTime(HourFromTime(t), MinFromTime(t), s, milli)).
+    #   6. Let v be TimeClip(date).
+    #   7. Set the [[DateValue]] internal slot of this Date object to v.
+    #   8. Return v.
+    t = thisTimeValue(this_value)
+    s = ToNumber(sec)
+    if ms == EMPTY:
+        milli = msFromTime(t)
+    else:
+        milli = ToNumber(ms)
+    date = MakeDate(Day(t), MakeTime(HourFromTime(t), MinFromTime(t), s, milli))
+    v = TimeClip(date)
+    this_value.DateValue = v
+    return v
+    # The length property of the setUTCSeconds method is 2.
+    #
+    # NOTE
+    # If ms is not present, this method behaves as if ms was present with the value getUTCMilliseconds().
+
+# 20.3.4.35 Date.prototype.toDateString ( )
+def DatePrototype_toDateString(this_value, new_target, *_):
+    # The following steps are performed:
+    #
+    #   1. Let O be this Date object.
+    #   2. Let tv be ? thisTimeValue(O).
+    #   3. If tv is NaN, return "Invalid Date".
+    #   4. Let t be LocalTime(tv).
+    #   5. Return DateString(t).
+    tv = thisTimeValue(this_value)
+    if math.isnan(tv):
+        return 'Invalid Date'
+    return DateString(LocalTime(tv))
+
+# 20.3.4.36 Date.prototype.toISOString ( )
+def DatePrototype_toISOString(this_value, new_target, *_):
+    # This function returns a String value representing the instance in time corresponding to this time value. The
+    # format of the String is the Date Time string format defined in 20.3.1.15. All fields are present in the String.
+    # The time zone is always UTC, denoted by the suffix Z. If this time value is not a finite Number or if the year
+    # is not a value that can be represented in that format (if necessary using extended year format), a RangeError
+    # exception is thrown.
+    tv = thisTimeValue(this_value)
+    if math.isnan(tv) or abs(YearFromTime(tv)) >= 1000000:
+        raise ESRangeError('Invalid time value')
+    year = YearFromTime(tv)
+    month = MonthFromTime(tv) + 1
+    day = DateFromTime(tv)
+    time = TimeWithinDay(tv)
+    hours = HourFromTime(time)
+    minutes = MinFromTime(time)
+    secs = SecFromTime(time)
+    ms = msFromTime(time)
+    if year >= 0 and year <= 9999:
+        year_str = f'{year:04d}'
+    else:
+        year_str = f"{('-','+')[year >= 0]}{year:06d}"
+    return f'{year_str}-{month:02d}-{day:02d}T{hours:02d}:{minutes:02d}:{secs:02d}.{ms:03d}Z'
+
+# 20.3.4.37 Date.prototype.toJSON ( key )
+def DatePrototype_toJSON(this_value, new_target, key=None, *_):
+    # This function provides a String representation of a Date object for use by JSON.stringify (24.5.2).
+    #
+    # When the toJSON method is called with argument key, the following steps are taken:
+    #
+    #   1. Let O be ? ToObject(this value).
+    #   2. Let tv be ? ToPrimitive(O, hint Number).
+    #   3. If Type(tv) is Number and tv is not finite, return null.
+    #   4. Return ? Invoke(O, "toISOString").
+    O = ToObject(this_value)
+    tv = ToPrimitive(O, 'number')
+    if isNumber(tv) and not math.isfinite(tv):
+        return JSNull.NULL
+    return Invoke(O, 'toISOString')
+    # NOTE 1
+    # The argument is ignored.
+    #
+    # NOTE 2
+    # The toJSON function is intentionally generic; it does not require that its this value be a Date object.
+    # Therefore, it can be transferred to other kinds of objects for use as a method. However, it does require that any
+    # such object have a toISOString method.
+
+def locale_date(localtime):
+    return f'{MonthFromTime(localtime)+1}/{DateFromTime(localtime)}/{YearFromTime(localtime)}'
+def locale_time(localtime):
+    time = TimeWithinDay(localtime)
+    hour = HourFromTime(time)
+    display_hour = (12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)[hour]
+    ampm = ('AM', 'PM')[hour >= 12]
+    return f'{display_hour}:{MinFromTime(time):02d}:{SecFromTime(time):02d} {ampm}'
+
+# 20.3.4.38 Date.prototype.toLocaleDateString ( [ reserved1 [ , reserved2 ] ] )
+def DatePrototype_toLocaleDateString(this_value, new_target, reserved1=EMPTY, reserved2=EMPTY, *_):
+    # An ECMAScript implementation that includes the ECMA-402 Internationalization API must implement the
+    # Date.prototype.toLocaleDateString method as specified in the ECMA-402 specification. If an ECMAScript
+    # implementation does not include the ECMA-402 API the following specification of the toLocaleDateString method is
+    # used.
+    #
+    # This function returns a String value. The contents of the String are implementation-dependent, but are intended
+    # to represent the “date” portion of the Date in the current time zone in a convenient, human-readable form that
+    # corresponds to the conventions of the host environment's current locale.
+    #
+    # The meaning of the optional parameters to this method are defined in the ECMA-402 specification; implementations
+    # that do not include ECMA-402 support must not use those parameter positions for anything else.
+    tv = thisTimeValue(this_value)
+    if math.isnan(tv):
+        return 'Invalid Date'
+    return locale_date(LocalTime(tv))
+
+# 20.3.4.39 Date.prototype.toLocaleString ( [ reserved1 [ , reserved2 ] ] )
+def DatePrototype_toLocaleString(this_value, new_target, reserved1=EMPTY, reserved2=EMPTY, *_):
+    # An ECMAScript implementation that includes the ECMA-402 Internationalization API must implement the
+    # Date.prototype.toLocaleString method as specified in the ECMA-402 specification. If an ECMAScript implementation
+    # does not include the ECMA-402 API the following specification of the toLocaleString method is used.
+    #
+    # This function returns a String value. The contents of the String are implementation-dependent, but are intended
+    # to represent the Date in the current time zone in a convenient, human-readable form that corresponds to the
+    # conventions of the host environment's current locale.
+    #
+    # The meaning of the optional parameters to this method are defined in the ECMA-402 specification; implementations
+    # that do not include ECMA-402 support must not use those parameter positions for anything else.
+    tv = thisTimeValue(this_value)
+    if math.isnan(tv):
+        return 'Invalid Date'
+    lt = LocalTime(tv)
+    return f'{locale_date(lt)}, {locale_time(lt)}'
+
+# 20.3.4.40 Date.prototype.toLocaleTimeString ( [ reserved1 [ , reserved2 ] ] )
+def DatePrototype_toLocaleTimeString(this_value, new_target, reserved1=EMPTY, reserved2=EMPTY, *_):
+    # An ECMAScript implementation that includes the ECMA-402 Internationalization API must implement the
+    # Date.prototype.toLocaleTimeString method as specified in the ECMA-402 specification. If an ECMAScript
+    # implementation does not include the ECMA-402 API the following specification of the toLocaleTimeString method is
+    # used.
+    #
+    # This function returns a String value. The contents of the String are implementation-dependent, but are intended
+    # to represent the “time” portion of the Date in the current time zone in a convenient, human-readable form that
+    # corresponds to the conventions of the host environment's current locale.
+    #
+    # The meaning of the optional parameters to this method are defined in the ECMA-402 specification; implementations
+    # that do not include ECMA-402 support must not use those parameter positions for anything else.
+    tv = thisTimeValue(this_value)
+    if math.isnan(tv):
+        return 'Invalid Date'
+    return locale_time(LocalTime(tv))
+
+# 20.3.4.41 Date.prototype.toString ( )
+def DatePrototype_toString(this_value, new_target, *_):
+    # The following steps are performed:
+    #
+    #   1. Let tv be ? thisTimeValue(this value).
+    #   2. Return ToDateString(tv).
     return ToDateString(thisTimeValue(this_value))
+    # NOTE 1
+    # For any Date object d whose milliseconds amount is zero, the result of Date.parse(d.toString()) is equal to
+    # d.valueOf(). See 20.3.3.2.
+    #
+    # NOTE 2
+    # The toString function is intentionally generic; it does not require that its this value be a Date object.
+    # Therefore, it can be transferred to other kinds of objects for use as a method.
+
+# 20.3.4.42 Date.prototype.toTimeString ( )
+def DatePrototype_toTimeString(this_value, *_):
+    # The following steps are performed:
+    #
+    #   1. Let O be this Date object.
+    #   2. Let tv be ? thisTimeValue(O).
+    #   3. If tv is NaN, return "Invalid Date".
+    #   4. Let t be LocalTime(tv).
+    #   5. Return the string-concatenation of TimeString(t) and TimeZoneString(tv).
+    tv = thisTimeValue(this_value)
+    if math.isnan(tv):
+        return 'Invalid Date'
+    return f'{TimeString(LocalTime(tv))}{TimeZoneString(tv)}'
+
+# 20.3.4.43 Date.prototype.toUTCString ( )
+def DatePrototype_toUTCString(this_value, new_target, *_):
+    # The following steps are performed:
+    #
+    #   1. Let O be this Date object.
+    #   2. Let tv be ? thisTimeValue(O).
+    #   3. If tv is NaN, return "Invalid Date".
+    #   4. Let weekday be the Name of the entry in Table 46 with the Number WeekDay(tv).
+    #   5. Let month be the Name of the entry in Table 47 with the Number MonthFromTime(tv).
+    #   6. Let day be the String representation of DateFromTime(tv), formatted as a two-digit decimal number, padded to
+    #      the left with a zero if necessary.
+    #   7. Let year be the String representation of YearFromTime(tv), formatted as a decimal number of at least four
+    #      digits, padded to the left with zeroes if necessary.
+    #   8. Return the string-concatenation of weekday, ",", the code unit 0x0020 (SPACE), day, the code unit 0x0020
+    #      (SPACE), month, the code unit 0x0020 (SPACE), year, the code unit 0x0020 (SPACE), and TimeString(tv).
+    tv = thisTimeValue(this_value)
+    if math.isnan(tv):
+        return 'Invalid Date'
+    weekday = weekday_names[WeekDay(tv)]
+    month = month_names[MonthFromTime(tv)]
+    day = f'{DateFromTime(tv):02d}'
+    year = f'{YearFromTime(tv):04d}'
+    return f'{weekday}, {day} {month} {year} {TimeString(tv)}'
+
+# 20.3.4.44 Date.prototype.valueOf ( )
+def DatePrototype_valueOf(this_value, new_target, *_):
+    # The following steps are performed:
+    #
+    #   1. Return ? thisTimeValue(this value).
+    return thisTimeValue(this_value)
+
+# 20.3.4.45 Date.prototype [ @@toPrimitive ] ( hint )
+def DatePrototype_toPrimitive(this_value, new_target, hint=None, *_):
+    # This function is called by ECMAScript language operators to convert a Date object to a primitive value. The
+    # allowed values for hint are  "default", "number", and "string". Date objects, are unique among built-in
+    # ECMAScript object in that they treat "default" as being equivalent to "string", All other built-in ECMAScript
+    # objects treat "default" as being equivalent to "number".
+    #
+    # When the @@toPrimitive method is called with argument hint, the following steps are taken:
+    #
+    #   1. Let O be the this value.
+    #   2. If Type(O) is not Object, throw a TypeError exception.
+    #   3. If hint is the String value "string" or the String value "default", then
+    #       a. Let tryFirst be "string".
+    #   4. Else if hint is the String value "number", then
+    #       a. Let tryFirst be "number".
+    #   5. Else, throw a TypeError exception.
+    #   6. Return ? OrdinaryToPrimitive(O, tryFirst).
+    if not isObject(this_value):
+        raise ESTypeError('toPrimitive needs an object')
+    if hint in ['string', 'default']:
+        tryFirst = 'string'
+    elif hint == 'number':
+        tryFirst = 'number'
+    else:
+        raise ESTypeError('bad hint for toPrimitive')
+    return OrdinaryToPrimitive(this_value, tryFirst)
+    # The value of the name property of this function is "[Symbol.toPrimitive]".
+    #
+    # This property has the attributes { [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true }.
 
 def DateFixups(realm):
     date_constructor = realm.intrinsics['%Date%']
@@ -20219,7 +20946,8 @@ def GetGeneratorKind():
 if __name__ == '__main__':
     try:
         rv = RunJobs(scripts=["""
-        String(new Date());
+        d = new Date();
+        3 + d;
         """])
     except ESError as err:
         InitializeHostDefinedRealm()
