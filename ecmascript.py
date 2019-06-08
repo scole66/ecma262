@@ -109,6 +109,32 @@ class ESReturn(ESAbrupt):
 class missing(Enum):
     MISSING = auto()
 
+##############################################################################################################################
+#
+#  .d8888b.       d888       8888888888  .d8888b.  888b     d888        d8888  .d8888b.                   d8b          888
+# d88P  Y88b     d8888       888        d88P  Y88b 8888b   d8888       d88888 d88P  Y88b                  Y8P          888
+# 888              888       888        888    888 88888b.d88888      d88P888 Y88b.                                    888
+# 888d888b.        888       8888888    888        888Y88888P888     d88P 888  "Y888b.    .d8888b 888d888 888 88888b.  888888
+# 888P "Y88b       888       888        888        888 Y888P 888    d88P  888     "Y88b. d88P"    888P"   888 888 "88b 888
+# 888    888       888       888        888    888 888  Y8P  888   d88P   888       "888 888      888     888 888  888 888
+# Y88b  d88P d8b   888       888        Y88b  d88P 888   "   888  d8888888888 Y88b  d88P Y88b.    888     888 888 d88P Y88b.
+#  "Y8888P"  Y8P 8888888     8888888888  "Y8888P"  888       888 d88P     888  "Y8888P"   "Y8888P 888     888 88888P"   "Y888
+#                                                                                                             888
+#                                                                                                             888
+#                                                                                                             888
+# 888                                                                         88888888888
+# 888                                                                             888
+# 888                                                                             888
+# 888       8888b.  88888b.   .d88b.  888  888  8888b.   .d88b.   .d88b.          888     888  888 88888b.   .d88b.  .d8888b
+# 888          "88b 888 "88b d88P"88b 888  888     "88b d88P"88b d8P  Y8b         888     888  888 888 "88b d8P  Y8b 88K
+# 888      .d888888 888  888 888  888 888  888 .d888888 888  888 88888888         888     888  888 888  888 88888888 "Y8888b.
+# 888      888  888 888  888 Y88b 888 Y88b 888 888  888 Y88b 888 Y8b.             888     Y88b 888 888 d88P Y8b.          X88
+# 88888888 "Y888888 888  888  "Y88888  "Y88888 "Y888888  "Y88888  "Y8888          888      "Y88888 88888P"   "Y8888   88888P'
+#                                 888                        888                               888 888
+#                            Y8b d88P                   Y8b d88P                          Y8b d88P 888
+#                             "Y88P"                     "Y88P"                            "Y88P"  888
+#
+##############################################################################################################################
 # 6.1 ECMAScript Language Types
 
 @unique
@@ -918,6 +944,34 @@ def TypeOf(arg):
     if isObject(arg):
         return JSType.OBJECT
     return JSType.ILLEGAL
+
+##############################################################################################################################################################
+#
+#  .d8888b.       .d8888b.      8888888888  .d8888b.  888b     d888        d8888  .d8888b.                   d8b          888
+# d88P  Y88b     d88P  Y88b     888        d88P  Y88b 8888b   d8888       d88888 d88P  Y88b                  Y8P          888
+# 888                   888     888        888    888 88888b.d88888      d88P888 Y88b.                                    888
+# 888d888b.           .d88P     8888888    888        888Y88888P888     d88P 888  "Y888b.    .d8888b 888d888 888 88888b.  888888
+# 888P "Y88b      .od888P"      888        888        888 Y888P 888    d88P  888     "Y88b. d88P"    888P"   888 888 "88b 888
+# 888    888     d88P"          888        888    888 888  Y8P  888   d88P   888       "888 888      888     888 888  888 888
+# Y88b  d88P d8b 888"           888        Y88b  d88P 888   "   888  d8888888888 Y88b  d88P Y88b.    888     888 888 d88P Y88b.
+#  "Y8888P"  Y8P 888888888      8888888888  "Y8888P"  888       888 d88P     888  "Y8888P"   "Y8888P 888     888 88888P"   "Y888
+#                                                                                                                888
+#                                                                                                                888
+#                                                                                                                888
+#  .d8888b.                             d8b  .d888 d8b                   888    d8b                       88888888888
+# d88P  Y88b                            Y8P d88P"  Y8P                   888    Y8P                           888
+# Y88b.                                     888                          888                                  888
+#  "Y888b.   88888b.   .d88b.   .d8888b 888 888888 888  .d8888b  8888b.  888888 888  .d88b.  88888b.          888     888  888 88888b.   .d88b.  .d8888b
+#     "Y88b. 888 "88b d8P  Y8b d88P"    888 888    888 d88P"        "88b 888    888 d88""88b 888 "88b         888     888  888 888 "88b d8P  Y8b 88K
+#       "888 888  888 88888888 888      888 888    888 888      .d888888 888    888 888  888 888  888         888     888  888 888  888 88888888 "Y8888b.
+# Y88b  d88P 888 d88P Y8b.     Y88b.    888 888    888 Y88b.    888  888 Y88b.  888 Y88..88P 888  888         888     Y88b 888 888 d88P Y8b.          X88
+#  "Y8888P"  88888P"   "Y8888   "Y8888P 888 888    888  "Y8888P "Y888888  "Y888 888  "Y88P"  888  888         888      "Y88888 88888P"   "Y8888   88888P'
+#            888                                                                                                           888 888
+#            888                                                                                                      Y8b d88P 888
+#            888                                                                                                       "Y88P"  888
+#
+##############################################################################################################################################################
+# 6.2 ECMAScript Specification Types
 
 # 6.2.1 The List and Record Specification Types
 #
@@ -18047,6 +18101,16 @@ def HostReportErrors(errorList):
             print(ToString(err))
 
     return Empty.EMPTY
+
+# 18.2.1.2 HostEnsureCanCompileStrings ( callerRealm, calleeRealm )
+def HostEnsureCanCompileStrings(callerRealm, calleeRealm):
+    # HostEnsureCanCompileStrings is an implementation-defined abstract operation that allows host environments to
+    # block certain ECMAScript functions which allow developers to compile strings into ECMAScript code.
+    #
+    # An implementation of HostEnsureCanCompileStrings may complete normally or abruptly. Any abrupt completions will
+    # be propagated to its callers. The default implementation of HostEnsureCanCompileStrings is to unconditionally
+    # return an empty normal completion.
+    return EMPTY
 
 ###########################################################################################################################################################
 #
