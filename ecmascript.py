@@ -19924,7 +19924,7 @@ def DatePrototype_setMonth(this_value, new_target, month=None, date=EMPTY, *_):
     else:
         dt = ToNumber(date)
     newDate = MakeDate(MakeDay(YearFromTime(t), m, dt), TimeWithinDay(t))
-    u = TimeCLip(UTC(newDate))
+    u = TimeClip(UTC(newDate))
     this_value.DateValue = u
     return u
     # The length property of the setMonth method is 2.
