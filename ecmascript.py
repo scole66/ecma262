@@ -6454,6 +6454,11 @@ class Lexer():
         'DIV',
         'DIVEQ',
         'TILDE',
+        'REGEXP',
+        'NOSUBSTITUTIONTEMPLATE',
+        'TEMPLATEHEAD',
+        'TEMPLATEMIDDLE',
+        'TEMPLATETAIL',
 
         # Reserved words. They may not be used as identifier names. (Although yield and await have special treatment.)
         'AWAIT', 'BREAK', 'CASE', 'CATCH', 'CLASS', 'CONST', 'CONTINUE',
@@ -6553,73 +6558,108 @@ class Lexer():
         # Empty string means we're done
         if ch == '':
             return (DONE, [])
-        # Initial State for InputElementDiv:
-        # We're looking at the first char for the production
-        # InputElementDiv ::
+        # We're looking at the first char for one of the productions:
+        # InputElementDiv, InputElementTemplateTail, InputElementRegExp, or InputElementRegExpOrTemplateTail
+        #
+        # Common among all of those are:
         #    WhiteSpace
         #    LineTerminator
         #    Comment
         #    CommonToken
+        #
+        # For InputElementDiv, we also have:
         #    DivPunctuator
         #    RightBracePunctuator
+        #
+        # For InputElementTemplateTail, we also have:
+        #    DivPunctuator
+        #    TemplateSubstitutionTail
+        #
+        # For InputElementRegExp, we also have:
+        #    RightBracePunctuator
+        #    RegularExpressionLiteral
+        #
+        # And for InputElementRegExpOrTemplateTail, we also have:
+        #    RegularExpressionLiteral
+        #    TemplateSubstitutionTail
+        #
+        goal = self.goal
+
         if ch in self.whitespace or unicodedata.category(ch) == 'Zs':
             # WhiteSpace --- we ignore this
             self._swallow(False)
             return (self._initial, [])
-        elif ch in self.line_terminators:
+        if ch in self.line_terminators:
             # LineTerminator
             if ch != '\u000d' or lookahead != '\u000a':
                 self.linenum += 1
             self._swallow(False)
             return (self._initial, [])
-        elif ch == '/':
-            # Might be Comment::SingleLineComment, Comment::MultiLineComment, DivPunctuator::/, or DivPunctuator::/=
-            return (self._comment_or_div, [])
-        elif ch in '(),:;?[]{}~':
+        if ch == '/':
+            if goal in (self.Goal.InputElementDiv, self.Goal.InputElementTemplateTail):
+                # Might be Comment::SingleLineComment, Comment::MultiLineComment, DivPunctuator::/, or DivPunctuator::/=
+                return (self._comment_or_div, [])
+            # else goal in (self.Goal.InputElementRegExp, self.Goal.InputElementRegExpOrTemplateTail)
+            return (self._comment_or_regexp, [])
+        if ((ch in '(),:;?[]{~')
+              or
+              (ch == '}' and goal in (self.Goal.InputElementDiv, self.Goal.InputElementRegExp))):
             # These are CommonToken::Punctuator or RightBracePunctuator that are uniquely one character in size
             return (self._initial, [self._make_token(self.one_char_punctuators[ch], ch, False)])
-        elif ch == '!':
+        if ch == '}':
+            assert goal in (self.Goal.InputElementTemplateTail, self.Goal.InputElementRegExpOrTemplateTail)
+            self._tv = ''
+            self._trv = ''
+            return (self._template_middle, [])
+        if ch == '!':
             return (self._bang, [])
-        elif ch == '%':
+        if ch == '%':
             return (self._percent, [])
-        elif ch == '&':
+        if ch == '&':
             return (self._ampersand, [])
-        elif ch == '*':
+        if ch == '*':
             return (self._asterisk, [])
-        elif ch == '+':
+        if ch == '+':
             return (self._plus, [])
-        elif ch == '-':
+        if ch == '-':
             return (self._minus, [])
-        elif ch == '.':
+        if ch == '.':
             return (self._period, [])
-        elif ch == '<':
+        if ch == '<':
             return (self._less_than, [])
-        elif ch == '=':
+        if ch == '=':
             return (self._equals, [])
-        elif ch == '>':
+        if ch == '>':
             return (self._greater_than, [])
-        elif ch == '^':
+        if ch == '^':
             return (self._caret, [])
-        elif ch == '|':
+        if ch == '|':
             return (self._pipe, [])
 
         # NumericLiterals start with the digits 0 through 9, or the period. (Period is handled in self._period.)
-        elif ch in '0123456789':
+        if ch in '0123456789':
             return (self._numeric_start, [])
 
         # IdentifierName also manages to include reserved words (this function also captures the start of a unicode
         # escape sequence).
-        elif self.is_identifier_start(ch):
+        if self.is_identifier_start(ch):
             if ch == '\\':
                 return (self._ident_start_escape, [])
             return (self._ident_capture, [])
 
-        elif ch == "'" or ch == '"':
+        # Strings start with single quotes or double quotes...
+        if ch == "'" or ch == '"':
             self._string_delim = ch
             return (self._string_capture, [])
 
-        # More to add still...
-        return (self._initial, [])
+        # Templates start with backquotes...
+        if ch == '`':
+            self._tv = ''
+            self._trv = ''
+            return (self._template_head_capture, [])
+
+        # We got a character we don't know how to handle. Or rather, we handle it by calling it a syntax error.
+        raise LexerError('Unhandled character in input stream')
 
     def _bang(self, ch, lookahead):
         # We already have !. Might be !, !=, or !==.
@@ -6811,6 +6851,23 @@ class Lexer():
         state, results = self._initial(ch, lookahead)
         return (state, chain([tok], results))
 
+    def _comment_or_regexp(self, ch, lookahead):
+        # This is the same as comment_or_div, except that we replace the div part with a regex part
+        if ch == '/':
+            # A SingleLineComment
+            return (self._single_line_comment, [])
+        if ch == '*':
+            # A MultiLineComment
+            return (self._multi_line_comment, [])
+        if ch == '' or ch in self.line_terminators:
+            # Regex that ended early. That'd be a syntax error.
+            raise LexerError('Unterminated Regular Expression')
+        if ch == '\\':
+            return (self._regex_backslash, [])
+        if ch == '[':
+            return (self._regex_class, [])
+        return (self._regex_body, [])
+
     def _single_line_comment(self, ch, lookahead):
         if ch and ch not in self.line_terminators:
             return (self._single_line_comment, [])
@@ -6829,6 +6886,103 @@ class Lexer():
             self._swallow(False)
             return (self._initial, [])
         return (self._multi_line_comment, [])
+
+    def _regex_body(self, ch, lookahead):
+        # At this point, we've seen the leading slash of a regex, along with at least one character of the regex body.
+        # We should be at the start of a RegularExpressionChars sequence.
+        if ch == '/':
+            # This is the slash after the RegularExpressionBody production. Let's remember that.
+            self.regex_body = self.source[self.start+1:self.pos-1]
+            self.flag_start = self.pos
+            return (self._regex_flags, [])
+        if ch == '[':
+            # The start of a RegularExpressionClass
+            return (self._regex_class, [])
+        if ch == '\\':
+            # The start of a RegularExpressionBackslashSequence
+            return (self._regex_backslash, [])
+        if ch == '' or ch in self.line_terminators:
+            raise LexerError('Unterminated Regular Expression')
+        # Just a normal regex char. Keep capturing.
+        return (self._regex_body, [])
+
+    def _regex_backslash(self, ch, lookahead):
+        if ch == '' or ch in self.line_terminators:
+            raise LexerError('Unterminated Regular Expression')
+        # Anything is fine here, but we just have one character, so we just go back to the body.
+        return (self._regex_body, [])
+
+    def _regex_class(self, ch, lookahead):
+        if ch == '' or ch in self.line_terminators:
+            raise LexerError('Unterminated Regular Expression')
+        if ch == ']':
+            # Class is done. Go back to the body.
+            return (self._regex_body, [])
+        if ch == '\\':
+            return (self._regex_class_backslash, [])
+        return (self._regex_class, [])
+
+    def _regex_class_backslash(self, ch, lookahead):
+        if ch == '' or ch in self.line_terminators:
+            raise LexerError('Unterminated Regular Expression')
+        # Anything is fine here, but we just have one character, so we just go back to the regex class.
+        return (self._regex_class, [])
+
+    def _regex_flags(self, ch, lookahead):
+        if ch and (self.is_unicode_id_continue(ch) or ch in '$\u200c\u200d'):
+            return (self._regex_flags, [])
+        if ch == '\\':
+            return (self._flag_escape_1, [])
+        tok = self._make_token('REGEXP', (self.regex_body, self.source[self.flag_start:self.pos-1]), True)
+        state, results = self._initial(ch, lookahead)
+        return (state, chain([tok], results))
+
+    def _flag_escape_1(self, ch, lookahead):
+        if ch != 'u':
+            raise LexerError('Invalid Regex escape sequence')
+        return (self._flag_escape_2, [])
+
+    def _flag_escape_2(self, ch, lookahead):
+        # We have '\u'. Next is either exactly 4 hex digits, or '{' <many digits> '}'.
+        if ch and ch in '0123456789abcdefABCDEF':
+            return (self._flag_3_digits_left, [])
+        if ch == '{':
+            return (self._flag_n_digits_left, [])
+        raise LexerError('Invalid Regex escape sequence')
+
+    def _flag_3_digits_left(self, ch, lookahead):
+        if ch and ch in '0123456789abcdefABCDEF':
+            return (self._flag_2_digits_left, [])
+        raise LexerError('Invalid Regex escape sequence')
+
+    def _flag_2_digits_left(self, ch, lookahead):
+        if ch and ch in '0123456789abcdefABCDEF':
+            return (self._flag_1_digit_left, [])
+        raise LexerError('Invalid Regex escape sequence')
+
+    def _flag_1_digit_left(self, ch, lookahead):
+        if ch and ch in '0123456789abcdefABCDEF':
+            pos = self.pos
+            escaped_char = chr(int(self.source[pos-4:pos], 16))
+            if self.is_unicode_id_continue(escaped_char) or escaped_char in '$\u200c\u200d':
+                return (self._regex_flags, [])
+        raise LexerError('Invalid Regex escape sequence')
+
+    def _flag_n_digits_left(self, ch, lookahead):
+        if ch and ch in '0123456789abcdefABCDEF':
+            return (self._flag_n_digits_left, [])
+        pos = self.pos
+        if ch == '}':
+            if self.source[pos-2] == '{':
+                # No digits!
+                raise LexerError('Invalid Regex escape sequence')
+            bracket = self.source.rfind('{', self.start, pos)
+            charcode = int(self.source[bracket+1:pos-1], 16)
+            if charcode <= 0x10FFFF:
+                escaped_char = chr(charcode)
+                if self.is_unicode_id_continue(escaped_char) or escaped_char in '$\u200c\u200d':
+                    return (self._regex_flags, [])
+        raise LexerError('Invalid Regex escape sequence')
 
     def _numeric_start(self, ch, lookahead):
         # We have the first char of a number (though, not a period)
@@ -7247,6 +7401,195 @@ class Lexer():
             if charcode <= 0x10FFFF:
                 return (self._string_capture, [])
         raise LexerError('Syntax Error in Unicode String Escape')
+
+    def _template_head_capture(self, ch, lookahead):
+        # We're pulling TemplateCharacters inside either a NoSubstitutionTemplate or a TemplateHead
+        if ch == '':
+            raise LexerError('Unterminated Template')
+        if ch == '`':
+            # That's the end. So this was a NoSubstitutionTemplate.
+            return (self._initial, [self._make_token('NOSUBSTITUTIONTEMPLATE', (self._tv, self._trv), False)])
+        if ch == '$' and lookahead == '{':
+            # We're on the '$' of '${'. So we're about to end but we need to wait one more character.
+            return (self._template_head_end, [])
+
+        self._template_return_state = self._template_head_capture
+        return self._template_char_capture(ch, lookahead)
+
+    def _template_middle(self, ch, lookahead):
+        # We're pulling TemplateCharacters inside a TemplateSubstitutionTail.
+        # (I.e.: TemplateCharacters until either '`' or '${'.)
+        if ch == '':
+            raise LexerError('Unterminated Template')
+        if ch == '`':
+            # That makes this a TemplateTail
+            return (self._initial, [self._make_token('TEMPLATETAIL', (self._tv, self._trv), False)])
+        if ch == '$' and lookahead == '{':
+            # We're on the '$' of '${'. So we're about to end but need to wait one more character.
+            return (self._template_middle_end, [])
+
+        self._template_return_state = self._template_middle
+        return self._template_char_capture(ch, lookahead)
+
+    def _template_char_capture(self, ch, lookahead):
+        # Generic Template Chars.
+        if ch == '\\':
+            # Either an EscapeSequence, a NotEscapeSequence, or a LineContinuation.
+            self._trv += '\\'
+            return (self._template_backslash, [])
+        if ch in '\u000a\u2028\u2029':
+            # One-char LineTerminatorSequences
+            self._trv += ch
+            if self._tv is not None:
+                self._tv += ch
+            return (self._template_return_state, [])
+        if ch == '\u000d':
+            # Either <CR> or <CR><LF>
+            if lookahead != '\u000a':
+                # The bare <CR> is normalized to <LF>
+                self._trv += '\u000a'
+                if self._tv is not None:
+                    self._tv += '\u000a'
+                self.linenum += 1
+            else:
+                # The <CR> part of <CR><LF> is simply ignored.
+                pass
+            return (self._template_return_state, [])
+
+        # Plain ordinary chars
+        self._trv += ch
+        if self._tv is not None:
+            self._tv += ch
+        return (self._template_return_state, [])
+
+    def _template_head_end(self, ch, lookahead):
+        assert ch == '{', 'Internal Error. States are confused.'
+        return (self._initial, [self._make_token('TEMPLATEHEAD', (self._tv, self._trv), False)])
+
+    def _template_middle_end(self, ch, lookahead):
+        assert ch == '{', 'Internal Error. States are confused.'
+        return (self._initial, [self._make_token('TEMPLATEMIDDLE', (self._tv, self._trv), False)])
+
+    def _template_linecont(self, ch, lookahead):
+        assert ch == '\u000a', 'Internal Error. States are confused.'
+        self._trv += ch
+        self.linenum += 1
+        return (self._template_return_state, [])
+
+    def _template_backslash(self, ch, lookahead):
+        if ch == '':
+            raise LexerError('Unterminated Template')
+        if ch in '\u000a\u2028\u2029':
+            self.linenum += 1
+            self._trv += ch
+            return (self._template_return_state, [])
+        if ch == '\u000d':
+            if lookahead != '\u000a':
+                self._trv += '\u000a'
+                self.linenum += 1
+                return (self._template_return_state, [])
+            else:
+                return (self._template_linecont, [])
+        # Ok, so we're just after the leading backslash of either:
+        # \ EscapeSequence
+        # \ NotEscapeSequence
+        if (ch in '123456789'
+            or
+            ch == 'x' and lookahead not in '0123456789abcdefABCDEF'
+            or
+            ch == 'u' and lookahead not in '0123456789abcdefABCDEF{'):
+            # A NotEscapeSequence that's only one char long.
+            self._tv = None
+            self._trv += ch
+            return (self._template_return_state, [])
+        if ch == '0' and (lookahead == '' or lookahead not in '0123456789'):
+            self._trv += ch
+            if self._tv is not None:
+                self._tv += '\0'
+            return (self._template_return_state, [])
+        if ch == '0':
+            self._trv += ch
+            return (self._template_escape_0, [])
+        if ch == 'x':
+            self._trv += ch
+            return (self._template_escape_x, [])
+        if ch == 'u':
+            self._trv += ch
+            return (self._template_escape_u, [])
+        # Just a normal character...
+        self._trv += ch
+        if self._tv is not None:
+            self._tv += {'b': chr(8), 't': chr(9), 'n': chr(10), 'v': chr(11), 'f': chr(12), 'r': chr(13)}.get(ch, ch)
+        return (self._template_return_state, [])
+
+    def _template_escape_0(self, ch, lookahead):
+        assert ch != '' and ch in '0123456789'
+        self._trv += ch
+        # Illegal number-after-\0. So this is a NotEscapeSequence.
+        self._tv = None
+        return (self._template_return_state, [])
+
+    def _template_escape_x(self, ch, lookahead):
+        # We've gotten \x.
+        assert ch != '' and ch in '0123456789abcdefABCDEF'
+        self._trv += ch
+        if lookahead == '' or lookahead not in '0123456789abcdefABCDEF':
+            # NotEscapeSequence
+            self._tv = None
+            return (self._template_return_state, [])
+        return (self._template_escape_x_2, [])
+
+    def _template_escape_x_2(self, ch, lookahead):
+        assert ch != '' and ch in '0123456789abcdefABCDEF'
+        self._trv += ch
+        if self._tv is not None:
+            self._tv += chr(int(self._trv[-2:], 16))
+        return (self._template_return_state, [])
+
+    def _template_escape_u(self, ch, lookahead):
+        # We've gotten \u...
+        assert ch != '' and ch in '0123456789abcdefABCDEF{'
+        self._trv += ch
+        if lookahead == '' or lookahead not in '0123456789abcdefABCDEF':
+            # NotEscapeSequence
+            self._tv = None
+            return (self._template_return_state, [])
+        if ch == '{':
+            return (self._template_escape_multi, [])
+        self._hex_digits_left = 3
+        return (self._template_escape_u_digits, [])
+
+    def _template_escape_u_digits(self, ch, lookahead):
+        # \u and some number of digits.
+        assert ch != '' and ch in '0123456789abcdefABCDEF'
+        self._trv += ch
+        self._hex_digits_left -= 1
+        if self._hex_digits_left == 0:
+            if self._tv is not None:
+                self._tv += chr(int(self._trv[-4:], 16))
+            return (self._template_return_state, [])
+        if lookahead == '' or lookahead not in '0123456789abcdefABCDEF':
+            # NotEscapeSequence
+            self._tv = None
+            return (self._template_return_state, [])
+        return (self._template_escape_u_digits, [])
+
+    def _template_escape_multi(self, ch, lookahead):
+        assert ch != '' and ch in '0123456789abcdefABCDEF}'
+        self._trv += ch
+        if ch == '}':
+            val = int(self._trv[self._trv.rindex('{')+1:-1], 16)
+            assert val <= 0x10FFFF
+            if self._tv is not None:
+                self._tv += chr(val)
+            return (self._template_return_state, [])
+        if lookahead == '' or lookahead not in '0123456789abcdefABCDEF':
+            val = int(self._trv[self._trv.rindex('{')+1:], 16)
+            if val > 0x10FFFF or lookahead != '}':
+                # NotEscapeSequence
+                self._tv = None
+                return (self._template_return_state, [])
+        return (self._template_escape_multi, [])
 
     def lex_setup(self):
         self.lex_nolooks_setup()
@@ -17732,6 +18075,9 @@ class Ecma262Parser(Parser):
     @_('CoverParenthesizedExpressionAndArrowParameterList')  # pylint: disable=undefined-variable
     def PrimaryExpression(self, p):
         return PN_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(self.context, p)
+    @_('REGEXP')  # pylint: disable=undefined-variable
+    def PrimaryExpression(self, p):
+        return PN_PrimaryExpression_REGEXP(self.context, p)
     @_('THIS')  # pylint: disable=undefined-variable
     def PrimaryExpression_Restricted(self, p):
         return PN_PrimaryExpression_THIS(self.context, p)
@@ -17747,6 +18093,9 @@ class Ecma262Parser(Parser):
     @_('CoverParenthesizedExpressionAndArrowParameterList')  # pylint: disable=undefined-variable
     def PrimaryExpression_Restricted(self, p):
         return PN_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(self.context, p)
+    @_('REGEXP')  # pylint: disable=undefined-variable
+    def PrimaryExpression_Restricted(self, p):
+        return PN_PrimaryExpression_REGEXP(self.context, p)
 
     @_('LPAREN Expression_In RPAREN')  # pylint: disable=undefined-variable
     def CoverParenthesizedExpressionAndArrowParameterList(self, p):
