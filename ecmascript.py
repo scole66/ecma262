@@ -12,6 +12,7 @@ from itertools import chain
 import unicodedata
 import uuid
 import random
+import sys
 import types
 import traceback
 
@@ -19372,6 +19373,53 @@ def CreateNumberConstructor(realm):
     for key, value in [('length', 1), ('name', 'Number')]:
         desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)
         DefinePropertyOrThrow(obj, key, desc)
+
+    # The "false-false-false" properties
+    for key, value in [
+        # 20.1.2.1 Number.EPSILON
+        # The value of Number.EPSILON is the difference between 1 and the smallest value greater than 1 that is
+        # representable as a Number value, which is approximately 2.2204460492503130808472633361816 x 10^-16.
+        ('EPSILON', sys.float_info.epsilon),
+        # 20.1.2.6 Number.MAX_SAFE_INTEGER
+        # NOTE: The value of Number.MAX_SAFE_INTEGER is the largest integer n such that n and n + 1 are both exactly
+        # representable as a Number value.
+        # The value of Number.MAX_SAFE_INTEGER is 9007199254740991 (2^53-1).
+        ('MAX_SAFE_INTEGER', 2**53-1),
+        # 20.1.2.7 Number.MAX_VALUE
+        # The value of Number.MAX_VALUE is the largest positive finite value of the Number type, which is approximately
+        # 1.7976931348623157 × 10^308.
+        ('MAX_VALUE', sys.float_info.max),
+        # 20.1.2.8 Number.MIN_SAFE_INTEGER
+        # NOTE The value of Number.MIN_SAFE_INTEGER is the smallest integer n such that n and n - 1 are both exactly
+        # representable as a Number value.
+        # The value of Number.MIN_SAFE_INTEGER is -9007199254740991 (-(2^53-1)).
+        ('MIN_SAFE_INTEGER', -(2**53-1)),
+        # 20.1.2.9 Number.MIN_VALUE
+        # The value of Number.MIN_VALUE is the smallest positive value of the Number type, which is approximately
+        # 5 × 10^-324.
+        # In the IEEE 754-2008 double precision binary representation, the smallest possible value is a denormalized
+        # number. If an implementation does not support denormalized values, the value of Number.MIN_VALUE must be the
+        # smallest non-zero positive value that can actually be represented by the implementation.
+        ('MIN_VALUE', 5e-324),  # sys.float_info.min is the smalled normalized float, in python.
+        # 20.1.2.10 Number.NaN
+        # The value of Number.NaN is NaN.
+        ('NaN', math.nan),
+        # 20.1.2.11 Number.NEGATIVE_INFINITY
+        # The value of Number.NEGATIVE_INFINITY is -∞.
+        ('NEGATIVE_INFINITY', -math.inf),
+        # 20.1.2.14 Number.POSITIVE_INFINITY
+        # The value of Number.POSITIVE_INFINITY is +∞.
+        ('POSITIVE_INFINITY', math.inf),
+        ]:
+        desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=False)
+        DefinePropertyOrThrow(obj, key, desc)
+
+    BindBuiltinFunctions(realm, obj, [
+        ('isFinite', Number_isFinite, 1),
+        ('isInteger', Number_isInteger, 1),
+        ('isNaN', Number_isNaN, 1),
+        ('isSafeInteger', Number_isSafeInteger, 1),
+    ])
     return obj
 
 # 20.1.1.1 Number ( value )
@@ -19393,6 +19441,55 @@ def NumberFunction(this_value, new_target, value=EMPTY, *_):
     o.NumberData = n
     # 6. Return O.
     return o
+
+# 20.1.2 Properties of the Number Constructor
+
+# 20.1.2.2 Number.isFinite ( number )
+def Number_isFinite(this_value, new_target, number=None, *_):
+    # When Number.isFinite is called with one argument number, the following steps are taken:
+    #
+    #   1. If Type(number) is not Number, return false.
+    #   2. If number is NaN, +∞, or -∞, return false.
+    #   3. Otherwise, return true.
+    return isNumber(number) and math.isfinite(number)
+
+# 20.1.2.3 Number.isInteger ( number )
+def Number_isInteger(this_value, new_target, number=None, *_):
+    # When Number.isInteger is called with one argument number, the following steps are taken:
+    #
+    #   1. If Type(number) is not Number, return false.
+    #   2. If number is NaN, +∞, or -∞, return false.
+    #   3. Let integer be ToInteger(number).
+    #   4. If integer is not equal to number, return false.
+    #   5. Otherwise, return true.
+    return isNumber(number) and math.isfinite(number) and ToInteger(number) == number
+
+# 20.1.2.4 Number.isNaN ( number )
+def Number_isNaN(this_value, new_target, number=None, *_):
+    # When Number.isNaN is called with one argument number, the following steps are taken:
+    #
+    #   1. If Type(number) is not Number, return false.
+    #   2. If number is NaN, return true.
+    #   3. Otherwise, return false.
+    return isNumber(number) and math.isnan(number)
+    # NOTE
+    # This function differs from the global isNaN function (18.2.3) in that it does not convert its argument to a
+    # Number before determining whether it is NaN.
+
+# 20.1.2.5 Number.isSafeInteger ( number )
+def Number_isSafeInteger(this_value, new_target, number=None, *_):
+    # When Number.isSafeInteger is called with one argument number, the following steps are taken:
+    #
+    #   1. If Type(number) is not Number, return false.
+    #   2. If number is NaN, +∞, or -∞, return false.
+    #   3. Let integer be ToInteger(number).
+    #   4. If integer is not equal to number, return false.
+    #   5. If abs(integer) ≤ 2^53-1, return true.
+    #   6. Otherwise, return false.
+    if not isNumber(number) or not math.isfinite(number):
+        return False
+    integer = ToInteger(number)
+    return integer == number and abs(integer) <= 2**53 - 1
 
 # 20.1.3 Properties of the Number Prototype Object
 # The Number prototype object:
