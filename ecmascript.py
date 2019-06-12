@@ -17654,9 +17654,12 @@ class Ecma262Parser(Parser):
     @_('MemberExpression LBRACKET Expression_In RBRACKET')  # pylint: disable=undefined-variable
     def MemberExpression(self, p):
         return PN_MemberExpression_MemberExpression_LBRACKET_Expression_RBRACKET(self.context, p)
-    @_('MemberExpression PERIOD  IdentifierName')  # pylint: disable=undefined-variable
+    @_('MemberExpression PERIOD IdentifierName')  # pylint: disable=undefined-variable
     def MemberExpression(self, p):
         return PN_MemberExpression_MemberExpression_DOT_IdentifierName(self.context, p)
+    @_('MemberExpression TemplateLiteral_Tagged')  # pylint: disable=undefined-variable
+    def MemberExpression(self, p):
+        return PN_MemberExpression_MemberExpression_TemplateLiteral(self.context, p)
     @_('PrimaryExpression_Restricted')  # pylint: disable=undefined-variable
     def MemberExpression_Restricted(self, p):
         return PN_MemberExpression_PrimaryExpression(self.context, p)
@@ -17666,9 +17669,12 @@ class Ecma262Parser(Parser):
     @_('MemberExpression_Restricted LBRACKET Expression_In RBRACKET')  # pylint: disable=undefined-variable
     def MemberExpression_Restricted(self, p):
         return PN_MemberExpression_MemberExpression_LBRACKET_Expression_RBRACKET(self.context, p)
-    @_('MemberExpression_Restricted PERIOD  IdentifierName')  # pylint: disable=undefined-variable
+    @_('MemberExpression_Restricted PERIOD IdentifierName')  # pylint: disable=undefined-variable
     def MemberExpression_Restricted(self, p):
         return PN_MemberExpression_MemberExpression_DOT_IdentifierName(self.context, p)
+    @_('MemberExpression_Restricted TemplateLiteral_Tagged')  # pylint: disable=undefined-variable
+    def MemberExpression_Restricted(self, p):
+        return PN_MemberExpression_MemberExpression_TemplateLiteral(self.context, p)
     #
     # SuperProperty[Yield, Await] :
     #           super [ Expression[+In, ?Yield, ?Await] ]
@@ -17733,12 +17739,12 @@ class Ecma262Parser(Parser):
     @_('CallExpression_Restricted PERIOD IdentifierName')  # pylint: disable=undefined-variable
     def CallExpression_Restricted(self, p):
         return PN_CallExpression_CallExpression_PERIOD_IdentifierName(self.context, p)
-    # @_('CallExpression TemplateLiteral_Tagged')
-    # def CallExpression(self, p):
-    #     return PN_CallExpression_CallExpression_TemplateLiteral(self.context, p)
-    # @_('CallExpression_Restricted TemplateLiteral_Tagged')
-    # def CallExpression_Restricted(self, p):
-    #     return PN_CallExpression_CallExpression_TemplateLiteral(self.context, p)
+    @_('CallExpression TemplateLiteral_Tagged')  # pylint: disable=undefined-variable
+    def CallExpression(self, p):
+        return PN_CallExpression_CallExpression_TemplateLiteral(self.context, p)
+    @_('CallExpression_Restricted TemplateLiteral_Tagged')  # pylint: disable=undefined-variable
+    def CallExpression_Restricted(self, p):
+        return PN_CallExpression_CallExpression_TemplateLiteral(self.context, p)
     #
     # CallMemberExpression[Yield, Await] :
     #           MemberExpression[?Yield, ?Await] Arguments[?Yield, ?Await]
@@ -17799,6 +17805,69 @@ class Ecma262Parser(Parser):
     @_('CallExpression_Restricted')  # pylint: disable=undefined-variable
     def LeftHandSideExpression_Restricted(self, p):
         return PN_LeftHandSideExpression_CallExpression(self.context, p)
+    ########################################################################################################################
+
+    ########################################################################################################################
+    # 12.2.9 Template Literals
+    #
+    # Syntax
+    #
+    # TemplateLiteral[Yield, Await, Tagged] :
+    #       NoSubstitutionTemplate
+    #       SubstitutionTemplate[?Yield, ?Await, ?Tagged]
+    @_('NOSUBSTITUTIONTEMPLATE')  # pylint: disable=undefined-variable
+    def TemplateLiteral(self, p):
+        return PN_TemplateLiteral_NOSUBSTITUTIONTEMPLATE(self.context, p)
+    @_('NOSUBSTITUTIONTEMPLATE')  # pylint: disable=undefined-variable
+    def TemplateLiteral_Tagged(self, p):
+        return PN_TemplateLiteral_NOSUBSTITUTIONTEMPLATE(self.context, p)
+    @_('SubstitutionTemplate')  # pylint: disable=undefined-variable
+    def TemplateLiteral(self, p):
+        return PN_TemplateLiteral_SubstitutionTemplate(self.context, p)
+    @_('SubstitutionTemplate_Tagged')  # pylint: disable=undefined-variable
+    def TemplateLiteral_Tagged(self, p):
+        return PN_TemplateLiteral_SubstitutionTemplate(self.context, p)
+    #
+    # SubstitutionTemplate[Yield, Await, Tagged] :
+    #       TemplateHead Expression[+In, ?Yield, ?Await] TemplateSpans[?Yield, ?Await, ?Tagged]
+    @_('TEMPLATEHEAD Expression_In TemplateSpans')  # pylint: disable=undefined-variable
+    def SubstitutionTemplate(self, p):
+        return PN_SubstitutionTemplate_TEMPLATEHEAD_Expression_TemplateSpans(self.context, p)
+    @_('TEMPLATEHEAD Expression_In TemplateSpans_Tagged')  # pylint: disable=undefined-variable
+    def SubstitutionTemplate_Tagged(self, p):
+        return PN_SubstitutionTemplate_TEMPLATEHEAD_Expression_TemplateSpans(self.context, p)
+    #
+    # TemplateSpans[Yield, Await, Tagged] :
+    #       TemplateTail
+    #       TemplateMiddleList[?Yield, ?Await, ?Tagged] TemplateTail
+    @_('TEMPLATETAIL')  # pylint: disable=undefined-variable
+    def TemplateSpans(self, p):
+        return PN_TemplateSpans_TEMPLATETAIL(self.context, p)
+    @_('TEMPLATETAIL')  # pylint: disable=undefined-variable
+    def TemplateSpans_Tagged(self, p):
+        return PN_TemplateSpans_TEMPLATETAIL(self.context, p)
+    @_('TemplateMiddleList TEMPLATETAIL')  # pylint: disable=undefined-variable
+    def TemplateSpans(self, p):
+        return PN_TemplateSpans_TemplateMiddleList_TEMPLATETAIL(self.context, p)
+    @_('TemplateMiddleList_Tagged TEMPLATETAIL')  # pylint: disable=undefined-variable
+    def TemplateSpans_Tagged(self, p):
+        return PN_TemplateSpans_TemplateMiddleList_TEMPLATETAIL(self.context, p)
+    #
+    # TemplateMiddleList[Yield, Await, Tagged] :
+    #       TemplateMiddle Expression[+In, ?Yield, ?Await]
+    #       TemplateMiddleList[?Yield, ?Await, ?Tagged] TemplateMiddle Expression[+In, ?Yield, ?Await]
+    @_('TEMPLATEMIDDLE Expression_In')  # pylint: disable=undefined-variable
+    def TemplateMiddleList(self, p):
+        return PN_TemplateMiddleList_TEMPLATEMIDDLE_Expression(self.context, p)
+    @_('TEMPLATEMIDDLE Expression_In')  # pylint: disable=undefined-variable
+    def TemplateMiddleList_Tagged(self, p):
+        return PN_TemplateMiddleList_TEMPLATEMIDDLE_Expression(self.context, p)
+    @_('TemplateMiddleList TEMPLATEMIDDLE Expression_In')  # pylint: disable=undefined-variable
+    def TemplateMiddleList(self, p):
+        return PN_TemplateMiddleList_TemplateMiddleList_TEMPLATEMIDDLE_Expression(self.context, p)
+    @_('TemplateMiddleList_Tagged TEMPLATEMIDDLE Expression_In')  # pylint: disable=undefined-variable
+    def TemplateMiddleList_Tagged(self, p):
+        return PN_TemplateMiddleList_TemplateMiddleList_TEMPLATEMIDDLE_Expression(self.context, p)
     ########################################################################################################################
 
     ########################################################################################################################
@@ -18079,6 +18148,9 @@ class Ecma262Parser(Parser):
     @_('REGEXP')  # pylint: disable=undefined-variable
     def PrimaryExpression(self, p):
         return PN_PrimaryExpression_REGEXP(self.context, p)
+    @_('TemplateLiteral')  # pylint: disable=undefined-variable
+    def PrimaryExpression(self, p):
+        return PN_PrimaryExpression_TemplateLiteral(self.context, p)
     @_('THIS')  # pylint: disable=undefined-variable
     def PrimaryExpression_Restricted(self, p):
         return PN_PrimaryExpression_THIS(self.context, p)
@@ -18097,6 +18169,9 @@ class Ecma262Parser(Parser):
     @_('REGEXP')  # pylint: disable=undefined-variable
     def PrimaryExpression_Restricted(self, p):
         return PN_PrimaryExpression_REGEXP(self.context, p)
+    @_('TemplateLiteral')  # pylint: disable=undefined-variable
+    def PrimaryExpression_Restricted(self, p):
+        return PN_PrimaryExpression_TemplateLiteral(self.context, p)
 
     @_('LPAREN Expression_In RPAREN')  # pylint: disable=undefined-variable
     def CoverParenthesizedExpressionAndArrowParameterList(self, p):
@@ -21455,10 +21530,9 @@ def GetGeneratorKind():
 #######################################################################################################################################################
 if __name__ == '__main__':
     try:
-        rv = RunJobs(scripts=["""
-        d = new Date();
-        3 + d;
-        """])
+        rv = RunJobs(scripts=[
+        "{b=3;}"
+        ])
     except ESError as err:
         InitializeHostDefinedRealm()
         print(err)
