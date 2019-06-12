@@ -162,6 +162,26 @@ def cleanup():
     ('new Date(2016, 11, 0, 0, 0, 0, -1).getMonth();', 10),
     ('new Date(2016, 11, 31, 23, 59, 59, 999).getMonth();', 11),
     ('new Date(2016, 11, 31, 23, 59, 59, 1000).getMonth();', 0),
+    ('1.0 + Number.EPSILON != 1.0 && 1.0 + (Number.EPSILON / 2) == 1.0;', True),
+    ('Number.MAX_SAFE_INTEGER + 1 != Number.MAX_SAFE_INTEGER && Number.MAX_SAFE_INTEGER + 1 == Number.MAX_SAFE_INTEGER + 2;', True),
+    ('Number.MAX_VALUE * (1 + Number.EPSILON) == Infinity;', True),
+    ('Number.MIN_SAFE_INTEGER - 1 != Number.MIN_SAFE_INTEGER && Number.MIN_SAFE_INTEGER - 1 == Number.MIN_SAFE_INTEGER - 2;', True),
+    ('Number.MIN_VALUE / 2 == 0;', True),
+    ('Number.NEGATIVE_INFINITY;', -math.inf),
+    ('Number.POSITIVE_INFINITY;', math.inf),
+    ('let result = true; for (x of [NaN, Infinity, -Infinity, undefined]) { result = result && !Number.isFinite(x); } result;', True),
+    ('Number.isFinite(67);', True),
+    ('let result = true; for (x of [NaN, Infinity, -Infinity, undefined, 55.34]) { result = result && !Number.isInteger(x); } result;', True),
+    ('Number.isInteger(99) && Number.isInteger(-100);', True),
+    ('Number.isNaN();', False),
+    ('Number.isNaN(Infinity);', False),
+    ('Number.isNaN(NaN);', True),
+    ('Number.isNaN(0);', False),
+    ('Number.isSafeInteger();', False),
+    ('Number.isSafeInteger(100);', True),
+    ('!Number.isSafeInteger(2**100) && Number.isInteger(2**100);', True),
+    ('let result = true; for (exp=50; exp<60; exp++) { num = 2**exp - 1; probe = Number.isSafeInteger(num) === num <= Number.MAX_SAFE_INTEGER; result = result && probe; } result;', True),
+
 
 ])
 def test_scripts_01(cleanup, script, result):
@@ -173,6 +193,7 @@ def test_scripts_01(cleanup, script, result):
     '78 + NaN;',
     '-Infinity + Infinity;',
     'Infinity + -Infinity;',
+    'Number.NaN;',
 ])
 def test_scripts_02(cleanup, script):
     # Check for those expressions that return NaN.
