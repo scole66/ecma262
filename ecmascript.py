@@ -7857,19 +7857,22 @@ class PN_IdentifierReference(ParseNode):
         self.strict = ctx.strict
         self.goal = ctx.goal
 class PN_IdentifierReference_Identifier(PN_IdentifierReference):
+    @property
+    def Identifier(self):
+        return self.children[0]
     def EarlyErrors(self):
         # Early Errors
-        if self.yield_ and self.children[0].StringValue() == 'yield':
+        if self.yield_ and self.Identifier.StringValue() == 'yield':
             return [CreateSyntaxError('\'yield\' not allowed in this context')]
-        if self.await_ and self.children[0].StringValue() == 'await':
+        if self.await_ and self.Identifier.StringValue() == 'await':
             return [CreateSyntaxError('\'await\' not allowed in this context')]
         return []
     def IsValidSimpleAssignmentTarget(self):
-        return not (self.strict and self.children[0].StringValue() in ['eval', 'arguments'])
+        return not (self.strict and self.Identifier.StringValue() in ['eval', 'arguments'])
     def StringValue(self):
-        return self.children[0].StringValue()
+        return self.Identifier.StringValue()
     def evaluate(self):
-        return ResolveBinding(self.children[0].StringValue())
+        return ResolveBinding(self.Identifier.StringValue())
 class PN_IdentifierReference_AWAIT(PN_IdentifierReference):
     def EarlyErrors(self):
         # Early Errors
@@ -8060,8 +8063,11 @@ class PN_Identifier(ParseNode):
         super().__init__('Identifier', p)
         self.strict = ctx.strict
         self.goal = ctx.goal
+    @property
+    def IdentifierName(self):
+        return self.children[0]
     def EarlyErrors(self):
-        identifier_name = self.children[0].value
+        identifier_name = self.IdentifierName.value
         # Early Errors
         if self.strict:
             if identifier_name in ['implements', 'interface', 'let', 'package', 'private', 'protected', 'public', 'static', 'yield']:
@@ -8078,12 +8084,15 @@ class PN_Identifier(ParseNode):
             return [CreateSyntaxError(f'\'{identifier_name}\' is a reserved word')]
         return []
     def StringValue(self):
-        return self.children[0].value
+        return self.IdentifierName.value
 class PN_ReservedWord(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('ReservedWord', p)
+    @property
+    def Name(self):
+        return self.children[0]
     def StringValue(self):
-        return self.children[0].value
+        return self.Name.value
 class PN_IdentifierName(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('IdentifierName', p)
@@ -8115,11 +8124,17 @@ class PN_PrimaryExpression_THIS(PN_PrimaryExpression):
     def IsValidSimpleAssignmentTarget(self):
         return False
 class PN_PrimaryExpression_IdentifierReference(PN_PrimaryExpression):
+    @property
+    def IdentifierReference(self):
+        return self.children[0]
     def IsFunctionDefinition(self):
         return False
     def IsIdentifierRef(self):
         return True
 class PN_PrimaryExpression_Literal(PN_PrimaryExpression):
+    @property
+    def Literal(self):
+        return self.children[0]
     def IsFunctionDefinition(self):
         return False
     def IsIdentifierRef(self):
@@ -8127,6 +8142,9 @@ class PN_PrimaryExpression_Literal(PN_PrimaryExpression):
     def IsValidSimpleAssignmentTarget(self):
         return False
 class PN_PrimaryExpression_ArrayLiteral(PN_PrimaryExpression):
+    @property
+    def ArrayLiteral(self):
+        return self.children[0]
     def IsFunctionDefinition(self):
         return False
     def IsIdentifierRef(self):
@@ -8134,6 +8152,9 @@ class PN_PrimaryExpression_ArrayLiteral(PN_PrimaryExpression):
     def IsValidSimpleAssignmentTarget(self):
         return False
 class PN_PrimaryExpression_ObjectLiteral(PN_PrimaryExpression):
+    @property
+    def ObjectLiteral(self):
+        return self.children[0]
     def IsFunctionDefinition(self):
         return False
     def IsIdentifierRef(self):
@@ -9008,8 +9029,13 @@ class PN_NewExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('NewExpression', p)
 class PN_NewExpression_MemberExpression(PN_NewExpression):
-    pass
+    @property
+    def MemberExpression(self):
+        return self.children[0]
 class PN_NewExpression_NEW_NewExpression(PN_NewExpression):
+    @property
+    def NewExpression(self):
+        return self.children[1]
     # 12.3.3 The new Operator
     def IsFunctionDefinition(self):
         # 12.3.1.3 Static Semantics: IsFunctionDefinition
@@ -9027,8 +9053,7 @@ class PN_NewExpression_NEW_NewExpression(PN_NewExpression):
         # 12.3.3.1 Runtime Semantics: Evaluation
         #           NewExpression : new NewExpression
         # 1. Return ? EvaluateNew(NewExpression, empty).
-        NewExpression = self.children[1]
-        return EvaluateNew(NewExpression, Empty.EMPTY)
+        return EvaluateNew(self.NewExpression, Empty.EMPTY)
 # 12.3.3.1.1 Runtime Semantics: EvaluateNew ( constructExpr, arguments )
 def EvaluateNew(constructExpr, arguments):
     # The abstract operation EvaluateNew with arguments constructExpr, and arguments performs the following steps:
@@ -9294,17 +9319,22 @@ class PN_ArgumentList(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('ArgumentList', p)
 class PN_ArgumentList_AssignmentExpression(PN_ArgumentList):
+    @property
+    def AssignmentExpression(self):
+        return self.children[0]
     def ArgumentListEvaluation(self):
         # 12.3.6.1 Runtime Semantics: ArgumentListEvaluation
         #           ArgumentList : AssignmentExpression
         # 1. Let ref be the result of evaluating AssignmentExpression.
         # 2. Let arg be ? GetValue(ref).
         # 3. Return a List whose sole item is arg.
-        AssignmentExpression = self.children[0]
-        ref = AssignmentExpression.evaluate()
+        ref = self.AssignmentExpression.evaluate()
         arg = GetValue(ref)
         return [arg]
 class PN_ArgumentList_DOTDOTDOT_AssignmentExpression(PN_ArgumentList):
+    @property
+    def AssignmentExpression(self):
+        return self.children[1]
     def ArgumentListEvaluation(self):
         # 12.3.6.1 Runtime Semantics: ArgumentListEvaluation
         #           ArgumentList : ... AssignmentExpression
@@ -9317,9 +9347,8 @@ class PN_ArgumentList_DOTDOTDOT_AssignmentExpression(PN_ArgumentList):
         #    b. If next is false, return list.
         #    c. Let nextArg be ? IteratorValue(next).
         #    d. Append nextArg as the last element of list.
-        AssignmentExpression = self.children[1]
         lst = []
-        spreadRef = AssignmentExpression.evaluate()
+        spreadRef = self.AssignmentExpression.evaluate()
         spreadObj = GetValue(spreadRef)
         iteratorRecord = GetIterator(spreadObj)
         while 1:
@@ -9329,6 +9358,12 @@ class PN_ArgumentList_DOTDOTDOT_AssignmentExpression(PN_ArgumentList):
             nextArg = IteratorValue(nxt)
             lst.append(nextArg)
 class PN_ArgumentList_ArgumentList_COMMA_AssignmentExpression(PN_ArgumentList):
+    @property
+    def ArgumentList(self):
+        return self.children[0]
+    @property
+    def AssignmentExpression(self):
+        return self.children[2]
     def ArgumentListEvaluation(self):
         # 12.3.6.1 Runtime Semantics: ArgumentListEvaluation
         #           ArgumentList : ArgumentList , AssignmentExpression
@@ -9338,14 +9373,18 @@ class PN_ArgumentList_ArgumentList_COMMA_AssignmentExpression(PN_ArgumentList):
         # 4. Let arg be ? GetValue(ref).
         # 5. Append arg to the end of precedingArgs.
         # 6. Return precedingArgs.
-        ArgumentList = self.children[0]
-        AssignmentExpression = self.children[2]
-        precedingArgs = ArgumentList.ArgumentListEvaluation()
-        ref = AssignmentExpression.evaluate()
+        precedingArgs = self.ArgumentList.ArgumentListEvaluation()
+        ref = self.AssignmentExpression.evaluate()
         arg = GetValue(ref)
         precedingArgs.append(arg)
         return precedingArgs
 class PN_ArgumentList_ArgumentList_COMMA_DOTDOTDOT_AssignmentExpression(PN_ArgumentList):
+    @property
+    def ArgumentList(self):
+        return self.children[0]
+    @property
+    def AssignmentExpression(self):
+        return self.children[3]
     def ArgumentListEvaluation(self):
         # 12.3.6.1 Runtime Semantics: ArgumentListEvaluation
         #           ArgumentList : ArgumentList , ... AssignmentExpression
@@ -9358,10 +9397,8 @@ class PN_ArgumentList_ArgumentList_COMMA_DOTDOTDOT_AssignmentExpression(PN_Argum
         #    b. If next is false, return precedingArgs.
         #    c. Let nextArg be ? IteratorValue(next).
         #    d. Append nextArg as the last element of precedingArgs.
-        ArgumentList = self.children[0]
-        AssignmentExpression = self.children[3]
-        precedingArgs = ArgumentList.ArgumentListEvaluation
-        spreadRef = AssignmentExpression.evaluate()
+        precedingArgs = self.ArgumentList.ArgumentListEvaluation
+        spreadRef = self.AssignmentExpression.evaluate()
         spreadObj = GetValue(spreadRef)
         iteratorRecord = GetIterator(spreadObj)
         while 1:
@@ -9382,9 +9419,13 @@ class PN_Arguments_LPAREN_RPAREN(PN_Arguments):
         return []
     pass
 class PN_Arguments_LPAREN_ArgumentList_RPAREN(PN_Arguments):
-    pass
+    @property
+    def ArgumentList(self):
+        return self.children[1]
 class PN_Arguments_LPAREN_ArgumentList_COMMA_RPAREN(PN_Arguments):
-    pass
+    @property
+    def ArgumentList(self):
+        return self.children[1]
 # = - = - = - = - = - = - = - = - = LeftHandSideExpression - = - = - = - = - = - = - = - = - = - = - = - = - = - = - = -
 class PN_LeftHandSideExpression(ParseNode):
     def __init__(self, ctx, p):
@@ -9437,7 +9478,9 @@ class PN_UpdateExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('UpdateExpression', p)
 class PN_UpdateExpression_LeftHandSideExpression(PN_UpdateExpression):
-    pass
+    @property
+    def LeftHandSideExpression(self):
+        return self.children[0]
 class PN_UpdateExpression_NotFallthru(PN_UpdateExpression):
     # 12.4.2 Static Semantics: IsFunctionDefinition
     def IsFunctionDefinition(self):
@@ -9446,18 +9489,25 @@ class PN_UpdateExpression_NotFallthru(PN_UpdateExpression):
     def IsValidSimpleAssignmentTarget(self):
         return False
 class PN_UpdateExpression_prefix(PN_UpdateExpression_NotFallthru):
+    @property
+    def UnaryExpression(self):
+        raise NotImplementedError('Abstract classes should not be directly instantiated')
     # 12.4.1 Static Semantics: Early Errors
     def EarlyErrors(self):
-        UnaryExpression = self.children[1]
-        if not UnaryExpression.IsValidSimpleAssignmentTarget():
+        if not self.UnaryExpression.IsValidSimpleAssignmentTarget():
             return [CreateReferenceError('Invalid Reference for prefix update')]
         return []
 class PN_UpdateExpression_postfix(PN_UpdateExpression_NotFallthru):
+    @property
+    def LeftHandSideExpression(self):
+        raise NotImplementedError('Abstract classes should not be directly instantiated')
     # 12.4.1 Static Semantics: Early Errors
     def EarlyErrors(self):
-        LeftHandSideExpression = self.children[0]
-        return [CreateReferenceError('Invalid Reference for postfix update')] if not LeftHandSideExpression.IsValidSimpleAssignmentTarget() else []
+        return [CreateReferenceError('Invalid Reference for postfix update')] if not self.LeftHandSideExpression.IsValidSimpleAssignmentTarget() else []
 class PN_UpdateExpression_LeftHandSideExpression_PLUSPLUS(PN_UpdateExpression_postfix):
+    @property
+    def LeftHandSideExpression(self):
+        return self.children[0]
     # 12.4.4 Postfix Increment Operator
     def evaluate(self):
         # 12.4.4.1 Runtime Semantics: Evaluation
@@ -9467,13 +9517,15 @@ class PN_UpdateExpression_LeftHandSideExpression_PLUSPLUS(PN_UpdateExpression_po
         # 3. Let newValue be the result of adding the value 1 to oldValue, using the same rules as for the + operator (see 12.8.5).
         # 4. Perform ? PutValue(lhs, newValue).
         # 5. Return oldValue.
-        LeftHandSideExpression = self.children[0]
-        lhs = LeftHandSideExpression.evaluate()
+        lhs = self.LeftHandSideExpression.evaluate()
         oldValue = GetValue(lhs)
         oldValue = ToNumber(oldValue)
         PutValue(lhs, oldValue + 1)
         return oldValue
 class PN_UpdateExpression_LeftHandSideExpression_MINUSMINUS(PN_UpdateExpression_postfix):
+    @property
+    def LeftHandSideExpression(self):
+        return self.children[0]
     # 12.4.5 Postfix Decrement Operator
     def evaluate(self):
         # 12.4.5.1 Runtime Semantics: Evaluation
@@ -9483,13 +9535,15 @@ class PN_UpdateExpression_LeftHandSideExpression_MINUSMINUS(PN_UpdateExpression_
         # 3. Let newValue be the result of subtracting the value 1 from oldValue, using the same rules as for the - operator (see 12.8.5).
         # 4. Perform ? PutValue(lhs, newValue).
         # 5. Return oldValue.
-        LeftHandSideExpression = self.children[0]
-        lhs = LeftHandSideExpression.evaluate()
+        lhs = self.LeftHandSideExpression.evaluate()
         oldValue = GetValue(lhs)
         oldValue = ToNumber(oldValue)
         PutValue(lhs, oldValue - 1)
         return oldValue
 class PN_UpdateExpression_PLUSPLUS_UnaryExpression(PN_UpdateExpression_prefix):
+    @property
+    def UnaryExpression(self):
+        return self.children[1]
     # 12.4.6 Prefix Increment Operator
     def evaluate(self):
         # 12.4.6.1 Runtime Semantics: Evaluation
@@ -9499,14 +9553,16 @@ class PN_UpdateExpression_PLUSPLUS_UnaryExpression(PN_UpdateExpression_prefix):
         # 3. Let newValue be the result of adding the value 1 to oldValue, using the same rules as for the + operator (see 12.8.5).
         # 4. Perform ? PutValue(expr, newValue).
         # 5. Return newValue.
-        UnaryExpression = self.children[1]
-        expr = UnaryExpression.evaluate()
+        expr = self.UnaryExpression.evaluate()
         oldValue = GetValue(expr)
         oldValue = ToNumber(oldValue)
         newValue = oldValue + 1
         PutValue(expr, newValue)
         return newValue
 class PN_UpdateExpression_MINUSMINUS_UnaryExpression(PN_UpdateExpression_prefix):
+    @property
+    def UnaryExpression(self):
+        return self.children[1]
     # 12.4.7 Prefix Decrement Operator
     def evaluate(self):
         # 12.4.7.1 Runtime Semantics: Evaluation
@@ -9516,8 +9572,7 @@ class PN_UpdateExpression_MINUSMINUS_UnaryExpression(PN_UpdateExpression_prefix)
         # 3. Let newValue be the result of subtracting the value 1 from oldValue, using the same rules as for the - operator (see 12.8.5).
         # 4. Perform ? PutValue(expr, newValue).
         # 5. Return newValue.
-        UnaryExpression = self.children[1]
-        expr = UnaryExpression.evaluate()
+        expr = self.UnaryExpression.evaluate()
         oldValue = GetValue(expr)
         oldValue = ToNumber(oldValue)
         newValue = oldValue - 1
@@ -9554,7 +9609,9 @@ class PN_UnaryExpression(ParseNode):
         super().__init__('UnaryExpression', p)
         self.strict = ctx.strict
 class PN_UnaryExpression_UpdateExpression(PN_UnaryExpression):
-    pass
+    @property
+    def UpdateExpression(self):
+        return self.children[0]
 class PN_UnaryExpression_op(PN_UnaryExpression):
     def IsFunctionDefinition(self):
         return False
@@ -9783,15 +9840,23 @@ class PN_ExponentiationExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('ExponentiationExpression', p)
 class PN_ExponentiationExpression_UnaryExpression(PN_ExponentiationExpression):
-    pass
+    @property
+    def UnaryExpression(self):
+        return self.children[0]
 class PN_ExponentiationExpression_UpdateExpression_STARSTAR_ExponentiationExpression(PN_ExponentiationExpression):
+    @property
+    def UpdateExpression(self):
+        return self.children[0]
+    @property
+    def ExponentiationExpression(self):
+        return self.children[2]
     def IsFunctionDefinition(self):
         return False
     def IsValidSimpleAssignmentTarget(self):
         return False
     def evaluate(self):
-        lval = GetValue(self.children[0].evaluate())
-        rval = GetValue(self.children[2].evaluate())
+        lval = GetValue(self.UpdateExpression.evaluate())
+        rval = GetValue(self.ExponentiationExpression.evaluate())
         return ExponentiationOperation(lval, rval)
 ################################################################################################################################################################################################
 #
@@ -9823,8 +9888,19 @@ class PN_MultiplicativeExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('MultiplicativeExpression', p)
 class PN_MultiplicativeExpression_ExponentiationExpression(PN_MultiplicativeExpression):
-    pass
+    @property
+    def ExponentiationExpression(self):
+        return self.children[0]
 class PN_MultiplicativeExpression_MultiplicativeOperator_ExponentiationExpression(PN_MultiplicativeExpression):
+    @property
+    def MultiplicativeExpression(self):
+        return self.children[0]
+    @property
+    def MultiplicativeOperator(self):
+        return self.children[1]
+    @property
+    def ExponentiationExpression(self):
+        return self.children[2]
     def IsFunctionDefinition(self):
         # 12.7.1 Static Semantics: IsFunctionDefinition
         #       MultiplicativeExpression : MultiplicativeExpression MultiplicativeOperator ExponentiationExpression
@@ -9838,22 +9914,19 @@ class PN_MultiplicativeExpression_MultiplicativeOperator_ExponentiationExpressio
     def evaluate(self):
         # 12.7.3 Runtime Semantics: Evaluation
         #       MultiplicativeExpression : MultiplicativeExpression MultiplicativeOperator ExponentiationExpression
-        MultiplicativeExpression = self.children[0]
-        MultiplicativeOperator = self.children[1]
-        ExponentiationExpression = self.children[2]
         # 1. Let left be the result of evaluating MultiplicativeExpression.
-        left = MultiplicativeExpression.evaluate()
+        left = self.MultiplicativeExpression.evaluate()
         # 2. Let leftValue be ? GetValue(left).
         leftValue = GetValue(left)
         # 3. Let right be the result of evaluating ExponentiationExpression.
-        right = ExponentiationExpression.evaluate()
+        right = self.ExponentiationExpression.evaluate()
         # 4. Let rightValue be ? GetValue(right).
         rightValue = GetValue(right)
         # 5. Let lnum be ? ToNumber(leftValue).
         # 6. Let rnum be ? ToNumber(rightValue).
         # 7. Return the result of applying the MultiplicativeOperator (*, /, or %) to lnum and rnum as specified in
         #    12.7.3.1, 12.7.3.2, or 12.7.3.3.
-        return {'*': MultiplyOperation, '/': DivideOperation, '%': ModuloOperation}[MultiplicativeOperator.op()](leftValue, rightValue)
+        return {'*': MultiplyOperation, '/': DivideOperation, '%': ModuloOperation}[self.MultiplicativeOperator.op()](leftValue, rightValue)
 class PN_MultiplicativeOperator(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('MultiplicativeOperator', p)
@@ -9878,7 +9951,9 @@ class PN_AdditiveExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('AdditiveExpression', p)
 class PN_AdditiveExpression_MultiplicativeExpression(PN_AdditiveExpression):
-    pass
+    @property
+    def MultiplicativeExpression(self):
+        return self.children[0]
 class PN_AdditiveExpression_A_op_M(PN_AdditiveExpression):
     # 12.8.1 Static Semantics: IsFunctionDefinition
     def IsFunctionDefinition(self):
@@ -9889,6 +9964,12 @@ class PN_AdditiveExpression_A_op_M(PN_AdditiveExpression):
         # 1. Return false.
         return False
 class PN_AdditiveExpression_AdditiveExpression_PLUS_MultiplicativeExpression(PN_AdditiveExpression_A_op_M):
+    @property
+    def AdditiveExpression(self):
+        return self.children[0]
+    @property
+    def MultiplicativeExpression(self):
+        return self.children[2]
     # 12.8.3 The Addition Operator ( + )
     # NOTE
     # The addition operator either performs string concatenation or numeric addition.
@@ -9896,11 +9977,11 @@ class PN_AdditiveExpression_AdditiveExpression_PLUS_MultiplicativeExpression(PN_
     # 12.8.3.1 Runtime Semantics: Evaluation
     def evaluate(self):
         # 1. Let lref be the result of evaluating AdditiveExpression.
-        lref = self.children[0].evaluate()
+        lref = self.AdditiveExpression.evaluate()
         # 2. Let lval be ? GetValue(lref).
         lval = GetValue(lref)
         # 3. Let rref be the result of evaluating MultiplicativeExpression.
-        rref = self.children[2].evaluate()
+        rref = self.MultiplicativeExpression.evaluate()
         # 4. Let rval be ? GetValue(rref).
         rval = GetValue(rref)
         # 5. Let lprim be ? ToPrimitive(lval).
@@ -9929,15 +10010,21 @@ class PN_AdditiveExpression_AdditiveExpression_PLUS_MultiplicativeExpression(PN_
         # Step 7 differs from step 3 of the Abstract Relational Comparison algorithm, by using the logical-or operation instead
         # of the logical-and operation.
 class PN_AdditiveExpression_AdditiveExpression_MINUS_MultiplicativeExpression(PN_AdditiveExpression_A_op_M):
-    # 12.8.4 The Subtraction Operator ( - )
+    @property
+    def AdditiveExpression(self):
+        return self.children[0]
+    @property
+    def MultiplicativeExpression(self):
+        return self.children[2]
+# 12.8.4 The Subtraction Operator ( - )
     # 12.8.4.1 Runtime Semantics: Evaluation
     def evaluate(self):
         # 1.Let lref be the result of evaluating AdditiveExpression.
-        lref = self.children[0].evaluate()
+        lref = self.AdditiveExpression.evaluate()
         # 2. Let lval be ? GetValue(lref).
         lval = GetValue(lref)
         # 3. Let rref be the result of evaluating MultiplicativeExpression.
-        rref = self.children[2].evaluate()
+        rref = self.MultiplicativeExpression.evaluate()
         # 4. Let rval be ? GetValue(rref).
         rval = GetValue(rref)
         # 5. Let lnum be ? ToNumber(lval).
@@ -9991,6 +10078,12 @@ class PN_ShiftExpression(ParseNode):
         super().__init__('ShiftExpression', p)
 class PN_ShiftExpression_S_op_A(PN_ShiftExpression):
     @property
+    def ShiftExpression(self):
+        return self.children[0]
+    @property
+    def AdditiveExpression(self):
+        return self.children[2]
+    @property
     def lval_is_signed(self):
         raise NotImplementedError('Abstract Class should not be instantiated')
     def operate(self, lnum, shiftcount):
@@ -10007,11 +10100,11 @@ class PN_ShiftExpression_S_op_A(PN_ShiftExpression):
     # --- The first 7 steps are (nearly) common for all 3 productions.
     def evaluate(self):
         # 1. Let lref be the result of evaluating ShiftExpression.
-        lref = self.children[0].evaluate()
+        lref = self.ShiftExpression.evaluate()
         # 2. Let lval be ? GetValue(lref).
         lval = GetValue(lref)
         # 3. Let rref be the result of evaluating AdditiveExpression.
-        rref = self.children[2].evaluate()
+        rref = self.AdditiveExpression.evaluate()
         # 4. Let rval be ? GetValue(rref).
         rval = GetValue(rref)
         # 5. Let lnum be ? ToInt32(lval), or ? ToUint32(lval), depending.
@@ -10023,7 +10116,9 @@ class PN_ShiftExpression_S_op_A(PN_ShiftExpression):
         shiftCount = rnum & 0x1f
         return self.operate(lnum, shiftCount)
 class PN_ShiftExpression_AdditiveExpression(PN_ShiftExpression):
-    pass # Nothing more for pass-thru productions.
+    @property
+    def AdditiveExpression(self):
+        return self.children[0]
 class PN_ShiftExpression_LTLT_AdditiveExpression(PN_ShiftExpression_S_op_A):
     lval_is_signed = True
     def operate(self, lnum, shiftCount):
@@ -10061,8 +10156,16 @@ class PN_RelationalExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('RelationalExpression', p)
 class PN_RelationalExpression_ShiftExpression(PN_RelationalExpression):
-    pass # Nothing more for the pass-thru production
+    @property
+    def ShiftExpression(self):
+        return self.children[0]
 class PN_RelationalExpression_R_op_S(PN_RelationalExpression):
+    @property
+    def RelationalExpression(self):
+        return self.children[0]
+    @property
+    def ShiftExpression(self):
+        return self.children[2]
     def operate(self, lval, rval):
         raise NotImplementedError('Abstract Class should not be instantiated')
     # 12.10.1 Static Semantics: IsFunctionDefinition
@@ -10077,11 +10180,11 @@ class PN_RelationalExpression_R_op_S(PN_RelationalExpression):
     #    -- The first 4 steps are the same for each production
     def evaluate(self):
         # 1. Let lref be the result of evaluating RelationalExpression.
-        lref = self.children[0].evaluate()
+        lref = self.RelationalExpression.evaluate()
         # 2. Let lval be ? GetValue(lref).
         lval = GetValue(lref)
         # 3. Let rref be the result of evaluating ShiftExpression.
-        rref = self.children[2].evaluate()
+        rref = self.ShiftExpression.evaluate()
         # 4. Let rval be ? GetValue(rref).
         rval = GetValue(rref)
         # 5+: defer to subclass
@@ -10178,8 +10281,16 @@ class PN_EqualityExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('EqualityExpression', p)
 class PN_EqualityExpression_RelationalExpression(PN_EqualityExpression):
-    pass # Nothing extra for the pass-thru case
+    @property
+    def RelationalExpression(self):
+        return self.children[0]
 class PN_EqualityExpression_E_op_R(PN_EqualityExpression):
+    @property
+    def EqualityExpression(self):
+        return self.children[0]
+    @property
+    def RelationalExpression(self):
+        return self.children[2]
     def operation(self, lval, rval):
         raise NotImplementedError('Abstract Class should not be instantiated')
     # 12.11.1 Static Semantics: IsFunctionDefinition
@@ -10194,11 +10305,11 @@ class PN_EqualityExpression_E_op_R(PN_EqualityExpression):
     #    The first four steps are the same for each production
     def evaluate(self):
         # 1. Let lref be the result of evaluating EqualityExpression.
-        lref = self.children[0].evaluate()
+        lref = self.EqualityExpression.evaluate()
         # 2. Let lval be ? GetValue(lref).
         lval = GetValue(lref)
         # 3. Let rref be the result of evaluating RelationalExpression.
-        rref = self.children[2].evaluate()
+        rref = self.RelationalExpression.evaluate()
         # 4. Let rval be ? GetValue(rref).
         rval = GetValue(rref)
         # 5-6. Defer to subclasses
@@ -10281,8 +10392,16 @@ class PN_BitwiseANDExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('BitwiseANDExpression', p)
 class PN_BitwiseANDExpression_EqualityExpression(PN_BitwiseANDExpression):
-    pass # nothing more for the pass-thru production
+    @property
+    def EqualityExpression(self):
+        return self.children[0]
 class PN_BitwiseANDExpression_BitwiseANDExpression_AMP_EqualityExpression(PN_BitwiseANDExpression, PN_BitwiseExpression):
+    @property
+    def BitwiseANDExpression(self):
+        return self.children[0]
+    @property
+    def EqualityExpression(self):
+        return self.children[2]
     def operate(self, lnum, rnum):
         # 7. Return the result of applying the bitwise operator @ to lnum and rnum. The result is a signed 32-bit integer.
         return lnum & rnum
@@ -10291,8 +10410,16 @@ class PN_BitwiseXORExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('BitwiseXORExpression', p)
 class PN_BitwiseXORExpression_BitwiseANDExpression(PN_BitwiseXORExpression):
-    pass # Nothing more for pass-thru production
+    @property
+    def BitwiseANDExpression(self):
+        return self.children[0]
 class PN_BitwiseXORExpression_BitwiseXORExpression_XOR_BitwiseANDExpression(PN_BitwiseXORExpression, PN_BitwiseExpression):
+    @property
+    def BitwiseXORExpression(self):
+        return self.children[0]
+    @property
+    def BitwiseANDExpression(self):
+        return self.children[2]
     # 12.12.3 Runtime Semantics: Evaluation
     def operate(self, lnum, rnum):
         # 7. Return the result of applying the bitwise operator @ to lnum and rnum. The result is a signed 32-bit integer.
@@ -10302,8 +10429,16 @@ class PN_BitwiseORExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('BitwiseORExpression', p)
 class PN_BitwiseORExpression_BitwiseXORExpression(PN_BitwiseORExpression):
-    pass # nothing more needed for pass-thru productions
+    @property
+    def BitwiseXORExpression(self):
+        return self.children[0]
 class PN_BitwiseORExpression_BitwiseORExpression_PIPE_BitwiseXORExpression(PN_BitwiseORExpression, PN_BitwiseExpression):
+    @property
+    def BitwiseORExpression(self):
+        return self.children[0]
+    @property
+    def BitwiseXORExpression(self):
+        return self.children[2]
     # 12.12.3 Runtime Semantics: Evaluation
     def operate(self, lnum, rnum):
         # 7. Return the result of applying the bitwise operator @ to lnum and rnum. The result is a signed 32-bit integer.
@@ -10338,12 +10473,20 @@ class PN_LogicalANDExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('LogicalANDExpression', p)
 class PN_LogicalANDExpression_BitwiseORExpression(PN_LogicalANDExpression):
-    pass # Nothing more for pass-thru productions
+    @property
+    def BitwiseORExpression(self):
+        return self.children[0]
 class PN_LogicalANDExpression_LogicalANDExpression_AMPAMP_BitwiseORExpression(PN_LogicalANDExpression, PN_LogicalExpression):
+    @property
+    def LogicalANDExpression(self):
+        return self.children[0]
+    @property
+    def BitwiseORExpression(self):
+        return self.children[2]
     # 12.13.3 Runtime Semantics: Evaluation
     def evaluate(self):
         # 1. Let lref be the result of evaluating LogicalANDExpression.
-        lref = self.children[0].evaluate()
+        lref = self.LogicalANDExpression.evaluate()
         # 2. Let lval be ? GetValue(lref).
         lval = GetValue(lref)
         # 3. Let lbool be ToBoolean(lval).
@@ -10352,7 +10495,7 @@ class PN_LogicalANDExpression_LogicalANDExpression_AMPAMP_BitwiseORExpression(PN
         if not lbool:
             return lval
         # 5. Let rref be the result of evaluating BitwiseORExpression.
-        rref = self.children[2].evaluate()
+        rref = self.BitwiseORExpression.evaluate()
         # 6. Return ? GetValue(rref).
         return GetValue(rref)
 # '||' Productions
@@ -10360,12 +10503,20 @@ class PN_LogicalORExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('LogicalORExpression', p)
 class PN_LogicalORExpression_LogicalANDExpression(PN_LogicalORExpression):
-    pass # Nothing more for pass-thru productions
+    @property
+    def LogicalANDExpression(self):
+        return self.children[0]
 class PN_LogicalORExpression_LogicalORExpression_PIPEPIPE_LogicalANDExpression(PN_LogicalORExpression, PN_LogicalExpression):
+    @property
+    def LogicalORExpression(self):
+        return self.children[0]
+    @property
+    def LogicalANDExpression(self):
+        return self.children[2]
     # 12.13.3 Runtime Semantics: Evaluation
     def evaluate(self):
         # 1. Let lref be the result of evaluating LogicalORExpression.
-        lref = self.children[0].evaluate()
+        lref = self.LogicalORExpression.evaluate()
         # 2. Let lval be ? GetValue(lref).
         lval = GetValue(lref)
         # 3. Let lbool be ToBoolean(lval).
@@ -10374,7 +10525,7 @@ class PN_LogicalORExpression_LogicalORExpression_PIPEPIPE_LogicalANDExpression(P
         if lbool:
             return lval
         # 5. Let rref be the result of evaluating LogicalANDExpression.
-        rref = self.children[2].evaluate()
+        rref = self.LogicalANDExpression.evaluate()
         # 6. Return ? GetValue(rref).
         return GetValue(rref)
 ############################################################################################################################################################################################################################################################
@@ -10392,12 +10543,23 @@ class PN_LogicalORExpression_LogicalORExpression_PIPEPIPE_LogicalANDExpression(P
 #                                                                                                                                                   888
 #
 ############################################################################################################################################################################################################################################################
-class PN_ConditionalExpression_LogicalORExpression(ParseNode):
+class PN_ConditionalExpression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('ConditionalExpression', p)
-class PN_ConditionalExpression_QUESTION_AssignmentExpression_COLON_AssignmentExpression(ParseNode):
-    def __init__(self, ctx, p):
-        super().__init__('ConditionalExpression', p)
+class PN_ConditionalExpression_LogicalORExpression(PN_ConditionalExpression):
+    @property
+    def LogicalORExpression(self):
+        return self.children[0]
+class PN_ConditionalExpression_QUESTION_AssignmentExpression_COLON_AssignmentExpression(PN_ConditionalExpression):
+    @property
+    def LogicalORExpression(self):
+        return self.children[0]
+    @property
+    def AssignmentExpression1(self):
+        return self.children[2]
+    @property
+    def AssignmentExpression2(self):
+        return self.children[4]
     def IsFunctionDefinition(self):
         return False
     def IsValidSimpleAssignmentTarget(self):
@@ -10406,19 +10568,19 @@ class PN_ConditionalExpression_QUESTION_AssignmentExpression_COLON_AssignmentExp
     # ConditionalExpression : LogicalORExpression ? AssignmentExpression : AssignmentExpression
     def evaluate(self):
         # 1. Let lref be the result of evaluating LogicalORExpression.
-        lref = self.children[0].evaluate()
+        lref = self.LogicalORExpression.evaluate()
         # 2. Let lval be ToBoolean(? GetValue(lref)).
         lval = GetValue(lref)
         lval = ToBoolean(lval)
         # 3. If lval is true, then
         if lval:
             # a. Let trueRef be the result of evaluating the first AssignmentExpression.
-            trueRef = self.children[2].evaluate()
+            trueRef = self.AssignmentExpression1.evaluate()
             # b. Return ? GetValue(trueRef).
             return GetValue(trueRef)
         # 4. Else,
         # a. Let falseRef be the result of evaluating the second AssignmentExpression.
-        falseRef = self.children[4].evaluate()
+        falseRef = self.AssignmentExpression2.evaluate()
         # b. Return ? GetValue(falseRef).
         return GetValue(falseRef)
 ################################################################################################################################################################################################################################
@@ -10634,11 +10796,18 @@ class PN_AssignmentOperator(ParseNode):
             '**=': ExponentiationOperation
         }
         return xlat[self.children[0].value]
-class PN_AssignmentExpression_LeftHandSideExpression_AssignmentOperator_AssignmentExpression(ParseNode):
-    def __init__(self, ctx, p):
-        super().__init__('AssignmentExpression', p)
+class PN_AssignmentExpression_LeftHandSideExpression_AssignmentOperator_AssignmentExpression(PN_AssignmentExpression):
+    @property
+    def LeftHandSideExpression(self):
+        return self.children[0]
+    @property
+    def AssignmentOperator(self):
+        return self.children[1]
+    @property
+    def AssignmentExpression(self):
+        return self.children[2]
     def EarlyErrors(self):
-        if not self.children[0].IsValidSimpleAssignmentTarget():
+        if not self.LeftHandSideExpression.IsValidSimpleAssignmentTarget():
             return [CreateReferenceError('Not a valid target for an assignment statement')]
         return []
     def IsFunctionDefinition(self):
@@ -10647,15 +10816,15 @@ class PN_AssignmentExpression_LeftHandSideExpression_AssignmentOperator_Assignme
         return False
     def evaluate(self):
         # 1. Let lref be the result of evaluating LeftHandSideExpression.
-        lref = self.children[0].evaluate()
+        lref = self.LeftHandSideExpression.evaluate()
         # 2. Let lval be ? GetValue(lref).
         lval = GetValue(lref)
         # 3. Let rref be the result of evaluating AssignmentExpression.
-        rref = self.children[2].evaluate()
+        rref = self.AssignmentExpression.evaluate()
         # 4. Let rval be ? GetValue(rref).
         rval = GetValue(rref)
         # 5. Let op be the @ where AssignmentOperator is @=.
-        op = self.children[1].op_function()
+        op = self.AssignmentOperator.op_function()
         # 6. Let r be the result of applying op to lval and rval as if evaluating the expression lval op rval.
         r = op(lval, rval)
         # 7. Perform ? PutValue(lref, r).
@@ -11275,20 +11444,28 @@ class PN_DestructuringAssignmentTarget_LeftHandSideExpression(PN_DestructuringAs
 #                                                                                                                        888
 #
 ##################################################################################################################################################################################################################
-class PN_Expression_AssignmentExpression(ParseNode):
+class PN_Expression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('Expression', p)
-class PN_Expression_Expression_COMMA_AssignmentExpression(ParseNode):
-    def __init__(self, ctx, p):
-        super().__init__('Expression', p)
+class PN_Expression_AssignmentExpression(PN_Expression):
+    @property
+    def AssignmentExpression(self):
+        return self.children[0]
+class PN_Expression_Expression_COMMA_AssignmentExpression(PN_Expression):
+    @property
+    def Expression(self):
+        return self.children[0]
+    @property
+    def AssignmentExpression(self):
+        return self.children[2]
     def IsFunctionDefinition(self):
         return False
     def IsValidSimpleAssignmentTarget(self):
         return False
     def evaluate(self):
-        lref = self.children[0].evaluate()
+        lref = self.Expression.evaluate()
         GetValue(lref) # Have to run, thanks to side effect.
-        rref = self.children[2].evaluate()
+        rref = self.AssignmentExpression.evaluate()
         return GetValue(rref)
 ################################################################################################################################################################################3################################################################################################################################################################################3###########################################################################
 #
@@ -11308,8 +11485,11 @@ class PN_Expression_Expression_COMMA_AssignmentExpression(ParseNode):
 class PN_ExpressionStatement_Expression(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('ExpressionStatement', p)
+    @property
+    def Expression(self):
+        return self.children[0]
     def evaluate(self):
-        exprRef = self.children[0].evaluate()
+        exprRef = self.Expression.evaluate()
         return GetValue(exprRef)
 class PN_EmptyStatement_SEMICOLON(ParseNode):
     def __init__(self, ctx, p):
@@ -11320,6 +11500,9 @@ class PN_Statement(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('Statement', p)
 class PN_Statement_ExpressionStatement(PN_Statement):
+    @property
+    def ExpressionStatement(self):
+        return self.children[0]
     def VarDeclaredNames(self):
         return []
     def VarScopedDeclarations(self):
@@ -11331,6 +11514,9 @@ class PN_Statement_ExpressionStatement(PN_Statement):
     def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
         return False
 class PN_Statement_EmptyStatement(PN_Statement):
+    @property
+    def EmptyStatement(self):
+        return self.children[0]
     def VarDeclaredNames(self):
         return []
     def VarScopedDeclarations(self):
@@ -11341,11 +11527,18 @@ class PN_Statement_EmptyStatement(PN_Statement):
         return False
     def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
         return False
-class PN_Statement_COLON_LabelledStatement(PN_Statement):
-    pass
+class PN_Statement_LabelledStatement(PN_Statement):
+    @property
+    def LabelledStatement(self):
+        return self.children[0]
 class PN_Statement_BlockStatement(PN_Statement):
-    pass
+    @property
+    def BlockStatement(self):
+        return self.children[0]
 class PN_Statement_VariableStatement(PN_Statement):
+    @property
+    def VariableStatement(self):
+        return self.children[0]
     def ContainsDuplicateLabels(self, lst):
         return False
     def ContainsUndefinedBreakTarget(self, lst):
@@ -11597,7 +11790,9 @@ class PN_Block_LCURLY_RCURLY(PN_Block):
     def evaluate(self):
         return Empty.EMPTY
 class PN_BlockStatement_Block(PN_BlockStatement):
-    pass
+    @property
+    def Block(self):
+        return self.children[0]
 class PN_StatementListItem_Statement(PN_StatementListItem):
     @property
     def Statement(self):
@@ -11605,15 +11800,15 @@ class PN_StatementListItem_Statement(PN_StatementListItem):
     def TopLevelLexicallyDeclaredNames(self):
         return []
     def TopLevelVarDeclaredNames(self):
-        if isinstance(self.children[0], PN_Statement_COLON_LabelledStatement):
+        if isinstance(self.children[0], PN_Statement_LabelledStatement):
             return self.children[0].TopLevelVarDeclaredNames()
         return self.children[0].VarDeclaredNames()
     def TopLevelVarScopedDeclarations(self):
-        if isinstance(self.children[0], PN_Statement_COLON_LabelledStatement):
+        if isinstance(self.children[0], PN_Statement_LabelledStatement):
             return self.children[0].TopLevelVarScopedDeclarations()
         return self.children[0].VarScopedDeclarations()
     def LexicallyScopedDeclarations(self):
-        if isinstance(self.children[0], PN_Statement_COLON_LabelledStatement):
+        if isinstance(self.children[0], PN_Statement_LabelledStatement):
             return self.children[2].LexicallyScopedDeclarations()
         return []
     def TopLevelLexicallyScopedDeclarations(self):
@@ -11622,9 +11817,8 @@ class PN_StatementListItem_Statement(PN_StatementListItem):
         # 13.2.5 Static Semantics: LexicallyDeclaredNames
         #   StatementListItem : Statement
         #   1. If Statement is Statement : LabelledStatement , return LexicallyDeclaredNames of LabelledStatement.
-        Statement = self.Statement
-        if len(Statement.children) == 1 and Statement.children[0].name == 'LabelledStatement':
-            return Statement.children[0].LexicallyDeclaredNames()
+        if isinstance(self.Statement, PN_Statement_LabelledStatement):
+            return self.Statement.LabelledStatement.LexicallyDeclaredNames()
         #   2. Return a new empty List.
         return []
 class PN_StatementListItem_Declaration(PN_StatementListItem):
@@ -11707,7 +11901,9 @@ class PN_StatementListItem_Declaration(PN_StatementListItem):
         # 1. Return a new empty List.
         return []
 class PN_StatementList_StatementListItem(PN_StatementList):
-    pass
+    @property
+    def StatementListItem(self):
+        return self.children[0]
 class PN_StatementList_StatementList_StatementListItem(PN_StatementList):
     @property
     def StatementList(self):
@@ -11720,70 +11916,60 @@ class PN_StatementList_StatementList_StatementListItem(PN_StatementList):
         s = self.StatementListItem.evaluate()
         return UpdateEmpty(s, sl)
     def TopLevelLexicallyDeclaredNames(self):
-        names = self.children[0].TopLevelLexicallyDeclaredNames()
-        names.extend(self.children[1].TopLevelLexicallyDeclaredNames())
+        names = self.StatementList.TopLevelLexicallyDeclaredNames()
+        names.extend(self.StatementListItem.TopLevelLexicallyDeclaredNames())
         return names
     def VarDeclaredNames(self):
-        names = self.children[0].VarDeclaredNames()
-        names.extend(self.children[1].VarDeclaredNames())
+        names = self.StatementList.VarDeclaredNames()
+        names.extend(self.StatementListItem.VarDeclaredNames())
         return names
     def TopLevelVarDeclaredNames(self):
-        names = self.children[0].TopLevelVarDeclaredNames()
-        names.extend(self.children[1].TopLevelVarDeclaredNames())
+        names = self.StatementList.TopLevelVarDeclaredNames()
+        names.extend(self.StatementListItem.TopLevelVarDeclaredNames())
         return names
     def VarScopedDeclarations(self):
-        declarations = self.children[0].VarScopedDeclarations()
-        declarations.extend(self.children[1].VarScopedDeclarations())
+        declarations = self.StatementList.VarScopedDeclarations()
+        declarations.extend(self.StatementListItem.VarScopedDeclarations())
         return declarations
     def TopLevelVarScopedDeclarations(self):
-        declarations = self.children[0].TopLevelVarScopedDeclarations()
-        declarations.extend(self.children[1].TopLevelVarScopedDeclarations())
+        declarations = self.StatementList.TopLevelVarScopedDeclarations()
+        declarations.extend(self.StatementListItem.TopLevelVarScopedDeclarations())
         return declarations
     def TopLevelLexicallyScopedDeclarations(self):
-        declarations = self.children[0].TopLevelLexicallyScopedDeclarations()
-        declarations.extend(self.children[1].TopLevelLexicallyScopedDeclarations())
+        declarations = self.StatementList.TopLevelLexicallyScopedDeclarations()
+        declarations.extend(self.StatementListItem.TopLevelLexicallyScopedDeclarations())
         return declarations
     def ContainsDuplicateLabels(self, labelSet):
         # 13.2.2 StatementList : StatementList StatementListItem
         #    1. Let hasDuplicates be ContainsDuplicateLabels of StatementList with argument labelSet.
         #    2. If hasDuplicates is true, return true.
         #    3. Return ContainsDuplicateLabels of StatementListItem with argument labelSet.
-        StatementList = self.children[0]
-        StatementListItem = self.children[1]
-        return StatementList.ContainsDuplicateLabels(labelSet) or StatementListItem.ContainsDuplicateLabels(labelSet)
+        return self.StatementList.ContainsDuplicateLabels(labelSet) or self.StatementListItem.ContainsDuplicateLabels(labelSet)
     def ContainsUndefinedBreakTarget(self, labelSet):
         # 13.2.3 StatementList : StatementList StatementListItem
         #    1. Let hasUndefinedLabels be ContainsUndefinedBreakTarget of StatementList with argument labelSet.
         #    2. If hasUndefinedLabels is true, return true.
         #    3. Return ContainsUndefinedBreakTarget of StatementListItem with argument labelSet.
-        StatementList = self.children[0]
-        StatementListItem = self.children[1]
-        return  StatementList.ContainsUndefinedBreakTarget(labelSet) or StatementListItem.ContainsUndefinedBreakTarget(labelSet)
+        return  self.StatementList.ContainsUndefinedBreakTarget(labelSet) or self.StatementListItem.ContainsUndefinedBreakTarget(labelSet)
     def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
         # 13.2.4 StatementList : StatementList StatementListItem
         #    1. Let hasUndefinedLabels be ContainsUndefinedContinueTarget of StatementList with arguments iterationSet and « ».
         #    2. If hasUndefinedLabels is true, return true.
         #    3. Return ContainsUndefinedContinueTarget of StatementListItem with arguments iterationSet and « ».
-        StatementList = self.children[0]
-        StatementListItem = self.children[1]
-        return (StatementList.ContainsUndefinedContinueTarget(iterationSet, []) or
-                StatementListItem.ContainsUndefinedContinueTarget(iterationSet, []))
+        return (self.StatementList.ContainsUndefinedContinueTarget(iterationSet, []) or
+                self.StatementListItem.ContainsUndefinedContinueTarget(iterationSet, []))
     def LexicallyDeclaredNames(self):
         # 13.2.5 StatementList : StatementList StatementListItem
         #    1. Let names be LexicallyDeclaredNames of StatementList.
         #    2. Append to names the elements of the LexicallyDeclaredNames of StatementListItem.
         #    3. Return names.
-        StatementList = self.children[0]
-        StatementListItem = self.children[1]
-        return StatementList.LexicallyDeclaredNames() + StatementListItem.LexicallyDeclaredNames()
+        return self.StatementList.LexicallyDeclaredNames() + self.StatementListItem.LexicallyDeclaredNames()
     def LexicallyScopedDeclarations(self):
         # 13.2.6 StatementList : StatementList StatementListItem
         #    1. Let declarations be LexicallyScopedDeclarations of StatementList.
         #    2. Append to declarations the elements of the LexicallyScopedDeclarations of StatementListItem.
         #    3. Return declarations.
-        StatementList = self.children[0]
-        StatementListItem = self.children[1]
-        return StatementList.LexicallyScopedDeclarations() + StatementListItem.LexicallyScopedDeclarations()
+        return self.StatementList.LexicallyScopedDeclarations() + self.StatementListItem.LexicallyScopedDeclarations()
 
 # 13.2.14 Runtime Semantics: BlockDeclarationInstantiation ( code, env )
 def BlockDeclarationInstantiation(code, env):
@@ -12056,46 +12242,56 @@ class PN_VariableStatement(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('VariableStatement', p)
 class PN_VariableStatement_VAR_VariableDeclarationList(PN_VariableStatement):
+    @property
+    def VariableDeclarationList(self):
+        return self.children[1]
     def VarDeclaredNames(self):
         # 13.3.2.2 Static Semantics: VarDeclaredNames
         #       VariableStatement : var VariableDeclarationList ;
         #   1. Return BoundNames of VariableDeclarationList.
-        return self.children[1].BoundNames()
+        return self.VariableDeclarationList.BoundNames()
     def evaluate(self):
         # 13.3.2.4 Runtime Semantics: Evaluation
         #       VariableStatement : varVariableDeclarationList ;
         # 1. Let next be the result of evaluating VariableDeclarationList.
         # 2. ReturnIfAbrupt(next).
         # 3. Return NormalCompletion(empty).
-        self.children[1].evaluate()
+        self.VariableDeclarationList.evaluate()
         return Empty.EMPTY
 class PN_VariableDeclarationList(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('VariableDeclarationList', p)
 class PN_VariableDeclarationList_VariableDeclaration(PN_VariableDeclarationList):
+    @property
+    def VariableDeclaration(self):
+        return self.children[0]
     def VarScopedDeclarations(self):
         # 13.3.2.3 Static Semantics: VarScopedDeclarations
         #       VariableDeclarationList : VariableDeclaration
         #   1. Return a new List containing VariableDeclaration.
-        return [self.children[0]]
+        return [self.VariableDeclaration]
 class PN_VariableDeclarationList_VariableDeclarationList_COMMA_VariableDeclaration(PN_VariableDeclarationList):
+    @property
+    def VariableDeclarationList(self):
+        return self.children[0]
+    @property
+    def VariableDeclaration(self):
+        return self.children[2]
     def BoundNames(self):
         # 13.3.2.1 Static Semantics: BoundNames
         #       VariableDeclarationList : VariableDeclarationList , VariableDeclaration
         #   1. Let names be BoundNames of VariableDeclarationList.
         #   2. Append to names the elements of BoundNames of VariableDeclaration.
         #   3. Return names.
-        VariableDeclarationList = self.children[0]
-        VariableDeclaration = self.children[2]
-        return VariableDeclarationList.BoundNames() + VariableDeclaration.BoundNames()
+        return self.VariableDeclarationList.BoundNames() + self.VariableDeclaration.BoundNames()
     def VarScopedDeclarations(self):
         # 13.3.2.3 Static Semantics: VarScopedDeclarations
         #       VariableDeclarationList : VariableDeclarationList , VariableDeclaration
         #   1. Let declarations be VarScopedDeclarations of VariableDeclarationList.
         #   2. Append VariableDeclaration to declarations.
         #   3. Return declarations.
-        declarations =  self.children[0].VarScopedDeclarations()
-        declarations.append(self.children[2])
+        declarations =  self.VariableDeclarationList.VarScopedDeclarations()
+        declarations.append(self.VariableDeclaration)
         return declarations
     def evaluate(self):
         # 13.3.2.4 Runtime Semantics: Evaluation
@@ -12103,14 +12299,17 @@ class PN_VariableDeclarationList_VariableDeclarationList_COMMA_VariableDeclarati
         #   1. Let next be the result of evaluating VariableDeclarationList.
         #   2. ReturnIfAbrupt(next).
         #   3. Return the result of evaluating VariableDeclaration.
-        self.children[0].evaluate()
-        return self.children[2].evaluate()
+        self.VariableDeclarationList.evaluate()
+        return self.VariableDeclaration.evaluate()
 
 # ------------------------------------ 𝑽𝒂𝒓𝒊𝒂𝒃𝒍𝒆𝑫𝒆𝒄𝒍𝒂𝒓𝒂𝒕𝒊𝒐𝒏 ------------------------------------
 class PN_VariableDeclaration(ParseNode):
     def __init__(self, ctx, p):
         super().__init__('VariableDeclaration', p)
 class PN_VariableDeclaration_BindingIdentifier(PN_VariableDeclaration):
+    @property
+    def BindingIdentifier(self):
+        return self.children[0]
     def evaluate(self):
         # 13.3.2.4 Runtime Semantics: Evaluation
         #       VariableDeclaration : BindingIdentifier
@@ -15762,33 +15961,31 @@ class PN_ScriptBody_StatementList(ParseNode):
         # * It is a Syntax Error if ContainsUndefinedBreakTarget of StatementList with argument « » is true.
         # * It is a Syntax Error if ContainsUndefinedContinueTarget of StatementList with arguments « » and « » is true.
         errs = []
-        StatementList = self.StatementList
-        if not self.direct_eval and StatementList.Contains('SUPER'):
+        if not self.direct_eval and self.StatementList.Contains('SUPER'):
             errs.append("'super' not allowed in this context")
-        if not self.direct_eval and StatementList.Contains('NewTarget'):
+        if not self.direct_eval and self.StatementList.Contains('NewTarget'):
             errs.append("'new.target' not allowed in this context")
-        if StatementList.ContainsDuplicateLabels([]):
+        if self.StatementList.ContainsDuplicateLabels([]):
             errs.append('Duplicate Labels Detected')
-        if StatementList.ContainsUndefinedBreakTarget([]):
+        if self.StatementList.ContainsUndefinedBreakTarget([]):
             errs.append('Undefined Break Target')
-        if StatementList.ContainsUndefinedContinueTarget([], []):
+        if self.StatementList.ContainsUndefinedContinueTarget([], []):
             errs.append('Undefined Continue Target')
         return [CreateSyntaxError(msg) for msg in errs]
     def IsStrict(self):
         # 15.1.2 Static Semantics: IsStrict
         # ScriptBody : StatementList
         #    1. If the Directive Prologue of StatementList contains a Use Strict Directive, return true; otherwise, return false.
-        StatementList = self.children[0]
-        dp = StatementList.DirectivePrologue()  # This is a list of strings, subsets of the source text
+        dp = self.StatementList.DirectivePrologue()  # This is a list of strings, subsets of the source text
         return "'use strict'" in dp or '"use strict"' in dp
     def LexicallyDeclaredNames(self):
-        return self.children[0].TopLevelLexicallyDeclaredNames()
+        return self.StatementList.TopLevelLexicallyDeclaredNames()
     def VarDeclaredNames(self):
-        return self.children[0].TopLevelVarDeclaredNames()
+        return self.StatementList.TopLevelVarDeclaredNames()
     def VarScopedDeclarations(self):
-        return self.children[0].TopLevelVarScopedDeclarations()
+        return self.StatementList.TopLevelVarScopedDeclarations()
     def LexicallyScopedDeclarations(self):
-        return self.children[0].TopLevelLexicallyScopedDeclarations()
+        return self.StatementList.TopLevelLexicallyScopedDeclarations()
 
 from sly import Parser
 class Ecma262Parser(Parser):
