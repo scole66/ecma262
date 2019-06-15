@@ -7636,10 +7636,12 @@ class Lexer():
             try:
                 self.pos = self.token_buffer[0].index
             except IndexError:
-                # Leave pos unchanged in this case (there's nothing to rewind)
-                pass
+                # Unwind to the start of any token we may be in the middle of
+                self.pos = self.start
             self.token_buffer = deque()
             self.goal = goal
+            self.state = self._initial
+            self.start = self.pos
 
         if self.token_buffer:
             rval = self.token_buffer.popleft() if consume else self.token_buffer[0]
@@ -7674,6 +7676,15 @@ class Lexer():
         # No more input, so just pull tokens off the buffer, if there are any.
         if self.token_buffer:
             return self.token_buffer.popleft() if consume else self.token_buffer[0]
+
+    def unwind(self, token):
+        # Unwind so that we re-lex starting where the given token started.
+        if hasattr(token, 'index'):
+            self.pos = token.index
+            self.linenum = token.lineno
+            self.start = self.pos
+            self.token_buffer = deque([])
+            self.state = self._initial
 
 ReservedWords = [
             'await', 'break', 'case', 'catch', 'class', 'const', 'continue',
@@ -7743,7 +7754,7 @@ class ParseNode:
         subparser = Ecma262Parser(start=symbol, source_text=source)
         sublexer = Lexer(source, symbol)
         try:
-            tree = subparser.parse(sublexer.lex())
+            tree = subparser.parse(sublexer)
         except ESError:
             tree = None
         return tree
@@ -7832,6 +7843,8 @@ class ParseNode:
         return self.defer_target().IteratorBindingInitialization(*args, **kwargs)
     def BindingInitialization(self, *args, **kwargs):
         return self.defer_target().BindingInitialization(*args, **kwargs)
+    def TemplateStrings(self, *args, **kwargs):
+        return self.defer_target().TemplateStrings(*args, **kwargs)
 
     def evaluate(self):
         # Subclasses need to override this, or we'll throw an AttributeError when we hit a terminal.
@@ -8165,6 +8178,16 @@ class PN_PrimaryExpression_FunctionExpression(PN_PrimaryExpression):
     @property
     def FunctionExpression(self):
         return self.children[0]
+    def IsIdentifierRef(self):
+        return False
+    def IsValidSimpleAssignmentTarget(self):
+        return False
+class PN_PrimaryExpression_TemplateLiteral(PN_PrimaryExpression):
+    @property
+    def TemplateLiteral(self):
+        return self.children[0]
+    def IsFunctionDefinition(self):
+        return False
     def IsIdentifierRef(self):
         return False
     def IsValidSimpleAssignmentTarget(self):
@@ -8895,6 +8918,263 @@ class PN_Initializer(ParseNode):
 class PN_Initializer_EQUALS_AssignmentExpression(PN_Initializer):
     pass
 
+# ------------------------------------ 𝟏𝟐.𝟐.𝟗 𝑻𝒆𝒎𝒑𝒍𝒂𝒕𝒆 𝑳𝒊𝒕𝒆𝒓𝒂𝒍𝒔 ------------------------------------
+# 12.2.9 Template Literals
+
+# ------------------------------------ 𝑻𝒆𝒎𝒑𝒍𝒂𝒕𝒆𝑳𝒊𝒕𝒆𝒓𝒂𝒍 ------------------------------------
+class PN_TemplateLiteral(ParseNode):
+    def __init__(self, ctx, p, tagged=False):
+        super().__init__('TemplateLiteral', p)
+        self.Tagged = tagged
+class PN_TemplateLiteral_NOSUBSTITUTIONTEMPLATE(PN_TemplateLiteral):
+    @property
+    def NoSubstitutionTemplate(self):
+        return self.children[0]
+    def EarlyErrors(self):
+        # 12.2.9.1 Static Semantics: Early Errors
+        #   TemplateLiteral : NoSubstitutionTemplate
+        # * It is a Syntax Error if the [Tagged] parameter was not set and NoSubstitutionTemplate Contains
+        #   NotEscapeSequence.
+        if not self.Tagged and self.NoSubstitutionTemplate.tv is None:
+            return [ESSyntaxError('Invalid Escape Sequence in template')]
+        return []
+    def TemplateStrings(self, raw):
+        # 12.2.9.2 Static Semantics: TemplateStrings
+        #   With parameter raw.
+        #       TemplateLiteral : NoSubstitutionTemplate
+        #   1. If raw is false, then
+        #       a. Let string be the TV of NoSubstitutionTemplate.
+        #   2. Else,
+        #       a. Let string be the TRV of NoSubstitutionTemplate.
+        #   3. Return a List containing the single element, string.
+        nst = self.NoSubstitutionTemplate
+        return nst.value[raw]
+    def evaluate(self):
+        # 12.2.9.6 Runtime Semantics: Evaluation
+        # TemplateLiteral : NoSubstitutionTemplate
+        #   1. Return the String value whose code units are the elements of the TV of NoSubstitutionTemplate as
+        #      defined in 11.8.6.
+        return self.NoSubstitutionTemplate.value[0]
+class PN_TemplateLiteral_SubstitutionTemplate(PN_TemplateLiteral):
+    @property
+    def SubstitutionTemplate(self):
+        return self.children[0]
+    def EarlyErrors(self):
+        # 12.2.9.1 Static Semantics: Early Errors
+        #   TemplateLiteral : SubstitutionTemplate
+        # * It is a Syntax Error if the number of elements in the result of TemplateStrings of TemplateLiteral with
+        #   argument false is greater than 2^32-1.
+        if len(self.TemplateStrings(False)) > 2**32-1:
+            return [ESSyntaxError('Too many substitutions in template. (Boy are we impressed.)')]
+        return []
+
+# ------------------------------------ 𝑺𝒖𝒃𝒔𝒕𝒊𝒕𝒖𝒕𝒊𝒐𝒏𝑻𝒆𝒎𝒑𝒍𝒂𝒕𝒆 ------------------------------------
+class PN_SubstitutionTemplate(ParseNode):
+    def __init__(self, ctx, p, tagged=False):
+        super().__init__('SubstitutionTemplate', p)
+        self.Tagged = tagged
+class PN_SubstitutionTemplate_TEMPLATEHEAD_Expression_TemplateSpans(PN_SubstitutionTemplate):
+    @property
+    def TemplateHead(self):
+        return self.children[0]
+    @property
+    def Expression(self):
+        return self.children[1]
+    @property
+    def TemplateSpans(self):
+        return self.children[2]
+    def EarlyErrors(self):
+        # 12.2.9.1 Static Semantics: Early Errors
+        #   SubstitutionTemplate:TemplateHeadExpressionTemplateSpans
+        # * It is a Syntax Error if the [Tagged] parameter was not set and TemplateHead Contains NotEscapeSequence.
+        if not self.Tagged and self.TemplateHead.value[0] is None:
+            return [ESSyntaxError('Invalid Escape Sequence in template')]
+        return []
+    def TemplateStrings(self, raw):
+        # 12.2.9.2 Static Semantics: TemplateStrings
+        #   With parameter raw.
+        #       SubstitutionTemplate : TemplateHead Expression TemplateSpans
+        #   1. If raw is false, then
+        #      a. Let head be the TV of TemplateHead.
+        #   2. Else,
+        #      a. Let head be the TRV of TemplateHead.
+        #   3. Let tail be TemplateStrings of TemplateSpans with argument raw.
+        #   4. Return a List containing head followed by the elements, in order, of tail.
+        th = self.TemplateHead
+        result = [th.value[raw]]
+        result.extend(self.TemplateSpans.TemplateStrings(raw))
+        return result
+    def evaluate(self):
+        # 12.2.9.6 Runtime Semantics: Evaluation
+        # SubstitutionTemplate : TemplateHead Expression TemplateSpans
+        #   1. Let head be the TV of TemplateHead as defined in 11.8.6.
+        #   2. Let subRef be the result of evaluating Expression.
+        #   3. Let sub be ? GetValue(subRef).
+        #   4. Let middle be ? ToString(sub).
+        #   5. Let tail be the result of evaluating TemplateSpans.
+        #   6. ReturnIfAbrupt(tail).
+        #   7. Return the string-concatenation of head, middle, and tail.
+        head = self.TemplateHead.value[0]
+        middle = ToString(GetValue(self.Expression.evaluate()))
+        tail = self.TemplateSpans.evaluate()
+        return f'{head}{middle}{tail}'
+        # NOTE 1
+        # The string conversion semantics applied to the Expression value are like String.prototype.concat rather than
+        # the + operator.
+
+# ------------------------------------ 𝑻𝒆𝒎𝒑𝒍𝒂𝒕𝒆𝑺𝒑𝒂𝒏𝒔 ------------------------------------
+class PN_TemplateSpans(ParseNode):
+    def __init__(self, ctx, p, tagged=False):
+        super().__init__('TemplateSpans', p)
+        self.Tagged = tagged
+class PN_TemplateSpans_TEMPLATETAIL(PN_TemplateSpans):
+    @property
+    def TemplateTail(self):
+        return self.children[0]
+    def EarlyErrors(self):
+        # 12.2.9.1 Static Semantics: Early Errors
+        #   TemplateSpans:TemplateTail
+        # * It is a Syntax Error if the [Tagged] parameter was not set and TemplateTail Contains NotEscapeSequence.
+        if not self.Tagged and self.TemplateTail.value[0] is None:
+            return [ESSyntaxError('Invalid Escape Sequence in template')]
+        return []
+    def TemplateStrings(self, raw):
+        # 12.2.9.2 Static Semantics: TemplateStrings
+        #   With parameter raw.
+        # TemplateSpans : TemplateTail
+        #   1. If raw is false, then
+        #       a. Let tail be the TV of TemplateTail.
+        #   2. Else,
+        #       a. Let tail be the TRV of TemplateTail.
+        #   3. Return a List containing the single element, tail.
+        return [self.TemplateTail.value[raw]]
+    def evaluate(self):
+        # 12.2.9.6 Runtime Semantics: Evaluation
+        # TemplateSpans : TemplateTail
+        #   1. Let tail be the TV of TemplateTail as defined in 11.8.6.
+        #   2. Return the String value consisting of the code units of tail.
+        return self.TemplateTail.value[0]
+class PN_TemplateSpans_TemplateMiddleList_TEMPLATETAIL(PN_TemplateSpans):
+    @property
+    def TemplateMiddleList(self):
+        return self.children[0]
+    @property
+    def TemplateTail(self):
+        return self.children[1]
+    def TemplateStrings(self, raw):
+        # 12.2.9.2 Static Semantics: TemplateStrings
+        #   With parameter raw.
+        # TemplateSpans:TemplateMiddleListTemplateTail
+        #   1. Let middle be TemplateStrings of TemplateMiddleList with argument raw.
+        #   2. If raw is false, then
+        #       a. Let tail be the TV of TemplateTail.
+        #   3. Else,
+        #       a. Let tail be the TRV of TemplateTail.
+        #   4. Return a List containing the elements, in order, of middle followed by tail.
+        result = self.TemplateMiddleList.TemplateStrings(raw)
+        result.append(self.TemplateTail.value[raw])
+        return result
+    def evaluate(self):
+        # 12.2.9.6 Runtime Semantics: Evaluation
+        # TemplateSpans : TemplateMiddleList TemplateTail
+        #   1. Let head be the result of evaluating TemplateMiddleList.
+        #   2. ReturnIfAbrupt(head).
+        #   3. Let tail be the TV of TemplateTail as defined in 11.8.6.
+        #   4. Return the string-concatenation of head and tail.
+        head = self.TemplateMiddleList.evaluate()
+        tail = self.TemplateTail.value[0]
+        return f'{head}{tail}'
+
+# ------------------------------------ 𝑻𝒆𝒎𝒑𝒍𝒂𝒕𝒆𝑴𝒊𝒅𝒅𝒍𝒆𝑳𝒊𝒔𝒕 ------------------------------------
+class PN_TemplateMiddleList(ParseNode):
+    def __init__(self, ctx, p, tagged=False):
+        super().__init__('TemplateMiddleList', p)
+        self.Tagged = tagged
+    @property
+    def TemplateMiddle(self):
+        raise NotImplementedError('Abstract classes should not be instantiated')
+    def EarlyErrors(self):
+        # 12.2.9.1 Static Semantics: Early Errors
+        #   TemplateMiddleList[Yield, Await, Tagged] :
+        #       TemplateMiddleExpression[+In, ?Yield, ?Await]
+        #       TemplateMiddleList[?Yield, ?Await, ?Tagged] TemplateMiddleExpression[+In, ?Yield, ?Await]
+        # * It is a Syntax Error if the [Tagged] parameter was not set and TemplateMiddle Contains NotEscapeSequence.
+        if not self.Tagged and self.TemplateMiddle.value[0] is None:
+            return [ESSyntaxError('Invalid Escape Sequence in template')]
+        return []
+class PN_TemplateMiddleList_TEMPLATEMIDDLE_Expression(PN_TemplateMiddleList):
+    @property
+    def TemplateMiddle(self):
+        return self.children[0]
+    @property
+    def Expression(self):
+        return self.children[2]
+    def TemplateStrings(self, raw):
+        # 12.2.9.2 Static Semantics: TemplateStrings
+        #   With parameter raw.
+        # TemplateMiddleList : TemplateMiddle Expression
+        #   1. If raw is false, then
+        #       a. Let string be the TV of TemplateMiddle.
+        #   2. Else,
+        #       a. Let string be the TRV of TemplateMiddle.
+        #   3. Return a List containing the single element, string.
+        return [self.TemplateMiddle.value[raw]]
+    def evaluate(self):
+        # 12.2.9.6 Runtime Semantics: Evaluation
+        # TemplateMiddleList : TemplateMiddle Expression
+        #   1. Let head be the TV of TemplateMiddle as defined in 11.8.6.
+        #   2. Let subRef be the result of evaluating Expression.
+        #   3. Let sub be ? GetValue(subRef).
+        #   4. Let middle be ? ToString(sub).
+        #   5. Return the sequence of code units consisting of the code units of head followed by the elements of middle.
+        head = self.TemplateMiddle.value[0]
+        middle = ToString(GetValue(self.Expression.evaluate()))
+        return f'{head}{middle}'
+        # NOTE 2
+        # The string conversion semantics applied to the Expression value are like String.prototype.concat rather than
+        # the + operator.
+class PN_TemplateMiddleList_TemplateMiddleList_TEMPLATEMIDDLE_Expression(PN_TemplateMiddleList):
+    @property
+    def TemplateMiddleList(self):
+        return self.children[0]
+    @property
+    def TemplateMiddle(self):
+        return self.children[1]
+    @property
+    def Expression(self):
+        return self.children[2]
+    def TemplateStrings(self, raw):
+        # 12.2.9.2 Static Semantics: TemplateStrings
+        #   With parameter raw.
+        # TemplateMiddleList : TemplateMiddleList TemplateMiddle Expression
+        #   1. Let front be TemplateStrings of TemplateMiddleList with argument raw.
+        #   2. If raw is false, then
+        #       a. Let last be the TV of TemplateMiddle.
+        #   3. Else,
+        #       a. Let last be the TRV of TemplateMiddle.
+        #   4. Append last as the last element of the List front.
+        #   5. Return front.
+        result = self.TemplateMiddleList.TemplateStrings(raw)
+        result.append(self.TemplateMiddle.value[raw])
+        return result
+    def evaluate(self):
+        # 12.2.9.6 Runtime Semantics: Evaluation
+        # TemplateMiddleList : TemplateMiddleList TemplateMiddle Expression
+        #   1. Let rest be the result of evaluating TemplateMiddleList.
+        #   2. ReturnIfAbrupt(rest).
+        #   3. Let middle be the TV of TemplateMiddle as defined in 11.8.6.
+        #   4. Let subRef be the result of evaluating Expression.
+        #   5. Let sub be ? GetValue(subRef).
+        #   6. Let last be ? ToString(sub).
+        #   7. Return the sequence of code units consisting of the elements of rest followed by the code units of middle followed by the elements of last.
+        rest = self.TemplateMiddleList.evaluate()
+        middle = self.TemplateMiddle.value[0]
+        last = ToString(GetValue(self.Expression.evaluate()))
+        return f'{rest}{middle}{last}'
+        # NOTE 2
+        # The string conversion semantics applied to the Expression value are like String.prototype.concat rather than
+        # the + operator.
+
 ################################################################################################################################################################################################
 #
 #  d888    .d8888b.       .d8888b.      888                .d888 888           888    888                        888         .d8888b.  d8b      888
@@ -9092,7 +9372,7 @@ class PN_CallExpression_CoverCallExpressionAndAsyncArrowHead(PN_CallExpression):
         source = context.source_text[start:end]
         subparser = Ecma262Parser(start='CallMemberExpression', source_text=source)
         sublexer = Lexer(source, 'CallMemberExpression')
-        tree = subparser.parse(sublexer.lex())
+        tree = subparser.parse(sublexer)
         self.covered_production = tree
         self.strict = context.strict
     @property
@@ -15987,11 +16267,210 @@ class PN_ScriptBody_StatementList(ParseNode):
     def LexicallyScopedDeclarations(self):
         return self.StatementList.TopLevelLexicallyScopedDeclarations()
 
-from sly import Parser
+from scolesly import Parser
+from scolesly.yacc import YaccProduction, YaccSymbol, ERROR_COUNT
 class Ecma262Parser(Parser):
     tokens = Lexer.tokens
     start = 'SpecialStart'
     debugfile = 'parser.out'
+
+    def parse(self, lexer):  # duplicated from sly, so that I can monkey with it here.
+        '''
+        Parse the given input tokens.
+        '''
+        lookahead = None                                  # Current lookahead symbol
+        lookaheadstack = []                               # Stack of lookahead symbols
+        actions = self._lrtable.lr_action                 # Local reference to action table (to avoid lookup on self.)
+        goto    = self._lrtable.lr_goto                   # Local reference to goto table (to avoid lookup on self.)
+        prod    = self._grammar.Productions               # Local reference to production list (to avoid lookup on self.)
+        defaulted_states = self._lrtable.defaulted_states # Local reference to defaulted states
+        pslice  = YaccProduction(None)                    # Production object passed to grammar rules
+        errorcount = 0                                    # Used during error recovery
+
+        # Set up the state and symbol stacks
+        self.lexer = lexer
+        self.statestack = statestack = []                 # Stack of parsing states
+        self.symstack = symstack = []                     # Stack of grammar symbols
+        pslice._stack = symstack                          # Associate the stack with the production
+        self.restart()
+        previous_goal = None
+
+        errtoken   = None                                 # Err token
+        while True:
+            # Get the next symbol on the input.  If a lookahead symbol
+            # is already set, we just use that. Otherwise, we'll pull
+            # the next token off of the lookaheadstack or from the lexer
+            #follows = self._grammar.Follow.get(symstack[-1].type, ['REGEXP'])
+            #regex_possible = 'REGEXP' in follows
+            #template_possible = all(x in follows for x in ('TEMPLATETAIL', 'TEMPLATEMIDDLE'))
+            symactions = actions[self.state]
+            regex_possible = 'REGEXP' in symactions
+            def no_intervening_lcurly(stack):
+                for sym in (stack[idx].type for idx in range(len(stack)-1,-1,-1)):
+                    if sym == 'LCURLY':
+                        return False
+                    if sym == 'TEMPLATEHEAD':
+                        return True
+                return False # Didn't find a TemplateHead
+            template_possible = (all(x in symactions for x in ('TEMPLATETAIL', 'TEMPLATEMIDDLE')) and
+                                 no_intervening_lcurly(symstack))
+            target_goal = (Lexer.Goal.InputElementDiv, Lexer.Goal.InputElementTemplateTail, Lexer.Goal.InputElementRegExp, Lexer.Goal.InputElementRegExpOrTemplateTail)[regex_possible * 2 + template_possible]
+            #print('------------------------------------------')
+            #print(f'Top of Loop. State {self.state}')
+            #print(f'Target goal: {target_goal}. (Previous goal: {previous_goal}.)')
+            #print(f'Stack: {", ".join(x.type for x in symstack)}')
+            if self.state not in defaulted_states:
+                if previous_goal != target_goal:
+                    # unwind
+                    if lookahead:
+                        lexer.unwind(lookahead)
+                    elif lookaheadstack:
+                        lexer.unwind(lookaheadstack[0])
+                    lookahead = None
+                    del lookaheadstack[:]
+                    previous_goal = target_goal
+                if not lookahead:
+                    if not lookaheadstack:
+                        lookahead = lexer.lex_next_token(target_goal)  # Get the next token
+                    else:
+                        lookahead = lookaheadstack.pop()
+                    if not lookahead:
+                        lookahead = YaccSymbol()
+                        lookahead.type = '$end'
+
+                #print(f'Lookahead: {lookahead.type}.')
+                # Check the action table
+                ltype = lookahead.type
+                t = actions[self.state].get(ltype)
+            else:
+                t = defaulted_states[self.state]
+
+            if t is not None:
+                if t > 0:
+                    # shift a symbol on the stack
+                    statestack.append(t)
+                    self.state = t
+
+                    symstack.append(lookahead)
+                    lookahead = None
+
+                    # Decrease error count on successful shift
+                    if errorcount:
+                        errorcount -= 1
+                    continue
+
+                if t < 0:
+                    # reduce a symbol on the stack, emit a production
+                    self.production = p = prod[-t]
+                    pname = p.name
+                    plen  = p.len
+                    pslice._namemap = p.namemap
+
+                    # Call the production function
+                    pslice._slice = symstack[-plen:] if plen else []
+
+                    sym = YaccSymbol()
+                    sym.type = pname
+                    value = p.func(self, pslice)
+                    if value is pslice:
+                        value = (pname, *(s.value for s in pslice._slice))
+                    sym.value = value
+                    if plen:
+                        del symstack[-plen:]
+                        del statestack[-plen:]
+
+                    symstack.append(sym)
+                    self.state = goto[statestack[-1]][pname]
+                    statestack.append(self.state)
+                    continue
+
+                if t == 0:
+                    n = symstack[-1]
+                    result = getattr(n, 'value', None)
+                    return result
+
+            if t is None:
+                # We have some kind of parsing error here.  To handle
+                # this, we are going to push the current token onto
+                # the tokenstack and replace it with an 'error' token.
+                # If there are any synchronization rules, they may
+                # catch it.
+                #
+                # In addition to pushing the error token, we call call
+                # the user defined error() function if this is the
+                # first syntax error.  This function is only called if
+                # errorcount == 0.
+                if errorcount == 0 or self.errorok:
+                    errorcount = ERROR_COUNT
+                    self.errorok = False
+                    if lookahead.type == '$end':
+                        errtoken = None               # End of file!
+                    else:
+                        errtoken = lookahead
+
+                    tok = self.error(errtoken)  # pylint: disable=assignment-from-no-return
+                    if tok:
+                        # User must have done some kind of panic
+                        # mode recovery on their own.  The
+                        # returned token is the next lookahead
+                        lookahead = tok
+                        self.errorok = True
+                        continue
+                    else:
+                        # If at EOF. We just return. Basically dead.
+                        if not errtoken:
+                            return
+                else:
+                    # Reset the error count.  Unsuccessful token shifted
+                    errorcount = ERROR_COUNT
+
+                # case 1:  the statestack only has 1 entry on it.  If we're in this state, the
+                # entire parse has been rolled back and we're completely hosed.   The token is
+                # discarded and we just keep going.
+
+                if len(statestack) <= 1 and lookahead.type != '$end':
+                    lookahead = None
+                    self.state = 0
+                    # Nuke the lookahead stack
+                    del lookaheadstack[:]
+                    continue
+
+                # case 2: the statestack has a couple of entries on it, but we're
+                # at the end of the file. nuke the top entry and generate an error token
+
+                # Start nuking entries on the stack
+                if lookahead.type == '$end':
+                    # Whoa. We're really hosed here. Bail out
+                    return
+
+                if lookahead.type != 'error':
+                    sym = symstack[-1]
+                    if sym.type == 'error':
+                        # Hmmm. Error is on top of stack, we'll just nuke input
+                        # symbol and continue
+                        lookahead = None
+                        continue
+
+                    # Create the error symbol for the first time and make it the new lookahead symbol
+                    t = YaccSymbol()
+                    t.type = 'error'
+
+                    if hasattr(lookahead, 'lineno'):
+                        t.lineno = lookahead.lineno
+                    if hasattr(lookahead, 'index'):
+                        t.index = lookahead.index
+                    t.value = lookahead
+                    lookaheadstack.append(lookahead)
+                    lookahead = t
+                else:
+                    sym = symstack.pop()
+                    statestack.pop()
+                    self.state = statestack[-1]
+                continue
+
+            # Call an error function here
+            raise RuntimeError('yacc: internal parser error!!!\n')
+
 
     def error(self, p):
         raise ESSyntaxError(f'Syntax Error in script. Offending token: {p!r}')
@@ -17856,7 +18335,7 @@ class Ecma262Parser(Parser):
         return PN_MemberExpression_MemberExpression_DOT_IdentifierName(self.context, p)
     @_('MemberExpression TemplateLiteral_Tagged')  # pylint: disable=undefined-variable
     def MemberExpression(self, p):
-        return PN_MemberExpression_MemberExpression_TemplateLiteral(self.context, p)
+        return PN_MemberExpression_MemberExpression_TemplateLiteral(self.context, p, tagged=True)
     @_('PrimaryExpression_Restricted')  # pylint: disable=undefined-variable
     def MemberExpression_Restricted(self, p):
         return PN_MemberExpression_PrimaryExpression(self.context, p)
@@ -17871,7 +18350,7 @@ class Ecma262Parser(Parser):
         return PN_MemberExpression_MemberExpression_DOT_IdentifierName(self.context, p)
     @_('MemberExpression_Restricted TemplateLiteral_Tagged')  # pylint: disable=undefined-variable
     def MemberExpression_Restricted(self, p):
-        return PN_MemberExpression_MemberExpression_TemplateLiteral(self.context, p)
+        return PN_MemberExpression_MemberExpression_TemplateLiteral(self.context, p, tagged=True)
     #
     # SuperProperty[Yield, Await] :
     #           super [ Expression[+In, ?Yield, ?Await] ]
@@ -17938,10 +18417,10 @@ class Ecma262Parser(Parser):
         return PN_CallExpression_CallExpression_PERIOD_IdentifierName(self.context, p)
     @_('CallExpression TemplateLiteral_Tagged')  # pylint: disable=undefined-variable
     def CallExpression(self, p):
-        return PN_CallExpression_CallExpression_TemplateLiteral(self.context, p)
+        return PN_CallExpression_CallExpression_TemplateLiteral(self.context, p, tagged=True)
     @_('CallExpression_Restricted TemplateLiteral_Tagged')  # pylint: disable=undefined-variable
     def CallExpression_Restricted(self, p):
-        return PN_CallExpression_CallExpression_TemplateLiteral(self.context, p)
+        return PN_CallExpression_CallExpression_TemplateLiteral(self.context, p, tagged=True)
     #
     # CallMemberExpression[Yield, Await] :
     #           MemberExpression[?Yield, ?Await] Arguments[?Yield, ?Await]
@@ -18017,13 +18496,13 @@ class Ecma262Parser(Parser):
         return PN_TemplateLiteral_NOSUBSTITUTIONTEMPLATE(self.context, p)
     @_('NOSUBSTITUTIONTEMPLATE')  # pylint: disable=undefined-variable
     def TemplateLiteral_Tagged(self, p):
-        return PN_TemplateLiteral_NOSUBSTITUTIONTEMPLATE(self.context, p)
+        return PN_TemplateLiteral_NOSUBSTITUTIONTEMPLATE(self.context, p, tagged=True)
     @_('SubstitutionTemplate')  # pylint: disable=undefined-variable
     def TemplateLiteral(self, p):
         return PN_TemplateLiteral_SubstitutionTemplate(self.context, p)
     @_('SubstitutionTemplate_Tagged')  # pylint: disable=undefined-variable
     def TemplateLiteral_Tagged(self, p):
-        return PN_TemplateLiteral_SubstitutionTemplate(self.context, p)
+        return PN_TemplateLiteral_SubstitutionTemplate(self.context, p, tagged=True)
     #
     # SubstitutionTemplate[Yield, Await, Tagged] :
     #       TemplateHead Expression[+In, ?Yield, ?Await] TemplateSpans[?Yield, ?Await, ?Tagged]
@@ -18032,7 +18511,7 @@ class Ecma262Parser(Parser):
         return PN_SubstitutionTemplate_TEMPLATEHEAD_Expression_TemplateSpans(self.context, p)
     @_('TEMPLATEHEAD Expression_In TemplateSpans_Tagged')  # pylint: disable=undefined-variable
     def SubstitutionTemplate_Tagged(self, p):
-        return PN_SubstitutionTemplate_TEMPLATEHEAD_Expression_TemplateSpans(self.context, p)
+        return PN_SubstitutionTemplate_TEMPLATEHEAD_Expression_TemplateSpans(self.context, p, tagged=True)
     #
     # TemplateSpans[Yield, Await, Tagged] :
     #       TemplateTail
@@ -18042,13 +18521,13 @@ class Ecma262Parser(Parser):
         return PN_TemplateSpans_TEMPLATETAIL(self.context, p)
     @_('TEMPLATETAIL')  # pylint: disable=undefined-variable
     def TemplateSpans_Tagged(self, p):
-        return PN_TemplateSpans_TEMPLATETAIL(self.context, p)
+        return PN_TemplateSpans_TEMPLATETAIL(self.context, p, tagged=True)
     @_('TemplateMiddleList TEMPLATETAIL')  # pylint: disable=undefined-variable
     def TemplateSpans(self, p):
         return PN_TemplateSpans_TemplateMiddleList_TEMPLATETAIL(self.context, p)
     @_('TemplateMiddleList_Tagged TEMPLATETAIL')  # pylint: disable=undefined-variable
     def TemplateSpans_Tagged(self, p):
-        return PN_TemplateSpans_TemplateMiddleList_TEMPLATETAIL(self.context, p)
+        return PN_TemplateSpans_TemplateMiddleList_TEMPLATETAIL(self.context, p, tagged=True)
     #
     # TemplateMiddleList[Yield, Await, Tagged] :
     #       TemplateMiddle Expression[+In, ?Yield, ?Await]
@@ -18058,13 +18537,13 @@ class Ecma262Parser(Parser):
         return PN_TemplateMiddleList_TEMPLATEMIDDLE_Expression(self.context, p)
     @_('TEMPLATEMIDDLE Expression_In')  # pylint: disable=undefined-variable
     def TemplateMiddleList_Tagged(self, p):
-        return PN_TemplateMiddleList_TEMPLATEMIDDLE_Expression(self.context, p)
+        return PN_TemplateMiddleList_TEMPLATEMIDDLE_Expression(self.context, p, tagged=True)
     @_('TemplateMiddleList TEMPLATEMIDDLE Expression_In')  # pylint: disable=undefined-variable
     def TemplateMiddleList(self, p):
         return PN_TemplateMiddleList_TemplateMiddleList_TEMPLATEMIDDLE_Expression(self.context, p)
     @_('TemplateMiddleList_Tagged TEMPLATEMIDDLE Expression_In')  # pylint: disable=undefined-variable
     def TemplateMiddleList_Tagged(self, p):
-        return PN_TemplateMiddleList_TemplateMiddleList_TEMPLATEMIDDLE_Expression(self.context, p)
+        return PN_TemplateMiddleList_TemplateMiddleList_TEMPLATEMIDDLE_Expression(self.context, p, tagged=True)
     ########################################################################################################################
 
     ########################################################################################################################
@@ -18491,7 +18970,7 @@ def ParseScript(sourceText, realm, hostDefined):
     #    one must be present.
     lex = Lexer(sourceText)
     psr = Ecma262Parser(start='Script', source_text=sourceText)
-    tree = psr.parse(lex.lex())
+    tree = psr.parse(lex)
     errs = tree.EarlyErrorsScan()
     body = errs or tree
     # 3. If body is a List of errors, return body.
@@ -21727,9 +22206,9 @@ def GetGeneratorKind():
 #######################################################################################################################################################
 if __name__ == '__main__':
     try:
-        rv = RunJobs(scripts=[
-        "{b=3;}"
-        ])
+        rv = RunJobs(scripts=["""
+           `Head ${{a:3}.a} Tail`;
+        """])
     except ESError as err:
         InitializeHostDefinedRealm()
         print(err)

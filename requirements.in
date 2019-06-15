@@ -4,5 +4,4 @@ pytest-cov
 pytest-mock
 pyyaml
 
-sly
 python-dateutil
