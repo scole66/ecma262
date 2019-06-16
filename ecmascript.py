@@ -12,6 +12,7 @@ from itertools import chain
 import unicodedata
 import uuid
 import random
+import struct
 import sys
 import types
 import traceback
@@ -1442,6 +1443,80 @@ def CompletePropertyDescriptor(desc):
     assert isinstance(desc, PropertyDescriptor)
     return desc.complete_property_descriptor()
 
+######################################################################################################################
+# 6.2.7 Data Blocks
+######################################################################################################################
+# The Data Block specification type is used to describe a distinct and mutable sequence of byte-sized (8 bit) numeric
+# values. A Data Block value is created with a fixed number of bytes that each have the initial value 0.
+#
+# For notational convenience within this specification, an array-like syntax can be used to access the individual bytes
+# of a Data Block value. This notation presents a Data Block value as a 0-origined integer-indexed sequence of bytes.
+# For example, if db is a 5 byte Data Block value then db[2] can be used to access its 3rd byte.
+#
+# A data block that resides in memory that can be referenced from multiple agents concurrently is designated a Shared
+# Data Block. A Shared Data Block has an identity (for the purposes of equality testing Shared Data Block values) that
+# is address-free: it is tied not to the virtual addresses the block is mapped to in any process, but to the set of
+# locations in memory that the block represents. Two data blocks are equal only if the sets of the locations they
+# contain are equal; otherwise, they are not equal and the intersection of the sets of locations they contain is empty.
+# Finally, Shared Data Blocks can be distinguished from Data Blocks.
+#
+# The semantics of Shared Data Blocks is defined using Shared Data Block events by the memory model. Abstract
+# operations below introduce Shared Data Block events and act as the interface between evaluation semantics and the
+# event semantics of the memory model. The events form a candidate execution, on which the memory model acts as a
+# filter. Please consult the memory model for full semantics.
+#
+# Shared Data Block events are modeled by Records, defined in the memory model.
+#
+# The following abstract operations are used in this specification to operate upon Data Block values:
+
+# 6.2.7.1 CreateByteDataBlock ( size )
+def CreateByteDataBlock(size):
+    # When the abstract operation CreateByteDataBlock is called with integer argument size, the following steps are
+    # taken:
+    #
+    #   1. Assert: size≥0.
+    #   2. Let db be a new Data Block value consisting of size bytes. If it is impossible to create such a Data Block,
+    #      throw a RangeError exception.
+    #   3. Set all of the bytes of db to 0.
+    #   4. Return db.
+    assert size >= 0
+    return memoryview(bytearray(size))
+
+# 6.2.7.3 CopyDataBlockBytes ( toBlock, toIndex, fromBlock, fromIndex, count )
+def CopyDataBlockBytes(toBlock, toIndex, fromBlock, fromIndex, count):
+    # When the abstract operation CopyDataBlockBytes is called, the following steps are taken:
+    #
+    #   1. Assert: fromBlock and toBlock are distinct Data Block or Shared Data Block values.
+    #   2. Assert: fromIndex, toIndex, and count are integer values ≥ 0.
+    #   3. Let fromSize be the number of bytes in fromBlock.
+    #   4. Assert: fromIndex+count ≤ fromSize.
+    #   5. Let toSize be the number of bytes in toBlock.
+    #   6. Assert: toIndex+count ≤ toSize.
+    #   7. Repeat, while count>0
+    #       a. If fromBlock is a Shared Data Block, then
+    #           i. Let execution be the [[CandidateExecution]] field of the surrounding agent's Agent Record.
+    #           ii. Let eventList be the [[EventList]] field of the element in execution.[[EventLists]] whose [[AgentSignifier]] is AgentSignifier().
+    #           iii. Let bytes be a List of length 1 that contains a nondeterministically chosen byte value.
+    #           iv. NOTE: In implementations, bytes is the result of a non-atomic read instruction on the underlying hardware. The nondeterminism is a semantic prescription of the memory model to describe observable behaviour of hardware with weak consistency.
+    #           v. Let readEvent be ReadSharedMemory { [[Order]]: "Unordered", [[NoTear]]: true, [[Block]]: fromBlock, [[ByteIndex]]: fromIndex, [[ElementSize]]: 1 }.
+    #           vi. Append readEvent to eventList.
+    #           vii. Append Chosen Value Record { [[Event]]: readEvent, [[ChosenValue]]: bytes } to execution.[[ChosenValues]].
+    #           viii. If toBlock is a Shared Data Block, then
+    #               1. Append WriteSharedMemory { [[Order]]: "Unordered", [[NoTear]]: true, [[Block]]: toBlock, [[ByteIndex]]: toIndex, [[ElementSize]]: 1, [[Payload]]: bytes } to eventList.
+    #           ix. Else,
+    #               1. Set toBlock[toIndex] to bytes[0].
+    #       b. Else,
+    #           i. Assert: toBlock is not a Shared Data Block.
+    #           ii. Set toBlock[toIndex] to fromBlock[fromIndex].
+    #       c. Increment toIndex and fromIndex each by 1.
+    #       d. Decrement count by 1.
+    #   8. Return NormalCompletion(empty).
+    assert isinstance(toBlock, memoryview) and isinstance(fromBlock, memoryview) and toBlock.obj is not fromBlock.obj
+    assert all(IsInteger(x) and x >= 0 for x in (fromIndex, toIndex, count))
+    assert fromIndex + count <= fromBlock.nbytes
+    assert toIndex + count <= toBlock.nbytes
+    toBlock[toIndex:toIndex+count] = fromBlock[fromIndex:fromIndex+count]
+    return EMPTY
 
 # 7 Abstract Operations
 #
@@ -1833,6 +1908,30 @@ def CanonicalNumericIndexString(arg):
     # A canonical numeric string is any String value for which the CanonicalNumericIndexString abstract operation does
     # not return undefined.
 
+# 7.1.17 ToIndex ( value )
+def ToIndex(value):
+    # The abstract operation ToIndex returns value argument converted to a numeric value if it is a valid integer index
+    # value. This abstract operation functions as follows:
+    #
+    #   1. If value is undefined, then
+    #       a. Let index be 0.
+    #   2. Else,
+    #       a. Let integerIndex be ? ToInteger(value).
+    #       b. If integerIndex < 0, throw a RangeError exception.
+    #       c. Let index be ! ToLength(integerIndex).
+    #       d. If SameValueZero(integerIndex, index) is false, throw a RangeError exception.
+    #   3. Return index.
+    if value is None:
+        index = 0
+    else:
+        integerIndex = ToInteger(value)
+        if integerIndex < 0:
+            raise ESRangeError('Index must be non-negative')
+        index = ToLength(integerIndex)
+        if not SameValueZero(integerIndex, index):
+            raise ESRangeError('Index too large')
+    return index
+
 #################################################################################################################################################################################################################################################################################################################
 #
 # 8888888888      .d8888b.      88888888888                   888    d8b                                              888      .d8888b.                                                   d8b                                 .d88888b.                                     888    d8b
@@ -1970,6 +2069,29 @@ def SameValue(x, y):
     return SameValueNonNumber(x, y)
     # NOTE
     # This algorithm differs from the Strict Equality Comparison Algorithm in its treatment of signed zeroes and NaNs.
+
+# 7.2.11 SameValueZero ( x, y )
+def SameValueZero(x, y):
+    # The internal comparison abstract operation SameValueZero(x, y), where x and y are ECMAScript language values,
+    # produces true or false. Such a comparison is performed as follows:
+    #
+    #   1. If Type(x) is different from Type(y), return false.
+    #   2. If Type(x) is Number, then
+    #       a. If x is NaN and y is NaN, return true.
+    #       b. If x is +0 and y is -0, return true.
+    #       c. If x is -0 and y is +0, return true.
+    #       d. If x is the same Number value as y, return true.
+    #       e. Return false.
+    #   3. Return SameValueNonNumber(x, y).
+    if TypeOf(x) != TypeOf(y):
+        return False
+    if isNumber(x):
+        if math.isnan(x) and math.isnan(y):
+            return True
+        return x == y
+    return SameValueNonNumber(x, y)
+    # NOTE
+    # SameValueZero differs from SameValue only in its treatment of +0 and -0.
 
 # 7.2.12 SameValueNonNumber ( x, y )
 def SameValueNonNumber(x, y):
@@ -2526,6 +2648,35 @@ def OrdinaryHasInstance(C, O):
         # c. If SameValue(P, O) is true, return true.
         if SameValue(P, O):
             return True
+
+# ------------------------------------ 𝟕.𝟑.𝟐𝟎 𝑺𝒑𝒆𝒄𝒊𝒆𝒔𝑪𝒐𝒏𝒔𝒕𝒓𝒖𝒄𝒕𝒐𝒓 ( 𝑶, 𝒅𝒆𝒇𝒂𝒖𝒍𝒕𝑪𝒐𝒏𝒔𝒕𝒓𝒖𝒄𝒕𝒐𝒓 ) ------------------------------------
+# 7.3.20 SpeciesConstructor ( O, defaultConstructor )
+def SpeciesConstructor(O, defaultConstructor):
+    # The abstract operation SpeciesConstructor is used to retrieve the constructor that should be used to create new
+    # objects that are derived from the argument object O. The defaultConstructor argument is the constructor to use if
+    # a constructor @@species property cannot be found starting from O. This abstract operation performs the following
+    # steps:
+    #
+    #   1. Assert: Type(O) is Object.
+    #   2. Let C be ? Get(O, "constructor").
+    #   3. If C is undefined, return defaultConstructor.
+    #   4. If Type(C) is not Object, throw a TypeError exception.
+    #   5. Let S be ? Get(C, @@species).
+    #   6. If S is either undefined or null, return defaultConstructor.
+    #   7. If IsConstructor(S) is true, return S.
+    #   8. Throw a TypeError exception.
+    assert isObject(O)
+    C = Get(O, 'constructor')
+    if C is None:
+        return defaultConstructor
+    if not isObject(C):
+        raise ESTypeError('Bad constructor')
+    S = Get(C, wks_species)
+    if S is None or isNull(S):
+        return defaultConstructor
+    if not IsConstructor(S):
+        raise ESTypeError('Bad constructor')
+    return S
 
 # ------------------------------------ 𝟕.𝟑.𝟐𝟏 𝑬𝒏𝒖𝒎𝒆𝒓𝒂𝒃𝒍𝒆𝑶𝒘𝒏𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚𝑵𝒂𝒎𝒆𝒔 ( 𝑶, 𝒌𝒊𝒏𝒅 ) ------------------------------------
 # 7.3.21 EnumerableOwnPropertyNames ( O, kind )
@@ -4064,6 +4215,9 @@ def CreateIntrinsics(realm_rec):
     intrinsics['%Date%'] = CreateDateConstructor(realm_rec)
     intrinsics['%DatePrototype%'] = CreateDatePrototype(realm_rec)
     DateFixups(realm_rec)
+    intrinsics['%ArrayBuffer%'] = CreateArrayBufferConstructor(realm_rec)
+    intrinsics['%ArrayBufferPrototype%'] = CreateArrayBufferPrototype(realm_rec)
+    ArrayBufferFixups(realm_rec)
 
     # 14. Return intrinsics.
     return intrinsics
@@ -21824,7 +21978,7 @@ def CreateArrayConstructor(realm):
         #('isArray', Array_isArray, 1),
         #('of', Array_of, 0),
     ])
-    def get_species(this_value, new_target):
+    def get_species(this_value, new_target, *_):
         return this_value
     fcn_obj = CreateBuiltinFunction(get_species, [], realm)
     DefinePropertyOrThrow(fcn_obj, 'length', PropertyDescriptor(value=0, writable=False, enumerable=False, configurable=True))
@@ -22173,6 +22327,484 @@ def ArrayIteratorPrototype_next(this_value, new_target):
         assert itemKind == 'key+value'
         result = CreateArrayFromList([index, elementValue])
     return CreateIterResultObject(result, False)
+
+######################################################################################################################
+# 24 Structured Data
+######################################################################################################################
+
+############################################################################################################################################################################################################
+#
+#  .d8888b.      d8888       d888              d8888                                   888888b.             .d888  .d888                       .d88888b.  888         d8b                   888
+# d88P  Y88b    d8P888      d8888             d88888                                   888  "88b           d88P"  d88P"                       d88P" "Y88b 888         Y8P                   888
+#        888   d8P 888        888            d88P888                                   888  .88P           888    888                         888     888 888                               888
+#      .d88P  d8P  888        888           d88P 888 888d888 888d888  8888b.  888  888 8888888K.  888  888 888888 888888  .d88b.  888d888     888     888 88888b.    8888  .d88b.   .d8888b 888888 .d8888b
+#  .od888P"  d88   888        888          d88P  888 888P"   888P"       "88b 888  888 888  "Y88b 888  888 888    888    d8P  Y8b 888P"       888     888 888 "88b   "888 d8P  Y8b d88P"    888    88K
+# d88P"      8888888888       888         d88P   888 888     888     .d888888 888  888 888    888 888  888 888    888    88888888 888         888     888 888  888    888 88888888 888      888    "Y8888b.
+# 888"             888  d8b   888        d8888888888 888     888     888  888 Y88b 888 888   d88P Y88b 888 888    888    Y8b.     888         Y88b. .d88P 888 d88P    888 Y8b.     Y88b.    Y88b.       X88
+# 888888888        888  Y8P 8888888     d88P     888 888     888     "Y888888  "Y88888 8888888P"   "Y88888 888    888     "Y8888  888          "Y88888P"  88888P"     888  "Y8888   "Y8888P  "Y888  88888P'
+#                                                                                  888                                                                                888
+#                                                                             Y8b d88P                                                                               d88P
+#                                                                              "Y88P"                                                                              888P"
+#
+############################################################################################################################################################################################################
+# 24.1 ArrayBuffer Objects
+
+# 24.1.1 Abstract Operations For ArrayBuffer Objects
+
+# 24.1.1.1 AllocateArrayBuffer ( constructor, byteLength )
+def AllocateArrayBuffer(constructor, byteLength):
+    # The abstract operation AllocateArrayBuffer with arguments constructor and byteLength is used to create an
+    # ArrayBuffer object. It performs the following steps:
+    #
+    #   1. Let obj be ? OrdinaryCreateFromConstructor(constructor, "%ArrayBufferPrototype%", « [[ArrayBufferData]],
+    #      [[ArrayBufferByteLength]], [[ArrayBufferDetachKey]] »).
+    #   2. Assert: byteLength is an integer value ≥ 0.
+    #   3. Let block be ? CreateByteDataBlock(byteLength).
+    #   4. Set obj.[[ArrayBufferData]] to block.
+    #   5. Set obj.[[ArrayBufferByteLength]] to byteLength.
+    #   6. Return obj.
+    obj = OrdinaryCreateFromConstructor(constructor, '%ArrayBufferPrototype%',
+        ['ArrayBufferData', 'ArrayBufferByteLength', 'ArrayBufferDetachKey'])
+    assert IsInteger(byteLength) and byteLength >= 0
+    block = CreateByteDataBlock(byteLength)
+    obj.ArrayBufferData = block
+    obj.ArrayBufferByteLength = byteLength
+    return obj
+
+# 24.1.1.2 IsDetachedBuffer ( arrayBuffer )
+def IsDetachedBuffer(arrayBuffer):
+    # The abstract operation IsDetachedBuffer with argument arrayBuffer performs the following steps:
+    #
+    #   1. Assert: Type(arrayBuffer) is Object and it has an [[ArrayBufferData]] internal slot.
+    #   2. If arrayBuffer.[[ArrayBufferData]] is null, return true.
+    #   3. Return false.
+    assert isObject(arrayBuffer) and hasattr(arrayBuffer, 'ArrayBufferData')
+    return isNull(arrayBuffer.ArrayBufferData)
+
+# 24.1.1.3 DetachArrayBuffer ( arrayBuffer [ , key ] )
+def DetachArrayBuffer(arrayBuffer, key=None):
+    # The abstract operation DetachArrayBuffer with argument arrayBuffer and optional argument key performs the
+    # following steps:
+    #
+    #   1. Assert: Type(arrayBuffer) is Object and it has [[ArrayBufferData]], [[ArrayBufferByteLength]], and
+    #      [[ArrayBufferDetachKey]] internal slots.
+    #   2. Assert: IsSharedArrayBuffer(arrayBuffer) is false.
+    #   3. If key is not present, set key to undefined.
+    #   4. If SameValue(arrayBuffer.[[ArrayBufferDetachKey]], key) is false, throw a TypeError exception.
+    #   5. Set arrayBuffer.[[ArrayBufferData]] to null.
+    #   6. Set arrayBuffer.[[ArrayBufferByteLength]] to 0.
+    #   7. Return NormalCompletion(null).
+    assert isObject(arrayBuffer) and all(hasattr(arrayBuffer, x) for x in ('ArrayBufferData', 'ArrayBufferByteLength', 'ArrayBufferDetachKey'))
+    assert not IsSharedArrayBuffer(arrayBuffer)
+    if not SameValue(arrayBuffer.ArrayBufferDetachKey, key):
+        raise ESTypeError('Bad key for arraybuffer detach')
+    arrayBuffer.ArrayBufferData = JSNull.NULL
+    arrayBuffer.ArrayBufferByteLength = 0
+    return JSNull.NULL
+    # NOTE
+    # Detaching an ArrayBuffer instance disassociates the Data Block used as its backing store from the instance and
+    # sets the byte length of the buffer to 0. No operations defined by this specification use the DetachArrayBuffer
+    # abstract operation. However, an ECMAScript implementation or host environment may define such operations.
+
+# 24.1.1.4 CloneArrayBuffer ( srcBuffer, srcByteOffset, srcLength, cloneConstructor )
+def CloneArrayBuffer(srcBuffer, srcByteOffset, srcLength, cloneConstructor):
+    # The abstract operation CloneArrayBuffer takes four parameters, an ArrayBuffer srcBuffer, an integer offset
+    # srcByteOffset, an integer length srcLength, and a constructor function cloneConstructor. It creates a new
+    # ArrayBuffer whose data is a copy of srcBuffer's data over the range starting at srcByteOffset and continuing for
+    # srcLength bytes. This operation performs the following steps:
+    #
+    #   1. Assert: Type(srcBuffer) is Object and it has an [[ArrayBufferData]] internal slot.
+    #   2. Assert: IsConstructor(cloneConstructor) is true.
+    #   3. Let targetBuffer be ? AllocateArrayBuffer(cloneConstructor, srcLength).
+    #   4. If IsDetachedBuffer(srcBuffer) is true, throw a TypeError exception.
+    #   5. Let srcBlock be srcBuffer.[[ArrayBufferData]].
+    #   6. Let targetBlock be targetBuffer.[[ArrayBufferData]].
+    #   7. Perform CopyDataBlockBytes(targetBlock, 0, srcBlock, srcByteOffset, srcLength).
+    #   8. Return targetBuffer.
+    assert isObject(srcBuffer) and hasattr(srcBuffer, 'ArrayBufferData')
+    assert IsConstructor(cloneConstructor)
+    targetBuffer = AllocateArrayBuffer(cloneConstructor, srcLength)
+    if IsDetachedBuffer(srcBuffer):
+        raise ESTypeError('Cannot clone a detached buffer')
+    srcBlock = srcBuffer.ArrayBufferData
+    targetBlock = targetBuffer.ArrayBufferData
+    CopyDataBlockBytes(targetBlock, 0, srcBlock, srcByteOffset, srcLength)
+    return targetBuffer
+
+type_sizes = {
+    'Int8': 1,
+    'Uint8': 1,
+    'Uint8C': 1,
+    'Int16': 2,
+    'Uint16': 2,
+    'Int32': 4,
+    'Uint32': 4,
+    'Float32': 4,
+    'Float64': 8,
+}
+conversion_ops = {
+    'Int8': ToInt8,
+    'Uint8': ToUint8,
+    'Uint8C': ToUint8Clamp,
+    'Int16': ToInt16,
+    'Uint16': ToUint16,
+    'Int32': ToInt32,
+    'Uint32': ToUint32,
+}
+
+# 24.1.1.5 RawBytesToNumber ( type, rawBytes, isLittleEndian )
+def RawBytesToNumber(type, rawBytes, isLittleEndian):
+    # The abstract operation RawBytesToNumber takes three parameters, a String type, a List rawBytes, and a Boolean
+    # isLittleEndian. This operation performs the following steps:
+    #
+    #   1. Let elementSize be the Number value of the Element Size value specified in Table 56 for Element Type type.
+    #   2. If isLittleEndian is false, reverse the order of the elements of rawBytes.
+    #   3. If type is "Float32", then
+    #       a. Let value be the byte elements of rawBytes concatenated and interpreted as a little-endian bit string
+    #          encoding of an IEEE 754-2008 binary32 value.
+    #       b. If value is an IEEE 754-2008 binary32 NaN value, return the NaN Number value.
+    #       c. Return the Number value that corresponds to value.
+    #   4. If type is "Float64", then
+    #       a. Let value be the byte elements of rawBytes concatenated and interpreted as a little-endian bit string
+    #          encoding of an IEEE 754-2008 binary64 value.
+    #       b. If value is an IEEE 754-2008 binary64 NaN value, return the NaN Number value.
+    #       c. Return the Number value that corresponds to value.
+    #   5. If the first code unit of type is the code unit 0x0055 (LATIN CAPITAL LETTER U), then
+    #       a. Let intValue be the byte elements of rawBytes concatenated and interpreted as a bit string encoding of
+    #          an unsigned little-endian binary number.
+    #   6. Else,
+    #       a. Let intValue be the byte elements of rawBytes concatenated and interpreted as a bit string encoding of
+    #          a binary little-endian 2's complement number of bit length elementSize × 8.
+    #   7. Return the Number value that corresponds to intValue.
+    elementSize = type_sizes.get(type, 1)
+    if type.startswith('Float'):
+        fmt = ('>f', '<f', '>d', '<d')[int(isLittleEndian) + 2*int(type == 'Float64')]
+    else:
+        fmt = ('>B', '<B', '>b', '<b', '>H', '<H', '>h', '<h', '>L', '<L', '>l', '<l')[int(isLittleEndian) + 2*(type.startswith('I')) + 2*(elementSize & 6)]
+    value = struct.unpack(fmt, bytearray(rawBytes))
+    return value
+
+# 24.1.1.6 GetValueFromBuffer ( arrayBuffer, byteIndex, type, isTypedArray, order [ , isLittleEndian ] )
+def GetValueFromBuffer(arrayBuffer, byteIndex, type, isTypedArray, order, isLittleEndian=EMPTY):
+    # The abstract operation GetValueFromBuffer takes six parameters, an ArrayBuffer or SharedArrayBuffer arrayBuffer,
+    # an integer byteIndex, a String type, a Boolean isTypedArray, a String order, and optionally a Boolean
+    # isLittleEndian. This operation performs the following steps:
+    #
+    #   1. Assert: IsDetachedBuffer(arrayBuffer) is false.
+    #   2. Assert: There are sufficient bytes in arrayBuffer starting at byteIndex to represent a value of type.
+    #   3. Assert: byteIndex is an integer value ≥ 0.
+    #   4. Let block be arrayBuffer.[[ArrayBufferData]].
+    #   5. Let elementSize be the Number value of the Element Size value specified in Table 56 for Element Type type.
+    #   6. If IsSharedArrayBuffer(arrayBuffer) is true, then
+    #       a. Let execution be the [[CandidateExecution]] field of the surrounding agent's Agent Record.
+    #       b. Let eventList be the [[EventList]] field of the element in execution.[[EventLists]] whose
+    #          [[AgentSignifier]] is AgentSignifier().
+    #       c. If isTypedArray is true and type is "Int8", "Uint8", "Int16", "Uint16", "Int32", or "Uint32", let noTear
+    #          be true; otherwise let noTear be false.
+    #       d. Let rawValue be a List of length elementSize of nondeterministically chosen byte values.
+    #       e. NOTE: In implementations, rawValue is the result of a non-atomic or atomic read instruction on the
+    #          underlying hardware. The nondeterminism is a semantic prescription of the memory model to describe
+    #          observable behaviour of hardware with weak consistency.
+    #       f. Let readEvent be ReadSharedMemory { [[Order]]: order, [[NoTear]]: noTear, [[Block]]: block,
+    #          [[ByteIndex]]: byteIndex, [[ElementSize]]: elementSize }.
+    #       g. Append readEvent to eventList.
+    #       h. Append Chosen Value Record { [[Event]]: readEvent, [[ChosenValue]]: rawValue } to
+    #          execution.[[ChosenValues]].
+    #   7. Else, let rawValue be a List of elementSize containing, in order, the elementSize sequence of bytes starting
+    #      with block[byteIndex].
+    #   8. If isLittleEndian is not present, set isLittleEndian to the value of the [[LittleEndian]] field of the
+    #      surrounding agent's Agent Record.
+    #   9. Return RawBytesToNumber(type, rawValue, isLittleEndian).
+    assert not IsDetachedBuffer(arrayBuffer)
+    assert IsInteger(byteIndex) and byteIndex >= 0
+    elementSize = type_sizes.get(type, 1)
+    block = arrayBuffer.ArrayBufferData
+    assert byteIndex + elementSize <= block.nbytes
+    if IsSharedArrayBuffer(arrayBuffer):
+        raise NotImplementedError('Need shared buffer support')
+    else:
+        rawValue = block[byteIndex:byteIndex+elementSize]
+    if isLittleEndian == EMPTY:
+        isLittleEndian = surrounding_agent.agent_record.little_endian
+    return RawBytesToNumber(type, rawValue, isLittleEndian)
+
+# 24.1.1.7 NumberToRawBytes ( type, value, isLittleEndian )
+def NumberToRawBytes(type, value, isLittleEndian):
+    # The abstract operation NumberToRawBytes takes three parameters, a String type, a Number value, and a Boolean
+    # isLittleEndian. This operation performs the following steps:
+    #
+    #   1. If type is "Float32", then
+    #       a. Let rawBytes be a List containing the 4 bytes that are the result of converting value to IEEE 754-2008
+    #          binary32 format using “Round to nearest, ties to even” rounding mode. If isLittleEndian is false, the
+    #          bytes are arranged in big endian order. Otherwise, the bytes are arranged in little endian order. If
+    #          value is NaN, rawBytes may be set to any implementation chosen IEEE 754-2008 binary32 format
+    #          Not-a-Number encoding. An implementation must always choose the same encoding for each implementation
+    #          distinguishable NaN value.
+    #   2. Else if type is "Float64", then
+    #       a. Let rawBytes be a List containing the 8 bytes that are the IEEE 754-2008 binary64 format encoding of
+    #          value. If isLittleEndian is false, the bytes are arranged in big endian order. Otherwise, the bytes are
+    #          arranged in little endian order. If value is NaN, rawBytes may be set to any implementation chosen IEEE
+    #          754-2008 binary64 format Not-a-Number encoding. An implementation must always choose the same encoding
+    #          for each implementation distinguishable NaN value.
+    #   3. Else,
+    #       a. Let n be the Number value of the Element Size specified in Table 56 for Element Type type.
+    #       b. Let convOp be the abstract operation named in the Conversion Operation column in Table 56 for Element
+    #          Type type.
+    #       c. Let intValue be convOp(value).
+    #       d. If intValue ≥ 0, then
+    #           i. Let rawBytes be a List containing the n-byte binary encoding of intValue. If isLittleEndian is
+    #              false, the bytes are ordered in big endian order. Otherwise, the bytes are ordered in little endian
+    #              order.
+    #       e. Else,
+    #           i. Let rawBytes be a List containing the n-byte binary 2's complement encoding of intValue. If
+    #              isLittleEndian is false, the bytes are ordered in big endian order. Otherwise, the bytes are ordered
+    #              in little endian order.
+    #   4. Return rawBytes.
+    if type.startswith('F'):
+        fmt = ('>f', '<f', '>d', '<d')[int(isLittleEndian) + 2*int(type=='Float64')]
+        return struct.pack(fmt, value)
+    intValue = conversion_ops[type](value)
+    elementSize = type_sizes[type]
+    fmt = ('>b', '<b', '>B', '<B', '>h', '<h', '>H', '<H', '>l', '<l', '>L', '<L')[int(isLittleEndian) + 2*int(type.startswith('U')) + 2*(elementSize & 6)]
+    return struct.pack(fmt, intValue)
+
+# 24.1.1.8 SetValueInBuffer ( arrayBuffer, byteIndex, type, value, isTypedArray, order [ , isLittleEndian ] )
+def SetValueInBuffer(arrayBuffer, byteIndex, type, value, isTypedArray, order, isLittleEndian=EMPTY):
+    # The abstract operation SetValueInBuffer takes seven parameters, an ArrayBuffer or SharedArrayBuffer arrayBuffer,
+    # an integer byteIndex, a String type, a Number value, a Boolean isTypedArray, a String order, and optionally a
+    # Boolean isLittleEndian. This operation performs the following steps:
+    #
+    #   1. Assert: IsDetachedBuffer(arrayBuffer) is false.
+    #   2. Assert: There are sufficient bytes in arrayBuffer starting at byteIndex to represent a value of type.
+    #   3. Assert: byteIndex is an integer value ≥ 0.
+    #   4. Assert: Type(value) is Number.
+    #   5. Let block be arrayBuffer.[[ArrayBufferData]].
+    #   6. Let elementSize be the Number value of the Element Size value specified in Table 56 for Element Type type.
+    #   7. If isLittleEndian is not present, set isLittleEndian to the value of the [[LittleEndian]] field of the
+    #      surrounding agent's Agent Record.
+    #   8. Let rawBytes be NumberToRawBytes(type, value, isLittleEndian).
+    #   9. If IsSharedArrayBuffer(arrayBuffer) is true, then
+    #       a. Let execution be the [[CandidateExecution]] field of the surrounding agent's Agent Record.
+    #       b. Let eventList be the [[EventList]] field of the element in execution.[[EventLists]] whose
+    #          [[AgentSignifier]] is AgentSignifier().
+    #       c. If isTypedArray is true and type is "Int8", "Uint8", "Int16", "Uint16", "Int32", or "Uint32", let noTear
+    #          be true; otherwise let noTear be false.
+    #       d. Append WriteSharedMemory { [[Order]]: order, [[NoTear]]: noTear, [[Block]]: block,
+    #          [[ByteIndex]]: byteIndex, [[ElementSize]]: elementSize, [[Payload]]: rawBytes } to eventList.
+    #   10. Else, store the individual bytes of rawBytes into block, in order, starting at block[byteIndex].
+    #   11. Return NormalCompletion(undefined).
+    assert not IsDetachedBuffer(arrayBuffer)
+    assert IsInteger(byteIndex) and byteIndex >= 0
+    elementSize = type_sizes[type]
+    block = arrayBuffer.ArrayBufferData
+    assert byteIndex + elementSize <= block.nbytes
+    assert isNumber(value)
+    if isLittleEndian == EMPTY:
+        isLittleEndian = surrounding_agent.agent_record.little_endian
+    rawBytes = NumberToRawBytes(type, value, isLittleEndian)
+    if IsSharedArrayBuffer(arrayBuffer):
+        raise NotImplementedError('Shared Array Data support required')
+    else:
+        block[byteIndex:byteIndex+elementSize] = bytearray(rawBytes)
+
+# 24.1.2 The ArrayBuffer Constructor
+# The ArrayBuffer constructor:
+#
+# * is the intrinsic object %ArrayBuffer%.
+# * is the initial value of the ArrayBuffer property of the global object.
+# * creates and initializes a new ArrayBuffer object when called as a constructor.
+# * is not intended to be called as a function and will throw an exception when called in that manner.
+# * is designed to be subclassable. It may be used as the value of an extends clause of a class definition. Subclass
+#   constructors that intend to inherit the specified ArrayBuffer behaviour must include a super call to the
+#   ArrayBuffer constructor to create and initialize subclass instances with the internal state necessary to support
+#   the ArrayBuffer.prototype built-in methods.
+
+def CreateArrayBufferConstructor(realm):
+    obj = CreateBuiltinFunction(ArrayBufferFunction, ['Construct'], realm=realm)
+    for key, value in [('length', 1), ('name', 'ArrayBuffer')]:
+        desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)
+        DefinePropertyOrThrow(obj, key, desc)
+    BindBuiltinFunctions(realm, obj, [
+        ('isView', ArrayBuffer_isView, 1),
+    ])
+    # 24.1.3.3 get ArrayBuffer [ @@species ]
+    # ArrayBuffer[@@species] is an accessor property whose set accessor function is undefined. Its get accessor function
+    # performs the following steps:
+    #
+    #   1. Return the this value.
+    #
+    # The value of the name property of this function is "get [Symbol.species]".
+    #
+    # NOTE
+    # ArrayBuffer prototype methods normally use their this object's constructor to create a derived object. However, a
+    # subclass constructor may over-ride that default behaviour by redefining its @@species property.
+    def get_species(this_value, new_target, *_):
+        return this_value
+    fcn_obj = CreateBuiltinFunction(get_species, [], realm)
+    DefinePropertyOrThrow(fcn_obj, 'length', PropertyDescriptor(value=0, writable=False, enumerable=False, configurable=True))
+    DefinePropertyOrThrow(fcn_obj, 'name', PropertyDescriptor(value='get [Symbol.species]', writable=False, enumerable=False, configurable=True))
+    DefinePropertyOrThrow(obj, wks_species, PropertyDescriptor(Get=fcn_obj, enumerable=False, configurable=True))
+    return obj
+
+# 24.1.2.1 ArrayBuffer ( length )
+def ArrayBufferFunction(this_value, new_target, length=None, *_):
+    # When the ArrayBuffer function is called with argument length, the following steps are taken:
+    #
+    # If NewTarget is undefined, throw a TypeError exception.
+    # Let byteLength be ? ToIndex(length).
+    # Return ? AllocateArrayBuffer(NewTarget, byteLength).
+    if new_target is None:
+        raise ESTypeError('The ArrayBuffer constructor may not be called as a function')
+    return AllocateArrayBuffer(new_target, ToIndex(length))
+
+# 24.1.3.1 ArrayBuffer.isView ( arg )
+def ArrayBuffer_isView(this_value, new_target, arg=None, *_):
+    # The isView function takes one argument arg, and performs, the following steps are taken:
+    #
+    #   1. If Type(arg) is not Object, return false.
+    #   2. If arg has a [[ViewedArrayBuffer]] internal slot, return true.
+    #   3. Return false.
+    return isObject(arg) and hasattr(arg, 'ViewedArrayBuffer')
+
+# 24.1.4 Properties of the ArrayBuffer Prototype Object
+# The ArrayBuffer prototype object:
+#
+# * is the intrinsic object %ArrayBufferPrototype%.
+# * has a [[Prototype]] internal slot whose value is the intrinsic object %ObjectPrototype%.
+# * is an ordinary object.
+# * does not have an [[ArrayBufferData]] or [[ArrayBufferByteLength]] internal slot.
+
+def CreateArrayBufferPrototype(realm):
+    proto = ObjectCreate(realm.intrinsics['%ObjectPrototype%'])
+    BindBuiltinFunctions(realm, proto, [
+        ('slice', ArrayBufferPrototype_slice, 2),
+    ])
+    byteLength = CreateBuiltinFunction(get_ArrayBufferPrototype_byteLength, [], realm)
+    DefinePropertyOrThrow(byteLength, 'length', PropertyDescriptor(value=0, writable=False, enumerable=False, configurable=True))
+    DefinePropertyOrThrow(byteLength, 'name', PropertyDescriptor(value='get byteLength', writable=False, enumerable=False, configurable=True))
+    DefinePropertyOrThrow(proto, 'byteLength', PropertyDescriptor(Get=byteLength, enumerable=False, configurable=True))
+    DefinePropertyOrThrow(proto, wks_to_string_tag, PropertyDescriptor(value='ArrayBuffer', writable=False, enumerable=False, configurable=True))
+    return proto
+
+# 24.1.4.1 get ArrayBuffer.prototype.byteLength
+def get_ArrayBufferPrototype_byteLength(this_value, new_target, *_):
+    # ArrayBuffer.prototype.byteLength is an accessor property whose set accessor function is undefined. Its get
+    # accessor function performs the following steps:
+    #
+    #   1. Let O be the this value.
+    #   2. If Type(O) is not Object, throw a TypeError exception.
+    #   3. If O does not have an [[ArrayBufferData]] internal slot, throw a TypeError exception.
+    #   4. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.
+    #   5. If IsDetachedBuffer(O) is true, throw a TypeError exception.
+    #   6. Let length be O.[[ArrayBufferByteLength]].
+    #   7. Return length.
+    if not isObject(this_value) or not hasattr(this_value, 'ArrayBufferData'):
+        raise ESTypeError('byteLength called with bad object')
+    if IsSharedArrayBuffer(this_value):
+        raise ESTypeError('byteLength not allowed on shared buffers')
+    if IsDetachedBuffer(this_value):
+        raise ESTypeError('byteLength not allowed on detached buffers')
+    return this_value.ArrayBufferByteLength
+
+# 24.1.4.3 ArrayBuffer.prototype.slice ( start, end )
+def ArrayBufferPrototype_slice(this_value, new_target, start=None, end=None, *_):
+    # The following steps are taken:
+    #
+    #   1. Let O be the this value.
+    #   2. If Type(O) is not Object, throw a TypeError exception.
+    #   3. If O does not have an [[ArrayBufferData]] internal slot, throw a TypeError exception.
+    #   4. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.
+    #   5. If IsDetachedBuffer(O) is true, throw a TypeError exception.
+    #   6. Let len be O.[[ArrayBufferByteLength]].
+    #   7. Let relativeStart be ? ToInteger(start).
+    #   8. If relativeStart < 0, let first be max((len + relativeStart), 0); else let first be min(relativeStart, len).
+    #   9. If end is undefined, let relativeEnd be len; else let relativeEnd be ? ToInteger(end).
+    #   10. If relativeEnd < 0, let final be max((len + relativeEnd), 0); else let final be min(relativeEnd, len).
+    #   11. Let newLen be max(final-first, 0).
+    #   12. Let ctor be ? SpeciesConstructor(O, %ArrayBuffer%).
+    #   13. Let new be ? Construct(ctor, « newLen »).
+    #   14. If new does not have an [[ArrayBufferData]] internal slot, throw a TypeError exception.
+    #   15. If IsSharedArrayBuffer(new) is true, throw a TypeError exception.
+    #   16. If IsDetachedBuffer(new) is true, throw a TypeError exception.
+    #   17. If SameValue(new, O) is true, throw a TypeError exception.
+    #   18. If new.[[ArrayBufferByteLength]] < newLen, throw a TypeError exception.
+    #   19. NOTE: Side-effects of the above steps may have detached O.
+    #   20. If IsDetachedBuffer(O) is true, throw a TypeError exception.
+    #   21. Let fromBuf be O.[[ArrayBufferData]].
+    #   22. Let toBuf be new.[[ArrayBufferData]].
+    #   23. Perform CopyDataBlockBytes(toBuf, 0, fromBuf, first, newLen).
+    #   24. Return new.
+    if (not isObject(this_value) or not hasattr(this_value, 'ArrayBufferData') or
+        IsSharedArrayBuffer(this_value) or IsDetachedBuffer(this_value)):
+        raise ESTypeError('Improper object for slice')
+    length = this_value.ArrayBufferByteLength
+    relativeStart = ToInteger(start)
+    if relativeStart < 0:
+        first = max(length + relativeStart, 0)
+    else:
+        first = min(relativeStart, length)
+    if end is None:
+        relativeEnd = length
+    else:
+        relativeEnd = ToInteger(end)
+    if relativeEnd < 0:
+        final = max(len + relativeEnd, 0)
+    else:
+        final = min(relativeEnd, length)
+    newLen = max(final - first, 0)
+    ctor = SpeciesConstructor(this_value, surrounding_agent.running_ec.realm.intrinsics['%ArrayBuffer%'])
+    newobj = Construct(ctor, [ newLen ])
+    if (not hasattr(newobj, 'ArrayBufferData') or IsSharedArrayBuffer(newobj) or IsDetachedBuffer(newobj) or
+        SameValue(newobj, this_value) or newobj.ArrayBufferByteLength < newLen or IsDetachedBuffer(this_value)):
+        raise ESTypeError('Bad ArrayBuffer constructor')
+    fromBuf = this_value.ArrayBufferData
+    toBuf = newobj.ArrayBufferData
+    CopyDataBlockBytes(toBuf, 0, fromBuf, first, newLen)
+    return newobj
+
+def ArrayBufferFixups(realm):
+    constructor = realm.intrinsics['%ArrayBuffer%']
+    prototype = realm.intrinsics['%ArrayBufferPrototype%']
+    DefinePropertyOrThrow(constructor, 'prototype',
+                PropertyDescriptor(value=prototype, writable=False, enumerable=False, configurable=False))
+    DefinePropertyOrThrow(prototype, 'constructor', PropertyDescriptor(value=constructor))
+
+######################################################################################################################################################################################################################################################################
+#
+#  .d8888b.      d8888       .d8888b.       .d8888b.  888                                     888        d8888                                   888888b.             .d888  .d888                       .d88888b.  888         d8b                   888
+# d88P  Y88b    d8P888      d88P  Y88b     d88P  Y88b 888                                     888       d88888                                   888  "88b           d88P"  d88P"                       d88P" "Y88b 888         Y8P                   888
+#        888   d8P 888             888     Y88b.      888                                     888      d88P888                                   888  .88P           888    888                         888     888 888                               888
+#      .d88P  d8P  888           .d88P      "Y888b.   88888b.   8888b.  888d888  .d88b.   .d88888     d88P 888 888d888 888d888  8888b.  888  888 8888888K.  888  888 888888 888888  .d88b.  888d888     888     888 88888b.    8888  .d88b.   .d8888b 888888 .d8888b
+#  .od888P"  d88   888       .od888P"          "Y88b. 888 "88b     "88b 888P"   d8P  Y8b d88" 888    d88P  888 888P"   888P"       "88b 888  888 888  "Y88b 888  888 888    888    d8P  Y8b 888P"       888     888 888 "88b   "888 d8P  Y8b d88P"    888    88K
+# d88P"      8888888888     d88P"                "888 888  888 .d888888 888     88888888 888  888   d88P   888 888     888     .d888888 888  888 888    888 888  888 888    888    88888888 888         888     888 888  888    888 88888888 888      888    "Y8888b.
+# 888"             888  d8b 888"           Y88b  d88P 888  888 888  888 888     Y8b.     Y88b 888  d8888888888 888     888     888  888 Y88b 888 888   d88P Y88b 888 888    888    Y8b.     888         Y88b. .d88P 888 d88P    888 Y8b.     Y88b.    Y88b.       X88
+# 888888888        888  Y8P 888888888       "Y8888P"  888  888 "Y888888 888      "Y8888   "Y88888 d88P     888 888     888     "Y888888  "Y88888 8888888P"   "Y88888 888    888     "Y8888  888          "Y88888P"  88888P"     888  "Y8888   "Y8888P  "Y888  88888P'
+#                                                                                                                                            888                                                                                888
+#                                                                                                                                       Y8b d88P                                                                               d88P
+#                                                                                                                                        "Y88P"                                                                              888P"
+#
+######################################################################################################################################################################################################################################################################
+# 24.2 SharedArrayBuffer Objects
+
+# 24.2.1.2 IsSharedArrayBuffer ( obj )
+def IsSharedArrayBuffer(obj):
+    # IsSharedArrayBuffer tests whether an object is an ArrayBuffer, a SharedArrayBuffer, or a subtype of either. It
+    # performs the following steps:
+    #
+    #   1. Assert: Type(obj) is Object and it has an [[ArrayBufferData]] internal slot.
+    #   2. Let bufferData be obj.[[ArrayBufferData]].
+    #   3. If bufferData is null, return false.
+    #   4. If bufferData is a Data Block, return false.
+    #   5. Assert: bufferData is a Shared Data Block.
+    #   6. Return true.
+    assert isObject(obj) and hasattr(obj, 'ArrayBufferData')
+    bufferData = obj.ArrayBufferData
+    if isNull(bufferData):
+        return False
+    if isinstance(bufferData, memoryview):
+        return False
+    assert 'bufferData is a Shared Data Block'
+    return True
 
 # 25.1.2 The %IteratorPrototype% Object
 # The %IteratorPrototype% object:
