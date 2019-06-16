@@ -9672,6 +9672,9 @@ class PN_CallExpression_CallExpression_PERIOD_IdentifierName(PN_CallExpression):
         return MemberDotEvaluation(self, self.CallExpression.evaluate())
 class PN_CallExpression_CallExpression_TemplateLiteral(PN_CallExpression):
     # 𝑪𝒂𝒍𝒍𝑬𝒙𝒑𝒓𝒆𝒔𝒔𝒊𝒐𝒏 : 𝑪𝒂𝒍𝒍𝑬𝒙𝒑𝒓𝒆𝒔𝒔𝒊𝒐𝒏 𝑻𝒆𝒎𝒑𝒍𝒂𝒕𝒆𝑳𝒊𝒕𝒆𝒓𝒂𝒍
+    def __init__(self, ctx, p, tagged=False):
+        super().__init__(ctx, p)
+        self.Tagged = tagged
     @property
     def CallExpression(self):
         return self.children[0]
