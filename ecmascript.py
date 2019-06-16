@@ -6644,7 +6644,7 @@ class Lexer():
     }
 
     class TokenValue:
-        __slots__ = ('name', 'value', 'lt_follows', 'index', 'length')
+        __slots__ = ('name', 'value', 'lt_follows', 'index', 'length', 'parent')
         def __repr__(self):
             return f'TokenValue(value={self.value!r}, name={self.name}, lt_follows={self.lt_follows})'
         def Is(self, symbol):
@@ -7854,6 +7854,8 @@ class ParseNode:
     def __init__(self, name, p):
         self.name = name
         self.children = [p[z] or MakeEmptyNode() for z in range(len(p))]
+        for child in self.children:
+            child.parent = self
         self.ctx = None
     def __repr__(self):
         #return f'{self.name}[{",".join(repr(child) for child in self.children)}]'
