@@ -4413,7 +4413,7 @@ def GetActiveScriptOrModule():
     return JSNull.NULL
 
 # 8.3.2 ResolveBinding ( name [ , env ] )
-def ResolveBinding(name, env=None):
+def ResolveBinding(name, strict, env=None):
     # The ResolveBinding abstract operation is used to determine the binding of name passed as a String value. The
     # optional argument env can be used to explicitly provide the Lexical Environment that is to be searched for the
     # binding. During execution of ECMAScript code, ResolveBinding is performed using the following algorithm:
@@ -4426,7 +4426,6 @@ def ResolveBinding(name, env=None):
     assert isinstance(env, LexicalEnvironment)
     # 3. If the code matching the syntactic production that is being evaluated is contained in strict mode code, let
     #    strict be true, else let strict be false.
-    strict = False #FigureOutWhatTheHeckThisIs()  # See 10.2.1.
     # 4. Return ? GetIdentifierReference(env, name, strict).
     return GetIdentifierReference(env, name, strict)
     # NOTE
@@ -8049,7 +8048,7 @@ class PN_IdentifierReference_Identifier(PN_IdentifierReference):
     def StringValue(self):
         return self.Identifier.StringValue()
     def evaluate(self):
-        return ResolveBinding(self.Identifier.StringValue())
+        return ResolveBinding(self.Identifier.StringValue(), self.strict)
 class PN_IdentifierReference_AWAIT(PN_IdentifierReference):
     def EarlyErrors(self):
         # Early Errors
@@ -8061,7 +8060,7 @@ class PN_IdentifierReference_AWAIT(PN_IdentifierReference):
     def StringValue(self):
         return 'await'
     def evaluate(self):
-        return ResolveBinding('await')
+        return ResolveBinding('await', self.strict)
 class PN_IdentifierReference_YIELD(PN_IdentifierReference):
     def EarlyErrors(self):
         # Early Errors
@@ -8073,7 +8072,7 @@ class PN_IdentifierReference_YIELD(PN_IdentifierReference):
     def StringValue(self):
         return 'yield'
     def evaluate(self):
-        return ResolveBinding('yield')
+        return ResolveBinding('yield', self.strict)
 
 class PN_BindingIdentifier(ParseNode):
     def __init__(self, ctx, p, yield_=False, await_=False):
@@ -8111,7 +8110,7 @@ class PN_BindingIdentifier_Identifier(PN_BindingIdentifier):
         #   BindingIdentifier : Identifier
         #   1. Let name be StringValue of Identifier.
         #   2. Return ? InitializeBoundName(name, value, environment).
-        return InitializeBoundName(self.Identifier.StringValue(), value, environment)
+        return InitializeBoundName(self.Identifier.StringValue(), value, environment, self.strict)
 class PN_BindingIdentifier_YIELD(PN_BindingIdentifier):
     def EarlyErrors(self):
         # 12.1.1 Static Semantics: Early Errors
@@ -8138,7 +8137,7 @@ class PN_BindingIdentifier_YIELD(PN_BindingIdentifier):
         #   With parameters value and environment.
         #           BindingIdentifier : yield
         # 1. Return ? InitializeBoundName("yield", value, environment).
-        return InitializeBoundName('yield', value, environment)
+        return InitializeBoundName('yield', value, environment, self.strict)
 class PN_BindingIdentifier_AWAIT(PN_BindingIdentifier):
     def EarlyErrors(self):
         # 12.1.1 Static Semantics: Early Errors
@@ -8165,9 +8164,9 @@ class PN_BindingIdentifier_AWAIT(PN_BindingIdentifier):
         #   With parameters value and environment.
         #           BindingIdentifier : await
         # 1. Return ? InitializeBoundName("await", value, environment).
-        return InitializeBoundName('await', value, environment)
+        return InitializeBoundName('await', value, environment, self.strict)
 # 12.1.5.1 Runtime Semantics: InitializeBoundName ( name, value, environment )
-def InitializeBoundName(name, value, environment):
+def InitializeBoundName(name, value, environment, strict):
     # 1. Assert: Type(name) is String.
     assert isString(name)
     # 2. If environment is not undefined, then
@@ -8180,7 +8179,7 @@ def InitializeBoundName(name, value, environment):
         return None
     # 3. Else,
     # a. Let lhs be ResolveBinding(name).
-    lhs = ResolveBinding(name)
+    lhs = ResolveBinding(name, strict)
     # b. Return ? PutValue(lhs, value).
     return PutValue(lhs, value)
 
@@ -11647,7 +11646,7 @@ class PN_AssignmentProperty_IdentifierReference_Initializer(PN_AssignmentPropert
         #   5. Perform ? PutValue(lref, v).
         #   6. Return a new List containing P.
         P = self.IdentifierReference.StringValue()
-        lref = ResolveBinding(P)
+        lref = ResolveBinding(P, self.strict)
         v = GetV(value, P)
         if self.Initializer and v is None:
             defaultValue = self.Initializer.evaluate()
@@ -12613,7 +12612,7 @@ class PN_LexicalBinding_BindingIdentifier_Initializer(PN_LexicalBinding):
         #    b. If hasNameProperty is false, perform SetFunctionName(value, bindingId).
         # 6. Return InitializeReferencedBinding(lhs, value).
         bindingId = self.BindingIdentifier.StringValue()
-        lhs = ResolveBinding(bindingId)
+        lhs = ResolveBinding(bindingId, self.strict)
         rhs = self.Initializer.evaluate()
         value = GetValue(rhs)
         if IsAnonymousFunctionDefinition(self.Initializer):
@@ -12646,7 +12645,7 @@ class PN_LexicalBinding_BindingIdentifier(PN_LexicalBinding):
         # 2. Return InitializeReferencedBinding(lhs, undefined).
         # NOTE
         # A static semantics rule ensures that this form of LexicalBinding never occurs in a const declaration.
-        lhs = ResolveBinding(self.BindingIdentifier.StringValue())
+        lhs = ResolveBinding(self.BindingIdentifier.StringValue(), self.strict)
         return InitializeReferencedBinding(lhs, None)
 class PN_LexicalBinding_BindingPattern_Initializer(PN_LexicalBinding):
     @property
@@ -12794,7 +12793,7 @@ class PN_VariableDeclaration_BindingIdentifier_Initializer(PN_VariableDeclaratio
         #       b. If hasNameProperty is false, perform SetFunctionName(value, bindingId).
         #   6. Return ? PutValue(lhs, value).
         bindingId = self.BindingIdentifier.StringValue()
-        lhs = ResolveBinding(bindingId)
+        lhs = ResolveBinding(bindingId, self.strict)
         rhs = self.Initializer.evaluate()
         value = GetValue(rhs)
         if IsAnonymousFunctionDefinition(self.Initializer):
@@ -13181,7 +13180,7 @@ class PN_BindingRestProperty_DOTDOTDOT_BindingIdentifier(PN_BindingRestProperty)
         #       3. Perform ? CopyDataProperties(restObj, value, excludedNames).
         #       4. If environment is undefined, return PutValue(lhs, restObj).
         #       5. Return InitializeReferencedBinding(lhs, restObj).
-        lhs = ResolveBinding(self.BindingIdentifier.StringValue(), environment)
+        lhs = ResolveBinding(self.BindingIdentifier.StringValue(), self.strict, environment)
         restObj = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics['%ObjectPrototype%'])
         CopyDataProperties(restObj, value, excludedNames)
         if environment is None:
@@ -13574,7 +13573,7 @@ class PN_SingleNameBinding_BindingIdentifier(PN_SingleNameBinding):
         #       5. If environment is undefined, return ? PutValue(lhs, v).
         #       6. Return InitializeReferencedBinding(lhs, v).
         bindingId = self.BindingIdentifier.StringValue()
-        lhs = ResolveBinding(bindingId, environment)
+        lhs = ResolveBinding(bindingId, self.strict, environment)
         if not iteratorRecord.Done:
             try:
                 next = IteratorStep(iteratorRecord)
@@ -13604,7 +13603,7 @@ class PN_SingleNameBinding_BindingIdentifier(PN_SingleNameBinding):
         #       4. If environment is undefined, return ? PutValue(lhs, v).
         #       5. Return InitializeReferencedBinding(lhs, v).
         bindingId = self.BindingIdentifier.StringValue()
-        lhs = ResolveBinding(bindingId, environment)
+        lhs = ResolveBinding(bindingId, self.strict, environment)
         v = GetV(value, propertyName)
         if environment is None:
             return PutValue(lhs, v)
@@ -13661,7 +13660,7 @@ class PN_SingleNameBinding_BindingIdentifier_Initializer(PN_SingleNameBinding):
         #       6. If environment is undefined, return ? PutValue(lhs, v).
         #       7. Return InitializeReferencedBinding(lhs, v).
         bindingId = self.BindingIdentifier.StringValue()
-        lhs = ResolveBinding(bindingId, environment)
+        lhs = ResolveBinding(bindingId, self.strict, environment)
         if not iteratorRecord.Done:
             try:
                 next = IteratorStep(iteratorRecord)
@@ -13704,7 +13703,7 @@ class PN_SingleNameBinding_BindingIdentifier_Initializer(PN_SingleNameBinding):
         #       5. If environment is undefined, return ? PutValue(lhs, v).
         #       6. Return InitializeReferencedBinding(lhs, v).
         bindingId = self.BindingIdentifier.StringValue()
-        lhs = ResolveBinding(bindingId, environment)
+        lhs = ResolveBinding(bindingId, self.strict, environment)
         v = GetV(value, propertyName)
         if v is None:
             defaultValue = self.Initializer.evaluate()
@@ -13746,7 +13745,7 @@ class PN_BindingRestElement_DOTDOTDOT_BindingIdentifier(PN_BindingRestElement):
         #           f. Let status be CreateDataProperty(A, ! ToString(n), nextValue).
         #           g. Assert: status is true.
         #           h. Increment n by 1.
-        lhs = ResolveBinding(self.BindingIdentifier.StringValue(), environment)
+        lhs = ResolveBinding(self.BindingIdentifier.StringValue(), self.strict, environment)
         A = ArrayCreate(0)
         n = 0
         while 1:
@@ -14958,7 +14957,7 @@ def ForInOfBodyEvaluation(lhs, stmt, iteratorRecord, iterationKind, lhsKind, lab
                     bn = lhs.BoundNames()
                     assert len(bn) == 1
                     lhsName = bn[0]
-                    lhsRef = ResolveBinding(lhsName)
+                    lhsRef = ResolveBinding(lhsName, lhs.strict)
             if not destructuring:
                 if lhsKind == LEXICALBINDING:
                     InitializeReferencedBinding(lhsRef, nextValue)
@@ -15126,7 +15125,7 @@ class PN_ForBinding_BindingIdentifier(PN_ForBinding):
         #           ForBinding : BindingIdentifier
         # 1. Let bindingId be StringValue of BindingIdentifier.
         # 2. Return ? ResolveBinding(bindingId).
-        return ResolveBinding(self.BindingIdentifier.StringValue())
+        return ResolveBinding(self.BindingIdentifier.StringValue(), self.strict)
 class PN_ForBinding_BindingPattern(PN_ForBinding):
     @property
     def BindingPattern(self):
