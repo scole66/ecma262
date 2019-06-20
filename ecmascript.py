@@ -7848,15 +7848,16 @@ ReservedWords = [
             'var', 'void', 'while', 'with', 'yield', 'enum', 'null', 'true',
             'false' ]
 
-def MakeEmptyNode():
-    return ParseNode('[empty]', [])
+def MakeEmptyNode(ctx):
+    return ParseNode(ctx, '[empty]', [])
 class ParseNode:
-    def __init__(self, name, p):
+    def __init__(self, ctx, name, p):
         self.name = name
-        self.children = [p[z] or MakeEmptyNode() for z in range(len(p))]
+        self.children = [p[z] or MakeEmptyNode(ctx) for z in range(len(p))]
         for child in self.children:
             child.parent = self
-        self.ctx = None
+        self.ctx = ctx
+        self.strict = False
     def __repr__(self):
         #return f'{self.name}[{",".join(repr(child) for child in self.children)}]'
         children = ' '.join(ch.name if isinstance(ch, ParseNode) else str(ch.value) for ch in self.children)
@@ -7935,6 +7936,10 @@ class ParseNode:
         return errs
     def EarlyErrors(self):
         return []
+    def set_strict_in_subtree(self):
+        self.strict = True
+        for ch in (child for child in self.children if isinstance(child, ParseNode)):
+            ch.set_strict()
     def defer_target(self):
         # When a function defers by default to its children, it picks the sole nonterminal. The routine here figures out which
         # parse node that actually is. (And asserts if there wasn't a sole nonterminal.)
@@ -8001,6 +8006,10 @@ class ParseNode:
         return self.defer_target().BindingInitialization(*args, **kwargs)
     def TemplateStrings(self, *args, **kwargs):
         return self.defer_target().TemplateStrings(*args, **kwargs)
+    def LeadingStrings(self, *args, **kwargs):
+        return self.defer_target().LeadingStrings(*args, **kwargs)
+    def IsStrict(self, *args, **kwargs):
+        return self.defer_target().IsStrict(*args, **kwargs)
 
     def evaluate(self):
         # Subclasses need to override this, or we'll throw an AttributeError when we hit a terminal.
@@ -8020,10 +8029,9 @@ class ParseNode:
 #######################################################################################################################
 class PN_IdentifierReference(ParseNode):
     def __init__(self, ctx, p, yield_=False, await_=False):
-        super().__init__('IdentifierReference', p)
+        super().__init__(ctx, 'IdentifierReference', p)
         self.yield_ = yield_
         self.await_ = await_
-        self.strict = ctx.strict
         self.goal = ctx.goal
 class PN_IdentifierReference_Identifier(PN_IdentifierReference):
     @property
@@ -8069,10 +8077,9 @@ class PN_IdentifierReference_YIELD(PN_IdentifierReference):
 
 class PN_BindingIdentifier(ParseNode):
     def __init__(self, ctx, p, yield_=False, await_=False):
-        super().__init__('BindingIdentifier', p)
+        super().__init__(ctx, 'BindingIdentifier', p)
         self.yield_ = yield_
         self.await_ = await_
-        self.strict = ctx.strict
         self.goal = ctx.goal
 class PN_BindingIdentifier_Identifier(PN_BindingIdentifier):
     @property
@@ -8179,11 +8186,10 @@ def InitializeBoundName(name, value, environment):
 
 class PN_LabelIdentifier(ParseNode):
     def __init__(self, ctx, p, yield_=False, await_=False):
-        super().__init__('LabelIdentifier', p)
+        super().__init__(ctx, 'LabelIdentifier', p)
         self.yield_ = yield_
         self.await_ = await_
         self.goal = ctx.goal
-        self.strict = ctx.strict
 class PN_LabelIdentifier_Identifier(PN_LabelIdentifier):
     @property
     def Identifier(self):
@@ -8229,8 +8235,7 @@ class PN_LabelIdentifier_AWAIT(PN_LabelIdentifier):
 
 class PN_Identifier(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('Identifier', p)
-        self.strict = ctx.strict
+        super().__init__(ctx, 'Identifier', p)
         self.goal = ctx.goal
     @property
     def IdentifierName(self):
@@ -8256,7 +8261,7 @@ class PN_Identifier(ParseNode):
         return self.IdentifierName.value
 class PN_ReservedWord(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('ReservedWord', p)
+        super().__init__(ctx, 'ReservedWord', p)
     @property
     def Name(self):
         return self.children[0]
@@ -8264,7 +8269,7 @@ class PN_ReservedWord(ParseNode):
         return self.Name.value
 class PN_IdentifierName(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('IdentifierName', p)
+        super().__init__(ctx, 'IdentifierName', p)
 #################################################################################################################################################################################################
 #
 #  d888    .d8888b.       .d8888b.      8888888b.          d8b                                             8888888888                                                      d8b
@@ -8282,7 +8287,7 @@ class PN_IdentifierName(ParseNode):
 #################################################################################################################################################################################################
 class PN_PrimaryExpression(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('PrimaryExpression', p)
+        super().__init__(ctx, 'PrimaryExpression', p)
 class PN_PrimaryExpression_THIS(PN_PrimaryExpression):
     def evaluate(self):
         return ResolveThisBinding()
@@ -8352,7 +8357,6 @@ class PN_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(PN_
     # 12.2.10 The Grouping Operator
     def __init__(self, ctx, p):
         super().__init__(ctx, p)
-        self.ctx = ctx
         self.children[0].covered_production = self.covering('ParenthesizedExpression')
     @property
     def CoverParenthesizedExpressionAndArrowParameterList(self):
@@ -8404,7 +8408,7 @@ class PN_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(PN_
 
 class PN_CoverParenthesizedExpressionAndArrowParameterList(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('CoverParenthesizedExpressionAndArrowParameterList', p)
+        super().__init__(ctx, 'CoverParenthesizedExpressionAndArrowParameterList', p)
     def CoveredParenthesizedExpression(self):
         return getattr(self, 'covered_production', None)
 class PN_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_RPAREN(PN_CoverParenthesizedExpressionAndArrowParameterList):
@@ -8417,7 +8421,7 @@ class PN_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_RPAREN(PN_Cove
     pass
 class PN_ParenthesizedExpression(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('ParenthesizedExpression', p)
+        super().__init__(ctx, 'ParenthesizedExpression', p)
 class PN_ParenthesizedExpression_LPAREN_Expression_RPAREN(PN_ParenthesizedExpression):
     @property
     def Expression(self):
@@ -8434,7 +8438,7 @@ class PN_ParenthesizedExpression_LPAREN_Expression_RPAREN(PN_ParenthesizedExpres
 # ------------------------------------ 𝟏𝟐.𝟐.𝟒 𝑳𝒊𝒕𝒆𝒓𝒂𝒍𝒔 ------------------------------------
 class PN_Literal(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('Literal', p)
+        super().__init__(ctx, 'Literal', p)
 class PN_Literal_NULL(PN_Literal):
     def evaluate(self):
         return JSNull.NULL
@@ -8465,7 +8469,7 @@ class PN_Literal_STRING(PN_Literal):
 # ------------------------------------ 𝑨𝒓𝒓𝒂𝒚𝑳𝒊𝒕𝒆𝒓𝒂𝒍 ------------------------------------
 class PN_ArrayLiteral(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('ArrayLiteral', p)
+        super().__init__(ctx, 'ArrayLiteral', p)
 class PN_ArrayLiteral_LBRACKET_RBRACKET(PN_ArrayLiteral):
     def evaluate(self):
         # 12.2.5.3 Runtime Semantics: Evaluation
@@ -8537,7 +8541,7 @@ class PN_ArrayLiteral_LBRACKET_ElementList_COMMA_Elision_RBRACKET(PN_ArrayLitera
 # ------------------------------------ 𝑬𝒍𝒆𝒎𝒆𝒏𝒕𝑳𝒊𝒔𝒕 ------------------------------------
 class PN_ElementList(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('ElementList', p)
+        super().__init__(ctx, 'ElementList', p)
 class PN_ElementList_Elision_AssignmentExpression(PN_ElementList):
     @property
     def Elision(self):
@@ -8667,7 +8671,7 @@ class PN_ElementList_ElementList_COMMA_SpreadElement(PN_ElementList_ElementList_
 # ------------------------------------ 𝑬𝒍𝒊𝒔𝒊𝒐𝒏 ------------------------------------
 class PN_Elision(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('Elision', p)
+        super().__init__(ctx, 'Elision', p)
 class PN_Elision_COMMA(PN_Elision):
     def ElisionWidth(self):
         # 12.2.5.1 Static Semantics: ElisionWidth
@@ -8727,7 +8731,7 @@ class PN_Elision_Elision_COMMA(PN_Elision):
 # ------------------------------------ 𝑺𝒑𝒓𝒆𝒂𝒅𝑬𝒍𝒆𝒎𝒆𝒏𝒕 ------------------------------------
 class PN_SpreadElement(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('SpreadElement', p)
+        super().__init__(ctx, 'SpreadElement', p)
 class PN_SpreadElement_DOTDOTDOT_AssignmentExpression(PN_SpreadElement):
     @property
     def AssignmentExpression(self):
@@ -8766,7 +8770,7 @@ class PN_SpreadElement_DOTDOTDOT_AssignmentExpression(PN_SpreadElement):
 # ------------------------------------ 𝑶𝒃𝒋𝒆𝒄𝒕𝑳𝒊𝒕𝒆𝒓𝒂𝒍 ------------------------------------
 class PN_ObjectLiteral(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('ObjectLiteral', p)
+        super().__init__(ctx, 'ObjectLiteral', p)
 class PN_ObjectLiteral_LCURLY_RCURLY(PN_ObjectLiteral):
     def evaluate(self):
         # 12.2.6.7 Runtime Semantics: Evaluation
@@ -8792,7 +8796,7 @@ class PN_ObjectLiteral_LCURLY_PropertyDefinitionList_COMMA_RCURLY(PN_ObjectLiter
 # ------------------------------------ 𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚𝑫𝒆𝒇𝒊𝒏𝒊𝒕𝒊𝒐𝒏𝑳𝒊𝒔𝒕 ------------------------------------
 class PN_PropertyDefinitionList(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('PropertyDefinitionList', p)
+        super().__init__(ctx, 'PropertyDefinitionList', p)
 class PN_PropertyDefinitionList_PropertyDefinition(PN_PropertyDefinitionList):
     @property
     def PropertyDefinition(self):
@@ -8835,7 +8839,7 @@ class PN_PropertyDefinitionList_PropertyDefinitionList_COMMA_PropertyDefinition(
 # ------------------------------------ 𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚𝑫𝒆𝒇𝒊𝒏𝒊𝒕𝒊𝒐𝒏 ------------------------------------
 class PN_PropertyDefinition(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('PropertyDefinition', p)
+        super().__init__(ctx, 'PropertyDefinition', p)
 class PN_PropertyDefinition_IdentifierReference(PN_PropertyDefinition):
     @property
     def IdentifierReference(self):
@@ -8956,7 +8960,7 @@ class PN_PropertyDefinition_DOTDOTDOT_AssignmentExpression(PN_PropertyDefinition
 # ------------------------------------ 𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚𝑵𝒂𝒎𝒆 ------------------------------------
 class PN_PropertyName(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('PropertyName', p)
+        super().__init__(ctx, 'PropertyName', p)
 class PN_PropertyName_LiteralPropertyName(PN_PropertyName):
     @property
     def LiteralPropertyName(self):
@@ -8990,7 +8994,7 @@ class PN_PropertyName_ComputedPropertyName(PN_PropertyName):
 # ------------------------------------ 𝑳𝒊𝒕𝒆𝒓𝒂𝒍𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚𝑵𝒂𝒎𝒆 ------------------------------------
 class PN_LiteralPropertyName(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('LiteralProperty', p)
+        super().__init__(ctx, 'LiteralProperty', p)
 class PN_LiteralPropertyName_IdentifierName(PN_LiteralPropertyName):
     @property
     def IdentifierName(self):
@@ -9037,7 +9041,7 @@ class PN_LiteralPropertyName_NumericLiteral(PN_LiteralPropertyName):
 # ------------------------------------ 𝑪𝒐𝒎𝒑𝒖𝒕𝒆𝒅𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚𝑵𝒂𝒎𝒆 ------------------------------------
 class PN_ComputedPropertyName(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('ComputedPropertyName', p)
+        super().__init__(ctx, 'ComputedPropertyName', p)
 class PN_ComputedPropertyName_LBRACKET_AssignmentExpression_RBRACKET(PN_ComputedPropertyName):
     @property
     def AssignmentExpression(self):
@@ -9059,7 +9063,7 @@ class PN_ComputedPropertyName_LBRACKET_AssignmentExpression_RBRACKET(PN_Computed
 # ------------------------------------ 𝑪𝒐𝒗𝒆𝒓𝑰𝒏𝒊𝒕𝒊𝒂𝒍𝒊𝒛𝒆𝒅𝑵𝒂𝒎𝒆 ------------------------------------
 class PN_CoverInitializedName(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('CoverInitializedName', p)
+        super().__init__(ctx, 'CoverInitializedName', p)
 class PN_CoverInitializedName_IdentifierReference_Initialzier(PN_CoverInitializedName):
     @property
     def IdentiferReference(self):
@@ -9070,7 +9074,7 @@ class PN_CoverInitializedName_IdentifierReference_Initialzier(PN_CoverInitialize
 # ------------------------------------ 𝑰𝒏𝒊𝒕𝒊𝒂𝒍𝒊𝒛𝒆𝒓 ------------------------------------
 class PN_Initializer(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('Initializer', p)
+        super().__init__(ctx, 'Initializer', p)
 class PN_Initializer_EQUALS_AssignmentExpression(PN_Initializer):
     pass
 
@@ -9080,7 +9084,7 @@ class PN_Initializer_EQUALS_AssignmentExpression(PN_Initializer):
 # ------------------------------------ 𝑻𝒆𝒎𝒑𝒍𝒂𝒕𝒆𝑳𝒊𝒕𝒆𝒓𝒂𝒍 ------------------------------------
 class PN_TemplateLiteral(ParseNode):
     def __init__(self, ctx, p, tagged=False):
-        super().__init__('TemplateLiteral', p)
+        super().__init__(ctx, 'TemplateLiteral', p)
         self.Tagged = tagged
 class PN_TemplateLiteral_NOSUBSTITUTIONTEMPLATE(PN_TemplateLiteral):
     @property
@@ -9127,7 +9131,7 @@ class PN_TemplateLiteral_SubstitutionTemplate(PN_TemplateLiteral):
 # ------------------------------------ 𝑺𝒖𝒃𝒔𝒕𝒊𝒕𝒖𝒕𝒊𝒐𝒏𝑻𝒆𝒎𝒑𝒍𝒂𝒕𝒆 ------------------------------------
 class PN_SubstitutionTemplate(ParseNode):
     def __init__(self, ctx, p, tagged=False):
-        super().__init__('SubstitutionTemplate', p)
+        super().__init__(ctx, 'SubstitutionTemplate', p)
         self.Tagged = tagged
 class PN_SubstitutionTemplate_TEMPLATEHEAD_Expression_TemplateSpans(PN_SubstitutionTemplate):
     @property
@@ -9181,7 +9185,7 @@ class PN_SubstitutionTemplate_TEMPLATEHEAD_Expression_TemplateSpans(PN_Substitut
 # ------------------------------------ 𝑻𝒆𝒎𝒑𝒍𝒂𝒕𝒆𝑺𝒑𝒂𝒏𝒔 ------------------------------------
 class PN_TemplateSpans(ParseNode):
     def __init__(self, ctx, p, tagged=False):
-        super().__init__('TemplateSpans', p)
+        super().__init__(ctx, 'TemplateSpans', p)
         self.Tagged = tagged
 class PN_TemplateSpans_TEMPLATETAIL(PN_TemplateSpans):
     @property
@@ -9244,7 +9248,7 @@ class PN_TemplateSpans_TemplateMiddleList_TEMPLATETAIL(PN_TemplateSpans):
 # ------------------------------------ 𝑻𝒆𝒎𝒑𝒍𝒂𝒕𝒆𝑴𝒊𝒅𝒅𝒍𝒆𝑳𝒊𝒔𝒕 ------------------------------------
 class PN_TemplateMiddleList(ParseNode):
     def __init__(self, ctx, p, tagged=False):
-        super().__init__('TemplateMiddleList', p)
+        super().__init__(ctx, 'TemplateMiddleList', p)
         self.Tagged = tagged
     @property
     def TemplateMiddle(self):
@@ -9358,8 +9362,7 @@ class PN_TemplateMiddleList_TemplateMiddleList_TEMPLATEMIDDLE_Expression(PN_Temp
 # = - = - = - = - = - = - = - = - = MemberExpression - = - = - = - = - = - = - = - = - = - = - = - = - = - = - = -
 class PN_MemberExpression(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('MemberExpression', p)
-        self.strict = ctx.strict
+        super().__init__(ctx, 'MemberExpression', p)
 class PN_MemberExpression_PrimaryExpression(PN_MemberExpression):
     @property
     def PrimaryExpression(self):
@@ -9463,7 +9466,7 @@ def MemberDotEvaluation(pn, baseReference):
 # = - = - = - = - = - = - = - = - = NewExpression - = - = - = - = - = - = - = - = - = - = - = - = - = - = - = -
 class PN_NewExpression(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('NewExpression', p)
+        super().__init__(ctx, 'NewExpression', p)
 class PN_NewExpression_MemberExpression(PN_NewExpression):
     @property
     def MemberExpression(self):
@@ -9519,7 +9522,7 @@ def EvaluateNew(constructExpr, arguments):
 # 12.3.4 Function Calls
 class PN_CallExpression(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('CallExpression', p)
+        super().__init__(ctx, 'CallExpression', p)
 class PN_CallExpression_CoverCallExpressionAndAsyncArrowHead(PN_CallExpression):
     # 𝑪𝒂𝒍𝒍𝑬𝒙𝒑𝒓𝒆𝒔𝒔𝒊𝒐𝒏 : 𝑪𝒐𝒗𝒆𝒓𝑪𝒂𝒍𝒍𝑬𝒙𝒑𝒓𝒆𝒔𝒔𝒊𝒐𝒏𝑨𝒏𝒅𝑨𝒔𝒚𝒏𝒄𝑨𝒓𝒓𝒐𝒘𝑯𝒆𝒂𝒅
     def __init__(self, context, p):
@@ -9530,7 +9533,6 @@ class PN_CallExpression_CoverCallExpressionAndAsyncArrowHead(PN_CallExpression):
         sublexer = Lexer(source, 'CallMemberExpression')
         tree = subparser.parse(sublexer)
         self.covered_production = tree
-        self.strict = context.strict
     @property
     def CoverCallExpressionAndAsyncArrowHead(self):
         return self.children[0]
@@ -9690,7 +9692,7 @@ class PN_CallExpression_CallExpression_TemplateLiteral(PN_CallExpression):
 
 class PN_CallMemberExpression_MemberExpression_Arguments(ParseNode):
     def __init__(self, context, p):
-        super().__init__('CallMemberExpression', p)
+        super().__init__(context, 'CallMemberExpression', p)
     @property
     def MemberExpression(self):
         return self.children[0]
@@ -9743,7 +9745,7 @@ def EvaluateCall(func, ref, arguments, tailPosition):
 
 class PN_SuperCall(ParseNode):
     def __init__(self, context, p):
-        super().__init__('SuperCall', p)
+        super().__init__(context, 'SuperCall', p)
 class PN_SuperCall_SUPER_Arguments(PN_SuperCall):
     # 𝑺𝒖𝒑𝒆𝒓𝑪𝒂𝒍𝒍 : 𝘀𝘂𝗽𝗲𝗿 𝑨𝒓𝒈𝒖𝒎𝒆𝒏𝒕𝒔
     @property
@@ -9756,7 +9758,7 @@ class PN_SuperCall_SUPER_Arguments(PN_SuperCall):
 # The evaluation of an argument list produces a List of values.
 class PN_ArgumentList(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('ArgumentList', p)
+        super().__init__(ctx, 'ArgumentList', p)
 class PN_ArgumentList_AssignmentExpression(PN_ArgumentList):
     @property
     def AssignmentExpression(self):
@@ -9849,7 +9851,7 @@ class PN_ArgumentList_ArgumentList_COMMA_DOTDOTDOT_AssignmentExpression(PN_Argum
 # = - = - = - = - = - = - = - = - = Arguments - = - = - = - = - = - = - = - = - = - = - = - = - = - = - = -
 class PN_Arguments(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('Arguments', p)
+        super().__init__(ctx, 'Arguments', p)
 class PN_Arguments_LPAREN_RPAREN(PN_Arguments):
     def ArgumentListEvaluation(self):
         # 12.3.6.1 Runtime Semantics: ArgumentListEvaluation
@@ -9868,7 +9870,7 @@ class PN_Arguments_LPAREN_ArgumentList_COMMA_RPAREN(PN_Arguments):
 # = - = - = - = - = - = - = - = - = LeftHandSideExpression - = - = - = - = - = - = - = - = - = - = - = - = - = - = - = -
 class PN_LeftHandSideExpression(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('LeftHandSideExpression', p)
+        super().__init__(ctx, 'LeftHandSideExpression', p)
         self.ctx = ctx
 class PN_LeftHandSideExpression_NewExpression(PN_LeftHandSideExpression):
     @property
@@ -9915,7 +9917,7 @@ class PN_LeftHandSideExpression_CallExpression(PN_LeftHandSideExpression):
 ################################################################################################################################################################################################
 class PN_UpdateExpression(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('UpdateExpression', p)
+        super().__init__(ctx, 'UpdateExpression', p)
 class PN_UpdateExpression_LeftHandSideExpression(PN_UpdateExpression):
     @property
     def LeftHandSideExpression(self):
@@ -10045,8 +10047,7 @@ class PN_UpdateExpression_MINUSMINUS_UnaryExpression(PN_UpdateExpression_prefix)
 ################################################################################################################################################################################################
 class PN_UnaryExpression(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('UnaryExpression', p)
-        self.strict = ctx.strict
+        super().__init__(ctx, 'UnaryExpression', p)
 class PN_UnaryExpression_UpdateExpression(PN_UnaryExpression):
     @property
     def UpdateExpression(self):
@@ -10277,7 +10278,7 @@ class PN_UnaryExpression_BANG_UnaryExpression(PN_UnaryExpression_op):
 ################################################################################################################################################################################################
 class PN_ExponentiationExpression(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('ExponentiationExpression', p)
+        super().__init__(ctx, 'ExponentiationExpression', p)
 class PN_ExponentiationExpression_UnaryExpression(PN_ExponentiationExpression):
     @property
     def UnaryExpression(self):
@@ -10325,7 +10326,7 @@ class PN_ExponentiationExpression_UpdateExpression_STARSTAR_ExponentiationExpres
 ################################################################################################################################################################################################
 class PN_MultiplicativeExpression(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('MultiplicativeExpression', p)
+        super().__init__(ctx, 'MultiplicativeExpression', p)
 class PN_MultiplicativeExpression_ExponentiationExpression(PN_MultiplicativeExpression):
     @property
     def ExponentiationExpression(self):
@@ -10368,7 +10369,7 @@ class PN_MultiplicativeExpression_MultiplicativeOperator_ExponentiationExpressio
         return {'*': MultiplyOperation, '/': DivideOperation, '%': ModuloOperation}[self.MultiplicativeOperator.op()](leftValue, rightValue)
 class PN_MultiplicativeOperator(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('MultiplicativeOperator', p)
+        super().__init__(ctx, 'MultiplicativeOperator', p)
     def op(self):
         return self.children[0].value  # Will be '*' or '/' or '%'
 ################################################################################################################################################################################################
@@ -10388,7 +10389,7 @@ class PN_MultiplicativeOperator(ParseNode):
 ################################################################################################################################################################################################
 class PN_AdditiveExpression(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('AdditiveExpression', p)
+        super().__init__(ctx, 'AdditiveExpression', p)
 class PN_AdditiveExpression_MultiplicativeExpression(PN_AdditiveExpression):
     @property
     def MultiplicativeExpression(self):
@@ -10514,7 +10515,7 @@ class PN_AdditiveExpression_AdditiveExpression_MINUS_MultiplicativeExpression(PN
 # 12.9 Bitwise Shift Operators
 class PN_ShiftExpression(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('ShiftExpression', p)
+        super().__init__(ctx, 'ShiftExpression', p)
 class PN_ShiftExpression_S_op_A(PN_ShiftExpression):
     @property
     def ShiftExpression(self):
@@ -10593,7 +10594,7 @@ class PN_ShiftExpression_GTGTGT_AdditiveExpression(PN_ShiftExpression_S_op_A):
 # 12.10 Relational Operators
 class PN_RelationalExpression(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('RelationalExpression', p)
+        super().__init__(ctx, 'RelationalExpression', p)
 class PN_RelationalExpression_ShiftExpression(PN_RelationalExpression):
     @property
     def ShiftExpression(self):
@@ -10718,7 +10719,7 @@ def InstanceofOperator(V, target):
 # 12.11 Equality Operators
 class PN_EqualityExpression(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('EqualityExpression', p)
+        super().__init__(ctx, 'EqualityExpression', p)
 class PN_EqualityExpression_RelationalExpression(PN_EqualityExpression):
     @property
     def RelationalExpression(self):
@@ -10829,7 +10830,7 @@ class PN_BitwiseExpression(ParseNode):
 # '&' Productions
 class PN_BitwiseANDExpression(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('BitwiseANDExpression', p)
+        super().__init__(ctx, 'BitwiseANDExpression', p)
 class PN_BitwiseANDExpression_EqualityExpression(PN_BitwiseANDExpression):
     @property
     def EqualityExpression(self):
@@ -10847,7 +10848,7 @@ class PN_BitwiseANDExpression_BitwiseANDExpression_AMP_EqualityExpression(PN_Bit
 # '^' Productions
 class PN_BitwiseXORExpression(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('BitwiseXORExpression', p)
+        super().__init__(ctx, 'BitwiseXORExpression', p)
 class PN_BitwiseXORExpression_BitwiseANDExpression(PN_BitwiseXORExpression):
     @property
     def BitwiseANDExpression(self):
@@ -10866,7 +10867,7 @@ class PN_BitwiseXORExpression_BitwiseXORExpression_XOR_BitwiseANDExpression(PN_B
 # '|' Productions
 class PN_BitwiseORExpression(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('BitwiseORExpression', p)
+        super().__init__(ctx, 'BitwiseORExpression', p)
 class PN_BitwiseORExpression_BitwiseXORExpression(PN_BitwiseORExpression):
     @property
     def BitwiseXORExpression(self):
@@ -10910,7 +10911,7 @@ class PN_LogicalExpression(ParseNode):
 # '&&' Productions
 class PN_LogicalANDExpression(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('LogicalANDExpression', p)
+        super().__init__(ctx, 'LogicalANDExpression', p)
 class PN_LogicalANDExpression_BitwiseORExpression(PN_LogicalANDExpression):
     @property
     def BitwiseORExpression(self):
@@ -10940,7 +10941,7 @@ class PN_LogicalANDExpression_LogicalANDExpression_AMPAMP_BitwiseORExpression(PN
 # '||' Productions
 class PN_LogicalORExpression(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('LogicalORExpression', p)
+        super().__init__(ctx, 'LogicalORExpression', p)
 class PN_LogicalORExpression_LogicalANDExpression(PN_LogicalORExpression):
     @property
     def LogicalANDExpression(self):
@@ -10984,7 +10985,7 @@ class PN_LogicalORExpression_LogicalORExpression_PIPEPIPE_LogicalANDExpression(P
 ############################################################################################################################################################################################################################################################
 class PN_ConditionalExpression(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('ConditionalExpression', p)
+        super().__init__(ctx, 'ConditionalExpression', p)
 class PN_ConditionalExpression_LogicalORExpression(PN_ConditionalExpression):
     @property
     def LogicalORExpression(self):
@@ -11039,7 +11040,7 @@ class PN_ConditionalExpression_QUESTION_AssignmentExpression_COLON_AssignmentExp
 ################################################################################################################################################################################################################################
 class PN_AssignmentExpression(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('AssignmentExpression', p)
+        super().__init__(ctx, 'AssignmentExpression', p)
 class PN_AssignmentExpression_ConditionalExpression(PN_AssignmentExpression):
     @property
     def ConditionalExpression(self):
@@ -11218,7 +11219,7 @@ def ExponentiationOperation(lval, rval):
 
 class PN_AssignmentOperator(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('AssignmentOperator', p)
+        super().__init__(ctx, 'AssignmentOperator', p)
     def op_function(self):
         xlat = {
             '*=': MultiplyOperation,
@@ -11281,7 +11282,7 @@ class PN_AssignmentExpression_LeftHandSideExpression_AssignmentOperator_Assignme
 # ------------------------------------ 𝑨𝒔𝒔𝒊𝒈𝒏𝒎𝒆𝒏𝒕𝑷𝒂𝒕𝒕𝒆𝒓𝒏 ------------------------------------
 class PN_AssignmentPattern(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('AssignmentPattern', p)
+        super().__init__(ctx, 'AssignmentPattern', p)
 class PN_AssignmentPattern_ArrayAssignmentPattern(PN_AssignmentPattern):
     @property
     def ArrayAssignmentPattern(self):
@@ -11293,7 +11294,7 @@ class PN_AssignmentPattern_ObjectAssignmentPattern(PN_AssignmentPattern):
 # ------------------------------------ 𝑶𝒃𝒋𝒆𝒄𝒕𝑨𝒔𝒔𝒊𝒈𝒏𝒎𝒆𝒏𝒕𝑷𝒂𝒕𝒕𝒆𝒓𝒏 ------------------------------------
 class PN_ObjectAssignmentPattern(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('ObjectAssignmentPattern', p)
+        super().__init__(ctx, 'ObjectAssignmentPattern', p)
 class PN_ObjectAssignmentPattern_LCURLY_RCURLY(PN_ObjectAssignmentPattern):
     def DestructuringAssignmentEvaluation(self, value):
         # 12.15.5.2 Runtime Semantics: DestructuringAssignmentEvaluation
@@ -11352,7 +11353,7 @@ class PN_ObjectAssignmentPattern_LCURLY_AssignmentPropertyList_COMMA_AssignmentR
 # ------------------------------------ 𝑨𝒓𝒓𝒂𝒚𝑨𝒔𝒔𝒊𝒈𝒏𝒎𝒆𝒏𝒕𝑷𝒂𝒕𝒕𝒆𝒓𝒏 ------------------------------------
 class PN_ArrayAssignmentPattern(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('ArrayAssignmentPattern', p)
+        super().__init__(ctx, 'ArrayAssignmentPattern', p)
 class PN_ArrayAssignmentPattern_LBRACKET_RBRACKET(PN_ArrayAssignmentPattern):
     def DestructuringAssignmentEvaluation(self, value):
         # 12.15.5.2 Runtime Semantics: DestructuringAssignmentEvaluation
@@ -11508,7 +11509,7 @@ class PN_ArrayAssignmentPattern_LBRACKET_AssignmentElementList_COMMA_AssignmentR
 # ------------------------------------ 𝑨𝒔𝒔𝒊𝒈𝒏𝒎𝒆𝒏𝒕𝑹𝒆𝒔𝒕𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚 ------------------------------------
 class PN_AssignmentRestProperty(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('AssignmentRestProperty', p)
+        super().__init__(ctx, 'AssignmentRestProperty', p)
 class PN_AssignmentRestProperty_DOTDOTDOT_DestructuringAssignmentTarget(PN_AssignmentRestProperty):
     @property
     def DestructuringAssignmentTarget(self):
@@ -11535,7 +11536,7 @@ class PN_AssignmentRestProperty_DOTDOTDOT_DestructuringAssignmentTarget(PN_Assig
 # ------------------------------------ 𝑨𝒔𝒔𝒊𝒈𝒏𝒎𝒆𝒏𝒕𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚𝑳𝒊𝒔𝒕 ------------------------------------
 class PN_AssignmentPropertyList(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('AssignmentPropertyList', p)
+        super().__init__(ctx, 'AssignmentPropertyList', p)
 class PN_AssignmentPropertyList_AssignmentProperty(PN_AssignmentPropertyList):
     @property
     def AssignmentProperty(self):
@@ -11566,7 +11567,7 @@ class PN_AssignmentPropertyList_AssignmentPropertyList_COMMA_AssignmentProperty(
 # ------------------------------------ 𝑨𝒔𝒔𝒊𝒈𝒏𝒎𝒆𝒏𝒕𝑬𝒍𝒆𝒎𝒆𝒏𝒕𝑳𝒊𝒔𝒕 ------------------------------------
 class PN_AssignmentElementList(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('AssignmentElementList', p)
+        super().__init__(ctx, 'AssignmentElementList', p)
 class PN_AssignmentElementList_AssignmentElisionElement(PN_AssignmentElementList):
     @property
     def AssignmentElisionElement(self):
@@ -11591,7 +11592,7 @@ class PN_AssignmentElementList_AssignmentElementList_COMMA_AssignmentElisionElem
 # ------------------------------------ 𝑨𝒔𝒔𝒊𝒈𝒏𝒎𝒆𝒏𝒕𝑬𝒍𝒊𝒔𝒊𝒐𝒏𝑬𝒍𝒆𝒎𝒆𝒏𝒕 ------------------------------------
 class PN_AssignmentElisionElement(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('AssignmentElisionElement', p)
+        super().__init__(ctx, 'AssignmentElisionElement', p)
 class PN_AssignmentElisionElement_AssignmentElement(PN_AssignmentElisionElement):
     @property
     def AssignmentElement(self):
@@ -11615,7 +11616,7 @@ class PN_AssignmentElisionElement_Elision_AssignmentElement(PN_AssignmentElision
 # ------------------------------------ 𝑨𝒔𝒔𝒊𝒈𝒏𝒎𝒆𝒏𝒕𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚 ------------------------------------
 class PN_AssignmentProperty(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('AssignmentProperty', p)
+        super().__init__(ctx, 'AssignmentProperty', p)
 class PN_AssignmentProperty_IdentifierReference_Initializer(PN_AssignmentProperty):
     @property
     def IdentifierReference(self):
@@ -11682,11 +11683,8 @@ class PN_AssignmentProperty_PropertyName_COLON_AssignmentElement(PN_AssignmentPr
 # ------------------------------------ 𝑨𝒔𝒔𝒊𝒈𝒏𝒎𝒆𝒏𝒕𝑬𝒍𝒆𝒎𝒆𝒏𝒕 ------------------------------------
 class PN_AssignmentElement(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('AssignmentElement', p)
+        super().__init__(ctx, 'AssignmentElement', p)
 class PN_AssignmentElement_DestructuringAssignmentTarget_Initializer(PN_AssignmentElement):
-    def __init__(self, ctx, p):
-        super().__init__(ctx, p)
-        self.ctx = ctx
     @property
     def DestructuringAssignmentTarget(self):
         return self.children[0]
@@ -11793,7 +11791,7 @@ class PN_AssignmentElement_DestructuringAssignmentTarget(PN_AssignmentElement_De
 # ------------------------------------ 𝑨𝒔𝒔𝒊𝒈𝒏𝒎𝒆𝒏𝒕𝑹𝒆𝒔𝒕𝑬𝒍𝒆𝒎𝒆𝒏𝒕 ------------------------------------
 class PN_AssignmentRestElement(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('AssignmentRestElement', p)
+        super().__init__(ctx, 'AssignmentRestElement', p)
 class PN_AssignmentRestElement_DOTDOTDOT_DestructuringAssignmentTarget(PN_AssignmentRestElement):
     @property
     def DestructuringAssignmentTarget(self):
@@ -11848,7 +11846,7 @@ class PN_AssignmentRestElement_DOTDOTDOT_DestructuringAssignmentTarget(PN_Assign
 # ------------------------------------ 𝑫𝒆𝒔𝒕𝒓𝒖𝒄𝒕𝒖𝒓𝒊𝒏𝒈𝑨𝒔𝒔𝒊𝒈𝒏𝒎𝒆𝒏𝒕𝑻𝒂𝒓𝒈𝒆𝒕 ------------------------------------
 class PN_DestructuringAssignmentTarget(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('DestructuringAssignmentTarget', p)
+        super().__init__(ctx, 'DestructuringAssignmentTarget', p)
 class PN_DestructuringAssignmentTarget_LeftHandSideExpression(PN_DestructuringAssignmentTarget):
     @property
     def LeftHandSideExpression(self):
@@ -11885,7 +11883,7 @@ class PN_DestructuringAssignmentTarget_LeftHandSideExpression(PN_DestructuringAs
 ##################################################################################################################################################################################################################
 class PN_Expression(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('Expression', p)
+        super().__init__(ctx, 'Expression', p)
 class PN_Expression_AssignmentExpression(PN_Expression):
     @property
     def AssignmentExpression(self):
@@ -11923,7 +11921,7 @@ class PN_Expression_Expression_COMMA_AssignmentExpression(PN_Expression):
 ################################################################################################################################################################################3################################################################################################################################################################################3###########################################################################
 class PN_ExpressionStatement_Expression(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('ExpressionStatement', p)
+        super().__init__(ctx, 'ExpressionStatement', p)
     @property
     def Expression(self):
         return self.children[0]
@@ -11932,12 +11930,12 @@ class PN_ExpressionStatement_Expression(ParseNode):
         return GetValue(exprRef)
 class PN_EmptyStatement_SEMICOLON(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('EmptyStatement', p)
+        super().__init__(ctx, 'EmptyStatement', p)
     def evaluate(self):
         return Empty.EMPTY
 class PN_Statement(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('Statement', p)
+        super().__init__(ctx, 'Statement', p)
 class PN_Statement_ExpressionStatement(PN_Statement):
     @property
     def ExpressionStatement(self):
@@ -12053,7 +12051,7 @@ class PN_Statement_TryStatement(PN_Statement):
 
 class PN_BreakableStatement(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('BreakableStatement', p)
+        super().__init__(ctx, 'BreakableStatement', p)
 class PN_BreakableStatement_IterationStatement(PN_BreakableStatement):
     @property
     def IterationStatement(self):
@@ -12120,7 +12118,7 @@ class PN_BreakableStatement_SwitchStatement(PN_BreakableStatement):
 
 class PN_Declaration(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('Declaration', p)
+        super().__init__(ctx, 'Declaration', p)
 class PN_Declaration_LexicalDeclaration(PN_Declaration):
     @property
     def LexicalDeclaration(self):
@@ -12137,7 +12135,7 @@ class PN_Declaration_HoistableDeclaration(PN_Declaration):
 
 class PN_HoistableDeclaration(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('HoistableDeclaration', p)
+        super().__init__(ctx, 'HoistableDeclaration', p)
 class PN_HoistableDeclaration_FunctionDeclaration(PN_HoistableDeclaration):
     @property
     def FunctionDeclaration(self):
@@ -12163,16 +12161,16 @@ class PN_HoistableDeclaration_FunctionDeclaration(PN_HoistableDeclaration):
 ##########################################################################################################################
 class PN_BlockStatement(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('BlockStatement', p)
+        super().__init__(ctx, 'BlockStatement', p)
 class PN_Block(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('Block', p)
+        super().__init__(ctx, 'Block', p)
 class PN_StatementList(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('StatementList', p)
+        super().__init__(ctx, 'StatementList', p)
 class PN_StatementListItem(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('StatementListItem', p)
+        super().__init__(ctx, 'StatementListItem', p)
 class PN_Block_LCURLY_StatementList_RCURLY(PN_Block):
     @property
     def StatementList(self):
@@ -12260,6 +12258,16 @@ class PN_StatementListItem_Statement(PN_StatementListItem):
             return self.Statement.LabelledStatement.LexicallyDeclaredNames()
         #   2. Return a new empty List.
         return []
+    def LeadingStrings(self):
+        expression_statement_parent = self.Statement.Derived(PN_Statement_ExpressionStatement)
+        if expression_statement_parent is not None:
+            expression_statement = expression_statement_parent.ExpressionStatement
+            string_literal = expression_statement.Expression.Derived(PN_Literal_STRING)
+            if string_literal is not None:
+                src_start, src_end = string_literal.source_range()
+                return (True, [ self.ctx.source_text[src_start:src_end] ])
+        return (False, [])
+
 class PN_StatementListItem_Declaration(PN_StatementListItem):
     @property
     def Declaration(self):
@@ -12339,6 +12347,8 @@ class PN_StatementListItem_Declaration(PN_StatementListItem):
         #           StatementListItem : Declaration
         # 1. Return a new empty List.
         return []
+    def LeadingStrings(self):
+        return (False, [])
 class PN_StatementList_StatementListItem(PN_StatementList):
     @property
     def StatementListItem(self):
@@ -12409,6 +12419,12 @@ class PN_StatementList_StatementList_StatementListItem(PN_StatementList):
         #    2. Append to declarations the elements of the LexicallyScopedDeclarations of StatementListItem.
         #    3. Return declarations.
         return self.StatementList.LexicallyScopedDeclarations() + self.StatementListItem.LexicallyScopedDeclarations()
+    def LeadingStrings(self):
+        more, strings = self.StatementList.LeadingStrings()
+        if more:
+            more, additional = self.StatementListItem.LeadingStrings()
+            strings.extend(additional)
+        return (more, strings)
 
 # 13.2.14 Runtime Semantics: BlockDeclarationInstantiation ( code, env )
 def BlockDeclarationInstantiation(code, env):
@@ -12468,7 +12484,7 @@ def BlockDeclarationInstantiation(code, env):
 
 class PN_LexicalDeclaration(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('LexicalDeclaration', p)
+        super().__init__(ctx, 'LexicalDeclaration', p)
 class PN_LexicalDeclaration_LetOrConst_BindingList_SEMICOLON(PN_LexicalDeclaration):
     @property
     def BindingList(self):
@@ -12518,7 +12534,7 @@ class PN_LexicalDeclaration_LetOrConst_BindingList_SEMICOLON(PN_LexicalDeclarati
 
 class PN_LetOrConst(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('LetOrConst', p)
+        super().__init__(ctx, 'LetOrConst', p)
 class PN_LetOrConst_LET(PN_LetOrConst):
     def IsConstantDeclaration(self):
         # 13.3.1.3 Static Semantics: IsConstantDeclaration
@@ -12534,7 +12550,7 @@ class PN_LetOrConst_CONST(PN_LetOrConst):
 
 class PN_BindingList(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('BindingList', p)
+        super().__init__(ctx, 'BindingList', p)
 class PN_BindingList_LexicalBinding(PN_BindingList):
     @property
     def BindingList(self):
@@ -12569,7 +12585,7 @@ class PN_BindingList_BindingList_COMMA_LexicalBinding(PN_BindingList):
 
 class PN_LexicalBinding(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('LexicalBinding', p)
+        super().__init__(ctx, 'LexicalBinding', p)
     @property
     def BindingIdentifier(self):
         raise NotImplementedError('Abstract classes cannot be instantiated')
@@ -12679,7 +12695,7 @@ class PN_LexicalBinding_BindingPattern_Initializer(PN_LexicalBinding):
 #######################################################################################################################
 class PN_VariableStatement(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('VariableStatement', p)
+        super().__init__(ctx, 'VariableStatement', p)
 class PN_VariableStatement_VAR_VariableDeclarationList(PN_VariableStatement):
     @property
     def VariableDeclarationList(self):
@@ -12699,7 +12715,7 @@ class PN_VariableStatement_VAR_VariableDeclarationList(PN_VariableStatement):
         return Empty.EMPTY
 class PN_VariableDeclarationList(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('VariableDeclarationList', p)
+        super().__init__(ctx, 'VariableDeclarationList', p)
 class PN_VariableDeclarationList_VariableDeclaration(PN_VariableDeclarationList):
     @property
     def VariableDeclaration(self):
@@ -12744,7 +12760,7 @@ class PN_VariableDeclarationList_VariableDeclarationList_COMMA_VariableDeclarati
 # ------------------------------------ 𝑽𝒂𝒓𝒊𝒂𝒃𝒍𝒆𝑫𝒆𝒄𝒍𝒂𝒓𝒂𝒕𝒊𝒐𝒏 ------------------------------------
 class PN_VariableDeclaration(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('VariableDeclaration', p)
+        super().__init__(ctx, 'VariableDeclaration', p)
 class PN_VariableDeclaration_BindingIdentifier(PN_VariableDeclaration):
     @property
     def BindingIdentifier(self):
@@ -12826,7 +12842,7 @@ class PN_VariableDeclaration_BindingPattern_Initializer(PN_VariableDeclaration):
 # ------------------------------------ 𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑷𝒂𝒕𝒕𝒆𝒓𝒏 ------------------------------------
 class PN_BindingPattern(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('BindingPattern', p)
+        super().__init__(ctx, 'BindingPattern', p)
 class PN_BindingPattern_ArrayBindingPattern(PN_BindingPattern):
     # -------------------------------- 𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑷𝒂𝒕𝒕𝒆𝒓𝒏 : 𝑨𝒓𝒓𝒂𝒚𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑷𝒂𝒕𝒕𝒆𝒓𝒏 --------------------------------
     @property
@@ -12879,7 +12895,7 @@ class PN_BindingPattern_ObjectBindingPattern(PN_BindingPattern):
 # ------------------------------------ 𝑶𝒃𝒋𝒆𝒄𝒕𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑷𝒂𝒕𝒕𝒆𝒓𝒏 ------------------------------------
 class PN_ObjectBindingPattern(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('ObjectBindingPattern', p)
+        super().__init__(ctx, 'ObjectBindingPattern', p)
 class PN_ObjectBindingPattern_LCURLY_RCURLY(PN_ObjectBindingPattern):
     # -------------------------------- 𝑶𝒃𝒋𝒆𝒄𝒕𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑷𝒂𝒕𝒕𝒆𝒓𝒏 : { } --------------------------------
     def BoundNames(self):
@@ -12957,7 +12973,7 @@ class PN_ObjectBindingPattern_LCURLY_BindingPropertyList_COMMA_BindingRestProper
 # ------------------------------------ 𝑨𝒓𝒓𝒂𝒚𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑷𝒂𝒕𝒕𝒆𝒓𝒏 ------------------------------------
 class PN_ArrayBindingPattern(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('ArrayBindingPattern', p)
+        super().__init__(ctx, 'ArrayBindingPattern', p)
     @property
     def BindingRestElement(self):
         raise NotImplementedError('Abstract classes cannot be instantiated')
@@ -13151,7 +13167,7 @@ class PN_ArrayBindingPattern_LBRACKET_BindingElementList_COMMA_Elision_BindingRe
 # ------------------------------------ 𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑹𝒆𝒔𝒕𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚 ------------------------------------
 class PN_BindingRestProperty(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('BindingRestProperty', p)
+        super().__init__(ctx, 'BindingRestProperty', p)
 class PN_BindingRestProperty_DOTDOTDOT_BindingIdentifier(PN_BindingRestProperty):
     @property
     def BindingIdentifier(self):
@@ -13175,7 +13191,7 @@ class PN_BindingRestProperty_DOTDOTDOT_BindingIdentifier(PN_BindingRestProperty)
 # ------------------------------------ 𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚𝑳𝒊𝒔𝒕 ------------------------------------
 class PN_BindingPropertyList(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('BindingPropertyList', p)
+        super().__init__(ctx, 'BindingPropertyList', p)
 class PN_BindingPropertyList_BindingProperty(PN_BindingPropertyList):
     @property
     def BindingProperty(self):
@@ -13225,7 +13241,7 @@ class PN_BindingPropertyList_BindingPropertyList_COMMA_BindingProperty(PN_Bindin
 # ------------------------------------ 𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑬𝒍𝒆𝒎𝒆𝒏𝒕𝑳𝒊𝒔𝒕 ------------------------------------
 class PN_BindingElementList(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('BindingElementList', p)
+        super().__init__(ctx, 'BindingElementList', p)
 class PN_BindingElementList_BindingElisionElement(PN_BindingElementList):
     @property
     def BindingElisionElement(self):
@@ -13274,7 +13290,7 @@ class PN_BindingElementList_BindingElementList_COMMA_BindingElisionElement(PN_Bi
 # ------------------------------------ 𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑬𝒍𝒊𝒔𝒊𝒐𝒏𝑬𝒍𝒆𝒎𝒆𝒏𝒕 ------------------------------------
 class PN_BindingElisionElement(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('BindingElisionElement', p)
+        super().__init__(ctx, 'BindingElisionElement', p)
 class PN_BindingElisionElement_BindingElement(PN_BindingElisionElement):
     @property
     def BindingElement(self):
@@ -13316,7 +13332,7 @@ class PN_BindingElisionElement_Elision_BindingElement(PN_BindingElisionElement):
 # ------------------------------------ 𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚 ------------------------------------
 class PN_BindingProperty(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('BindingProperty', p)
+        super().__init__(ctx, 'BindingProperty', p)
 class PN_BindingProperty_SingleNameBinding(PN_BindingProperty):
     @property
     def SingleNameBinding(self):
@@ -13366,7 +13382,7 @@ class PN_BindingProperty_PropertyName_COLON_BindingElement(PN_BindingProperty):
 # ------------------------------------ 𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑬𝒍𝒆𝒎𝒆𝒏𝒕 ------------------------------------
 class PN_BindingElement(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('BindingElement', p)
+        super().__init__(ctx, 'BindingElement', p)
 class PN_BindingElement_SingleNameBinding(PN_BindingElement):
     @property
     def SingleNameBinding(self):
@@ -13519,7 +13535,7 @@ class PN_BindingElement_BindingPattern_Initializer(PN_BindingElement):
 # ------------------------------------ 𝑺𝒊𝒏𝒈𝒍𝒆𝑵𝒂𝒎𝒆𝑩𝒊𝒏𝒅𝒊𝒏𝒈 ------------------------------------
 class PN_SingleNameBinding(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('SingleNameBinding', p)
+        super().__init__(ctx, 'SingleNameBinding', p)
 class PN_SingleNameBinding_BindingIdentifier(PN_SingleNameBinding):
     @property
     def BindingIdentifier(self):
@@ -13704,7 +13720,7 @@ class PN_SingleNameBinding_BindingIdentifier_Initializer(PN_SingleNameBinding):
 # ------------------------------------ 𝑩𝒊𝒏𝒅𝒊𝒏𝒈𝑹𝒆𝒔𝒕𝑬𝒍𝒆𝒎𝒆𝒏𝒕 ------------------------------------
 class PN_BindingRestElement(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('BindingRestElement', p)
+        super().__init__(ctx, 'BindingRestElement', p)
 class PN_BindingRestElement_DOTDOTDOT_BindingIdentifier(PN_BindingRestElement):
     @property
     def BindingIdentifier(self):
@@ -13814,7 +13830,7 @@ class PN_BindingRestElement_DOTDOTDOT_BindingPattern(PN_BindingRestElement):
 # 13.6 The if Statement
 class PN_IfStatement(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('IfStatement', p)
+        super().__init__(ctx, 'IfStatement', p)
 class PN_IfStatement_IF_LPAREN_Expression_RPAREN_Statement_ELSE_Statement(PN_IfStatement):
     @property
     def Expression(self):
@@ -13943,7 +13959,7 @@ class PN_IfStatement_IF_LPAREN_Expression_RPAREN_Statement(PN_IfStatement):
 ############################################################################################################################################################################################################
 class PN_IterationStatement(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('IterationStatement', p)
+        super().__init__(ctx, 'IterationStatement', p)
 class PN_IterationStatement_DO_Statement_WHILE_LPAREN_Expression_RPAREN_SEMICOLON(PN_IterationStatement):
     # 13.7.2 The do-while Statement
     @property
@@ -15041,7 +15057,7 @@ def EnumerateObjectProperties(O):
 # ------------------------------------ 𝑭𝒐𝒓𝑫𝒆𝒄𝒍𝒂𝒓𝒂𝒕𝒊𝒐𝒏 ------------------------------------
 class PN_ForDeclaration(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('ForDeclaration', p)
+        super().__init__(ctx, 'ForDeclaration', p)
 class PN_ForDeclaration_LetOrConst_ForBinding(PN_ForDeclaration):
     @property
     def LetOrConst(self):
@@ -15095,7 +15111,7 @@ class PN_ForDeclaration_LetOrConst_ForBinding(PN_ForDeclaration):
 # ------------------------------------ 𝑭𝒐𝒓𝑩𝒊𝒏𝒅𝒊𝒏𝒈 ------------------------------------
 class PN_ForBinding(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('ForBinding', p)
+        super().__init__(ctx, 'ForBinding', p)
 class PN_ForBinding_BindingIdentifier(PN_ForBinding):
     @property
     def BindingIdentifier(self):
@@ -15136,7 +15152,7 @@ class PN_ForBinding_BindingPattern(PN_ForBinding):
 ###############################################################################################################################
 class PN_ContinueStatement(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('ContinueStatement', p)
+        super().__init__(ctx, 'ContinueStatement', p)
     def EarlyErrors(self):
         # 13.8.1 Static Semantics: Early Errors
         #           ContinueStatement : continue ;
@@ -15179,7 +15195,7 @@ class PN_ContinueStatement_CONTINUE_LabelIdentifier_SEMICOLON(PN_ContinueStateme
 # 13.9 The break statement
 class PN_BreakStatement(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('BreakStatement', p)
+        super().__init__(ctx, 'BreakStatement', p)
 class PN_BreakStatement_BREAK_SEMICOLON(PN_BreakStatement):
     def EarlyErrors(self):
         # 13.9.1 Static Semantics: Early Errors
@@ -15220,7 +15236,7 @@ class PN_BreakStatement_BREAK_LabelIdentifier_SEMICOLON(PN_BreakStatement):
 # 13.10 The return Statement
 class PN_ReturnStatement(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('ReturnStatement', p)
+        super().__init__(ctx, 'ReturnStatement', p)
 class PN_ReturnStatement_RETURN_SEMICOLON(PN_ReturnStatement):
     def evaluate(self):
         raise ESReturn(value=None)
@@ -15237,7 +15253,7 @@ class PN_ReturnStatement_RETURN_Expression_SEMICOLON(PN_ReturnStatement):
 # 13.14 The throw Statement
 class PN_ThrowStatement(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('ThrowStatement', p)
+        super().__init__(ctx, 'ThrowStatement', p)
 class PN_ThrowStatement_THROW_Expression_SEMICOLON(PN_ThrowStatement):
     @property
     def Expression(self):
@@ -15254,7 +15270,7 @@ class PN_ThrowStatement_THROW_Expression_SEMICOLON(PN_ThrowStatement):
 # 13.15 The try Statement
 class PN_TryStatement(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('TryStatement', p)
+        super().__init__(ctx, 'TryStatement', p)
 class PN_TryStatement_TRY_Block_Catch(PN_TryStatement):
     @property
     def Block(self):
@@ -15370,7 +15386,7 @@ class PN_TryStatement_TRY_Block_Catch_Finally(PN_TryStatement):
         return UpdateEmpty(C, None)
 class PN_Catch(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('Catch', p)
+        super().__init__(ctx, 'Catch', p)
 class PN_Catch_CATCH_LPAREN_CatchParameter_RPAREN_Block(PN_Catch):
     @property
     def CatchParameter(self):
@@ -15441,7 +15457,7 @@ class PN_Catch_CATCH_LPAREN_CatchParameter_RPAREN_Block(PN_Catch):
 
 class PN_Finally(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('Finally', p)
+        super().__init__(ctx, 'Finally', p)
 class PN_Finally_FINALLY_Block(PN_Finally):
     @property
     def Block(self):
@@ -15449,7 +15465,7 @@ class PN_Finally_FINALLY_Block(PN_Finally):
 
 class PN_CatchParameter(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('CatchParameter', p)
+        super().__init__(ctx, 'CatchParameter', p)
 class PN_CatchParameter_BindingIdentifier(PN_CatchParameter):
     @property
     def BindingIdentifier(self):
@@ -15474,8 +15490,7 @@ class PN_CatchParameter_BindingPattern(PN_CatchParameter):
 # ------------------------------------ 𝑭𝒖𝒏𝒄𝒕𝒊𝒐𝒏𝑫𝒆𝒄𝒍𝒂𝒓𝒂𝒕𝒊𝒐𝒏 ------------------------------------
 class PN_FunctionDeclaration(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('FunctionDeclaration', p)
-        self.strict = ctx.strict
+        super().__init__(ctx, 'FunctionDeclaration', p)
 def FunctionDecl_EarlyErrors(pn):
     # 14.1.2 Static Semantics: Early Errors
     # FunctionDeclaration : function BindingIdentifier ( FormalParameters ) { FunctionBody }
@@ -15514,6 +15529,9 @@ def FunctionDecl_EarlyErrors(pn):
         errs.append('Super calls not allowed in functions')
     return errs
 class PN_FunctionDeclaration_FUNCTION_BindingIdentifier_LPAREN_FormalParameters_RPAREN_LCURLY_FunctionBody_RCURLY(PN_FunctionDeclaration):
+    def __init__(self, ctx, p):
+        super().__init__(ctx, p)
+        self.AssignStrictitude()
     @property
     def BindingIdentifier(self):
         return self.children[1]
@@ -15563,12 +15581,22 @@ class PN_FunctionDeclaration_FUNCTION_BindingIdentifier_LPAREN_FormalParameters_
         # FunctionDeclaration : function BindingIdentifier ( FormalParameters ) { FunctionBody }
         #   1. Return NormalCompletion(empty).
         return EMPTY
+    def AssignStrictitude(self):
+        if self.FunctionBody.ContainsUseStrict():
+            self.set_strict_in_subtree()
+
 # ------------------------------------ 𝑭𝒖𝒏𝒄𝒕𝒊𝒐𝒏𝑬𝒙𝒑𝒓𝒆𝒔𝒔𝒊𝒐𝒏 ------------------------------------
 class PN_FunctionExpression(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('FunctionExpression', p)
+        super().__init__(ctx, 'FunctionExpression', p)
         self.ctx = ctx
-        self.strict = ctx.strict
+    @property
+    def FunctionBody(self):
+        raise NotImplementedError('Abstract classes should not be instantiated.')
+    def AssignStrictitude(self):
+        if self.FunctionBody.ContainsUseStrict():
+            self.set_strict_in_subtree()
+
 class PN_FunctionExpression_FUNCTION_BindingIdentifier_LPAREN_FormalParameters_RPAREN_LCURLY_FunctionBody_RCURLY(PN_FunctionExpression):
     @property
     def BindingIdentifier(self):
@@ -15625,7 +15653,7 @@ class PN_FunctionExpression_FUNCTION_BindingIdentifier_LPAREN_FormalParameters_R
         # NOTE 3
         # A prototype property is automatically created for every function defined using a FunctionDeclaration or
         # FunctionExpression, to allow for the possibility that the function will be used as a constructor.
-        strict = self.ctx.strict
+        strict = self.strict
         scope = surrounding_agent.running_ec.lexical_environment
         funcEnv = NewDeclarativeEnvironment(scope)
         envRec = funcEnv.environment_record
@@ -15672,7 +15700,7 @@ class PN_FunctionExpression_FUNCTION_LPAREN_FormalParameters_RPAREN_LCURLY_Funct
         #   4. Perform MakeConstructor(closure).
         #   5. Set closure.[[SourceText]] to the source text matched by FunctionExpression.
         #   6. Return closure.
-        strict = self.ctx.strict
+        strict = self.strict
         scope = surrounding_agent.running_ec.lexical_environment
         closure = FunctionCreate(NORMAL, self.FormalParameters, self.FunctionBody, scope, strict)
         MakeConstructor(closure)
@@ -15693,7 +15721,7 @@ def IsAnonymousFunctionDefinition(expr):
 # ------------------------------------ 𝑼𝒏𝒊𝒒𝒖𝒆𝑭𝒐𝒓𝒎𝒂𝒍𝑷𝒂𝒓𝒂𝒎𝒆𝒕𝒆𝒓𝒔 ------------------------------------
 class PN_UniqueFormalParameters(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('UniqueFormalParameters', p)
+        super().__init__(ctx, 'UniqueFormalParameters', p)
 def UniqueFormalParameters_EarlyErrors(pn):
     # 14.1.2 Static Semantics: Early Errors
     # UniqueFormalParameters : FormalParameters
@@ -15712,7 +15740,7 @@ class PN_UniqueFormalParameters_FormalParameters(PN_UniqueFormalParameters):
 # ------------------------------------ 𝑭𝒐𝒓𝒎𝒂𝒍𝑷𝒂𝒓𝒂𝒎𝒆𝒕𝒆𝒓𝒔 ------------------------------------
 class PN_FormalParameters(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('FormalParameters', p)
+        super().__init__(ctx, 'FormalParameters', p)
 class PN_FormalParameters_empty(PN_FormalParameters):
     def BoundNames(self):
         # 14.1.3 Static Semantics: BoundNames
@@ -15817,7 +15845,7 @@ class PN_FormalParameters_FormalParameterList_COMMA_FunctionRestParameter(PN_For
 # ------------------------------------ 𝑭𝒐𝒓𝒎𝒂𝒍𝑷𝒂𝒓𝒂𝒎𝒆𝒕𝒆𝒓𝑳𝒊𝒔𝒕 ------------------------------------
 class PN_FormalParameterList(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('FormalParameterList', p)
+        super().__init__(ctx, 'FormalParameterList', p)
 class PN_FormalParameterList_FormalParameter(PN_FormalParameterList):
     @property
     def FormalParameter(self):
@@ -15881,7 +15909,7 @@ class PN_FormalParameterList_FormalParameterList_COMMA_FormalParameter(PN_Formal
 # ------------------------------------ 𝑭𝒖𝒏𝒄𝒕𝒊𝒐𝒏𝑹𝒆𝒔𝒕𝑷𝒂𝒓𝒂𝒎𝒆𝒕𝒆𝒓 ------------------------------------
 class PN_FunctionRestParameter(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('FunctionRestParameter', p)
+        super().__init__(ctx, 'FunctionRestParameter', p)
 class PN_FunctionRestParameter_BindingRestElement(PN_FunctionRestParameter):
     @property
     def BindingRestElement(self):
@@ -15924,7 +15952,7 @@ class PN_FunctionRestParameter_BindingRestElement(PN_FunctionRestParameter):
 # ------------------------------------ 𝑭𝒐𝒓𝒎𝒂𝒍𝑷𝒂𝒓𝒂𝒎𝒆𝒕𝒆𝒓 ------------------------------------
 class PN_FormalParameter(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('FormalParameter', p)
+        super().__init__(ctx, 'FormalParameter', p)
 class PN_FormalParameter_BindingElement(PN_FormalParameter):
     @property
     def BindingElement(self):
@@ -15966,7 +15994,7 @@ class PN_FormalParameter_BindingElement(PN_FormalParameter):
 # ------------------------------------ 𝑭𝒖𝒏𝒄𝒕𝒊𝒐𝒏𝑩𝒐𝒅𝒚 ------------------------------------
 class PN_FunctionBody(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('FunctionBody', p)
+        super().__init__(ctx, 'FunctionBody', p)
 class PN_FunctionBody_FunctionStatementList(PN_FunctionBody):
     @property
     def FunctionStatementList(self):
@@ -16004,7 +16032,7 @@ class PN_FunctionBody_FunctionStatementList(PN_FunctionBody):
         # FunctionBody : FunctionStatementList
         #   1. If the Directive Prologue of FunctionStatementList contains a Use Strict Directive, return true;
         #      otherwise, return false.
-        dp = self.FunctionStatementList.DirectivePrologue()
+        _, dp = self.FunctionStatementList.LeadingStrings()
         return "'use strict'" in dp or '"use strict"' in dp
     def EvaluateBody(self, functionObject, argumentsList):
         # 14.1.18 Runtime Semantics: EvaluateBody
@@ -16017,7 +16045,7 @@ class PN_FunctionBody_FunctionStatementList(PN_FunctionBody):
 # ------------------------------------ 𝑭𝒖𝒏𝒄𝒕𝒊𝒐𝒏𝑺𝒕𝒂𝒕𝒆𝒎𝒆𝒏𝒕𝑳𝒊𝒔𝒕 ------------------------------------
 class PN_FunctionStatementList(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('FunctionStatementList', p)
+        super().__init__(ctx, 'FunctionStatementList', p)
 class PN_FunctionStatementList_empty(PN_FunctionStatementList):
     def LexicallyDeclaredNames(self):
         # 14.1.14 Static Semantics: LexicallyDeclaredNames
@@ -16049,8 +16077,8 @@ class PN_FunctionStatementList_empty(PN_FunctionStatementList):
         return False
     def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
         return False
-    def DirectivePrologue(self):
-        return []
+    def LeadingStrings(self):
+        return (False, [])
 class PN_FunctionStatementList_StatementList(PN_FunctionStatementList):
     @property
     def StatementList(self):
@@ -16080,7 +16108,7 @@ class PN_FunctionStatementList_StatementList(PN_FunctionStatementList):
 # ------------------------------------ 𝑴𝒆𝒕𝒉𝒐𝒅𝑫𝒆𝒇𝒊𝒏𝒊𝒕𝒊𝒐𝒏 ------------------------------------
 class PN_MethodDefinition(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('MethodDefinition', p)
+        super().__init__(ctx, 'MethodDefinition', p)
         self.context = ctx
 class PN_MethodDefinition_PropertyName(PN_MethodDefinition):
     # For the productions that have a PropertyName:
@@ -16163,7 +16191,7 @@ class PN_MethodDefinition_PropertyName_LPAREN_UniqueFormalParameters_RPAREN_LCUR
         else:
             kind = METHOD
             prototype = surrounding_agent.running_ec.realm.intrinsics['%FunctionPrototype%']
-        closure = FunctionCreate(kind, self.UniqueFormalParameters, self.FunctionBody, scope, self.context.strict, prototype)
+        closure = FunctionCreate(kind, self.UniqueFormalParameters, self.FunctionBody, scope, self.strict, prototype)
         MakeMethod(closure, object)
         start, end = self.source_range()
         closure.SourceText = self.context.source_text[start:end]
@@ -16236,8 +16264,8 @@ class PN_MethodDefinition_GET_PropertyName_LPAREN_RPAREN_LCURLY_FunctionBody_RCU
         #   11. Return ? DefinePropertyOrThrow(object, propKey, desc).
         propKey = self.PropertyName.evaluate()
         scope = surrounding_agent.running_ec.lexical_environment
-        formalParameterList = PN_FormalParameters_empty(self.context, [MakeEmptyNode()])
-        closure = FunctionCreate(METHOD, formalParameterList, self.FunctionBody, scope, self.context.strict)
+        formalParameterList = PN_FormalParameters_empty(self.context, [MakeEmptyNode(self.context)])
+        closure = FunctionCreate(METHOD, formalParameterList, self.FunctionBody, scope, self.strict)
         MakeMethod(closure, object)
         SetFunctionName(closure, propKey, 'get')
         src_start, src_end = self.source_range()
@@ -16296,7 +16324,7 @@ class PN_MethodDefinition_SET_PropertyName_LPAREN_PropertySetParameterList_RPARE
         #   10. Return ? DefinePropertyOrThrow(object, propKey, desc).
         propKey = self.PropertyName.evaluate()
         scope = surrounding_agent.running_ec.lexical_environment
-        closure = FunctionCreate(METHOD, self.PropertySetParameterList, self.FunctionBody, scope, self.context.strict)
+        closure = FunctionCreate(METHOD, self.PropertySetParameterList, self.FunctionBody, scope, self.strict)
         MakeMethod(closure, object)
         SetFunctionName(closure, propKey, 'set')
         src_start, src_end = self.source_range()
@@ -16307,7 +16335,7 @@ class PN_MethodDefinition_SET_PropertyName_LPAREN_PropertySetParameterList_RPARE
 # ------------------------------------ 𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚𝑺𝒆𝒕𝑷𝒂𝒓𝒂𝒎𝒆𝒕𝒆𝒓𝑳𝒊𝒔𝒕 ------------------------------------
 class PN_PropertySetParameterList(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('PropertySetParameterList', p)
+        super().__init__(ctx, 'PropertySetParameterList', p)
 class PN_PropertySetParameterList_FormalParameter(PN_PropertySetParameterList):
     # 𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒚𝑺𝒆𝒕𝑷𝒂𝒓𝒂𝒎𝒆𝒕𝒆𝒓𝑳𝒊𝒔𝒕 : 𝑭𝒐𝒓𝒎𝒂𝒍𝑷𝒂𝒓𝒂𝒎𝒆𝒕𝒆𝒓
     @property
@@ -16323,7 +16351,7 @@ class PN_PropertySetParameterList_FormalParameter(PN_PropertySetParameterList):
 # ------------------------------------ 𝑪𝒐𝒗𝒆𝒓𝑪𝒂𝒍𝒍𝑬𝒙𝒑𝒓𝒆𝒔𝒔𝒊𝒐𝒏𝑨𝒏𝒅𝑨𝒔𝒚𝒏𝒄𝑨𝒓𝒓𝒐𝒘𝑯𝒆𝒂𝒅 ------------------------------------
 class PN_CoverCallExpressionAndAsyncArrowHead(ParseNode):
     def __init__(self, context, p):
-        super().__init__('CoverCallExpressionAndAsyncArrowHead', p)
+        super().__init__(context, 'CoverCallExpressionAndAsyncArrowHead', p)
 class PN_CoverCallExpressionAndAsyncArrowHead_MemberExpression_Arguments(PN_CoverCallExpressionAndAsyncArrowHead):
     @property
     def MemberExpression(self):
@@ -16348,7 +16376,15 @@ class PN_CoverCallExpressionAndAsyncArrowHead_MemberExpression_Arguments(PN_Cove
 ###############################################################################################################################
 class PN_Script(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('Script', p)
+        super().__init__(ctx, 'Script', p)
+        self.AssignStrictitude()
+    def AssignStrictitude(self):
+        # Check the directive prologue for a 'strict' directive:
+        if self.IsStrict():
+            # Got one. So, set the strict flag on all this node's progeny.
+            self.set_strict_in_subtree()
+            return
+
 class PN_Script_ScriptBody(PN_Script):
     @property
     def ScriptBody(self):
@@ -16380,9 +16416,11 @@ class PN_Script_empty(PN_Script):
         # Script : [empty]
         #      1. Return NormalCompletion(undefined).
         return None
+    def IsStrict(self):
+        return False
 class PN_ScriptBody_StatementList(ParseNode):
     def __init__(self, ctx, p):
-        super().__init__('ScriptBody', p)
+        super().__init__(ctx, 'ScriptBody', p)
         self.direct_eval = ctx.direct_eval
     @property
     def StatementList(self):
@@ -16415,7 +16453,7 @@ class PN_ScriptBody_StatementList(ParseNode):
         # 15.1.2 Static Semantics: IsStrict
         # ScriptBody : StatementList
         #    1. If the Directive Prologue of StatementList contains a Use Strict Directive, return true; otherwise, return false.
-        dp = self.StatementList.DirectivePrologue()  # This is a list of strings, subsets of the source text
+        _, dp = self.StatementList.LeadingStrings()  # This is a list of strings, subsets of the source text
         return "'use strict'" in dp or '"use strict"' in dp
     def LexicallyDeclaredNames(self):
         return self.StatementList.TopLevelLexicallyDeclaredNames()
@@ -16635,18 +16673,17 @@ class Ecma262Parser(Parser):
         raise ESSyntaxError(f'Syntax Error in script. Offending token: {p!r}')
 
     class ParseContext:
-        __slots__ = ['goal', 'strict', 'direct_eval', 'source_text']
-        def __init__(self, goal, strict, source_text):
+        __slots__ = ['goal', 'direct_eval', 'source_text']
+        def __init__(self, goal, source_text):
             self.goal = goal
-            self.strict = strict
             self.direct_eval = False
             self.source_text = source_text
         def __repr__(self):
-            return f'ParseContext(goal={self.goal}, strict={self.strict})'
+            return f'ParseContext(goal={self.goal})'
 
-    def __init__(self, strict=False, start=None, source_text=''):
+    def __init__(self, start=None, source_text=''):
         super().__init__()
-        self.context = self.ParseContext(self.start, strict, source_text)
+        self.context = self.ParseContext(self.start, source_text)
 
     # pylint: disable=function-redefined
     @_('GOAL_SCRIPT Script')  # pylint: disable=undefined-variable
@@ -22844,7 +22881,10 @@ def GetGeneratorKind():
 if __name__ == '__main__':
     try:
         rv = RunJobs(scripts=["""
-           `Head ${{a:3}.a} Tail`;
+           'use strict';
+           'use extra';
+           'use sunscreen';
+           a=3;
         """])
     except ESError as err:
         InitializeHostDefinedRealm()
