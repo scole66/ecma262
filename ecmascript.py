@@ -9,6 +9,7 @@ from copy import copy
 import re
 import math
 from itertools import chain
+import functools
 import unicodedata
 import uuid
 import random
@@ -2598,6 +2599,38 @@ def CreateArrayFromList(elements):
         assert status
     return array
 
+# ------------------------------------ 𝟕.𝟑.𝟏𝟕 𝑪𝒓𝒆𝒂𝒕𝒆𝑳𝒊𝒔𝒕𝑭𝒓𝒐𝒎𝑨𝒓𝒓𝒂𝒚𝑳𝒊𝒌𝒆 ( 𝒐𝒃𝒋 [ , 𝒆𝒍𝒆𝒎𝒆𝒏𝒕𝑻𝒚𝒑𝒆𝒔 ] ) ------------------------------------
+# 7.3.17 CreateListFromArrayLike ( obj [ , elementTypes ] )
+def CreateListFromArrayLike(obj, elementTypes=[JSType.UNDEFINED, JSType.NULL, JSType.BOOLEAN, JSType.STRING,
+                                               JSType.NUMBER, JSType.SYMBOL, JSType.OBJECT]):
+    # The abstract operation CreateListFromArrayLike is used to create a List value whose elements are provided by the
+    # indexed properties of an array-like object, obj. The optional argument elementTypes is a List containing the
+    # names of ECMAScript Language Types that are allowed for element values of the List that is created. This abstract
+    # operation performs the following steps:
+    #
+    #   1. If elementTypes is not present, set elementTypes to « Undefined, Null, Boolean, String, Symbol, Number,
+    #      Object ».
+    #   2. If Type(obj) is not Object, throw a TypeError exception.
+    #   3. Let len be ? ToLength(? Get(obj, "length")).
+    #   4. Let list be a new empty List.
+    #   5. Let index be 0.
+    #   6. Repeat, while index < len
+    #       a. Let indexName be ! ToString(index).
+    #       b. Let next be ? Get(obj, indexName).
+    #       c. If Type(next) is not an element of elementTypes, throw a TypeError exception.
+    #       d. Append next as the last element of list.
+    #       e. Set index to index + 1.
+    #   7. Return list.
+    if not isObject(obj):
+        raise ESTypeError(f'{ToString(obj)} is not an object')
+    get = functools.partial(Get, obj)
+    def get_and_check(idx):
+        val = get(f'{idx}')
+        if TypeOf(val) not in elementTypes:
+            raise ESTypeError(f'{val}: bad type')
+        return val
+    return [get_and_check(idx) for idx in range(ToLength(get('length')))]
+
 # ------------------------------------ 𝟕.𝟑.𝟏𝟖 𝑰𝒏𝒗𝒐𝒌𝒆 ( 𝑽, 𝑷 [ , 𝒂𝒓𝒈𝒖𝒎𝒆𝒏𝒕𝒔𝑳𝒊𝒔𝒕 ] ) ------------------------------------
 # 7.3.18 Invoke ( V, P [ , argumentsList ] )
 def Invoke(v, p, arguments_list=[]):
@@ -4218,6 +4251,9 @@ def CreateIntrinsics(realm_rec):
     intrinsics['%ArrayBuffer%'] = CreateArrayBufferConstructor(realm_rec)
     intrinsics['%ArrayBufferPrototype%'] = CreateArrayBufferPrototype(realm_rec)
     ArrayBufferFixups(realm_rec)
+    intrinsics['%Function%'] = CreateFunctionConstructor(realm_rec)
+    FunctionFixups(realm_rec)
+    AttachFunctionPrototypeProperties(intrinsics['%FunctionPrototype%'], realm_rec)
 
     # 14. Return intrinsics.
     return intrinsics
@@ -6629,7 +6665,16 @@ class Lexer():
         'SET',
         'GET',
 
-        'GOAL_SCRIPT', 'GOAL_CALLMEMBEREXPRESSION', 'GOAL_PARENTHESIZEDEXPRESSION', 'GOAL_ASSIGNMENTPATTERN'
+        'GOAL_SCRIPT', 'GOAL_CALLMEMBEREXPRESSION', 'GOAL_PARENTHESIZEDEXPRESSION', 'GOAL_ASSIGNMENTPATTERN',
+        'GOAL_FUNCTIONBODY',
+        'GOAL_GENERATORBODY',
+        'GOAL_ASYNCFUNCTIONBODY',
+        'GOAL_ASYNCGENERATORBODY',
+        'GOAL_FORMALPARAMETERS',
+        'GOAL_FORMALPARAMETERS_YIELD',
+        'GOAL_FORMALPARAMETERS_AWAIT',
+        'GOAL_FORMALPARAMETERS_YIELD_AWAIT',
+
          }
 
     # Tokens we will fiter out (the parser should never see these)
@@ -6640,6 +6685,14 @@ class Lexer():
         'CallMemberExpression': 'GOAL_CALLMEMBEREXPRESSION',
         'ParenthesizedExpression': 'GOAL_PARENTHESIZEDEXPRESSION',
         'AssignmentPattern': 'GOAL_ASSIGNMENTPATTERN',
+        'FunctionBody': 'GOAL_FUNCTIONBODY',
+        'GeneratorBody': 'GOAL_GENERATORBODY',
+        'AsyncFunctionBody': 'GOAL_ASYNCFUNCTIONBODY',
+        'AsyncGeneratorBody': 'GOAL_ASYNCGENERATORBODY',
+        'FormalParameters': 'GOAL_FORMALPARAMETERS',
+        'FormalParameters_Yield': 'GOAL_FORMALPARAMETERS_YIELD',
+        'FormalParameters_Await': 'GOAL_FORMALPARAMETERS_AWAIT',
+        'FormalParameters_Yield_Await': 'GOAL_FORMALPARAMETERS_YIELD_AWAIT',
     }
 
     class TokenValue:
@@ -7938,7 +7991,7 @@ class ParseNode:
     def set_strict_in_subtree(self):
         self.strict = True
         for ch in (child for child in self.children if isinstance(child, ParseNode)):
-            ch.set_strict()
+            ch.set_strict_in_subtree()
     def defer_target(self):
         # When a function defers by default to its children, it picks the sole nonterminal. The routine here figures out which
         # parse node that actually is. (And asserts if there wasn't a sole nonterminal.)
@@ -15725,7 +15778,7 @@ def UniqueFormalParameters_EarlyErrors(pn):
     # 14.1.2 Static Semantics: Early Errors
     # UniqueFormalParameters : FormalParameters
     #   * It is a Syntax Error if BoundNames of FormalParameters contains any duplicate elements.
-    bn = pn.FormalParameters.BoundNames()
+    bn = pn.BoundNames()
     duplicates = [name for name, count in Counter(bn).items() if count > 1]
     if duplicates:
         return [CreateSyntaxError(f"Multiple definitions in parameter list: {', '.join(duplicates)}")]
@@ -15735,7 +15788,7 @@ class PN_UniqueFormalParameters_FormalParameters(PN_UniqueFormalParameters):
     def FormalParameters(self):
         return self.children[0]
     def EarlyErrors(self):
-        return UniqueFormalParameters_EarlyErrors(self)
+        return UniqueFormalParameters_EarlyErrors(self.FormalParameters)
 # ------------------------------------ 𝑭𝒐𝒓𝒎𝒂𝒍𝑷𝒂𝒓𝒂𝒎𝒆𝒕𝒆𝒓𝒔 ------------------------------------
 class PN_FormalParameters(ParseNode):
     def __init__(self, ctx, p):
@@ -16345,7 +16398,21 @@ class PN_PropertySetParameterList_FormalParameter(PN_PropertySetParameterList):
         #   1. If HasInitializer of FormalParameter is true, return 0.
         #   2. Return 1.
         return 0 if self.FormalParameter.HasInitializer() else 1
-
+##############################################################################################################################################################################################################################################################################################################
+#
+#  d888       d8888       .d8888b.             d8888                                                d8888                                            8888888888                            888    d8b                       8888888b.            .d888 d8b          d8b 888    d8b
+# d8888      d8P888      d88P  Y88b           d88888                                               d88888                                            888                                   888    Y8P                       888  "Y88b          d88P"  Y8P          Y8P 888    Y8P
+#   888     d8P 888      Y88b. d88P          d88P888                                              d88P888                                            888                                   888                              888    888          888                     888
+#   888    d8P  888       "Y88888"          d88P 888 .d8888b  888  888 88888b.   .d8888b         d88P 888 888d888 888d888  .d88b.  888  888  888     8888888    888  888 88888b.   .d8888b 888888 888  .d88b.  88888b.      888    888  .d88b.  888888 888 88888b.  888 888888 888  .d88b.  88888b.  .d8888b
+#   888   d88   888      .d8P""Y8b.        d88P  888 88K      888  888 888 "88b d88P"           d88P  888 888P"   888P"   d88""88b 888  888  888     888        888  888 888 "88b d88P"    888    888 d88""88b 888 "88b     888    888 d8P  Y8b 888    888 888 "88b 888 888    888 d88""88b 888 "88b 88K
+#   888   8888888888     888    888       d88P   888 "Y8888b. 888  888 888  888 888            d88P   888 888     888     888  888 888  888  888     888        888  888 888  888 888      888    888 888  888 888  888     888    888 88888888 888    888 888  888 888 888    888 888  888 888  888 "Y8888b.
+#   888         888  d8b Y88b  d88P      d8888888888      X88 Y88b 888 888  888 Y88b.         d8888888888 888     888     Y88..88P Y88b 888 d88P     888        Y88b 888 888  888 Y88b.    Y88b.  888 Y88..88P 888  888     888  .d88P Y8b.     888    888 888  888 888 Y88b.  888 Y88..88P 888  888      X88
+# 8888888       888  Y8P  "Y8888P"      d88P     888  88888P'  "Y88888 888  888  "Y8888P     d88P     888 888     888      "Y88P"   "Y8888888P"      888         "Y88888 888  888  "Y8888P  "Y888 888  "Y88P"  888  888     8888888P"   "Y8888  888    888 888  888 888  "Y888 888  "Y88P"  888  888  88888P'
+#                                                                  888
+#                                                             Y8b d88P
+#                                                              "Y88P"
+#
+##############################################################################################################################################################################################################################################################################################################
 # 14.8 Async Arrow Function Definitions
 # ------------------------------------ 𝑪𝒐𝒗𝒆𝒓𝑪𝒂𝒍𝒍𝑬𝒙𝒑𝒓𝒆𝒔𝒔𝒊𝒐𝒏𝑨𝒏𝒅𝑨𝒔𝒚𝒏𝒄𝑨𝒓𝒓𝒐𝒘𝑯𝒆𝒂𝒅 ------------------------------------
 class PN_CoverCallExpressionAndAsyncArrowHead(ParseNode):
@@ -16358,6 +16425,30 @@ class PN_CoverCallExpressionAndAsyncArrowHead_MemberExpression_Arguments(PN_Cove
     @property
     def Arguments(self):
         return self.children[1]
+
+################################################################################################################################################################################
+#
+#  d888       d8888       .d8888b.      88888888888          d8b 888     8888888b.                    d8b 888    d8b                        .d8888b.           888 888
+# d8888      d8P888      d88P  Y88b         888              Y8P 888     888   Y88b                   Y8P 888    Y8P                       d88P  Y88b          888 888
+#   888     d8P 888      888    888         888                  888     888    888                       888                              888    888          888 888
+#   888    d8P  888      Y88b. d888         888      8888b.  888 888     888   d88P  .d88b.  .d8888b  888 888888 888  .d88b.  88888b.      888         8888b.  888 888 .d8888b
+#   888   d88   888       "Y888P888         888         "88b 888 888     8888888P"  d88""88b 88K      888 888    888 d88""88b 888 "88b     888            "88b 888 888 88K
+#   888   8888888888            888         888     .d888888 888 888     888        888  888 "Y8888b. 888 888    888 888  888 888  888     888    888 .d888888 888 888 "Y8888b.
+#   888         888  d8b Y88b  d88P         888     888  888 888 888     888        Y88..88P      X88 888 Y88b.  888 Y88..88P 888  888     Y88b  d88P 888  888 888 888      X88
+# 8888888       888  Y8P  "Y8888P"          888     "Y888888 888 888     888         "Y88P"   88888P' 888  "Y888 888  "Y88P"  888  888      "Y8888P"  "Y888888 888 888  88888P'
+#
+#
+#
+################################################################################################################################################################################
+# 14.9 Tail Position Calls
+# 14.9.1 Static Semantics: IsInTailPosition ( call )
+def IsInTailPosition(call):
+    # Needs Implementation @@@
+    return False
+# 14.9.3 Runtime Semantics: PrepareForTailCall ( )
+def PrepareForTailCall():
+    # Needs Implementation @@@
+    return EMPTY
 ###############################################################################################################################
 #
 #  d888   888888888       d888        .d8888b.                   d8b          888
@@ -16699,6 +16790,31 @@ class Ecma262Parser(Parser):
     @_('GOAL_ASSIGNMENTPATTERN AssignmentPattern')  # pylint: disable=undefined-variable
     def SpecialStart(self, p):
         return p[1]
+    @_('GOAL_FUNCTIONBODY FunctionBody')  # pylint: disable=undefined-variable
+    def SpecialStart(self, p):
+        return p[1]
+    # @_('GOAL_GENERATORBODY GeneratorBody')  # pyxlint: disable=undefined-variable
+    # def SpecialStart(self, p):
+    #     return p[1]
+    # @_('GOAL_ASYNCFUNCTIONBODY AsyncFunctionBody')  # pyxlint: disable=undefined-variable
+    # def SpecialStart(self, p):
+    #     return p[1]
+    # @_('GOAL_ASYNCGENERATORBODY AsyncGeneratorBody')  # pylxint: disable=undefined-variable
+    # def SpecialStart(self, p):
+    #     return p[1]
+    @_('GOAL_FORMALPARAMETERS FormalParameters')  # pylint: disable=undefined-variable
+    def SpecialStart(self, p):
+        return p[1]
+    # @_('GOAL_FORMALPARAMETERS_YIELD FormalParameters_Yield')  # pyxlint: disable=undefined-variable
+    # def SpecialStart(self, p):
+    #     return p[1]
+    # @_('GOAL_FORMALPARAMETERS_AWAIT FormalParameters_Await')  # pyxlint: disable=undefined-variable
+    # def SpecialStart(self, p):
+    #     return p[1]
+    # @_('GOAL_FORMALPARAMETERS_YIELD_AWAIT FormalParameters_Yield_Await')  # pyxlint: disable=undefined-variable
+    # def SpecialStart(self, p):
+    #     return p[1]
+
     ########################################################################################################################
     # 15.1 Scripts
     # Syntax
@@ -19988,6 +20104,430 @@ def ObjectPrototype_valueOf(this_value, new_target, *_):
 #                                                                                                                                   888P"
 #
 #####################################################################################################################################################################
+# 19.2 Function Objects
+# 19.2.1 The Function Constructor
+
+# The Function constructor:
+#
+# * is the intrinsic object %Function%.
+# * is the initial value of the Function property of the global object.
+# * creates and initializes a new function object when called as a function rather than as a constructor. Thus the
+#   function call Function(…) is equivalent to the object creation expression new Function(…) with the same arguments.
+# * is designed to be subclassable. It may be used as the value of an extends clause of a class definition. Subclass
+#   constructors that intend to inherit the specified Function behaviour must include a super call to the Function
+#   constructor to create and initialize a subclass instance with the internal slots necessary for built-in function
+#   behaviour. All ECMAScript syntactic forms for defining function objects create instances of Function. There is no
+#   syntactic means to create instances of Function subclasses except for the built-in GeneratorFunction,
+#   AsyncFunction, and AsyncGeneratorFunction subclasses.
+
+# ------------------------------------ 𝟏𝟗.𝟐.𝟏.𝟏 𝑭𝒖𝒏𝒄𝒕𝒊𝒐𝒏 ( 𝒑𝟏, 𝒑𝟐, … , 𝒑𝒏, 𝒃𝒐𝒅𝒚 ) ------------------------------------
+# 19.2.1.1 Function ( p1, p2, … , pn, body )
+def FunctionFunction(this_value, new_target, *args):
+    # The last argument specifies the body (executable code) of a function; any preceding arguments specify formal
+    # parameters.
+    #
+    # When the Function function is called with some arguments p1, p2, … , pn, body (where n might be 0, that is, there
+    # are no “ p ” arguments, and where body might also not be provided), the following steps are taken:
+    #
+    #   1. Let C be the active function object.
+    #   2. Let args be the argumentsList that was passed to this function by [[Call]] or [[Construct]].
+    #   3. Return ? CreateDynamicFunction(C, NewTarget, "normal", args).
+    return CreateDynamicFunction(surrounding_agent.running_ec.function, new_target, 'normal', args)
+    #
+    # NOTE
+    # It is permissible but not necessary to have one argument for each formal parameter to be specified. For example,
+    # all three of the following expressions produce the same result:
+    #
+    # new Function("a", "b", "c", "return a+b+c")
+    # new Function("a, b, c", "return a+b+c")
+    # new Function("a,b", "c", "return a+b+c")
+
+# ------------------------------------ 𝟏𝟗.𝟐.𝟏.𝟏.𝟏 𝑹𝒖𝒏𝒕𝒊𝒎𝒆 𝑺𝒆𝒎𝒂𝒏𝒕𝒊𝒄𝒔: 𝑪𝒓𝒆𝒂𝒕𝒆𝑫𝒚𝒏𝒂𝒎𝒊𝒄𝑭𝒖𝒏𝒄𝒕𝒊𝒐𝒏 ( 𝒄𝒐𝒏𝒔𝒕𝒓𝒖𝒄𝒕𝒐𝒓, 𝒏𝒆𝒘𝑻𝒂𝒓𝒈𝒆𝒕, 𝒌𝒊𝒏𝒅, 𝒂𝒓𝒈𝒔 ) ------------------------------------
+# 19.2.1.1.1 Runtime Semantics: CreateDynamicFunction ( constructor, newTarget, kind, args )
+def CreateDynamicFunction(constructor, newTarget, kind, args):
+    # The abstract operation CreateDynamicFunction is called with arguments constructor, newTarget, kind, and args.
+    # constructor is the constructor function that is performing this action, newTarget is the constructor that new was
+    # initially applied to, kind is either "normal", "generator",  "async", or "async generator", and args is a List
+    # containing the actual argument values that were passed to constructor. The following steps are taken:
+    #
+    #   1. Assert: The execution context stack has at least two elements.
+    #   2. Let callerContext be the second to top element of the execution context stack.
+    #   3. Let callerRealm be callerContext's Realm.
+    #   4. Let calleeRealm be the current Realm Record.
+    #   5. Perform ? HostEnsureCanCompileStrings(callerRealm, calleeRealm).
+    #   6. If newTarget is undefined, set newTarget to constructor.
+    #   7. If kind is "normal", then
+    #       a. Let goal be the grammar symbol FunctionBody[~Yield, ~Await].
+    #       b. Let parameterGoal be the grammar symbol FormalParameters[~Yield, ~Await].
+    #       c. Let fallbackProto be "%FunctionPrototype%".
+    #   8. Else if kind is "generator", then
+    #       a. Let goal be the grammar symbol GeneratorBody.
+    #       b. Let parameterGoal be the grammar symbol FormalParameters[+Yield, ~Await].
+    #       c. Let fallbackProto be "%Generator%".
+    #   9. Else if kind is "async", then
+    #       a. Assert: kind is "async".
+    #       b. Let goal be the grammar symbol AsyncFunctionBody.
+    #       c. Let parameterGoal be the grammar symbol FormalParameters[~Yield, +Await].
+    #       d. Let fallbackProto be "%AsyncFunctionPrototype%".
+    #   10. Else,
+    #       a. Assert: kind is "async generator".
+    #       b. Let goal be the grammar symbol AsyncGeneratorBody.
+    #       c. Let parameterGoal be the grammar symbol FormalParameters[+Yield, +Await].
+    #       d. Let fallbackProto be "%AsyncGenerator%".
+    #   11. Let argCount be the number of elements in args.
+    #   12. Let P be the empty String.
+    #   13. If argCount = 0, let bodyText be the empty String.
+    #   14. Else if argCount = 1, let bodyText be args[0].
+    #   15. Else argCount > 1,
+    #       a. Let firstArg be args[0].
+    #       b. Set P to ? ToString(firstArg).
+    #       c. Let k be 1.
+    #       d. Repeat, while k < argCount-1
+    #           i. Let nextArg be args[k].
+    #           ii. Let nextArgString be ? ToString(nextArg).
+    #           iii. Set P to the string-concatenation of the previous value of P, "," (a comma), and nextArgString.
+    #           iv. Increase k by 1.
+    #       e. Let bodyText be args[k].
+    #   16. Set bodyText to ? ToString(bodyText).
+    #   17. Let parameters be the result of parsing P, interpreted as UTF-16 encoded Unicode text as described in
+    #       6.1.4, using parameterGoal as the goal symbol. Throw a SyntaxError exception if the parse fails.
+    #   18. Let body be the result of parsing bodyText, interpreted as UTF-16 encoded Unicode text as described in
+    #       6.1.4, using goal as the goal symbol. Throw a SyntaxError exception if the parse fails.
+    #   19. Let strict be ContainsUseStrict of body.
+    #   20. If any static semantics errors are detected for parameters or body, throw a SyntaxError or a ReferenceError
+    #       exception, depending on the type of the error. If strict is true, the Early Error rules for
+    #       UniqueFormalParameters:FormalParameters are applied. Parsing and early error detection may be interweaved
+    #       in an implementation-dependent manner.
+    #   21. If strict is true and IsSimpleParameterList of parameters is false, throw a SyntaxError exception.
+    #   22. If any element of the BoundNames of parameters also occurs in the LexicallyDeclaredNames of body, throw a
+    #       SyntaxError exception.
+    #   23. If body Contains SuperCall is true, throw a SyntaxError exception.
+    #   24. If parameters Contains SuperCall is true, throw a SyntaxError exception.
+    #   25. If body Contains SuperProperty is true, throw a SyntaxError exception.
+    #   26. If parameters Contains SuperProperty is true, throw a SyntaxError exception.
+    #   27. If kind is "generator" or "async generator", then
+    #       a. If parameters Contains YieldExpression is true, throw a SyntaxError exception.
+    #   28. If kind is "async" or "async generator", then
+    #       a. If parameters Contains AwaitExpression is true, throw a SyntaxError exception.
+    #   29. If strict is true, then
+    #       a. If BoundNames of parameters contains any duplicate elements, throw a SyntaxError exception.
+    #   30. Let proto be ? GetPrototypeFromConstructor(newTarget, fallbackProto).
+    #   31. Let F be FunctionAllocate(proto, strict, kind).
+    #   32. Let realmF be F.[[Realm]].
+    #   33. Let scope be realmF.[[GlobalEnv]].
+    #   34. Perform FunctionInitialize(F, Normal, parameters, body, scope).
+    #   35. If kind is "generator", then
+    #       a. Let prototype be ObjectCreate(%GeneratorPrototype%).
+    #       b. Perform DefinePropertyOrThrow(F, "prototype", PropertyDescriptor { [[Value]]: prototype,
+    #          [[Writable]]: true, [[Enumerable]]: false, [[Configurable]]: false }).
+    #   36. Else if kind is "async generator", then
+    #       a. Let prototype be ObjectCreate(%AsyncGeneratorPrototype%).
+    #       b. Perform DefinePropertyOrThrow(F, "prototype", PropertyDescriptor { [[Value]]: prototype,
+    #          [[Writable]]: true, [[Enumerable]]: false, [[Configurable]]: false }).
+    #   37. Else if kind is "normal", perform MakeConstructor(F).
+    #   38. NOTE: Async functions are not constructable and do not have a [[Construct]] internal method or a
+    #       "prototype" property.
+    #   39. Perform SetFunctionName(F, "anonymous").
+    #   40. Return F.
+    assert len(surrounding_agent.ec_stack) >= 2
+    callerContext = surrounding_agent.ec_stack[-2]
+    callerRealm = callerContext.realm
+    calleeRealm = surrounding_agent.running_ec.realm
+    HostEnsureCanCompileStrings(callerRealm, calleeRealm)
+    if newTarget is None:
+        newTarget = constructor
+    if kind == 'normal':
+        goal = 'FunctionBody'
+        parameterGoal = 'FormalParameters'
+        fallbackProto = '%FunctionPrototype%'
+    elif kind == 'generator':
+        goal = 'GeneratorBody'
+        parameterGoal = 'FormalParameters_Yield'
+        fallbackProto = '%Generator%'
+    elif kind == 'async':
+        goal = 'AsyncFunctionBody'
+        parameterGoal = 'FormalParameters_Await'
+        fallbackProto = '%AsyncFunctionPrototype%'
+    else:
+        assert kind == 'async generator'
+        goal = 'AsyncGeneratorBody'
+        parameterGoal = 'FormalParameters_Yield_Await'
+        fallbackProto = '%AsyncGenerator%'
+    argCount = len(args)
+    P = ''
+    if argCount == 0:
+        bodyText = ''
+    elif argCount == 1:
+        bodyText = args[0]
+    else:
+        P = ','.join(ToString(nextArg) for nextArg in args[:-1])
+        bodyText = args[-1]
+    bodyText = ToString(bodyText)
+
+    parameter_parse = Ecma262Parser(start=parameterGoal, source_text=P)
+    plexer = Lexer(P, parameterGoal)
+    try:
+        parameters = parameter_parse.parse(plexer)
+    except ESError as err:
+        raise ESSyntaxError(ToString(err.ecma_object))
+
+    body_parse = Ecma262Parser(start=goal, source_text=bodyText)
+    blexer = Lexer(bodyText, goal)
+    try:
+        body = body_parse.parse(blexer)
+    except ESError as err:
+        raise ESSyntaxError(ToString(err.ecma_object))
+
+    strict = body.ContainsUseStrict()
+    body_early = body.EarlyErrorsScan()
+    if body_early:
+        raise ESError(body_early[0])
+    param_early = parameters.EarlyErrorsScan()
+    if strict:
+        param_early.extend(UniqueFormalParameters_EarlyErrors(parameters))
+    if param_early:
+        raise ESError(param_early[0])
+    if strict and not parameters.IsSimpleParameterList():
+        raise ESSyntaxError('Complex parameter lists not allowed in strict mode')
+    bn = set(parameters.BoundNames())
+    ldn = set(body.LexicallyDeclaredNames())
+    dups = bn.intersection(ldn)
+    if dups:
+        raise ESSyntaxError(f'Parameter identifiers duplicated in body: {", ".join(dups)}')
+    if body.Contains('SuperCall') or parameters.Contains('SuperCall'):
+        raise ESSyntaxError('Eval function may not contain super calls')
+    if any(pn.Contains('SuperProperty') for pn in (body, parameters)):
+        raise ESSyntaxError('Eval function may not contain super properties')
+    if kind in ('generator', 'async generator') and parameters.Contains('YieldExpression'):
+        raise ESSyntaxError('Yield statements not allowed in generators')
+    if kind in ('async', 'async generator') and parameters.Contains('AwaitExpression'):
+        raise ESSyntaxError('Await statements not allowed in async functions')
+    if strict:
+        duplicates = [name for name, count in Counter(parameters.BoundNames()).items() if count > 1]
+        if duplicates:
+            raise ESSyntaxError(f'Duplicate parameter declarations: {", ".join(duplicates)}')
+
+    proto = GetPrototypeFromConstructor(newTarget, fallbackProto)
+    F = FunctionAllocate(proto, strict, kind)
+    realmF = F.Realm
+    scope = realmF.global_env
+    FunctionInitialize(F, NORMAL, parameters, body, scope)
+    if kind == 'generator':
+        prototype = ObjectCreate(surrounding_agent.running_ec.realm['%GeneratorPrototype%'])
+        DefinePropertyOrThrow(F, 'prototype', PropertyDescriptor(value=prototype, writable=True, enumerable=False, configurable=False))
+    elif kind == 'async generator':
+        prototype = ObjectCreate(surrounding_agent.running_ec.realm['%AsyncGeneratorPrototype%'])
+        DefinePropertyOrThrow(F, 'prototype', PropertyDescriptor(value=prototype, writable=True, enumerable=False, configurable=False))
+    elif kind == 'normal':
+        MakeConstructor(F)
+    SetFunctionName(F, 'anonymous')
+    return F
+    # NOTE
+    # A prototype property is created for every non-async function created using CreateDynamicFunction to provide for
+    # the possibility that the function will be used as a constructor.
+
+# 19.2.2 Properties of the Function Constructor
+# The Function constructor:
+#
+# * is itself a built-in function object.
+# * has a [[Prototype]] internal slot whose value is the intrinsic object %FunctionPrototype%.
+
+def CreateFunctionConstructor(realm):
+    obj = CreateBuiltinFunction(FunctionFunction, ['Construct'], realm=realm)
+    for key, value in [('length', 1), ('name', 'Function')]:
+        desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)
+        DefinePropertyOrThrow(obj, key, desc)
+    return obj
+
+def FunctionFixups(realm):
+    constructor = realm.intrinsics['%Function%']
+    prototype = realm.intrinsics['%FunctionPrototype%']
+    DefinePropertyOrThrow(constructor, 'prototype',
+                PropertyDescriptor(value=prototype, writable=False, enumerable=False, configurable=False))
+    DefinePropertyOrThrow(prototype, 'constructor', PropertyDescriptor(value=constructor))
+    return None
+
+def AttachFunctionPrototypeProperties(proto, realm):
+    BindBuiltinFunctions(realm, proto, [
+        ('apply', FunctionPrototype_apply, 2),
+        ('bind', FunctionPrototype_bind, 1),
+        ('call', FunctionPrototype_call, 1),
+        ('toString', FunctionPrototype_toString, 0),
+    ])
+    func = CreateBuiltinFunction(FunctionPrototype_hasInstance, [], realm)
+    DefinePropertyOrThrow(func, 'length', PropertyDescriptor(value=1, writable=False, enumerable=False, configurable=True))
+    DefinePropertyOrThrow(func, 'name', PropertyDescriptor(value='[Symbol.hasInstance]', writable=False, enumerable=False, configurable=False))
+    CreateMethodPropertyOrThrow(proto, wks_has_instance, func)
+
+# 19.2.3.1 Function.prototype.apply ( thisArg, argArray )
+def FunctionPrototype_apply(this_value, new_target, thisArg, argArray, *_):
+    # When the apply method is called on an object func with arguments thisArg and argArray, the following steps are
+    # taken:
+    #
+    #   1. If IsCallable(func) is false, throw a TypeError exception.
+    #   2. If argArray is undefined or null, then
+    #       a. Perform PrepareForTailCall().
+    #       b. Return ? Call(func, thisArg).
+    #   3. Let argList be ? CreateListFromArrayLike(argArray).
+    #   4. Perform PrepareForTailCall().
+    #   5. Return ? Call(func, thisArg, argList).
+    if not IsCallable(this_value):
+        raise ESTypeError("'apply' called as a method of a non-function")
+    if argArray is None or isNull(argArray):
+        PrepareForTailCall()
+        return Call(this_value, thisArg)
+    argList = CreateListFromArrayLike(argArray)
+    PrepareForTailCall()
+    return Call(this_value, thisArg, argList)
+    # NOTE 1
+    # The thisArg value is passed without modification as the this value. This is a change from Edition 3, where an
+    # undefined or null thisArg is replaced with the global object and ToObject is applied to all other values and that
+    # result is passed as the this value. Even though the thisArg is passed without modification, non-strict functions
+    # still perform these transformations upon entry to the function.
+    #
+    # NOTE 2
+    # If func is an arrow function or a bound function then the thisArg will be ignored by the function [[Call]] in
+    # step 5.
+
+# 19.2.3.2 Function.prototype.bind ( thisArg, ...args )
+def FunctionPrototype_bind(this_value, new_target, thisArg, *args):
+    # When the bind method is called with argument thisArg and zero or more args, it performs the following steps:
+    #
+    #   1. Let Target be the this value.
+    #   2. If IsCallable(Target) is false, throw a TypeError exception.
+    #   3. Let args be a new (possibly empty) List consisting of all of the argument values provided after thisArg in
+    #      order.
+    #   4. Let F be ? BoundFunctionCreate(Target, thisArg, args).
+    #   5. Let targetHasLength be ? HasOwnProperty(Target, "length").
+    #   6. If targetHasLength is true, then
+    #       a. Let targetLen be ? Get(Target, "length").
+    #       b. If Type(targetLen) is not Number, let L be 0.
+    #       c. Else,
+    #           i. Let targetLen be ToInteger(targetLen).
+    #           ii. Let L be the larger of 0 and the result of targetLen minus the number of elements of args.
+    #   7. Else, let L be 0.
+    #   8. Perform ! SetFunctionLength(F, L).
+    #   9. Let targetName be ? Get(Target, "name").
+    #   10. If Type(targetName) is not String, let targetName be the empty string.
+    #   11. Perform SetFunctionName(F, targetName, "bound").
+    #   12. Return F.
+    Target = this_value
+    if not IsCallable(Target):
+        raise ESTypeError("'bind' called from non-function")
+    F = BoundFunctionCreate(Target, thisArg, args)
+    if HasOwnProperty(Target, 'length'):
+        targetLen = Get(Target, 'length')
+        if not isNumber(targetLen):
+            L = 0
+        else:
+            targetLen = ToInteger(targetLen)
+            L = max(0, targetLen - len(args))
+    else:
+        L = 0
+    SetFunctionLength(F, L)
+    targetName = Get(Target, 'name')
+    if not isString(targetName):
+        targetName = ''
+    SetFunctionName(F, targetName, 'bound')
+    return F
+    # NOTE 1
+    # Function objects created using Function.prototype.bind are exotic objects. They also do not have a prototype
+    # property.
+    #
+    # NOTE 2
+    # If Target is an arrow function or a bound function then the thisArg passed to this method will not be used by
+    # subsequent calls to F.
+
+# 19.2.3.3 Function.prototype.call ( thisArg, ...args )
+def FunctionPrototype_call(this_value, new_target, thisArg, *args):
+    # When the call method is called on an object func with argument, thisArg and zero or more args, the following
+    # steps are taken:
+    #
+    #   1. If IsCallable(func) is false, throw a TypeError exception.
+    #   2. Let argList be a new empty List.
+    #   3. If this method was called with more than one argument, then in left to right order, starting with the second
+    #      argument, append each argument as the last element of argList.
+    #   4. Perform PrepareForTailCall().
+    #   5. Return ? Call(func, thisArg, argList).
+    if not IsCallable(this_value):
+        raise TypeError("'call' called from a non-function")
+    PrepareForTailCall()
+    Call(this_value, thisArg, args)
+    # NOTE 1
+    # The thisArg value is passed without modification as the this value. This is a change from Edition 3, where an
+    # undefined or null thisArg is replaced with the global object and ToObject is applied to all other values and that
+    # result is passed as the this value. Even though the thisArg is passed without modification, non-strict functions
+    # still perform these transformations upon entry to the function.
+    #
+    # NOTE 2
+    # If func is an arrow function or a bound function then the thisArg will be ignored by the function [[Call]] in
+    # step 5.
+
+# 19.2.3.5 Function.prototype.toString ( )
+def FunctionPrototype_toString(this_value, new_target, *_):
+    # When the toString method is called on an object func, the following steps are taken:
+    #
+    #   1. If func is a Bound Function exotic object, then
+    #       a. Return an implementation-dependent String source code representation of func. The representation must
+    #          conform to the rules below. It is implementation-dependent whether the representation includes bound
+    #          function information or information about the target function.
+    #   2. If Type(func) is Object and is either a built-in function object or has an [[ECMAScriptCode]] internal slot,
+    #      then
+    #       a. Return an implementation-dependent String source code representation of func. The representation must
+    #          conform to the rules below.
+    #   3. Throw a TypeError exception.
+    #
+    # toString Representation Requirements:
+    #
+    # The string representation must have the syntax of a FunctionDeclaration, FunctionExpression,
+    # GeneratorDeclaration, GeneratorExpression, AsyncFunctionDeclaration, AsyncFunctionExpression,
+    # AsyncGeneratorDeclaration, AsyncGeneratorExpression, ClassDeclaration, ClassExpression, ArrowFunction,
+    # AsyncArrowFunction, or MethodDefinition depending upon the actual characteristics of the object.
+    #
+    # The use and placement of white space, line terminators, and semicolons within the representation String is
+    # implementation-dependent.
+    #
+    # If the object was defined using ECMAScript code and the returned string representation is not in the form of a
+    # MethodDefinition or GeneratorMethod then the representation must be such that if the string is evaluated, using
+    # eval in a lexical context that is equivalent to the lexical context used to create the original object, it will
+    # result in a new functionally equivalent object. In that case the returned source code must not mention freely any
+    # variables that were not mentioned freely by the original function's source code, even if these “extra” names were
+    # originally in scope.
+    #
+    # If the implementation cannot produce a source code string that meets these criteria then it must return a string
+    # for which eval will throw a SyntaxError exception.
+
+    # Note: this gets changed around a lot in the next version of ecmascript, so pouring lots into the implementation
+    # here now seems like a poor use of time.
+    return 'function () { [ native code ] }'
+
+# 19.2.3.6 Function.prototype [ @@hasInstance ] ( V )
+def FunctionPrototype_hasInstance(this_value, new_target, V, *_):
+    # When the @@hasInstance method of an object F is called with value V, the following steps are taken:
+    #
+    #   1. Let F be the this value.
+    #   2. Return ? OrdinaryHasInstance(F, V).
+    return OrdinaryHasInstance(this_value, V)
+    # The value of the name property of this function is "[Symbol.hasInstance]".
+    #
+    # This property has the attributes { [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: false }.
+    #
+    # NOTE
+    # This is the default implementation of @@hasInstance that most functions inherit. @@hasInstance is called by the
+    # instanceof operator to determine whether a value is an instance of a specific constructor. An expression such as
+    #
+    # v instanceof F
+    #
+    # evaluates as
+    #
+    # F[@@hasInstance](v)
+    #
+    # A constructor function can control which objects are recognized as its instances by instanceof by exposing a
+    # different @@hasInstance method on the function.
+    #
+    # This property is non-writable and non-configurable to prevent tampering that could be used to globally expose the
+    # target function of a bound function.
+
 
 #####################################################################################################################################################################
 #
@@ -22879,11 +23419,8 @@ def GetGeneratorKind():
 #######################################################################################################################################################
 if __name__ == '__main__':
     try:
-        rv = RunJobs(scripts=["""
-           'use strict';
-           'use extra';
-           'use sunscreen';
-           a=3;
+        rv = RunJobs(scripts=["""'use strict';
+           [1, 2, 3].map(function (x) { return x*2; });
         """])
     except ESError as err:
         InitializeHostDefinedRealm()
