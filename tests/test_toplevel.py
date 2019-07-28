@@ -181,8 +181,7 @@ def cleanup():
     ('Number.isSafeInteger(100);', True),
     ('!Number.isSafeInteger(2**100) && Number.isInteger(2**100);', True),
     ('let result = true; for (exp=50; exp<60; exp++) { num = 2**exp - 1; probe = Number.isSafeInteger(num) === num <= Number.MAX_SAFE_INTEGER; result = result && probe; } result;', True),
-
-
+    ('function fart(literals, ...substitutions) { let result = ""; for (let i=0; i < substitutions.length; i++) { result += literals[i] + "~~"; result += "#" + substitutions[i] + "#"; } result += literals[literals.length-1]; return result; } fart`${100} items are $${100 * 2.50}.` + fart`loopy`;', '~~#100# items are $~~#250#.loopy'),
 ])
 def test_scripts_01(cleanup, script, result):
     rv = RunJobs(scripts=[script])

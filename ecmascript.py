@@ -6208,6 +6208,9 @@ class ArrayObject(JSObject):
         # 4. Return OrdinaryDefineOwnProperty(A, P, Desc).
         return OrdinaryDefineOwnProperty(self, P, Desc)
 
+    def __repr__(self):
+        return f"[{ToString(self)}]"
+
 
 # ------------------------------------ 𝟗.𝟒.𝟐.𝟐 𝑨𝒓𝒓𝒂𝒚𝑪𝒓𝒆𝒂𝒕𝒆 ( 𝒍𝒆𝒏𝒈𝒕𝒉 [ , 𝒑𝒓𝒐𝒕𝒐 ] ) ------------------------------------
 # 9.4.2.2 ArrayCreate ( length [ , proto ] )
@@ -6732,10 +6735,10 @@ def CreateUnmappedArgumentsObject(argumentsList):
     DefinePropertyOrThrow(obj, "length", desc)
     for index, val in enumerate(argumentsList):
         CreateDataProperty(obj, ToString(index), val)
-    arrayproto_values = surrounding_agent.running_ec.intrinsics["%ArrayProto_values%"]
+    arrayproto_values = surrounding_agent.running_ec.realm.intrinsics["%ArrayProto_values%"]
     desc = PropertyDescriptor(value=arrayproto_values, writable=True, enumerable=False, configurable=True)
     DefinePropertyOrThrow(obj, wks_iterator, desc)
-    throw_type_error = surrounding_agent.running_ec.intrinsics["%ThrowTypeError%"]
+    throw_type_error = surrounding_agent.running_ec.realm.intrinsics["%ThrowTypeError%"]
     desc = PropertyDescriptor(Get=throw_type_error, Set=throw_type_error, enumerable=False, configurable=False)
     DefinePropertyOrThrow(obj, "callee", desc)
     return obj
@@ -10056,7 +10059,16 @@ class PN_TemplateLiteral_NOSUBSTITUTIONTEMPLATE(PN_TemplateLiteral):
         #       a. Let string be the TRV of NoSubstitutionTemplate.
         #   3. Return a List containing the single element, string.
         nst = self.NoSubstitutionTemplate
-        return nst.value[raw]
+        return [nst.value[raw]]
+
+    def ArgumentListEvaluation(self):
+        # 12.2.9.3 Runtime Semantics: ArgumentListEvaluation
+        #       TemplateLiteral : NoSubstitutionTemplate
+        #   1. Let templateLiteral be this TemplateLiteral.
+        #   2. Let siteObj be GetTemplateObject(templateLiteral).
+        #   3. Return a List containing the one element which is siteObj.
+        siteObj = GetTemplateObject(self)
+        return [siteObj]
 
     def evaluate(self):
         # 12.2.9.6 Runtime Semantics: Evaluation
@@ -10124,6 +10136,25 @@ class PN_SubstitutionTemplate_TEMPLATEHEAD_Expression_TemplateSpans(PN_Substitut
         result.extend(self.TemplateSpans.TemplateStrings(raw))
         return result
 
+    def ArgumentListEvaluation(self):
+        # 12.2.9.3 Runtime Semantics: ArgumentListEvaluation
+        #       SubstitutionTemplate : TemplateHead Expression TemplateSpans
+        #   1. Let templateLiteral be this TemplateLiteral.
+        #   2. Let siteObj be GetTemplateObject(templateLiteral).
+        #   3. Let firstSubRef be the result of evaluating Expression.
+        #   4. Let firstSub be ? GetValue(firstSubRef).
+        #   5. Let restSub be SubstitutionEvaluation of TemplateSpans.
+        #   6. ReturnIfAbrupt(restSub).
+        #   7. Assert: restSub is a List.
+        #   8. Return a List whose first element is siteObj, whose second elements is firstSub, and whose subsequent
+        #      elements are the elements of restSub, in order. restSub may contain no elements.
+        siteObj = GetTemplateObject(self)
+        firstSubRef = self.Expression.evaluate()
+        firstSub = GetValue(firstSubRef)
+        restSub = self.TemplateSpans.SubstitutionEvaluation()
+        assert isinstance(restSub, list)
+        return [siteObj, firstSub] + restSub
+
     def evaluate(self):
         # 12.2.9.6 Runtime Semantics: Evaluation
         # SubstitutionTemplate : TemplateHead Expression TemplateSpans
@@ -10174,6 +10205,12 @@ class PN_TemplateSpans_TEMPLATETAIL(PN_TemplateSpans):
         #   3. Return a List containing the single element, tail.
         return [self.TemplateTail.value[raw]]
 
+    def SubstitutionEvaluation(self):
+        # 12.2.9.5 Runtime Semantics: SubstitutionEvaluation
+        #       TemplateSpans : TemplateTail
+        #   1. Return a new empty List.
+        return []
+
     def evaluate(self):
         # 12.2.9.6 Runtime Semantics: Evaluation
         # TemplateSpans : TemplateTail
@@ -10204,6 +10241,12 @@ class PN_TemplateSpans_TemplateMiddleList_TEMPLATETAIL(PN_TemplateSpans):
         result = self.TemplateMiddleList.TemplateStrings(raw)
         result.append(self.TemplateTail.value[raw])
         return result
+
+    def SubstitutionEvaluation(self):
+        # 12.2.9.5 Runtime Semantics: SubstitutionEvaluation
+        #       TemplateSpans : TemplateMiddleList TemplateTail
+        #   1. Return the result of SubstitutionEvaluation of TemplateMiddleList.
+        return self.TemplateMiddleList.SubstitutionEvaluation()
 
     def evaluate(self):
         # 12.2.9.6 Runtime Semantics: Evaluation
@@ -10245,7 +10288,7 @@ class PN_TemplateMiddleList_TEMPLATEMIDDLE_Expression(PN_TemplateMiddleList):
 
     @property
     def Expression(self):
-        return self.children[2]
+        return self.children[1]
 
     def TemplateStrings(self, raw):
         # 12.2.9.2 Static Semantics: TemplateStrings
@@ -10257,6 +10300,15 @@ class PN_TemplateMiddleList_TEMPLATEMIDDLE_Expression(PN_TemplateMiddleList):
         #       a. Let string be the TRV of TemplateMiddle.
         #   3. Return a List containing the single element, string.
         return [self.TemplateMiddle.value[raw]]
+
+    def SubstitutionEvaluation(self):
+        # 12.2.9.5 Runtime Semantics: SubstitutionEvaluation
+        #       TemplateMiddleList : TemplateMiddle Expression
+        #   1. Let subRef be the result of evaluating Expression.
+        #   2. Let sub be ? GetValue(subRef).
+        #   3. Return a List containing only sub.
+        sub = GetValue(self.Expression.evaluate())
+        return [sub]
 
     def evaluate(self):
         # 12.2.9.6 Runtime Semantics: Evaluation
@@ -10302,6 +10354,20 @@ class PN_TemplateMiddleList_TemplateMiddleList_TEMPLATEMIDDLE_Expression(PN_Temp
         result.append(self.TemplateMiddle.value[raw])
         return result
 
+    def SubstitutionEvaluation(self):
+        # 12.2.9.5 Runtime Semantics: SubstitutionEvaluation
+        #       TemplateMiddleList : TemplateMiddleList TemplateMiddle Expression
+        #   1. Let preceding be the result of SubstitutionEvaluation of TemplateMiddleList.
+        #   2. ReturnIfAbrupt(preceding).
+        #   3. Let nextRef be the result of evaluating Expression.
+        #   4. Let next be ? GetValue(nextRef).
+        #   5. Append next as the last element of the List preceding.
+        #   6. Return preceding.
+        preceding = self.TemplateMiddleList.SubstitutionEvaluation()
+        nextval = GetValue(self.Expression.evaluate())
+        preceding.append(nextval)
+        return preceding
+
     def evaluate(self):
         # 12.2.9.6 Runtime Semantics: Evaluation
         # TemplateMiddleList : TemplateMiddleList TemplateMiddle Expression
@@ -10319,6 +10385,80 @@ class PN_TemplateMiddleList_TemplateMiddleList_TEMPLATEMIDDLE_Expression(PN_Temp
         # NOTE 2
         # The string conversion semantics applied to the Expression value are like String.prototype.concat rather than
         # the + operator.
+
+
+# 12.2.9.4 Runtime Semantics: GetTemplateObject ( templateLiteral )
+def GetTemplateObject(templateLiteral):
+    # The abstract operation GetTemplateObject is called with a Parse Node, templateLiteral, as an argument. It
+    # performs the following steps:
+    #
+    #   1. Let rawStrings be TemplateStrings of templateLiteral with argument true.
+    #   2. Let realm be the current Realm Record.
+    #   3. Let templateRegistry be realm.[[TemplateMap]].
+    #   4. For each element e of templateRegistry, do
+    #       a. If e.[[Site]] is the same Parse Node as templateLiteral, then
+    #           i. Return e.[[Array]].
+    #   5. Let cookedStrings be TemplateStrings of templateLiteral with argument false.
+    #   6. Let count be the number of elements in the List cookedStrings.
+    #   7. Assert: count ≤ 2^32-1.
+    #   8. Let template be ! ArrayCreate(count).
+    #   9. Let rawObj be ! ArrayCreate(count).
+    #   10. Let index be 0.
+    #   11. Repeat, while index < count
+    #       a. Let prop be ! ToString(index).
+    #       b. Let cookedValue be the String value cookedStrings[index].
+    #       c. Call template.[[DefineOwnProperty]](prop, PropertyDescriptor { [[Value]]: cookedValue,
+    #          [[Writable]]: false, [[Enumerable]]: true, [[Configurable]]: false }).
+    #       d. Let rawValue be the String value rawStrings[index].
+    #       e. Call rawObj.[[DefineOwnProperty]](prop, PropertyDescriptor { [[Value]]: rawValue, [[Writable]]: false,
+    #          [[Enumerable]]: true, [[Configurable]]: false }).
+    #       f. Let index be index+1.
+    #   12. Perform SetIntegrityLevel(rawObj, "frozen").
+    #   13. Call template.[[DefineOwnProperty]]("raw", PropertyDescriptor { [[Value]]: rawObj, [[Writable]]: false,
+    #       [[Enumerable]]: false, [[Configurable]]: false }).
+    #   14. Perform SetIntegrityLevel(template, "frozen").
+    #   15. Append the Record { [[Site]]: templateLiteral, [[Array]]: template } to templateRegistry.
+    #   16. Return template.
+    rawStrings = templateLiteral.TemplateStrings(True)
+    realm = surrounding_agent.running_ec.realm
+    templateRegistry = realm.template_map
+    for site, array in templateRegistry:
+        if site == templateLiteral:
+            return array
+    cookedStrings = templateLiteral.TemplateStrings(False)
+    count = len(cookedStrings)
+    assert count <= 2 ** 32 - 1
+    template = ArrayCreate(count)
+    rawObj = ArrayCreate(count)
+    for index in range(count):
+        prop = ToString(index)
+        cookedValue = cookedStrings[index]
+        template.DefineOwnProperty(
+            prop, PropertyDescriptor(value=cookedValue, writable=False, enumerable=True, configurable=False)
+        )
+        rawValue = rawStrings[index]
+        rawObj.DefineOwnProperty(
+            prop, PropertyDescriptor(value=rawValue, writable=False, enumerable=True, configurable=False)
+        )
+    SetIntegrityLevel(rawObj, "frozen")
+    template.DefineOwnProperty(
+        "raw", PropertyDescriptor(value=rawObj, writable=False, enumerable=False, configurable=False)
+    )
+    SetIntegrityLevel(template, "frozen")
+    templateRegistry.append((templateLiteral, template))
+    return template
+    # NOTE 1
+    # The creation of a template object cannot result in an abrupt completion.
+    #
+    # NOTE 2
+    # Each TemplateLiteral in the program code of a realm is associated with a unique template object that is used in
+    # the evaluation of tagged Templates (12.2.9.6). The template objects are frozen and the same template object is
+    # used each time a specific tagged Template is evaluated. Whether template objects are created lazily upon first
+    # evaluation of the TemplateLiteral or eagerly prior to first evaluation is an implementation choice that is not
+    # observable to ECMAScript code.
+    #
+    # NOTE 3
+    # Future editions of this specification may define additional non-enumerable properties of template objects.
 
 
 ################################################################################################################################################################################################
@@ -10476,6 +10616,33 @@ def MemberDotEvaluation(pn, baseReference):
     bv = RequireObjectCoercible(baseValue)
     propertyNameString = pn.IdentifierName.StringValue()
     return Reference(bv, propertyNameString, pn.strict)
+
+
+class PN_MemberExpression_MemberExpression_TemplateLiteral(PN_MemberExpression_NotPassThru):
+    # 𝑴𝒆𝒎𝒃𝒆𝒓𝑬𝒙𝒑𝒓𝒆𝒔𝒔𝒊𝒐𝒏 : 𝑴𝒆𝒎𝒃𝒆𝒓𝑬𝒙𝒑𝒓𝒆𝒔𝒔𝒊𝒐𝒏 𝑻𝒆𝒎𝒑𝒍𝒂𝒕𝒆𝑳𝒊𝒕𝒆𝒓𝒂𝒍
+    @property
+    def MemberExpression(self):
+        return self.children[0]
+
+    @property
+    def TemplateLiteral(self):
+        return self.children[1]
+
+    def IsValidSimpleAssignmentTarget(self):
+        return False
+
+    def evaluate(self):
+        # 12.3.7.1 Runtime Semantics: Evaluation
+        #           MemberExpression : MemberExpression TemplateLiteral
+        # 1. Let tagRef be the result of evaluating MemberExpression.
+        # 2. Let tagFunc be ? GetValue(tagRef).
+        # 3. Let thisCall be this MemberExpression.
+        # 4. Let tailCall be IsInTailPosition(thisCall).
+        # 5. Return ? EvaluateCall(tagFunc, tagRef, TemplateLiteral, tailCall).
+        tagRef = self.MemberExpression.evaluate()
+        tagFunc = GetValue(tagRef)
+        tailCall = IsInTailPosition(self)
+        return EvaluateCall(tagFunc, tagRef, self.TemplateLiteral, tailCall)
 
 
 # = - = - = - = - = - = - = - = - = NewExpression - = - = - = - = - = - = - = - = - = - = - = - = - = - = - = -
@@ -10733,9 +10900,8 @@ class PN_CallExpression_CallExpression_PERIOD_IdentifierName(PN_CallExpression):
 
 class PN_CallExpression_CallExpression_TemplateLiteral(PN_CallExpression):
     # 𝑪𝒂𝒍𝒍𝑬𝒙𝒑𝒓𝒆𝒔𝒔𝒊𝒐𝒏 : 𝑪𝒂𝒍𝒍𝑬𝒙𝒑𝒓𝒆𝒔𝒔𝒊𝒐𝒏 𝑻𝒆𝒎𝒑𝒍𝒂𝒕𝒆𝑳𝒊𝒕𝒆𝒓𝒂𝒍
-    def __init__(self, ctx, p, tagged=False):
+    def __init__(self, ctx, p):
         super().__init__(ctx, p)
-        self.Tagged = tagged
 
     @property
     def CallExpression(self):
@@ -10745,10 +10911,22 @@ class PN_CallExpression_CallExpression_TemplateLiteral(PN_CallExpression):
     def TemplateLiteral(self):
         return self.children[1]
 
-    def AssignmentTargetType(self):
-        # 12.3.1.6 Static Semantics: AssignmentTargetType
-        #   1. Return invalid.
-        return INVALID
+    def IsValidSimpleAssignmentTarget(self):
+        # 12.3.1.6 Static Semantics: IsValidSimpleAssignmentTarget
+        #   1. Return false.
+        return False
+
+    def evaluate(self):
+        # 12.3.7.1 Runtime Semantics: Evaluation
+        #   1. Let tagRef be the result of evaluating CallExpression.
+        #   2. Let tagFunc be ? GetValue(tagRef).
+        #   3. Let thisCall be this CallExpression.
+        #   4. Let tailCall be IsInTailPosition(thisCall).
+        #   5. Return ? EvaluateCall(tagFunc, tagRef, TemplateLiteral, tailCall).
+        tagRef = self.CallExpression.evaluate()
+        tagFunc = GetValue(tagRef)
+        tailCall = IsInTailPosition(self)
+        return EvaluateCall(tagFunc, tagRef, self.TemplateLiteral, tailCall)
 
 
 class PN_CallMemberExpression_MemberExpression_Arguments(ParseNode):
@@ -23944,7 +24122,7 @@ class Ecma262Parser(Parser):
 
     @_("MemberExpression TemplateLiteral_Tagged")  # pylint: disable=undefined-variable
     def MemberExpression(self, p):
-        return PN_MemberExpression_MemberExpression_TemplateLiteral(self.context, p, tagged=True)
+        return PN_MemberExpression_MemberExpression_TemplateLiteral(self.context, p)
 
     @_("NEW MemberExpression Arguments")  # pylint: disable=undefined-variable
     def MemberExpression(self, p):
@@ -23964,7 +24142,7 @@ class Ecma262Parser(Parser):
 
     @_("MemberExpression_Restricted TemplateLiteral_Tagged")  # pylint: disable=undefined-variable
     def MemberExpression_Restricted(self, p):
-        return PN_MemberExpression_MemberExpression_TemplateLiteral(self.context, p, tagged=True)
+        return PN_MemberExpression_MemberExpression_TemplateLiteral(self.context, p)
 
     @_("NEW MemberExpression Arguments")  # pylint: disable=undefined-variable
     def MemberExpression_Restricted(self, p):
@@ -23984,7 +24162,7 @@ class Ecma262Parser(Parser):
 
     @_("MemberExpression_Yield TemplateLiteral_Yield_Tagged")  # pylint: disable=undefined-variable
     def MemberExpression_Yield(self, p):
-        return PN_MemberExpression_MemberExpression_TemplateLiteral(self.context, p, tagged=True)
+        return PN_MemberExpression_MemberExpression_TemplateLiteral(self.context, p)
 
     @_("NEW MemberExpression_Yield Arguments_Yield")  # pylint: disable=undefined-variable
     def MemberExpression_Yield(self, p):
@@ -24004,7 +24182,7 @@ class Ecma262Parser(Parser):
 
     @_("MemberExpression_Yield_Restricted TemplateLiteral_Yield_Tagged")  # pylint: disable=undefined-variable
     def MemberExpression_Yield_Restricted(self, p):
-        return PN_MemberExpression_MemberExpression_TemplateLiteral(self.context, p, tagged=True)
+        return PN_MemberExpression_MemberExpression_TemplateLiteral(self.context, p)
 
     @_("NEW MemberExpression_Yield Arguments_Yield")  # pylint: disable=undefined-variable
     def MemberExpression_Yield_Restricted(self, p):
@@ -24086,7 +24264,7 @@ class Ecma262Parser(Parser):
 
     @_("CallExpression TemplateLiteral_Tagged")  # pylint: disable=undefined-variable
     def CallExpression(self, p):
-        return PN_CallExpression_CallExpression_TemplateLiteral(self.context, p, tagged=True)
+        return PN_CallExpression_CallExpression_TemplateLiteral(self.context, p)
 
     @_("CoverCallExpressionAndAsyncArrowHead_Restricted")  # pylint: disable=undefined-variable
     def CallExpression_Restricted(self, p):
@@ -24110,7 +24288,7 @@ class Ecma262Parser(Parser):
 
     @_("CallExpression_Restricted TemplateLiteral_Tagged")  # pylint: disable=undefined-variable
     def CallExpression_Restricted(self, p):
-        return PN_CallExpression_CallExpression_TemplateLiteral(self.context, p, tagged=True)
+        return PN_CallExpression_CallExpression_TemplateLiteral(self.context, p)
 
     @_("CoverCallExpressionAndAsyncArrowHead_Yield")  # pylint: disable=undefined-variable
     def CallExpression_Yield(self, p):
@@ -24134,7 +24312,7 @@ class Ecma262Parser(Parser):
 
     @_("CallExpression_Yield TemplateLiteral_Yield_Tagged")  # pylint: disable=undefined-variable
     def CallExpression_Yield(self, p):
-        return PN_CallExpression_CallExpression_TemplateLiteral(self.context, p, tagged=True)
+        return PN_CallExpression_CallExpression_TemplateLiteral(self.context, p)
 
     @_("CoverCallExpressionAndAsyncArrowHead_Yield_Restricted")  # pylint: disable=undefined-variable
     def CallExpression_Yield_Restricted(self, p):
@@ -24158,7 +24336,7 @@ class Ecma262Parser(Parser):
 
     @_("CallExpression_Yield_Restricted TemplateLiteral_Yield_Tagged")  # pylint: disable=undefined-variable
     def CallExpression_Yield_Restricted(self, p):
-        return PN_CallExpression_CallExpression_TemplateLiteral(self.context, p, tagged=True)
+        return PN_CallExpression_CallExpression_TemplateLiteral(self.context, p)
 
     #
     # CallMemberExpression[Yield, Await] :
@@ -30182,8 +30360,20 @@ if __name__ == "__main__":
             result += '-' + z.value;
         }
         """
+        script_tagged = """
+        function fart(literals, ...substitutions) {
+            let result = "";
+            for (let i=0; i < substitutions.length; i++) {
+                result += literals[i] + '~~';
+                result += '#' + substitutions[i] + '#';
+            }
+            result += literals[literals.length-1];
+            return result;
+        }
+        fart`${100} items are $${100 * 2.50}.` + fart`loopy`;
+        """
         script_verysimple = "3;"
-        rv = RunJobs(scripts=[script_generator])
+        rv = RunJobs(scripts=[script_tagged])
     except ESError as err:
         InitializeHostDefinedRealm()
         print(err)
