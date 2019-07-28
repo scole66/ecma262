@@ -3,5 +3,6 @@ pylint
 pytest-cov
 pytest-mock
 pyyaml
+black
 
 python-dateutil
