@@ -1,7 +1,29 @@
 import pytest
 import re
 
-import ecmascript
+import ecmascript.ecmascript as ecmascript
+
+
+@pytest.mark.parametrize(
+    "intrinsic_name, error_type",
+    [
+        ("ReferenceError", ReferenceError),
+        ("TypeError", TypeError),
+        ("SyntaxError", SyntaxError),
+        ("RangeError", ArithmeticError),
+    ],
+)
+def test_CreateErrorObject_01(intrinsic_name, error_type):
+    # Here, realm is not defined, so we should be able to get the raw python errors.
+    rv = ecmascript.CreateErrorObject("test message", f"%{intrinsic_name}%")
+    assert isinstance(rv, error_type)
+
+
+@pytest.mark.parametrize("intrinsic_name", ["ReferenceError", "TypeError", "SyntaxError", "RangeError"])
+def test_CreateErrorObject_02(realm, intrinsic_name):
+    rv = ecmascript.CreateErrorObject("test message", f"%{intrinsic_name}%")
+    assert ecmascript.isObject(rv)
+    assert ecmascript.ToString(rv) == f"{intrinsic_name}: test message"
 
 
 def test_CreateReferenceError_01(realm):
@@ -60,7 +82,7 @@ def test_ESRangeError_01(realm):
 
 
 def test_ESAbrupt_01(realm):
-    completion = ecmascript.ESAbrupt()
+    completion = ecmascript.ESAbrupt(ecmascript.CompletionType.THROW)
     assert completion.completion == ecmascript.Completion(
         ecmascript.CompletionType.THROW, ecmascript.Empty.EMPTY, ecmascript.Empty.EMPTY
     )

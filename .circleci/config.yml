@@ -8,7 +8,7 @@ jobs:
     docker:
       # specify the version you desire here
       # use `-browsers` prefix for selenium tests, e.g. `3.6.1-browsers`
-      - image: circleci/python:3.6.1
+      - image: circleci/python:3.7.4
 
       # Specify service dependencies here if necessary
       # CircleCI maintains a library of pre-built images
@@ -51,7 +51,7 @@ jobs:
           command: |
             . venv/bin/activate
             mkdir test-reports
-            black -l 120 --check *.py tests/*.py
+            black -l 120 --check ecmascript/*.py tests/*.py
             pytest --junitxml=test-reports/junit.xml
 
       - store_test_results:

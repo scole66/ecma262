@@ -1,7 +1,7 @@
 import pytest
 from itertools import chain
 
-import ecmascript
+import ecmascript.ecmascript
 
 # 6.2.7.1 CreateByteDataBlock ( size )
 # When the abstract operation CreateByteDataBlock is called with integer argument size, the following steps are
@@ -14,7 +14,7 @@ import ecmascript
 #   4. Return db.
 @pytest.mark.parametrize("testlen", [10, 100, 0])
 def test_CreateByteDataBlock_01(testlen):
-    res = ecmascript.CreateByteDataBlock(testlen)
+    res = ecmascript.ecmascript.CreateByteDataBlock(testlen)
 
     assert len(res) == testlen
     assert all(res[i] == 0 for i in range(testlen))
@@ -23,8 +23,8 @@ def test_CreateByteDataBlock_01(testlen):
 # 6.2.7.3 CopyDataBlockBytes ( toBlock, toIndex, fromBlock, fromIndex, count )
 @pytest.fixture
 def test_blocks():
-    toBlock = ecmascript.CreateByteDataBlock(100)
-    fromBlock = ecmascript.CreateByteDataBlock(100)
+    toBlock = ecmascript.ecmascript.CreateByteDataBlock(100)
+    fromBlock = ecmascript.ecmascript.CreateByteDataBlock(100)
 
     for i in range(100):
         toBlock[i] = i
@@ -44,9 +44,9 @@ def test_blocks():
 )
 def test_CopyDataBlockBytes_01(test_blocks, to_index, from_index, count, expected):
     to_block, from_block = test_blocks
-    res = ecmascript.CopyDataBlockBytes(to_block, to_index, from_block, from_index, count)
+    res = ecmascript.ecmascript.CopyDataBlockBytes(to_block, to_index, from_block, from_index, count)
 
-    assert res == ecmascript.EMPTY
+    assert res == ecmascript.ecmascript.EMPTY
     assert len(to_block) == 100
     assert len(from_block) == 100
     assert all(to_val == expected_val for to_val, expected_val in zip(to_block, expected))

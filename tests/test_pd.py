@@ -1,8 +1,8 @@
 # pylint: disable=unused-wildcard-import
 import pytest
 
-import ecmascript  # We need to do the import for the mocker plugin to work
-from ecmascript import *
+import ecmascript.ecmascript  # We need to do the import for the mocker plugin to work
+from ecmascript.ecmascript import *
 
 
 @pytest.fixture

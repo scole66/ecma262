@@ -6,7 +6,7 @@ import pytest
 import math
 
 # pylint: disable=unused-wildcard-import
-from ecmascript import *
+from ecmascript.ecmascript import *
 
 
 @pytest.fixture
