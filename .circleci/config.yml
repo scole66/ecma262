@@ -49,6 +49,7 @@ jobs:
           command: |
             . venv/bin/activate
             mkdir test-reports
+            black -l 120 --check *.py tests/*.py
             pytest --junitxml=test-reports/junit.xml
 
       - store_test_results:
