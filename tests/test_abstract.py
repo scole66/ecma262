@@ -625,6 +625,24 @@ def test_ToPropertyKey_03(realm, mocker):
     with pytest.raises(ESTypeError):
         ToPropertyKey('a')
 
+# 7.1.15 ToLength ( argument )
+# The abstract operation ToLength converts argument to an integer suitable for use as the length of an array-like
+# object. It performs the following steps:
+#
+# 1. Let len be ? ToInteger(argument).
+# 2. If len ≤ +0, return +0.
+# 3. Return min(len, 2^53-1).
+@pytest.mark.parametrize('inp, expected', [
+    (10, 10),
+    (-10, 0),
+    (2**53-1, 2**53-1),
+    (2**53, 2**53-1)
+])
+def test_ToLength_01(realm, inp, expected):
+    result = ToLength(inp)
+    assert result == expected
+
+
 # 7.2.1 RequireObjectCoercible ( argument )
 #
 # The abstract operation RequireObjectCoercible throws an error if argument is a value that cannot be converted to an
