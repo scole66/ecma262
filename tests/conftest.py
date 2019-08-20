@@ -6,6 +6,7 @@
 import pytest
 from ecmascript import InitializeHostDefinedRealm, surrounding_agent
 
+
 @pytest.fixture
 def realm():
     InitializeHostDefinedRealm()
