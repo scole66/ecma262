@@ -7,6 +7,7 @@ import pytest
 
 import ecmascript
 
+
 def test_Await():
     with pytest.raises(NotImplementedError):
-        ecmascript.Await('arg')
+        ecmascript.Await("arg")
