@@ -757,6 +757,30 @@ def test_ToLength_01(realm, inp, expected):
     assert result == expected
 
 
+# 7.1.17 ToIndex ( value )
+# The abstract operation ToIndex returns value argument converted to a numeric value if it is a valid integer index
+# value. This abstract operation functions as follows:
+#
+#   1. If value is undefined, then
+#       a. Let index be 0.
+#   2. Else,
+#       a. Let integerIndex be ? ToInteger(value).
+#       b. If integerIndex < 0, throw a RangeError exception.
+#       c. Let index be ! ToLength(integerIndex).
+#       d. If SameValueZero(integerIndex, index) is false, throw a RangeError exception.
+#   3. Return index.
+class Test_ToIndex:
+    @pytest.mark.parametrize("inp, expected", [(None, 0), (10, 10), (0, 0), (10.33, 10)])
+    def test_ToIndex_normal(self, realm, inp, expected):
+        rv = ToIndex(inp)
+        assert rv == expected
+
+    @pytest.mark.parametrize("inp", [-1, 55e55])
+    def test_ToIndex_errors(self, realm, inp):
+        with pytest.raises(ESRangeError):
+            ToIndex(inp)
+
+
 # 7.2.1 RequireObjectCoercible ( argument )
 #
 # The abstract operation RequireObjectCoercible throws an error if argument is a value that cannot be converted to an
