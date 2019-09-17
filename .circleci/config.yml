@@ -32,7 +32,9 @@ jobs:
           command: |
             python3 -m venv venv
             . venv/bin/activate
-            pip install -r requirements.txt
+            pip install --upgrade pip
+            pip install pip-tools
+            pip-sync
 
       - save_cache:
           paths:
