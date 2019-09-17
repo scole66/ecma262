@@ -874,6 +874,40 @@ def test_IsArray_06(obj):
     assert res == False
 
 
+# 7.2.11 SameValueZero ( x, y )
+# The internal comparison abstract operation SameValueZero(x, y), where x and y are ECMAScript language values,
+# produces true or false. Such a comparison is performed as follows:
+#
+#   1. If Type(x) is different from Type(y), return false.
+#   2. If Type(x) is Number, then
+#       a. If x is NaN and y is NaN, return true.
+#       b. If x is +0 and y is -0, return true.
+#       c. If x is -0 and y is +0, return true.
+#       d. If x is the same Number value as y, return true.
+#       e. Return false.
+#   3. Return SameValueNonNumber(x, y).
+class Test_SameValueZero:
+    @pytest.mark.parametrize(
+        "x, y, expected",
+        [
+            ("string", 67, False),
+            (math.nan, math.nan, True),
+            (0, -0.0, True),
+            (-0.0, 0, True),
+            (22, 22, True),
+            (78, 899, False),
+        ],
+    )
+    def test_SameValueZero_simple(self, realm, x, y, expected):
+        rv = SameValueZero(x, y)
+        assert rv == expected
+
+    def test_SameValueZero_nonnumber(self, realm, mocker):
+        svnn = mocker.patch("ecmascript.SameValueNonNumber")
+        SameValueZero("this", "that")
+        svnn.assert_called_once_with("this", "that")
+
+
 # 7.2.13 Abstract Relational Comparison
 # The comparison x < y, where x and y are values, produces true, false, or undefined (which indicates that at least one
 # operand is NaN). In addition to x and y the algorithm takes a Boolean flag named LeftFirst as a parameter. The flag
