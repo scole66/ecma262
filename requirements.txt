@@ -10,25 +10,25 @@ atomicwrites==1.3.0       # via pytest
 attrs==19.1.0             # via black, pytest
 black==19.3b0
 click==7.0                # via black
-coverage==4.5.3           # via pytest-cov
-importlib-metadata==0.17  # via pluggy, pytest
-isort==4.3.20             # via pylint
-lazy-object-proxy==1.4.1  # via astroid
+coverage==4.5.4           # via pytest-cov
+importlib-metadata==0.23  # via pluggy, pytest
+isort==4.3.21             # via pylint
+lazy-object-proxy==1.4.2  # via astroid
 mccabe==0.6.1             # via pylint
-more-itertools==7.0.0     # via pytest
-packaging==19.0           # via pytest
-pluggy==0.12.0            # via pytest
+more-itertools==7.2.0     # via pytest, zipp
+packaging==19.2           # via pytest
+pluggy==0.13.0            # via pytest
 py==1.8.0                 # via pytest
 pylint==2.3.1
-pyparsing==2.4.0          # via packaging
+pyparsing==2.4.2          # via packaging
 pytest-cov==2.7.1
 pytest-mock==1.10.4
-pytest==4.6.2
+pytest==5.1.2
 python-dateutil==2.8.0
-pyyaml==5.1.1
-six==1.12.0               # via astroid, packaging, pytest, python-dateutil
+pyyaml==5.1.2
+six==1.12.0               # via astroid, packaging, python-dateutil
 toml==0.10.0              # via black
 typed-ast==1.4.0          # via astroid
 wcwidth==0.1.7            # via pytest
-wrapt==1.11.1             # via astroid
-zipp==0.5.1               # via importlib-metadata
+wrapt==1.11.2             # via astroid
+zipp==0.6.0               # via importlib-metadata
