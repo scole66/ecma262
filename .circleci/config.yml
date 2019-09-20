@@ -25,7 +25,7 @@ jobs:
           keys:
             - v1-dependencies-{{ checksum "requirements.txt" }}
             # fallback to using the latest cache if no exact match is found
-            - v1-dependencies-
+            # - v1-dependencies-
 
       - run:
           name: install dependencies
@@ -33,7 +33,7 @@ jobs:
             python3 -m venv venv
             . venv/bin/activate
             pip install --upgrade pip
-            pip install pip-tools
+            pip install --upgrade pip-tools
             pip-sync
 
       - save_cache:
