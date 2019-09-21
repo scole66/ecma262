@@ -1679,3 +1679,60 @@ class Test_CreateListFromArrayLike:
         _, o = vals_obj
         with pytest.raises(ESTypeError):
             CreateListFromArrayLike(o, [JSType.NUMBER, JSType.STRING])
+
+
+# 7.3.19 OrdinaryHasInstance ( C, O )
+# The abstract operation OrdinaryHasInstance implements the default algorithm for determining if an object O inherits from
+# the instance object inheritance path provided by constructor C. This abstract operation performs the following steps:
+#
+# 1. If IsCallable(C) is false, return false.
+# 2. If C has a [[BoundTargetFunction]] internal slot, then
+#   a. Let BC be C.[[BoundTargetFunction]].
+#   b. Return ? InstanceofOperator(O, BC).
+# 3. If Type(O) is not Object, return false.
+# 4. Let P be ? Get(C, "prototype").
+# 5. If Type(P) is not Object, throw a TypeError exception.
+# 6. Repeat,
+#   a. Set O to ? O.[[GetPrototypeOf]]().
+#   b. If O is null, return false.
+#   c. If SameValue(P, O) is true, return true.
+class Test_OrdinaryHasInstance:
+    def test_notcallable(self, mocker):
+        iscallable = mocker.patch("ecmascript.IsCallable", return_value=False)
+        rv = OrdinaryHasInstance(10, 11)
+        iscallable.assert_called_with(10)
+        assert rv == False
+
+    def test_boundtarget(self, realm, mocker):
+        mocker.patch("ecmascript.IsCallable", return_value=True)
+        instanceofop = mocker.patch("ecmascript.InstanceofOperator", return_value=100)
+        obj = ObjectCreate(realm.intrinsics["%ObjectPrototype%"], ["BoundTargetFunction"])
+        obj.BoundTargetFunction = "myfunc"
+
+        rv = OrdinaryHasInstance(obj, "other")
+        instanceofop.assert_called_with("other", "myfunc")
+        assert rv == 100
+
+    def test_notobj(self, mocker, realm):
+        mocker.patch("ecmascript.IsCallable", return_value=True)
+        C = ObjectCreate(realm.intrinsics["%ObjectPrototype%"])
+        rv = OrdinaryHasInstance(C, "a string")
+        assert rv == False
+
+    def test_badproto(self, mocker, realm):
+        mocker.patch("ecmascript.IsCallable", return_value=True)
+        C = ObjectCreate(realm.intrinsics["%ObjectPrototype%"])
+        O = ObjectCreate(realm.intrinsics["%ObjectPrototype%"])
+        CreateDataPropertyOrThrow(C, "prototype", 10)
+        with pytest.raises(ESTypeError):
+            OrdinaryHasInstance(C, O)
+
+    def test_ordinary_true(self, realm):
+        O = ObjectCreate(realm.intrinsics["%ObjectPrototype%"])
+        rv = OrdinaryHasInstance(realm.intrinsics["%Object%"], O)
+        assert rv
+
+    def test_ordinary_false(self, realm):
+        O = ObjectCreate(realm.intrinsics["%ObjectPrototype%"])
+        rv = OrdinaryHasInstance(realm.intrinsics["%Array%"], O)
+        assert not rv
