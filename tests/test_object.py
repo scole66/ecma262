@@ -1628,3 +1628,54 @@ def test_CreateArrayFromList_01(realm, lst):
     assert Get(ary, "length") == len(lst)
     for idx, value in enumerate(lst):
         assert Get(ary, ToString(idx)) == value
+
+
+# 7.3.17 CreateListFromArrayLike ( obj [ , elementTypes ] )
+# The abstract operation CreateListFromArrayLike is used to create a List value whose elements are provided by the
+# indexed properties of an array-like object, obj. The optional argument elementTypes is a List containing the
+# names of ECMAScript Language Types that are allowed for element values of the List that is created. This abstract
+# operation performs the following steps:
+#
+#   1. If elementTypes is not present, set elementTypes to « Undefined, Null, Boolean, String, Symbol, Number,
+#      Object ».
+#   2. If Type(obj) is not Object, throw a TypeError exception.
+#   3. Let len be ? ToLength(? Get(obj, "length")).
+#   4. Let list be a new empty List.
+#   5. Let index be 0.
+#   6. Repeat, while index < len
+#       a. Let indexName be ! ToString(index).
+#       b. Let next be ? Get(obj, indexName).
+#       c. If Type(next) is not an element of elementTypes, throw a TypeError exception.
+#       d. Append next as the last element of list.
+#       e. Set index to index + 1.
+#   7. Return list.
+class Test_CreateListFromArrayLike:
+    def test_nonobject(self, realm):
+        with pytest.raises(ESTypeError):
+            CreateListFromArrayLike("just a string")
+
+    def test_empty(self, realm):
+        o = ObjectCreate(realm.intrinsics["%ObjectPrototype%"])
+        CreateDataPropertyOrThrow(o, "length", 0)
+
+        lst = CreateListFromArrayLike(o)
+        assert lst == []
+
+    @pytest.fixture
+    def vals_obj(self, realm):
+        o = ObjectCreate(realm.intrinsics["%ObjectPrototype%"])
+        vals = ["this", 67.0, True, JSNull.NULL, None, o, wks_has_instance]
+        for idx, v in enumerate(vals):
+            CreateDataPropertyOrThrow(o, str(idx), v)
+        CreateDataPropertyOrThrow(o, "length", len(vals))
+        return (vals, o)
+
+    def test_ordinary(self, vals_obj):
+        vals, o = vals_obj
+        lst = CreateListFromArrayLike(o)
+        assert lst == vals
+
+    def test_restricted(self, vals_obj):
+        _, o = vals_obj
+        with pytest.raises(ESTypeError):
+            CreateListFromArrayLike(o, [JSType.NUMBER, JSType.STRING])
