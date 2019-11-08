@@ -5,3 +5,5 @@ __pycache__
 .pytest_cache
 /parser.out
 .idea
+.mypy_cache/
+*.pyc

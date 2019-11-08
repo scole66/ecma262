@@ -1,6 +1,6 @@
 import pytest
 
-from ecmascript import SymbolDescriptiveString, JSSymbol
+from ecmascript.ecmascript import SymbolDescriptiveString, JSSymbol
 
 
 @pytest.mark.parametrize("inp, expected", [("", "Symbol()"), ("word", "Symbol(word)"), (None, "Symbol()")])

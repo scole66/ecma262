@@ -4,8 +4,8 @@ from itertools import zip_longest
 
 import pytest
 
-from ecmascript import *
-import ecmascript  # Need it this way for the mocker fixture
+from ecmascript.ecmascript import *
+import ecmascript.ecmascript  # Need it this way for the mocker fixture
 
 
 @pytest.fixture
@@ -1146,7 +1146,7 @@ def test_GetV_02(realm):
 
 def test_GetV_03(realm, mocker):
     # Error path from ToObject
-    mocker.patch("ecmascript.ToObject", side_effect=ESTypeError)
+    mocker.patch("ecmascript.ecmascript.ToObject", side_effect=ESTypeError)
     with pytest.raises(ESTypeError):
         GetV(True, "constructor")
 
@@ -1207,17 +1207,21 @@ def test_CreateMethodProperty_01(obj, mocker):
 #    If CreateDataProperty returns False, CreateDataPropertyOrThrow should return a TypeError
 #    Otheriwise, CreateDataProperty returns True
 def test_CreateDataPropertyOrThrow_01(obj, mocker):
-    mocker.patch("ecmascript.CreateDataProperty", return_value=True)
+    mocker.patch("ecmascript.ecmascript.CreateDataProperty", return_value=True)
     res = CreateDataPropertyOrThrow(obj, "propkey", "fudge")
-    assert ecmascript.CreateDataProperty.called_once_with(obj, "propkey", "fudge")  # pylint: disable=no-member
+    assert ecmascript.ecmascript.CreateDataProperty.called_once_with(
+        obj, "propkey", "fudge"
+    )  # pylint: disable=no-member
     assert res == True
 
 
 def test_CreateDataPropertyOrThrow_02(obj, mocker):
-    mocker.patch("ecmascript.CreateDataProperty", return_value=False)
+    mocker.patch("ecmascript.ecmascript.CreateDataProperty", return_value=False)
     with pytest.raises(ESTypeError):
         CreateDataPropertyOrThrow(obj, "propkey", "fudge")
-    assert ecmascript.CreateDataProperty.called_once_with(obj, "propkey", "fudge")  # pylint: disable=no-member
+    assert ecmascript.ecmascript.CreateDataProperty.called_once_with(
+        obj, "propkey", "fudge"
+    )  # pylint: disable=no-member
 
 
 # CreateMethodPropertyOrThrow(O, P, V)
@@ -1225,17 +1229,21 @@ def test_CreateDataPropertyOrThrow_02(obj, mocker):
 #    If CreateMethodProperty returns False, CreateMethodPropertyOrThrow should return a TypeError
 #    Otheriwise, CreateMethodProperty returns True
 def test_CreateMethodPropertyOrThrow_01(obj, mocker):
-    mocker.patch("ecmascript.CreateMethodProperty", return_value=True)
+    mocker.patch("ecmascript.ecmascript.CreateMethodProperty", return_value=True)
     res = CreateMethodPropertyOrThrow(obj, "propkey", "fudge")
-    assert ecmascript.CreateMethodProperty.called_once_with(obj, "propkey", "fudge")  # pylint: disable=no-member
+    assert ecmascript.ecmascript.CreateMethodProperty.called_once_with(
+        obj, "propkey", "fudge"
+    )  # pylint: disable=no-member
     assert res == True
 
 
 def test_CreateMethodPropertyOrThrow_02(obj, mocker):
-    mocker.patch("ecmascript.CreateMethodProperty", return_value=False)
+    mocker.patch("ecmascript.ecmascript.CreateMethodProperty", return_value=False)
     with pytest.raises(ESTypeError):
         CreateMethodPropertyOrThrow(obj, "propkey", "fudge")
-    assert ecmascript.CreateMethodProperty.called_once_with(obj, "propkey", "fudge")  # pylint: disable=no-member
+    assert ecmascript.ecmascript.CreateMethodProperty.called_once_with(
+        obj, "propkey", "fudge"
+    )  # pylint: disable=no-member
 
 
 # 7.3.7 DefinePropertyOrThrow ( O, P, desc )
@@ -1293,7 +1301,7 @@ def test_GetMethod_03(obj):
 
 
 def test_GetMethod_04(obj, mocker):
-    mocker.patch("ecmascript.GetV", side_effect=ESTypeError)
+    mocker.patch("ecmascript.ecmascript.GetV", side_effect=ESTypeError)
     with pytest.raises(ESTypeError):
         GetMethod(obj, "something")
 
@@ -1698,14 +1706,14 @@ class Test_CreateListFromArrayLike:
 #   c. If SameValue(P, O) is true, return true.
 class Test_OrdinaryHasInstance:
     def test_notcallable(self, mocker):
-        iscallable = mocker.patch("ecmascript.IsCallable", return_value=False)
+        iscallable = mocker.patch("ecmascript.ecmascript.IsCallable", return_value=False)
         rv = OrdinaryHasInstance(10, 11)
         iscallable.assert_called_with(10)
         assert rv == False
 
     def test_boundtarget(self, realm, mocker):
-        mocker.patch("ecmascript.IsCallable", return_value=True)
-        instanceofop = mocker.patch("ecmascript.InstanceofOperator", return_value=100)
+        mocker.patch("ecmascript.ecmascript.IsCallable", return_value=True)
+        instanceofop = mocker.patch("ecmascript.ecmascript.InstanceofOperator", return_value=100)
         obj = ObjectCreate(realm.intrinsics["%ObjectPrototype%"], ["BoundTargetFunction"])
         obj.BoundTargetFunction = "myfunc"
 
@@ -1714,13 +1722,13 @@ class Test_OrdinaryHasInstance:
         assert rv == 100
 
     def test_notobj(self, mocker, realm):
-        mocker.patch("ecmascript.IsCallable", return_value=True)
+        mocker.patch("ecmascript.ecmascript.IsCallable", return_value=True)
         C = ObjectCreate(realm.intrinsics["%ObjectPrototype%"])
         rv = OrdinaryHasInstance(C, "a string")
         assert rv == False
 
     def test_badproto(self, mocker, realm):
-        mocker.patch("ecmascript.IsCallable", return_value=True)
+        mocker.patch("ecmascript.ecmascript.IsCallable", return_value=True)
         C = ObjectCreate(realm.intrinsics["%ObjectPrototype%"])
         O = ObjectCreate(realm.intrinsics["%ObjectPrototype%"])
         CreateDataPropertyOrThrow(C, "prototype", 10)

@@ -1,9 +1,10 @@
 import pytest
 import math
+from itertools import permutations
 
 # pylint: disable=unused-wildcard-import
-import ecmascript  # Need it this way for the mocker fixture
-from ecmascript import *
+import ecmascript.ecmascript as e  # Need it this way for the mocker fixture
+from ecmascript.ecmascript import *
 
 
 @pytest.fixture
@@ -262,7 +263,7 @@ def test_ToNumber_04(obj):
 
 def test_ToNumber_05(obj, mocker):
     # When ToPrimitive throws an error
-    mocker.patch("ecmascript.ToPrimitive", side_effect=ESTypeError("throw test"))
+    mocker.patch("ecmascript.ecmascript.ToPrimitive", side_effect=ESTypeError("throw test"))
 
     with pytest.raises(ESTypeError):
         ToNumber(obj)
@@ -492,7 +493,7 @@ def test_ToString_symbol(realm):
 
 def test_ToString_03(mocker, obj):
     # Input is an object, and ToPrimitive throws.
-    mocker.patch("ecmascript.ToPrimitive", side_effect=ESTypeError)
+    mocker.patch("ecmascript.ecmascript.ToPrimitive", side_effect=ESTypeError)
     with pytest.raises(ESTypeError):
         ToString(obj)
 
@@ -739,7 +740,7 @@ def test_ToPropertyKey_02():
 
 
 def test_ToPropertyKey_03(realm, mocker):
-    mocker.patch("ecmascript.ToPrimitive", side_effect=ESTypeError)
+    mocker.patch("ecmascript.ecmascript.ToPrimitive", side_effect=ESTypeError)
     with pytest.raises(ESTypeError):
         ToPropertyKey("a")
 
@@ -903,7 +904,7 @@ class Test_SameValueZero:
         assert rv == expected
 
     def test_SameValueZero_nonnumber(self, realm, mocker):
-        svnn = mocker.patch("ecmascript.SameValueNonNumber")
+        svnn = mocker.patch("ecmascript.ecmascript.SameValueNonNumber")
         SameValueZero("this", "that")
         svnn.assert_called_once_with("this", "that")
 
@@ -962,22 +963,22 @@ from unittest.mock import call
 
 def test_AbstractRelationalComparison_01(mocker):
     # LeftFirst True: make sure we evaluate the left arg before the right arg.
-    mocker.patch("ecmascript.ToPrimitive", side_effect=lambda a, b: a)
+    mocker.patch("ecmascript.ecmascript.ToPrimitive", side_effect=lambda a, b: a)
     res = AbstractRelationalComparison(10, 20, True)
 
     # assert the order
-    ecmascript.ToPrimitive.assert_has_calls([call(10, "number"), call(20, "number")])  # pylint: disable=no-member
+    e.ToPrimitive.assert_has_calls([call(10, "number"), call(20, "number")])  # pylint: disable=no-member
     # and check the result, just because
     assert res == True
 
 
 def test_AbstractRelationalComparison_02(mocker):
     # LeftFirst False: make sure we evaluate the right arg before the left arg
-    mocker.patch("ecmascript.ToPrimitive", side_effect=lambda a, b: a)
+    mocker.patch("ecmascript.ecmascript.ToPrimitive", side_effect=lambda a, b: a)
     res = AbstractRelationalComparison(10, 20, False)
 
     # assert the order
-    ecmascript.ToPrimitive.assert_has_calls([call(20, "number"), call(10, "number")])  # pylint: disable=no-member
+    e.ToPrimitive.assert_has_calls([call(20, "number"), call(10, "number")])  # pylint: disable=no-member
     assert res == True
 
 
@@ -1016,7 +1017,7 @@ def test_AbstractRelationalComparison_04(realm, mocker, left, right, lrf):
         else:
             raise ESTypeError("err thrown")
 
-    mocker.patch("ecmascript.ToPrimitive", side_effect=mocked_tp)
+    mocker.patch("ecmascript.ecmascript.ToPrimitive", side_effect=mocked_tp)
     with pytest.raises(ESTypeError):
         AbstractRelationalComparison(left, right, lrf)
 
@@ -1029,7 +1030,7 @@ def test_AbstractRelationalComparison_05(realm, mocker, left, right):
             return 10
         raise ESTypeError("err thrown")
 
-    mocker.patch("ecmascript.ToNumber", side_effect=mocked_tn)
+    mocker.patch("ecmascript.ecmascript.ToNumber", side_effect=mocked_tn)
     with pytest.raises(ESTypeError):
         AbstractRelationalComparison(left, right, True)
 
@@ -1048,10 +1049,10 @@ def test_AbstractRelationalComparison_05(realm, mocker, left, right):
 )
 def test_AbstractEqualityComparsion_01(realm, mocker, left, right):
     # If Type(left) == Type(right) we're supposed to defer to StrictEqualityComparison
-    mocker.patch("ecmascript.StrictEqualityComparison")
+    mocker.patch("ecmascript.ecmascript.StrictEqualityComparison")
 
     AbstractEqualityComparison(left, right)
-    ecmascript.StrictEqualityComparison.assert_called_once_with(left, right)  # pylint: disable=no-member
+    e.StrictEqualityComparison.assert_called_once_with(left, right)  # pylint: disable=no-member
 
 
 @pytest.mark.parametrize(
@@ -1097,15 +1098,74 @@ def test_AbstractEqualityComparsion_04(obj, nonobj, expected):
 
 
 def test_AbstractEqualityComparison_05(obj, mocker):
-    mocker.patch("ecmascript.ToPrimitive", side_effect=ESTypeError)
+    mocker.patch("ecmascript.ecmascript.ToPrimitive", side_effect=ESTypeError)
     with pytest.raises(ESTypeError):
         AbstractEqualityComparison(obj, 67)
 
 
 def test_AbstractEqualityComparison_06(obj, mocker):
-    mocker.patch("ecmascript.ToPrimitive", side_effect=ESTypeError)
+    mocker.patch("ecmascript.ecmascript.ToPrimitive", side_effect=ESTypeError)
     with pytest.raises(ESTypeError):
         AbstractEqualityComparison(99, obj)
+
+
+# 7.2.15 Strict Equality Comparison
+# The comparison x === y, where x and y are values, produces true or false. Such a comparison is performed as follows:
+#
+#   1. If Type(x) is different from Type(y), return false.
+#   2. If Type(x) is Number, then
+#       a. If x is NaN, return false.
+#       b. If y is NaN, return false.
+#       c. If x is the same Number value as y, return true.
+#       d. If x is +0 and y is -0, return true.
+#       e. If x is -0 and y is +0, return true.
+#       f. Return false.
+#   3. Return SameValueNonNumber(x, y).
+@pytest.mark.parametrize("x, y", permutations((JSNull.NULL, None, 1.0, True, "hello", wks_search), 2))
+def test_StrictEqualityComparison_01(realm, x, y):
+    # All the not-object types
+    rv = StrictEqualityComparison(x, y)
+    assert rv == False
+
+
+@pytest.mark.parametrize("x", (JSNull.NULL, None, 1.0, True, "hello", wks_search))
+def test_StrictEqualityComparison_02(obj, x):
+    # All vs object
+    rv = StrictEqualityComparison(obj, x)
+    assert not rv
+    rv2 = StrictEqualityComparison(x, obj)
+    assert not rv2
+
+
+@pytest.mark.parametrize(
+    "x, y, expected",
+    [
+        (math.nan, 1.0, False),
+        (1.0, math.nan, False),
+        (math.nan, math.nan, False),
+        (3.0, 3.0, True),
+        (0.0, -0.0, True),
+        (-0.0, 0.0, True),
+        (10.0, -10.0, False),
+    ],
+)
+def test_StrictEqualityComparison_03(realm, x, y, expected):
+    # All the number pathways
+    rv = StrictEqualityComparison(x, y)
+    assert rv == expected
+
+
+@pytest.mark.parametrize(
+    "x, y",
+    [(JSNull.NULL, JSNull.NULL), (None, None), (True, False), ("hello", "goodbye"), (wks_has_instance, wks_search)],
+)
+def test_StrictEqualityComparison_04(realm, mocker, x, y):
+    # And finally, the other types get sent to SameValueNonNumber.
+    mocker.patch("ecmascript.ecmascript.SameValueNonNumber", return_value="from_SVNN")
+
+    rv = StrictEqualityComparison(x, y)
+    assert rv == "from_SVNN"
+    e.SameValueNonNumber.assert_called_once_with(x, y)
 
 
 # 7.3.18 Invoke ( V, P [ , argumentsList ] )

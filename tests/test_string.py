@@ -1,6 +1,6 @@
 import pytest
 
-import ecmascript as e
+import ecmascript.ecmascript as e
 
 
 def test_StringObjectInit_01(realm):

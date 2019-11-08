@@ -1,6 +1,6 @@
 import pytest
 
-from ecmascript import *
+from ecmascript.ecmascript import *
 
 NORMAL = CompletionType.NORMAL
 THROW = CompletionType.THROW

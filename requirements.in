@@ -4,5 +4,7 @@ pytest-cov
 pytest-mock
 pyyaml
 black
+snoop
 
 python-dateutil
+regex
