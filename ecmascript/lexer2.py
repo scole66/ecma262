@@ -128,6 +128,7 @@ class LexerCore:
         Make a new Lexer. The only info that needs providing is the source text. It should be encoded in utf-16.
         """
         self.src = source_text
+        self.cache = {}
 
     @staticmethod
     def _string_value(chars):
@@ -379,6 +380,14 @@ class LexerCore:
         newline here]", which is important for things like "return 'my multiline string'" because newlines are not
         allowed between return keywords the returned expression.
         """
+        cached = self.cache.get((pos, goal), None)
+        if cached:
+            return cached
+        val = self._token(pos, goal)
+        self.cache[(pos, goal)] = val
+        return val
+
+    def _token(self, pos, goal):
         newlines = []
         while 1:
             pos, nls = self.process_skippable(pos)
