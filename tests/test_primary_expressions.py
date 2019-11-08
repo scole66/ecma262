@@ -2033,6 +2033,19 @@ def test_PropertyName_ComputedPropertyName_ComputedPropertyContains(context, moc
     pn.ComputedPropertyName.Contains.assert_called_with("Nonsense")
 
 
+# 12.2.6.4 Static Semantics: IsComputedPropertyKey
+# PropertyName : LiteralPropertyName
+#   1. Return false.
+# PropertyName : ComputedPropertyName
+#   1. Return true.
+@pytest.mark.parametrize("src, expected", [("a", False), ("[1]", True)])
+def test_PropertyName_IsComputedPropertyKey(context, src, expected):
+    lexer = lexer2.Lexer(src)
+    pn = ecmascript.ecmascript.parse_PropertyName(context, lexer, False, False)
+    rv = pn.IsComputedPropertyKey()
+    assert rv == expected
+
+
 #### LiteralPropertyName #################################################################################################################################################
 #
 #     888      d8b 888                              888 8888888b.                                             888             888b    888
