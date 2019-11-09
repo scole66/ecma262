@@ -365,9 +365,10 @@ FORMALPARAMETER, formalparameter_sideeffect = parser_mock("FormalParameter")
 FUNCTIONSTATEMENTLIST, functionstatementlist_sideeffect = parser_mock("FunctionStatementList")
 ARROWPARAMETERS, arrowparameters_sideeffect = parser_mock("ArrowParameters")
 CONCISEBODY, concisebody_sideeffect = parser_mock("ConciseBody")
-COVERPARENTHESIZEDEXPRESSIONANDARROWPARAMETERLIST, coverparenthesizedexpressionandarrowparameterlist_sideeffect = parser_mock(
-    "CoverParenthesizedExpressionAndArrowParameterList"
-)
+(
+    COVERPARENTHESIZEDEXPRESSIONANDARROWPARAMETERLIST,
+    coverparenthesizedexpressionandarrowparameterlist_sideeffect,
+) = parser_mock("CoverParenthesizedExpressionAndArrowParameterList")
 
 
 def gen_mock_check(mocker, mocks, context, lexer):
@@ -2259,7 +2260,7 @@ def test_P2_MultiplicativeExpression_ExponentiationExpression_init(context):
 
 
 def test_P2_MultiplicativeExpression_MultiplicativeExpression_MultiplicativeOperator_ExponentiationExpression_init(
-    context
+    context,
 ):
     me = e.P2_MultiplicativeExpression_MultiplicativeExpression_MultiplicativeOperator_ExponentiationExpression(
         context, ["p1", "%", "p2"]
@@ -3407,7 +3408,7 @@ def test_P2_ConditionalExpression_LogicalORExpression_init(context):
 
 
 def test_P2_ConditionalExpression_LogicalORExpression_QUESTION_AssignmentExpression_COLON_AssignmentExpression_init(
-    context
+    context,
 ):
     ce = e.P2_ConditionalExpression_LogicalORExpression_QUESTION_AssignmentExpression_COLON_AssignmentExpression(
         context, ["child", "?", "true_result", ":", "false_result"]

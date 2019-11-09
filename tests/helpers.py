@@ -364,9 +364,10 @@ FORMALPARAMETER, formalparameter_sideeffect = parser_mock("FormalParameter")
 FUNCTIONSTATEMENTLIST, functionstatementlist_sideeffect = parser_mock("FunctionStatementList")
 ARROWPARAMETERS, arrowparameters_sideeffect = parser_mock("ArrowParameters")
 CONCISEBODY, concisebody_sideeffect = parser_mock("ConciseBody")
-COVERPARENTHESIZEDEXPRESSIONANDARROWPARAMETERLIST, coverparenthesizedexpressionandarrowparameterlist_sideeffect = parser_mock(
-    "CoverParenthesizedExpressionAndArrowParameterList"
-)
+(
+    COVERPARENTHESIZEDEXPRESSIONANDARROWPARAMETERLIST,
+    coverparenthesizedexpressionandarrowparameterlist_sideeffect,
+) = parser_mock("CoverParenthesizedExpressionAndArrowParameterList")
 LITERAL, literal_sideeffect = parser_mock("Literal")
 ARRAYLITERAL, arrayliteral_sideeffect = parser_mock("ArrayLiteral")
 OBJECTLITERAL, objectliteral_sideeffect = parser_mock("ObjectLiteral")
