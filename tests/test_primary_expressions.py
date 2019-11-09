@@ -1747,6 +1747,25 @@ def test_parse_PropertyDefinitionList_04(mocker, context):
     assert lexer.pos == 1
 
 
+# 12.2.6.6 Static Semantics: PropertyNameList
+# PropertyDefinitionList : PropertyDefinition
+#   1. If PropName of PropertyDefinition is empty, return a new empty List.
+#   2. Return a new List containing PropName of PropertyDefinition.
+# PropertyDefinitionList : PropertyDefinitionList , PropertyDefinition
+#   1. Let list be PropertyNameList of PropertyDefinitionList.
+#   2. If PropName of PropertyDefinition is empty, return list.
+#   3. Append PropName of PropertyDefinition to the end of list.
+#   4. Return list.
+@pytest.mark.parametrize(
+    "src, expected",
+    [("...3", []), ("id", ["id"]), ("blue, ...4", ["blue"]), ("blue, red", ["blue", "red"]), ("...4, ...88", [])],
+)
+def test_PropertyDefinitionList_PropertyNameList(context, src, expected):
+    lexer = lexer2.Lexer(src)
+    pdl = ecmascript.ecmascript.parse_PropertyDefinitionList(context, lexer, False, False)
+    assert pdl.PropertyNameList() == expected
+
+
 #### PropertyDefinition #############################################################################################################################
 #
 #     8888888b.                                             888             8888888b.            .d888 d8b          d8b 888    d8b
@@ -2167,6 +2186,22 @@ def test_LiteralPropertyName_IdentifierName_Contains(context, src, symbol, expec
     assert rv == expected
 
 
+# 12.2.6.5 Static Semantics: PropName
+# LiteralPropertyName : IdentifierName
+#   1. Return StringValue of IdentifierName.
+# LiteralPropertyName : StringLiteral
+#   1. Return the String value whose code units are the SV of the StringLiteral.
+# LiteralPropertyName : NumericLiteral
+#   1. Let nbr be the result of forming the value of the NumericLiteral.
+#   2. Return ! ToString(nbr).
+@pytest.mark.parametrize("src, expected", [("idn", "idn"), ('"whitetail"', "whitetail"), ("1000", "1000")])
+def test_LiteralPropertyName_PropName(context, src, expected):
+    lexer = lexer2.Lexer(src)
+    lpn = ecmascript.ecmascript.parse_LiteralPropertyName(context, lexer)
+    rv = lpn.PropName()
+    assert rv == expected
+
+
 #### ComputedPropertyName #######################################################################################################################################################################
 #
 #  .d8888b.                                           888                  888 8888888b.                                             888             888b    888
@@ -2224,6 +2259,15 @@ def test_parse_ComputedPropertyName_02(mocker, context, token_stream):
     cpn = ecmascript.ecmascript.parse_ComputedPropertyName(context, lexer, "YieldArg", "AwaitArg")
     assert cpn is None
     assert lexer.pos == 0
+
+
+# 12.2.6.5 Static Semantics: PropName
+# ComputedPropertyName : [ AssignmentExpression ]
+#   1. Return empty.
+def test_ComputedPropertyName_PropName(context):
+    lexer = lexer2.Lexer("[1]")
+    cpn = ecmascript.ecmascript.parse_ComputedPropertyName(context, lexer, False, False)
+    assert cpn.PropName() == ecmascript.ecmascript.EMPTY
 
 
 #### CoverInitializedName ##############################################################################################################################################
