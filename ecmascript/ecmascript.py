@@ -3,7 +3,7 @@ import dateutil.tz
 import sys
 from enum import Enum, unique, auto
 from collections import namedtuple, deque, Counter
-from functools import reduce, partial
+from functools import reduce, partial, cached_property
 from itertools import chain
 from typing import Union, Any, Tuple, Callable, Optional, List, Mapping, Deque
 from copy import copy
@@ -8594,6 +8594,12 @@ class P2_CoverParenthesizedExpressionAndArrowParameterList(ParseNode2):
         # 12.2.1.1 Static Semantics: CoveredParenthesizedExpression
         # This is the default implementation: the return value means, nope, there's no covered production.
         return None
+
+    @cached_property
+    def CoveredFormalsList(self):
+        # 14.2.9 Static Semantics: CoveredFormalsList
+        #   1. Return the ArrowFormalParameters that is covered by CoverParenthesizedExpressionAndArrowParameterList.
+        return self.covering(parse_ArrowFormalParameters, self.Yield, self.Await)
 
 
 class P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_RPAREN(
@@ -24181,6 +24187,63 @@ def IsAnonymousFunctionDefinition(expr):
     return expr.IsFunctionDefinition() and not expr.HasName()
 
 
+#######################################################################################################################
+#
+#  d888       d8888       .d8888b.             d8888
+# d8888      d8P888      d88P  Y88b           d88888
+#   888     d8P 888             888          d88P888
+#   888    d8P  888           .d88P         d88P 888 888d888 888d888  .d88b.  888  888  888
+#   888   d88   888       .od888P"         d88P  888 888P"   888P"   d88""88b 888  888  888
+#   888   8888888888     d88P"            d88P   888 888     888     888  888 888  888  888
+#   888         888  d8b 888"            d8888888888 888     888     Y88..88P Y88b 888 d88P
+# 8888888       888  Y8P 888888888      d88P     888 888     888      "Y88P"   "Y8888888P"
+#
+#
+#
+# 8888888888                            888    d8b
+# 888                                   888    Y8P
+# 888                                   888
+# 8888888    888  888 88888b.   .d8888b 888888 888  .d88b.  88888b.
+# 888        888  888 888 "88b d88P"    888    888 d88""88b 888 "88b
+# 888        888  888 888  888 888      888    888 888  888 888  888
+# 888        Y88b 888 888  888 Y88b.    Y88b.  888 Y88..88P 888  888
+# 888         "Y88888 888  888  "Y8888P  "Y888 888  "Y88P"  888  888
+#
+#
+#
+# 8888888b.            .d888 d8b          d8b 888    d8b
+# 888  "Y88b          d88P"  Y8P          Y8P 888    Y8P
+# 888    888          888                     888
+# 888    888  .d88b.  888888 888 88888b.  888 888888 888  .d88b.  88888b.  .d8888b
+# 888    888 d8P  Y8b 888    888 888 "88b 888 888    888 d88""88b 888 "88b 88K
+# 888    888 88888888 888    888 888  888 888 888    888 888  888 888  888 "Y8888b.
+# 888  .d88P Y8b.     888    888 888  888 888 Y88b.  888 Y88..88P 888  888      X88
+# 8888888P"   "Y8888  888    888 888  888 888  "Y888 888  "Y88P"  888  888  88888P'
+#
+#
+#
+#
+#######################################################################################################################
+# 14.2 Arrow Function Definitions
+# 14.2.1 SS: Early Errors
+# 14.2.2 SS: BoundNames
+# 14.2.3 SS: Contains
+# 14.2.4 SS: ContainsExpression
+# 14.2.5 SS: ContainsUseStrict
+# 14.2.6 SS: ExpectedArgumentCount
+# 14.2.7 SS: HasName
+# 14.2.8 SS: IsSimpleParameterList
+# 14.2.9 SS: CoveredFormalsList
+# 14.2.10 SS: LexicallyDeclaredNames
+# 14.2.11 SS: LexicallyScopedDeclarations
+# 14.2.12 SS: VarDeclaredNames
+# 14.2.13 SS: VarScopedDeclarations
+# 14.2.14 RS: IteratorBindingInitialization
+# 14.2.15 RS: EvaluateBody
+# 14.2.16 RS: NamedEvaluation
+# 14.2.17 RS: Evaluation
+#######################################################################################################################
+
 #####################################################################################
 # `·._.·●.._.·●.._.·●..... 14.2 Arrow Function Definitions .....●·._..●·._..●·._.·´ #
 #####################################################################################
@@ -24205,6 +24268,85 @@ class P2_ArrowFunction_ArrowParameters_ConciseBody(P2_ArrowFunction):
     @property
     def ConciseBody(self):
         return self.children[2]
+
+    def EarlyErrors(self):
+        # 14.2.1 Static Semantics: Early Errors
+        # ArrowFunction : ArrowParameters => ConciseBody
+        #   * It is a Syntax Error if ArrowParameters Contains YieldExpression is true.
+        #   * It is a Syntax Error if ArrowParameters Contains AwaitExpression is true.
+        #   * It is a Syntax Error if ContainsUseStrict of ConciseBody is true and IsSimpleParameterList of
+        #     ArrowParameters is false.
+        #   * It is a Syntax Error if any element of the BoundNames of ArrowParameters also occurs in the
+        #     LexicallyDeclaredNames of ConciseBody.
+        clashes = set(self.ArrowParameters.BoundNames()).intersection(set(self.ConciseBody.LexicallyDeclaredNames()))
+        return list(
+            filter(
+                None,
+                [
+                    self.ArrowParameters.Contains("YieldExpression")
+                    and self.CreateSyntaxError("'yield' not allowed in parameters"),
+                    self.ArrowParameters.Contains("AwaitExpression")
+                    and self.CreateSyntaxError("'await' not allowed in parameters"),
+                    self.ConciseBody.ContainsUseStrict()
+                    and not self.ArrowParameters.IsSimpleParameterList()
+                    and self.CreateSyntaxError("parameters must be simple in strict mode"),
+                    len(clashes)
+                    and self.CreateSyntaxError(f"parameters clash with body declarations: {', '.join(clashes)}"),
+                ],
+            )
+        )
+
+    def Contains(self, symbol):
+        # 14.2.3 Static Semantics: Contains
+        #   With parameter symbol.
+        # ArrowFunction : ArrowParameters => ConciseBody
+        #   1. If symbol is not one of NewTarget, SuperProperty, SuperCall, super or this, return false.
+        #   2. If ArrowParameters Contains symbol is true, return true.
+        #   3. Return ConciseBody Contains symbol.
+        return symbol in ("NewTarget", "SuperProperty", "SuperCall", "super", "this") and (
+            self.ArrowParameters.Contains(symbol) or self.ConciseBody.Contains(symbol)
+        )
+
+    def HasName(self):
+        # 14.2.7 Static Semantics: HasName
+        # ArrowFunction : ArrowParameters => ConciseBody
+        #   1. Return false.
+        return False
+
+    def NamedEvaluation(self, name):
+        # 14.2.16 Runtime Semantics: NamedEvaluation
+        #   With parameter name.
+        # ArrowFunction : ArrowParameters => ConciseBody
+        #   1. Let closure be the result of evaluating this ArrowFunction.
+        #   2. Perform SetFunctionName(closure, name).
+        #   3. Return closure.
+        closure = self.evaluate()
+        SetFunctionName(closure, name)
+        return closure
+
+    def evaluate(self):
+        # 14.2.17 Runtime Semantics: Evaluation
+        # ArrowFunction : ArrowParameters => ConciseBody
+        #   1. If the function code for this ArrowFunction is strict mode code, let strict be true. Otherwise let
+        #      strict be false.
+        #   2. Let scope be the LexicalEnvironment of the running execution context.
+        #   3. Let parameters be CoveredFormalsList of ArrowParameters.
+        #   4. Let closure be FunctionCreate(Arrow, parameters, ConciseBody, scope, strict).
+        #   5. Set closure.[[SourceText]] to the source text matched by ArrowFunction.
+        #   6. Return closure.
+        # NOTE  | An ArrowFunction does not define local bindings for arguments, super, this, or new.target. Any
+        #       | reference to arguments, super, this, or new.target within an ArrowFunction must resolve to a binding
+        #       | in a lexically enclosing environment. Typically this will be the Function Environment of an
+        #       | immediately enclosing function. Even though an ArrowFunction may contain references to super, the
+        #       | function object created in step 4 is not made into a method by performing MakeMethod. An
+        #       | ArrowFunction that references super is always contained within a non-ArrowFunction and the necessary
+        #       | state to implement super is accessible via the scope that is captured by the function object of the
+        #       | ArrowFunction.
+        scope = surrounding_agent.running_ec.lexical_environment
+        parameters = self.ArrowParameters.CoveredFormalsList
+        closure = FunctionCreate(ARROW, parameters, self.ConciseBody, scope, self.strict)
+        closure.SourceText = self.matched_source()
+        return closure
 
 
 def parse_ArrowFunction(context, lexer, In, Yield, Await):
@@ -24243,11 +24385,112 @@ class P2_ArrowParameters_BindingIdentifier(P2_ArrowParameters):
     def BindingIdentifier(self):
         return self.children[0]
 
+    def ContainsExpression(self):
+        # 14.2.4 Static Semantics: ContainsExpression
+        # ArrowParameters : BindingIdentifier
+        #   1. Return false.
+        return False
+
+    def ExpectedArgumentCount(self):
+        # 14.2.6 Static Semantics: ExpectedArgumentCount
+        # ArrowParameters : BindingIdentifier
+        #   1. Return 1.
+        return 1
+
+    def IsSimpleParameterList(self):
+        # 14.2.8 Static Semantics: IsSimpleParameterList
+        # ArrowParameters : BindingIdentifier
+        #   1. Return true.
+        return True
+
+    @cached_property
+    def CoveredFormalsList(self):
+        # 14.2.9 Static Semantics: CoveredFormalsList
+        # ArrowParameters : BindingIdentifier
+        #   1. Return this ArrowParameters.
+        return self
+
+    def IteratorBindingInitialization(self, iteratorRecord, environment):
+        # 14.2.14 Runtime Semantics: IteratorBindingInitialization
+        #   With parameters iteratorRecord and environment.
+        #
+        # NOTE  | When undefined is passed for environment it indicates that a PutValue operation should be used to
+        #       | assign the initialization value. This is the case for formal parameter lists of non-strict functions.
+        #       | In that case the formal parameter bindings are preinitialized in order to deal with the possibility
+        #       | of multiple parameters with the same name.
+        #
+        # ArrowParameters : BindingIdentifier
+        #   1. Assert: iteratorRecord.[[Done]] is false.
+        #   2. Let next be IteratorStep(iteratorRecord).
+        #   3. If next is an abrupt completion, set iteratorRecord.[[Done]] to true.
+        #   4. ReturnIfAbrupt(next).
+        #   5. If next is false, set iteratorRecord.[[Done]] to true.
+        #   6. Else,
+        #       a. Let v be IteratorValue(next).
+        #       b. If v is an abrupt completion, set iteratorRecord.[[Done]] to true.
+        #       c. ReturnIfAbrupt(v).
+        #   7. If iteratorRecord.[[Done]] is true, let v be undefined.
+        #   8. Return the result of performing BindingInitialization for BindingIdentifier using v and environment as
+        #      the arguments.
+        assert not iteratorRecord.Done
+        try:
+            nxt = IteratorStep(iteratorRecord)
+        except ESAbrupt:
+            iteratorRecord.Done = True
+            raise
+        if nxt == False:
+            iteratorRecord.Done = True
+        else:
+            try:
+                v = IteratorValue(nxt)
+            except ESAbrupt:
+                iteratorRecord.Done = True
+                raise
+        if iteratorRecord.Done:
+            v = None
+        return self.BindingIdentifier.BindingInitialization(v, environment)
+
 
 class P2_ArrowParameters_CoverParenthesizedExpressionAndArrowParameterList(P2_ArrowParameters):
     @property
     def CoverParenthesizedExpressionAndArrowParameterList(self):
         return self.children[0]
+
+    def EarlyErrors(self):
+        # 14.2.1 Static Semantics: Early Errors
+        # ArrowParameters : CoverParenthesizedExpressionAndArrowParameterList
+        #   * It is a Syntax Error if CoverParenthesizedExpressionAndArrowParameterList is not covering an
+        #     ArrowFormalParameters.
+        #   * All early error rules for ArrowFormalParameters and its derived productions also apply to
+        #     CoveredFormalsList of CoverParenthesizedExpressionAndArrowParameterList.
+        cfl = self.CoverParenthesizedExpressionAndArrowParameterList.CoveredFormalsList
+        return cfl.EarlyErrors() if cfl else [self.CreateSyntaxError("Invalid parameter syntax")]
+
+    def BoundNames(self):
+        # 14.2.2 Static Semantics: BoundNames
+        # ArrowParameters : CoverParenthesizedExpressionAndArrowParameterList
+        #   1. Let formals be CoveredFormalsList of CoverParenthesizedExpressionAndArrowParameterList.
+        #   2. Return the BoundNames of formals.
+        return self.CoverParenthesizedExpressionAndArrowParameterList.CoveredFormalsList.BoundNames()
+
+    def Contains(self, symbol):
+        # 14.2.3Static Semantics: Contains
+        #   With parameter symbol.
+        # ArrowParameters : CoverParenthesizedExpressionAndArrowParameterList
+        #   1. Let formals be CoveredFormalsList of CoverParenthesizedExpressionAndArrowParameterList.
+        #   2. Return formals Contains symbol.
+        return self.CoverParenthesizedExpressionAndArrowParameterList.CoveredFormalsList.Contains(symbol)
+
+    def IsSimpleParameterList(self):
+        # 14.2.8 Static Semantics: IsSimpleParameterList
+        # ArrowParameters : CoverParenthesizedExpressionAndArrowParameterList
+        #   1. Let formals be CoveredFormalsList of CoverParenthesizedExpressionAndArrowParameterList.
+        #   2. Return IsSimpleParameterList of formals.
+        return self.CoverParenthesizedExpressionAndArrowParameterList.CoveredFormalsList.IsSimpleParameterList()
+
+    @cached_property
+    def CoveredFormalsList(self):
+        return self.CoverParenthesizedExpressionAndArrowParameterList.CoveredFormalsList
 
 
 def parse_ArrowParameters(context, lexer, Yield, Await):
@@ -24281,6 +24524,47 @@ class P2_ConciseBody_AssignmentExpression(P2_ConciseBody):
     @property
     def AssignmentExpression(self):
         return self.children[0]
+
+    def ContainsUseStrict(self):
+        # 14.2.5 Static Semantics: ContainsUseStrict
+        # ConciseBody : AssignmentExpression
+        #   1. Return false.
+        return False
+
+    def LexicallyDeclaredNames(self):
+        # 14.2.10 Static Semantics: LexicallyDeclaredNames
+        # ConciseBody : AssignmentExpression
+        #   1. Return a new empty List.
+        return []
+
+    def LexicallyScopedDeclarations(self):
+        # 14.2.11 Static Semantics: LexicallyScopedDeclarations
+        # ConciseBody : AssignmentExpression
+        #   1. Return a new empty List.
+        return []
+
+    def VarDeclaredNames(self):
+        # 14.2.12 Static Semantics: VarDeclaredNames
+        # ConciseBody : AssignmentExpression
+        #   1. Return a new empty List.
+        return []
+
+    def VarScopedDeclarations(self):
+        # 14.2.13 Static Semantics: VarScopedDeclarations
+        # ConciseBody : AssignmentExpression
+        #   1. Return a new empty List.
+        return []
+
+    def EvaluateBody(self, functionObject, argumentsList):
+        # 14.2.15 Runtime Semantics: EvaluateBody
+        #   With parameters functionObject and List argumentsList.
+        # ConciseBody : AssignmentExpression
+        #   1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
+        #   2. Let exprRef be the result of evaluating AssignmentExpression.
+        #   3. Let exprValue be ? GetValue(exprRef).
+        #   4. Return Completion { [[Type]]: return, [[Value]]: exprValue, [[Target]]: empty }.
+        FunctionDeclarationInstantiation(functionObject, argumentsList)
+        raise ESReturn(value=GetValue(self.AssignmentExpression.evaluate()))
 
 
 class P2_ConciseBody_FunctionBody(P2_ConciseBody):
@@ -30907,29 +31191,30 @@ def GeneratorStart(generator, generatorBody):
     #   5. Set generator.[[GeneratorContext]] to genContext.
     #   6. Set generator.[[GeneratorState]] to "suspendedStart".
     #   7. Return NormalCompletion(undefined).
-    assert generator.GeneratorState is None
-    genContext = surrounding_agent.running_ec
-    genContext.generator = generator
 
-    def generator_resumption(*_):
-        yield None
-        try:
-            yield from generatorBody.evaluate()
-            resultValue = None
-        except ESAbrupt as abrupt:
-            resultValue = abrupt.completion.value
-            assert abrupt.completion.ctype == CompletionType.RETURN
-        finally:
-            surrounding_agent.ec_stack.pop()
-            surrounding_agent.running_ec = surrounding_agent.ec_stack[-1]
-            surrounding_agent.running_ec.resume()
-            generator.GeneratorState = "completed"
-        return CreateIterResultObject(resultValue, True)
+    # assert generator.GeneratorState is None
+    # genContext = surrounding_agent.running_ec
+    # genContext.generator = generator
 
-    genContext.coroutine = generator_resumption()  # Make a co-routine
-    next(genContext.coroutine)  # prime the co-routine
-    generator.GeneratorContext = genContext
-    generator.GeneratorState = "suspendedStart"
+    # def generator_resumption(*_):
+    #     yield None
+    #     try:
+    #         yield from generatorBody.evaluate()
+    #         resultValue = None
+    #     except ESAbrupt as abrupt:
+    #         resultValue = abrupt.completion.value
+    #         assert abrupt.completion.ctype == CompletionType.RETURN
+    #     finally:
+    #         surrounding_agent.ec_stack.pop()
+    #         surrounding_agent.running_ec = surrounding_agent.ec_stack[-1]
+    #         surrounding_agent.running_ec.resume()
+    #         generator.GeneratorState = "completed"
+    #     return CreateIterResultObject(resultValue, True)
+
+    # genContext.coroutine = generator_resumption()  # Make a co-routine
+    # next(genContext.coroutine)  # prime the co-routine
+    # generator.GeneratorContext = genContext
+    # generator.GeneratorState = "suspendedStart"
 
 
 # 25.4.3.2 GeneratorValidate ( generator )
