@@ -624,7 +624,7 @@ def test_P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_DOTDOTDOT_B
 
 
 def test_P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_COMMA_DOTDOTDOT_BindingIdentifier_RPAREN_init(
-    context
+    context,
 ):
     cpeaapl = ecmascript.ecmascript.P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_COMMA_DOTDOTDOT_BindingIdentifier_RPAREN(
         context, ["(", "Expression", ",", "...", "BindingIdentifier", ")"], "Y", "A"
@@ -635,7 +635,7 @@ def test_P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_
 
 
 def test_P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_COMMA_DOTDOTDOT_BindingPattern_RPAREN_init(
-    context
+    context,
 ):
     cpeaapl = ecmascript.ecmascript.P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_COMMA_DOTDOTDOT_BindingPattern_RPAREN(
         context, ["(", "Expression", ",", "...", "BindingPattern", ")"], "Y", "A"
