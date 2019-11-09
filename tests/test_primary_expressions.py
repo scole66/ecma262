@@ -1934,6 +1934,24 @@ def test_PropertyDefinition_MethodDefinition_Contains(context, mocker, symbol, e
         pd.MethodDefinition.ComputedPropertyContains.assert_called_with(symbol)
 
 
+# 12.2.6.5 Static Semantics: PropName
+# PropertyDefinition : IdentifierReference
+#   1. Return StringValue of IdentifierReference.
+# PropertyDefinition : ... AssignmentExpression
+#   1. Return empty.
+# PropertyDefinition : PropertyName : AssignmentExpression
+#   1. Return PropName of PropertyName.
+@pytest.mark.parametrize(
+    "src, expected",
+    [("identifier_ref", "identifier_ref"), ("... 67", ecmascript.ecmascript.EMPTY), ('bluegill: "5 lbs."', "bluegill")],
+)
+def test_PropertyDefinition_PropName(context, src, expected):
+    lexer = lexer2.Lexer(src)
+    pd = ecmascript.ecmascript.parse_PropertyDefinition(context, lexer, False, False)
+    rv = pd.PropName()
+    assert rv == expected
+
+
 #### PropertyName ######################################################################################################
 #
 #     8888888b.                                             888             888b    888
