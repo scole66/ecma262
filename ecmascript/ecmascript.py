@@ -4083,6 +4083,7 @@ def CreateIntrinsics(realm_rec):
     intrinsics["%Generator%"] = CreateGeneratorFunctionPrototype(realm_rec)
     intrinsics["%GeneratorFunction%"] = CreateGeneratorFunctionConstructor(realm_rec)
     GeneratorFixups(realm_rec)
+    intrinsics["%Reflect%"] = CreateReflectObject(realm_rec)
 
     # 14. Return intrinsics.
     return intrinsics
@@ -25662,6 +25663,14 @@ def parse_ClassExpression(*args):
     return None
 
 
+def parse_AsyncFunctionBody(*args):
+    return None
+
+
+def parse_AsyncGeneratorBody(*args):
+    return None
+
+
 ################################################################################################################################################################################
 #
 #  d888       d8888       .d8888b.      88888888888          d8b 888     8888888b.                    d8b 888    d8b                        .d8888b.           888 888
@@ -31073,6 +31082,214 @@ def GeneratorYield(iterNextObj):
 # 25.5.3.7 AsyncGeneratorYield ( value )
 def AsyncGeneratorYield(value):
     raise NotImplementedError("Async not implmemented")
+
+
+# 26 Reflection
+# 26.1 The Reflect Object
+
+# The Reflect object:
+#
+#   * is the intrinsic object %Reflect%.
+#   * is the initial value of the Reflect property of the global object.
+#   * is an ordinary object.
+#   * has a [[Prototype]] internal slot whose value is the intrinsic object %ObjectPrototype%.
+#   * is not a function object.
+#   * does not have a [[Construct]] internal method; it cannot be used as a constructor with the new operator.
+#   * does not have a [[Call]] internal method; it cannot be invoked as a function.
+def CreateReflectObject(realm):
+    obj = ObjectCreate(realm.intrinsics["%ObjectPrototype%"])
+    BindBuiltinFunctions(
+        realm,
+        obj,
+        (
+            ("apply", Reflect_apply, 3),
+            ("construct", Reflect_construct, 2),
+            ("defineProperty", Reflect_defineProperty, 3),
+            ("deleteProperty", Reflect_deleteProperty, 2),
+            ("get", Reflect_get, 2),
+            ("getOwnPropertyDescriptor", Reflect_getOwnPropertyDescriptor, 2),
+            ("getPrototypeOf", Reflect_getPrototypeOf, 1),
+            ("has", Reflect_has, 2),
+            ("isExtensible", Reflect_isExtensible, 1),
+            ("ownKeys", Reflect_ownKeys, 1),
+            ("preventExtensions", Reflect_preventExtensions, 1),
+            ("set", Reflect_set, 3),
+            ("setPrototypeOf", Reflect_setPrototypeOf, 2),
+        ),
+    )
+    return obj
+
+
+# 26.1.1 Reflect.apply ( target, thisArgument, argumentsList )
+def Reflect_apply(this_value, new_target, target=None, thisArgument=None, argumentsList=None, *_):
+    # When the apply function is called with arguments target, thisArgument, and argumentsList, the following steps are
+    # taken:
+    #   1. If IsCallable(target) is false, throw a TypeError exception.
+    #   2. Let args be ? CreateListFromArrayLike(argumentsList).
+    #   3. Perform PrepareForTailCall().
+    #   4. Return ? Call(target, thisArgument, args).
+    if not IsCallable(target):
+        raise ESTypeError("Reflect.apply was called on a non-callable")
+    args = CreateListFromArrayLike(argumentsList)
+    PrepareForTailCall()
+    return Call(target, thisArgument, args)
+
+
+# 26.1.2 Reflect.construct ( target, argumentsList [ , newTarget ] )
+def Reflect_construct(this_value, new_target, target=None, argumentsList=None, newTarget=EMPTY, *_):
+    # When the construct function is called with arguments target, argumentsList, and newTarget, the following steps
+    # are taken:
+    #   1. If IsConstructor(target) is false, throw a TypeError exception.
+    #   2. If newTarget is not present, set newTarget to target.
+    #   3. Else if IsConstructor(newTarget) is false, throw a TypeError exception.
+    #   4. Let args be ? CreateListFromArrayLike(argumentsList).
+    #   5. Return ? Construct(target, args, newTarget).
+    if not IsConstructor(target):
+        raise ESTypeError("Reflect.construct was called on a non-constructor")
+    if newTarget == EMPTY:
+        newTarget = target
+    elif not IsConstructor(newTarget):
+        raise ESTypeError("newTarget was not a constructor in Reflect.construct")
+    args = CreateListFromArrayLike(argumentsList)
+    return Construct(target, args, newTarget)
+
+
+# 26.1.3 Reflect.defineProperty ( target, propertyKey, attributes )
+def Reflect_defineProperty(this_value, new_target, target=None, propertyKey=None, attributes=None, *_):
+    # When the defineProperty function is called with arguments target, propertyKey, and attributes, the following
+    # steps are taken:
+    #   1. If Type(target) is not Object, throw a TypeError exception.
+    #   2. Let key be ? ToPropertyKey(propertyKey).
+    #   3. Let desc be ? ToPropertyDescriptor(attributes).
+    #   4. Return ? target.[[DefineOwnProperty]](key, desc).
+    if not isObject(target):
+        raise ESTypeError("Reflect.defineProperty called with non-object target")
+    key = ToPropertyKey(propertyKey)
+    desc = ToPropertyDescriptor(attributes)
+    return target.DefineOwnProperty(key, desc)
+
+
+# 26.1.4 Reflect.deleteProperty ( target, propertyKey )
+def Reflect_deleteProperty(this_value, new_target, target=None, propertyKey=None, *_):
+    # When the deleteProperty function is called with arguments target and propertyKey, the following steps are taken:
+    #   1. If Type(target) is not Object, throw a TypeError exception.
+    #   2. Let key be ? ToPropertyKey(propertyKey).
+    #   3. Return ? target.[[Delete]](key).
+    if not isObject(target):
+        raise ESTypeError("Refect.deleteProperty called with non-object target")
+    key = ToPropertyKey(propertyKey)
+    return target.Delete(key)
+
+
+# 26.1.5 Reflect.get ( target, propertyKey [ , receiver ] )
+def Reflect_get(this_value, new_target, target=None, propertyKey=None, receiver=EMPTY, *_):
+    # When the get function is called with arguments target, propertyKey, and receiver, the following steps are taken:
+    #   1. If Type(target) is not Object, throw a TypeError exception.
+    #   2. Let key be ? ToPropertyKey(propertyKey).
+    #   3. If receiver is not present, then
+    #       a. Set receiver to target.
+    #   4. Return ? target.[[Get]](key, receiver).
+    if not isObject(target):
+        raise ESTypeError("Reflect.get called with non-object target")
+    key = ToPropertyKey(propertyKey)
+    if receiver == EMPTY:
+        receiver = target
+    return target.Get(key, receiver)
+
+
+# 26.1.6 Reflect.getOwnPropertyDescriptor ( target, propertyKey )
+def Reflect_getOwnPropertyDescriptor(this_value, new_target, target=None, propertyKey=None, *_):
+    # When the getOwnPropertyDescriptor function is called with arguments target and propertyKey, the following steps
+    # are taken:
+    #   1. If Type(target) is not Object, throw a TypeError exception.
+    #   2. Let key be ? ToPropertyKey(propertyKey).
+    #   3. Let desc be ? target.[[GetOwnProperty]](key).
+    #   4. Return FromPropertyDescriptor(desc).
+    if not isObject(target):
+        raise ESTypeError("Reflect.getOwnPropertyDescriptor called with non-object target")
+    key = ToPropertyKey(propertyKey)
+    desc = target.GetOwnProperty(key)
+    return FromPropertyDescriptor(desc)
+
+
+# 26.1.7 Reflect.getPrototypeOf ( target )
+def Reflect_getPrototypeOf(this_value, new_target, target=None, *_):
+    # When the getPrototypeOf function is called with argument target, the following steps are taken:
+    #   1. If Type(target) is not Object, throw a TypeError exception.
+    #   2. Return ? target.[[GetPrototypeOf]]().
+    if not isObject(target):
+        raise ESTypeError("Reflect.getPrototypeOf called with non-object target")
+    return target.GetPrototypeOf()
+
+
+# 26.1.8 Reflect.has ( target, propertyKey )
+def Reflect_has(this_value, new_target, target=None, propertyKey=None, *_):
+    # When the has function is called with arguments target and propertyKey, the following steps are taken:
+    #   1. If Type(target) is not Object, throw a TypeError exception.
+    #   2. Let key be ? ToPropertyKey(propertyKey).
+    #   3. Return ? target.[[HasProperty]](key).
+    if not isObject(target):
+        raise ESTypeError("Reflect.has called with non-object target")
+    return target.HasProperty(ToPropertyKey(propertyKey))
+
+
+# 26.1.9 Reflect.isExtensible ( target )
+def Reflect_isExtensible(this_value, new_target, target=None, *_):
+    # When the isExtensible function is called with argument target, the following steps are taken:
+    #   1. If Type(target) is not Object, throw a TypeError exception.
+    #   2. Return ? target.[[IsExtensible]]().
+    if not isObject(target):
+        raise ESTypeError("Reflect.isExtensible called with non-object target")
+    return target.IsExtensible()
+
+
+# 26.1.10 Reflect.ownKeys ( target )
+def Reflect_ownKeys(this_value, new_target, target=None, *_):
+    # When the ownKeys function is called with argument target, the following steps are taken:
+    #   1. If Type(target) is not Object, throw a TypeError exception.
+    #   2. Let keys be ? target.[[OwnPropertyKeys]]().
+    #   3. Return CreateArrayFromList(keys).
+    if not isObject(target):
+        raise ESTypeError("Reflect.ownKeys called with non-object target")
+    return CreateArrayFromList(target.OwnPropertyKeys())
+
+
+# 26.1.11 Reflect.preventExtensions ( target )
+def Reflect_preventExtensions(this_value, new_target, target=None, *_):
+    # When the preventExtensions function is called with argument target, the following steps are taken:
+    #   1. If Type(target) is not Object, throw a TypeError exception.
+    #   2. Return ? target.[[PreventExtensions]]().
+    if not isObject(target):
+        raise ESTypeError("Reflect.preventExtensions called with non-object target")
+    return target.PreventExtensions()
+
+
+# 26.1.12 Reflect.set ( target, propertyKey, V [ , receiver ] )
+def Reflect_set(this_value, new_target, target=None, propertyKey=None, V=None, receiver=EMPTY, *_):
+    # When the set function is called with arguments target, V, propertyKey, and receiver, the following steps are
+    # taken:
+    #   1. If Type(target) is not Object, throw a TypeError exception.
+    #   2. Let key be ? ToPropertyKey(propertyKey).
+    #   3. If receiver is not present, then
+    #       a. Set receiver to target.
+    #   4. Return ? target.[[Set]](key, V, receiver).
+    if not isObject(target):
+        raise ESTypeError("Reflect.set called with non-object target")
+    return target.Set(ToPropertyKey(propertyKey), V, receiver if receiver != EMPTY else target)
+
+
+# 26.1.13 Reflect.setPrototypeOf ( target, proto )
+def Reflect_setPrototypeOf(this_value, new_target, target=None, proto=None, *_):
+    # When the setPrototypeOf function is called with arguments target and proto, the following steps are taken:
+    #   1. If Type(target) is not Object, throw a TypeError exception.
+    #   2. If Type(proto) is not Object and proto is not null, throw a TypeError exception.
+    #   3. Return ? target.[[SetPrototypeOf]](proto).
+    err = lambda name: ESTypeError(f"Reflect.setPrototypeOf called with non-object {name}")
+    if not isObject(target):
+        raise err("target")
+    if not isObject(proto) and not isNull(proto):
+        raise err("proto")
+    return target.SetPrototypeOf(proto)
 
 
 #######################################################################################################################################################
