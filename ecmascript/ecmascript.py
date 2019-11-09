@@ -17311,7 +17311,7 @@ class P2_StatementListItem_Statement(P2_StatementListItem):
         return (False, [])
 
     def evaluate(self):
-        # print(f'STATEMENT: {self.Statement}')
+        # print(f"STATEMENT: {self.Statement}")
         return self.Statement.evaluate()
 
 
@@ -17403,7 +17403,7 @@ class P2_StatementListItem_Declaration(P2_StatementListItem):
         return (False, [])
 
     def evaluate(self):
-        # print(f'DECLARATION: {self.Declaration}')
+        # print(f"DECLARATION: {self.Declaration}")
         return self.Declaration.evaluate()
 
 
@@ -26995,20 +26995,28 @@ def CreateDynamicFunction(constructor, newTarget, kind, args):
         newTarget = constructor
     if kind == "normal":
         goal = "FunctionBody"
+        goal_parse = lambda context, lexer: parse_FunctionBody(context, lexer, False, False)
         parameterGoal = "FormalParameters"
+        param_parse = lambda context, lexer: parse_FormalParameters(context, lexer, False, False)
         fallbackProto = "%FunctionPrototype%"
     elif kind == "generator":
         goal = "GeneratorBody"
-        parameterGoal = "FormalParameters_Yield"
+        goal_parse = parse_GeneratorBody
+        parameterGoal = "FormalParameters"
+        param_parse = lambda context, lexer: parse_FormalParameters(context, lexer, True, False)
         fallbackProto = "%Generator%"
     elif kind == "async":
         goal = "AsyncFunctionBody"
-        parameterGoal = "FormalParameters_Await"
+        goal_parse = parse_AsyncFunctionBody
+        parameterGoal = "FormalParameters"
+        param_parse = lambda context, lexer: parse_FormalParameters(context, lexer, False, True)
         fallbackProto = "%AsyncFunctionPrototype%"
     else:
         assert kind == "async generator"
         goal = "AsyncGeneratorBody"
-        parameterGoal = "FormalParameters_Yield_Await"
+        goal_parse = parse_AsyncGeneratorBody
+        parameterGoal = "FormalParameters"
+        param_parse = lambda context, lexer: parse_FormalParameters(context, lexer, True, True)
         fallbackProto = "%AsyncGenerator%"
     argCount = len(args)
     P = ""
@@ -27021,17 +27029,17 @@ def CreateDynamicFunction(constructor, newTarget, kind, args):
         bodyText = args[-1]
     bodyText = ToString(bodyText)
 
-    parameter_parse = Ecma262Parser(start=parameterGoal, source_text=P)
-    plexer = Lexer(P, parameterGoal)
+    parameter_context = Parse2Context(direct_eval=False, syntax_error_ctor=ESSyntaxError, goal=parameterGoal)
+    plexer = Lexer(P)
     try:
-        parameters = parameter_parse.parse(plexer)
+        parameters = param_parse(parameter_context, plexer)
     except ESError as err:
         raise ESSyntaxError(ToString(err.ecma_object))
 
-    body_parse = Ecma262Parser(start=goal, source_text=bodyText)
-    blexer = Lexer(bodyText, goal)
+    body_context = Parse2Context(direct_eval=False, syntax_error_ctor=ESSyntaxError, goal=goal)
+    blexer = Lexer(bodyText)
     try:
-        body = body_parse.parse(blexer)
+        body = goal_parse(body_context, blexer)
     except ESError as err:
         raise ESSyntaxError(ToString(err.ecma_object))
 
