@@ -4084,6 +4084,7 @@ def CreateIntrinsics(realm_rec):
     intrinsics["%GeneratorFunction%"] = CreateGeneratorFunctionConstructor(realm_rec)
     GeneratorFixups(realm_rec)
     intrinsics["%Reflect%"] = CreateReflectObject(realm_rec)
+    intrinsics["%Math%"] = CreateMathObject(realm_rec)
 
     # 14. Return intrinsics.
     return intrinsics
@@ -4627,6 +4628,7 @@ class Agent(object):
             "PromiseJobs": deque([]),
         }
         self.agent_record = AgentRecord()
+        random.seed()  # Probably should store random state in the agent, but: meh.
 
 
 # Global: the "surrounding agent". (We only have one agent, so it's always the surrounding agent.)
@@ -17318,7 +17320,7 @@ class P2_StatementListItem_Statement(P2_StatementListItem):
         return (False, [])
 
     def evaluate(self):
-        # print(f"STATEMENT: {self.Statement}")
+        print(f"STATEMENT: {self.Statement}")
         return self.Statement.evaluate()
 
 
@@ -17410,7 +17412,7 @@ class P2_StatementListItem_Declaration(P2_StatementListItem):
         return (False, [])
 
     def evaluate(self):
-        # print(f"DECLARATION: {self.Declaration}")
+        print(f"DECLARATION: {self.Declaration}")
         return self.Declaration.evaluate()
 
 
@@ -28181,6 +28183,322 @@ def NumberFixups(realm):
     DefinePropertyOrThrow(number_constructor, "prototype", proto_desc)
     DefinePropertyOrThrow(number_prototype, "constructor", PropertyDescriptor(value=number_constructor))
     return None
+
+
+# 20.2 The Math Object
+# The Math object:
+#
+#   * is the intrinsic object %Math%.
+#   * is the initial value of the Math property of the global object.
+#   * is an ordinary object.
+#   * has a [[Prototype]] internal slot whose value is the intrinsic object %ObjectPrototype%.
+#   * is not a function object.
+#   * does not have a [[Construct]] internal method; it cannot be used as a constructor with the new operator.
+#   * does not have a [[Call]] internal method; it cannot be invoked as a function.
+# NOTE  | In this specification, the phrase “the Number value for x” has a technical meaning defined in 6.1.6.
+def CreateMathObject(realm):
+    obj = ObjectCreate(realm.intrinsics["%ObjectPrototype%"])
+    for name, value in (
+        ("E", math.e),
+        ("LN10", math.log(10)),
+        ("LN2", math.log(2)),
+        ("LOG10E", math.log10(math.e)),
+        ("LOG2E", math.log(math.e, 2)),
+        ("PI", math.pi),
+        ("SQRT1_2", math.sqrt(0.5)),
+        ("SQRT2", math.sqrt(2)),
+    ):
+        DefinePropertyOrThrow(
+            obj, name, PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=False)
+        )
+    DefinePropertyOrThrow(
+        obj, wks_to_string_tag, PropertyDescriptor(vlaue="Math", writable=False, enumerable=False, configurable=True)
+    )
+    BindBuiltinFunctions(
+        realm,
+        obj,
+        (
+            ("abs", Math_abs, 1),
+            ("acos", Math_acos, 1),
+            ("acosh", Math_acosh, 1),
+            ("asin", Math_asin, 1),
+            ("asinh", Math_asinh, 1),
+            ("atan", Math_atan, 1),
+            ("atanh", Math_atanh, 1),
+            ("atan2", Math_atan2, 2),
+            ("cbrt", Math_cbrt, 1),
+            ("ceil", Math_ceil, 1),
+            ("clz32", Math_clz32, 1),
+            ("cos", Math_cos, 1),
+            ("cosh", Math_cosh, 1),
+            ("exp", Math_exp, 1),
+            ("expm1", Math_expm1, 1),
+            ("floor", Math_floor, 1),
+            ("fround", Math_fround, 1),
+            ("hypot", Math_hypot, 2),
+            ("imul", Math_imul, 2),
+            ("log", Math_log, 1),
+            ("log1p", Math_log1p, 1),
+            ("log10", Math_log10, 1),
+            ("log2", Math_log2, 1),
+            ("max", Math_max, 2),
+            ("min", Math_min, 2),
+            ("pow", Math_pow, 2),
+            ("random", Math_random, 0),
+            ("round", Math_round, 1),
+            ("sign", Math_sign, 1),
+            ("sin", Math_sin, 1),
+            ("sinh", Math_sinh, 1),
+            ("sqrt", Math_sqrt, 1),
+            ("tan", Math_tan, 1),
+            ("tanh", Math_tanh, 1),
+            ("trunc", Math_trunc, 1),
+        ),
+    )
+    return obj
+
+
+def Math_abs(this_value, new_target, x=None, *_):
+    return abs(ToNumber(x))
+
+
+def Math_acos(this_value, new_target, x=None, *_):
+    try:
+        return math.acos(ToNumber(x))
+    except ValueError:
+        return math.nan
+
+
+def Math_acosh(this_value, new_target, x=None, *_):
+    try:
+        return math.acosh(ToNumber(x))
+    except ValueError:
+        return math.nan
+
+
+def Math_asin(this_value, new_target, x=None, *_):
+    try:
+        return math.asin(ToNumber(x))
+    except ValueError:
+        return math.nan
+
+
+def Math_asinh(this_value, new_target, x=None, *_):
+    return math.asinh(ToNumber(x))
+
+
+def Math_atan(this_value, new_target, x=None, *_):
+    return math.atan(ToNumber(x))
+
+
+def Math_atanh(this_value, new_target, x=None, *_):
+    arg = ToNumber(x)
+    try:
+        return math.atanh(arg)
+    except ValueError:
+        return -math.inf if arg == -1.0 else (math.inf if arg == 1.0 else math.nan)
+
+
+def Math_atan2(this_value, new_target, y=None, x=None, *_):
+    return math.atan2(ToNumber(y), ToNumber(x))
+
+
+def Math_cbrt(this_value, new_target, x=None, *_):
+    arg = ToNumber(x)
+    return -math.inf if arg == -math.inf else arg ** (1 / 3)
+
+
+def Math_ceil(this_value, new_target, x=None, *_):
+    arg = ToNumber(x)
+    return (
+        math.nan
+        if math.isnan(arg)
+        else (
+            -0.0
+            if arg == 0 and math.copysign(1.0, arg) == -1.0
+            else (
+                math.inf
+                if arg == math.inf
+                else (-math.inf if arg == -math.inf else (-0.0 if arg > -1.0 and arg < 0.0 else math.ceil(arg)))
+            )
+        )
+    )
+
+
+def Math_clz32(this_value, new_target, x=None, *_):
+    arg = ToUint32(x)
+    # this is one instruction in assembly language. :(
+    for i in range(31, -1, -1):
+        if arg & (1 << i):
+            return 31 - i
+    return 32
+
+
+def Math_cos(this_value, new_target, x=None, *_):
+    try:
+        return math.cos(ToNumber(x))
+    except ValueError:
+        return math.nan
+
+
+def Math_cosh(this_value, new_target, x=None, *_):
+    return math.cosh(ToNumber(x))
+
+
+def Math_exp(this_value, new_target, x=None, *_):
+    return math.exp(ToNumber(x))
+
+
+def Math_expm1(this_value, new_target, x=None, *_):
+    return math.expm1(ToNumber(x))
+
+
+def Math_floor(this_value, new_target, x=None, *_):
+    arg = ToNumber(x)
+    return (
+        math.nan
+        if math.isnan(arg)
+        else (
+            -0.0
+            if arg == 0 and math.copysign(1.0, arg) == -1.0
+            else (math.inf if arg == math.inf else (-math.inf if arg == -math.inf else (math.floor(arg))))
+        )
+    )
+
+
+def Math_fround(this_value, new_target, x=None, *_):
+    # No clue how python handles IEEE rounding.
+    arg = ToNumber(x)
+    if arg == 0:
+        return arg  # To preserve -0
+    return float(arg)
+
+
+def Math_hypot(this_value, new_target, *args):
+    values = (ToNumber(x) for x in args)
+    return math.hypot(*values)
+
+
+def Math_imul(this_value, new_target, x=None, y=None, *_):
+    a = ToUint32(x)
+    b = ToUint32(y)
+    product = (a * b) % (2 ** 32)
+    if product >= (2 ** 31):
+        return product - (2 ** 32)
+    return product
+
+
+def Math_log(this_value, new_target, x=None, *_):
+    arg = ToNumber(x)
+    try:
+        return math.log(arg)
+    except ValueError:
+        if arg == 0:
+            return -math.inf
+        return math.nan
+
+
+def Math_log1p(this_value, new_target, x=None, *_):
+    arg = ToNumber(x)
+    try:
+        return math.log1p(arg)
+    except ValueError:
+        if arg == -1.0:
+            return -math.inf
+        return math.nan
+
+
+def Math_log10(this_value, new_target, x=None, *_):
+    arg = ToNumber(x)
+    try:
+        return math.log10(arg)
+    except ValueError:
+        if arg == 0:
+            return -math.inf
+        return math.nan
+
+
+def Math_log2(this_value, new_target, x=None, *_):
+    arg = ToNumber(x)
+    try:
+        return math.log2(arg)
+    except ValueError:
+        if arg == 0:
+            return -math.inf
+        return math.nan
+
+
+def Math_max(this_value, new_target, *args):
+    return max((ToNumber(x) for x in args), default=-math.inf)
+
+
+def Math_min(this_value, new_target, *args):
+    return min((ToNumber(x) for x in args), default=math.inf)
+
+
+def Math_pow(this_value, new_target, base=None, exponent=None, *_):
+    return ExponentiationOperation(base, exponent)
+
+
+def Math_random(this_value, new_target, *_):
+    return random.random()
+
+
+def Math_round(this_value, new_target, x=None, *_):
+    arg = ToNumber(x)
+    if arg >= -0.5 and (arg < 0 or arg == 0 and math.copysign(1.0, arg) == -1.0):
+        return -0.0
+    try:
+        return math.floor(arg + 0.5)
+    except ValueError:
+        return math.nan
+    except OverflowError:
+        return math.copysign(math.inf, arg)
+
+
+def Math_sign(this_value, new_target, x=None, *_):
+    arg = ToNumber(x)
+    if math.isnan(arg) or arg == 0:
+        return arg
+    return math.copysign(1.0, arg)
+
+
+def Math_sin(this_value, new_target, x=None, *_):
+    try:
+        return math.sin(ToNumber(x))
+    except ValueError:
+        return math.nan
+
+
+def Math_sinh(this_value, new_taret, x=None, *_):
+    return math.sinh(ToNumber(x))
+
+
+def Math_sqrt(this_value, new_target, x=None, *_):
+    try:
+        return math.sqrt(ToNumber(x))
+    except ValueError:
+        return math.nan
+
+
+def Math_tan(this_value, new_target, x=None, *_):
+    try:
+        return math.tan(ToNumber(x))
+    except ValueError:
+        return math.nan
+
+
+def Math_tanh(this_value, new_target, x=None, *_):
+    return math.tanh(ToNumber(x))
+
+
+def Math_trunc(this_value, new_target, x=None, *_):
+    arg = ToNumber(x)
+    if not math.isfinite(arg) or arg == 0:
+        return arg
+    if -1 < arg < 0:
+        return -0.0
+    return int(arg)
 
 
 # 20.3 Date Objects
