@@ -8560,7 +8560,7 @@ def parse_PrimaryExpression(ctx, lexer, Yield, Await):
     age = parse_AsyncGeneratorExpression(ctx, lexer)
     if age:
         return P2_PrimaryExpression_AsyncGeneratorExpression(ctx, [age])
-    rel = parse_RegularExpressionLiteral(ctx, lexer)
+    rel = lexer.next_token_if("REGEXP")
     if rel:
         return P2_PrimaryExpression_RegularExpressionLiteral(ctx, [rel])
     tl = parse_TemplateLiteral(ctx, lexer, Yield, Await, False)
@@ -19650,7 +19650,7 @@ def parse_ExpressionStatement(ctx, lexer, Yield, Await):
     # cannot start with async function because that would make it ambiguous with an AsyncFunctionDeclaration or a
     # AsyncGeneratorDeclaration. An ExpressionStatement cannot start with the two token sequence let [ because that
     # would make it ambiguous with a let LexicalDeclaration whose first LexicalBinding was an ArrayBindingPattern.
-    tok1, tok2 = lexer.peek_token(2, lexer.InputElementDiv)
+    tok1, tok2 = lexer.peek_token(2)
     if tok1 and (
         (tok1.type == "{")
         or (tok1.type == "IDENTIFIER" and (tok1.value in ("function", "class")))
@@ -25903,10 +25903,6 @@ def parse_CoverCallExpressionAndAsyncArrowHead(context, lexer, Yield, Await):
 
     #   AsyncArrowHead :
     #       async [no LineTerminator here] ArrowFormalParameters[~Yield, +Await]
-
-
-def parse_RegularExpressionLiteral(*args):
-    return None
 
 
 def parse_AwaitExpression(*args):

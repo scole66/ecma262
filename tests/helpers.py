@@ -3,6 +3,7 @@ from collections import namedtuple
 import pytest
 
 Span = namedtuple("Span", ["start", "after"])
+RegExp = namedtuple("RegExp", ["body", "flags"])
 
 
 class Token:
@@ -218,6 +219,7 @@ THROW = Token("IDENTIFIER", "throw")
 DEBUGGER = Token("IDENTIFIER", "debugger")
 EQGT = Token("=>", "=>")
 EQGT_NONL = Token("=>", "=>", newlines=[])
+REGULAREXPRESSIONLITERAL = Token("REGEXP", RegExp("abcd", ""))
 
 MATCHES_NONE = Token("MATCHES_NONE", "nope")
 
@@ -371,7 +373,6 @@ CONCISEBODY, concisebody_sideeffect = parser_mock("ConciseBody")
 LITERAL, literal_sideeffect = parser_mock("Literal")
 ARRAYLITERAL, arrayliteral_sideeffect = parser_mock("ArrayLiteral")
 OBJECTLITERAL, objectliteral_sideeffect = parser_mock("ObjectLiteral")
-REGULAREXPRESSIONLITERAL, regularexpressionliteral_sideeffect = parser_mock("RegularExpressionLiteral")
 TEMPLATELITERAL, templateliteral_sideeffect = parser_mock("TemplateLiteral")
 FUNCTIONEXPRESSION, functionexpression_sideeffect = parser_mock("FunctionExpression")
 CLASSEXPRESSION, classexpression_sideeffect = parser_mock("ClassExpression")
