@@ -258,7 +258,6 @@ def test_parse_PrimaryExpression_01(context, token_stream, expected):
         ("GeneratorExpression", False, False, ecmascript.ecmascript.P2_PrimaryExpression_GeneratorExpression),
         ("AsyncFunctionExpression", False, False, ecmascript.ecmascript.P2_PrimaryExpression_AsyncFunctionExpression),
         ("AsyncGeneratorExpression", False, False, ecmascript.ecmascript.P2_PrimaryExpression_AsyncGeneratorExpression),
-        ("RegularExpressionLiteral", False, False, ecmascript.ecmascript.P2_PrimaryExpression_RegularExpressionLiteral),
         ("TemplateLiteral", True, True, ecmascript.ecmascript.P2_PrimaryExpression_TemplateLiteral),
         (
             "CoverParenthesizedExpressionAndArrowParameterList",
@@ -299,9 +298,6 @@ def PrimaryExpression_mocks(mocker):
         "ArrayLiteral": mocker.patch("ecmascript.ecmascript.parse_ArrayLiteral", side_effect=arrayliteral_sideeffect),
         "ObjectLiteral": mocker.patch(
             "ecmascript.ecmascript.parse_ObjectLiteral", side_effect=objectliteral_sideeffect
-        ),
-        "RegularExpressionLiteral": mocker.patch(
-            "ecmascript.ecmascript.parse_RegularExpressionLiteral", side_effect=regularexpressionliteral_sideeffect
         ),
         "TemplateLiteral": mocker.patch(
             "ecmascript.ecmascript.parse_TemplateLiteral", side_effect=templateliteral_sideeffect
