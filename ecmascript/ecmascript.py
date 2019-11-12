@@ -20,7 +20,8 @@ import operator
 
 import snoop
 
-from .lexer2 import Lexer, utf_16_encode
+from .lexer2 import Lexer, utf_16_encode, utf_16_decode
+from . import e262_regexp
 
 
 @unique
@@ -67,7 +68,7 @@ DONE = ECMAScriptEnum.DONE
 MISSING = ECMAScriptEnum.MISSING
 LEXICAL = ECMAScriptEnum.LEXICAL
 GLOBAL = ECMAScriptEnum.GLOBAL
-
+FAILURE = e262_regexp.FAILURE
 
 # 6.1 ECMAScript Language Types
 ##############################################################################################################################
@@ -330,7 +331,7 @@ class JSObject:
                 "Property("
                 + ", ".join(
                     f"{name}={getattr(self,name)!r}"
-                    for name in ["Get", "Set", "value", "writable", "enumerable", "configurable"]
+                    for name in ["Get", "Set", "value", "writable", "enumerable", "configurable",]
                     if hasattr(self, name)
                 )
                 + ")"
@@ -736,7 +737,7 @@ class PropertyDescriptor(Record):
             "Descriptor("
             + ", ".join(
                 f"{name}={getattr(self,name)!r}"
-                for name in ["Get", "Set", "value", "writable", "enumerable", "configurable"]
+                for name in ["Get", "Set", "value", "writable", "enumerable", "configurable",]
                 if hasattr(self, name)
             )
             + ")"
@@ -1690,6 +1691,22 @@ def IsPropertyKey(arg):
     # 2. If Type(argument) is Symbol, return true.
     # 3. Return false.
     return isString(arg) or isSymbol(arg)
+
+
+# 7.2.8 IsRegExp ( argument )
+def IsRegExp(arg):
+    # The abstract operation IsRegExp with argument argument performs the following steps:
+    #   1. If Type(argument) is not Object, return false.
+    #   2. Let matcher be ? Get(argument, @@match).
+    #   3. If matcher is not undefined, return ToBoolean(matcher).
+    #   4. If argument has a [[RegExpMatcher]] internal slot, return true.
+    #   5. Return false.
+    if not isObject(arg):
+        return False
+    matcher = Get(arg, wks_match)
+    if matcher is not None:
+        return ToBoolean(matcher)
+    return hasattr(arg, "RegExpMatcher")
 
 
 # 7.2.10 SameValue ( x, y )
@@ -2744,7 +2761,7 @@ def CreateListIteratorRecord(lst):
     #   6. Return Record { [[Iterator]]: iterator, [[NextMethod]]: next, [[Done]]: false }.
     # NOTE The list iterator object is never directly accessible to ECMAScript code.
     iterator = ObjectCreate(
-        surrounding_agent.running_ec.realm.intrinsics["%IteratorPrototype%"], ["IteratedList", "ListIteratorNextIndex"]
+        surrounding_agent.running_ec.realm.intrinsics["%IteratorPrototype%"], ["IteratedList", "ListIteratorNextIndex"],
     )
     iterator.IteratedList = lst
     iterator.ListIteratorNextIndex = 0
@@ -4085,6 +4102,9 @@ def CreateIntrinsics(realm_rec):
     GeneratorFixups(realm_rec)
     intrinsics["%Reflect%"] = CreateReflectObject(realm_rec)
     intrinsics["%Math%"] = CreateMathObject(realm_rec)
+    intrinsics["%RegExp%"] = CreateRegexConstructor(realm_rec)
+    intrinsics["%RegExpPrototype%"] = CreateRegExpPrototype(realm_rec)
+    RegExpFixups(realm_rec)
 
     # 14. Return intrinsics.
     return intrinsics
@@ -4493,7 +4513,7 @@ def EnqueueJob(queue_name, job, arguments):
     # 7. Let pending be PendingJob { [[Job]]: job, [[Arguments]]: arguments, [[Realm]]: callerRealm,
     #    [[ScriptOrModule]]: callerScriptOrModule, [[HostDefined]]: undefined }.
     pending = Record(
-        job=job, arguments=arguments, realm=caller_realm, script_or_module=caller_script_or_module, host_defined=None
+        job=job, arguments=arguments, realm=caller_realm, script_or_module=caller_script_or_module, host_defined=None,
     )
     # 8. Perform any implementation or host environment defined processing of pending. This may include modifying the
     #    [[HostDefined]] field or any other field of pending.
@@ -5575,7 +5595,13 @@ def FunctionAllocate(functionPrototype, strict, functionKind):
     # 1. Assert: Type(functionPrototype) is Object.
     assert isObject(functionPrototype)
     # 2. Assert: functionKind is either "normal", "non-constructor", "generator", "async", or "async generator".
-    assert functionKind in ["normal", "non-constructor", "generator", "async", "async generator"]
+    assert functionKind in [
+        "normal",
+        "non-constructor",
+        "generator",
+        "async",
+        "async generator",
+    ]
     # 3. If functionKind is "normal", let needsConstruct be true.
     # 4. Else, let needsConstruct be false.
     needsConstruct = functionKind == "normal"
@@ -5728,12 +5754,12 @@ def AddRestrictedFunctionProperties(func, realm):
     # 3. Perform ! DefinePropertyOrThrow(F, "caller", PropertyDescriptor { [[Get]]: thrower, [[Set]]: thrower,
     #    [[Enumerable]]: false, [[Configurable]]: true }).
     DefinePropertyOrThrow(
-        func, "caller", PropertyDescriptor(Get=thrower, Set=thrower, enumerable=False, configurable=True)
+        func, "caller", PropertyDescriptor(Get=thrower, Set=thrower, enumerable=False, configurable=True),
     )
     # 4. Return ! DefinePropertyOrThrow(F, "arguments", PropertyDescriptor { [[Get]]: thrower, [[Set]]: thrower,
     #    [[Enumerable]]: false, [[Configurable]]: true }).
     return DefinePropertyOrThrow(
-        func, "arguments", PropertyDescriptor(Get=thrower, Set=thrower, enumerable=False, configurable=True)
+        func, "arguments", PropertyDescriptor(Get=thrower, Set=thrower, enumerable=False, configurable=True),
     )
 
 
@@ -5758,13 +5784,13 @@ def MakeConstructor(F, writeablePrototype=True, prototype=MISSING):
         DefinePropertyOrThrow(
             prototype,
             "constructor",
-            PropertyDescriptor(value=F, writable=writeablePrototype, enumerable=False, configurable=True),
+            PropertyDescriptor(value=F, writable=writeablePrototype, enumerable=False, configurable=True,),
         )
     # 6. Perform ! DefinePropertyOrThrow(F, "prototype", PropertyDescriptor { [[Value]]: prototype, [[Writable]]: writablePrototype, [[Enumerable]]: false, [[Configurable]]: false }).
     DefinePropertyOrThrow(
         F,
         "prototype",
-        PropertyDescriptor(value=prototype, writable=writeablePrototype, enumerable=False, configurable=False),
+        PropertyDescriptor(value=prototype, writable=writeablePrototype, enumerable=False, configurable=False,),
     )
     # 7. Return undefined
     return None
@@ -5826,7 +5852,7 @@ def SetFunctionName(F, name, prefix=MISSING):
         name = f"{prefix} {name}"
     # 6. Return ! DefinePropertyOrThrow(F, "name", PropertyDescriptor { [[Value]]: name, [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true }).
     return DefinePropertyOrThrow(
-        F, "name", PropertyDescriptor(value=name, writable=False, enumerable=False, configurable=True)
+        F, "name", PropertyDescriptor(value=name, writable=False, enumerable=False, configurable=True),
     )
 
 
@@ -6562,7 +6588,7 @@ def ArrayCreate(length, proto=None):
     # 10. Perform ! OrdinaryDefineOwnProperty(A, "length",
     #           PropertyDescriptor { [[Value]]: length, [[Writable]]: true, [[Enumerable]]: false, [[Configurable]]: false }).
     OrdinaryDefineOwnProperty(
-        A, "length", PropertyDescriptor(value=length, writable=True, enumerable=False, configurable=False)
+        A, "length", PropertyDescriptor(value=length, writable=True, enumerable=False, configurable=False),
     )
     # 11. Return A.
     return A
@@ -6846,7 +6872,7 @@ def StringGetOwnProperty(S, P):
         return None
     if index < 0 or len(S.StringData) <= index:
         return None
-    return PropertyDescriptor(value=S.StringData[int(index)], writable=False, enumerable=True, configurable=False)
+    return PropertyDescriptor(value=S.StringData[int(index)], writable=False, enumerable=True, configurable=False,)
 
 
 # ------------------------------------ 𝟗.𝟒.𝟒 𝑨𝒓𝒈𝒖𝒎𝒆𝒏𝒕𝒔 𝑬𝒙𝒐𝒕𝒊𝒄 𝑶𝒃𝒋𝒆𝒄𝒕𝒔 ------------------------------------
@@ -7050,7 +7076,7 @@ def CreateUnmappedArgumentsObject(argumentsList):
     #      [[Set]]: %ThrowTypeError%, [[Enumerable]]: false, [[Configurable]]: false }).
     #   9. Return obj.
     length = len(argumentsList)
-    obj = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics["%ObjectPrototype%"], ["ParameterMap"])
+    obj = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics["%ObjectPrototype%"], ["ParameterMap"],)
     obj.ParameterMap = None
     desc = PropertyDescriptor(value=length, writable=True, enumerable=False, configurable=True)
     DefinePropertyOrThrow(obj, "length", desc)
@@ -7121,7 +7147,7 @@ def CreateMappedArgumentsObject(func, formals, argumentsList, env):
     for index, val in enumerate(argumentsList):
         CreateDataProperty(obj, ToString(index), val)
     DefinePropertyOrThrow(
-        obj, "length", PropertyDescriptor(value=length, writable=True, enumerable=False, configurable=True)
+        obj, "length", PropertyDescriptor(value=length, writable=True, enumerable=False, configurable=True),
     )
     mappedNames = []
     for index in range(numberOfParameters - 1, -1, -1):
@@ -7132,7 +7158,7 @@ def CreateMappedArgumentsObject(func, formals, argumentsList, env):
                 g = MakeArgGetter(name, env)
                 p = MakeArgSetter(name, env)
                 map.DefineOwnProperty(  # pylint: disable=no-member
-                    ToString(index), PropertyDescriptor(Set=p, Get=g, enumerable=False, configurable=True)
+                    ToString(index), PropertyDescriptor(Set=p, Get=g, enumerable=False, configurable=True),
                 )
     DefinePropertyOrThrow(
         obj,
@@ -7145,7 +7171,7 @@ def CreateMappedArgumentsObject(func, formals, argumentsList, env):
         ),
     )
     DefinePropertyOrThrow(
-        obj, "callee", PropertyDescriptor(value=func, writable=True, enumerable=False, configurable=True)
+        obj, "callee", PropertyDescriptor(value=func, writable=True, enumerable=False, configurable=True),
     )
     return obj
 
@@ -7562,7 +7588,9 @@ class ParseNode2:
 
 
 class Parse2Context:
-    def __init__(self, direct_eval=False, syntax_error_ctor=SyntaxError, goal="Script", lexer=Lexer, *args):
+    def __init__(
+        self, direct_eval=False, syntax_error_ctor=SyntaxError, goal="Script", lexer=Lexer, *args,
+    ):
         self.direct_eval = direct_eval
         self.CreateSyntaxError = syntax_error_ctor
         self.goal = goal
@@ -8365,6 +8393,9 @@ class P2_PrimaryExpression_AsyncGeneratorExpression(P2_PrimaryExpression):
         return INVALID
 
 
+bad_regex_flag_match = regex.compile("[^gimsuy]")
+
+
 class P2_PrimaryExpression_RegularExpressionLiteral(P2_PrimaryExpression):
     # PrimaryExpression : RegularExpressionLiteral
     @property
@@ -8398,13 +8429,10 @@ class P2_PrimaryExpression_RegularExpressionLiteral(P2_PrimaryExpression):
         #     "i", "m", "s", "u", or "y", or if it contains the same code point more than once.
         errs = []
         rel = self.RegularExpressionLiteral.value
-        # Need the Regex Lexer before this works. (Haven't actually defined the api yet.) @@@
-        # re_lex = Lexer.RegexLex(rel.body, Lexer.RegexLex.PATTERN)
-        re_lex = None
+        re_lex = e262_regexp.parse_Pattern(rel.body, 0, False, False)
         if re_lex is None:
             errs.append(self.CreateSyntaxError("Bad Regular Expression"))
-        flag_re = regex.compile("[^gimsuy]")
-        if flag_re.search(rel.flags) or len(rel.flags) != len(set(rel.flags)):
+        if bad_regex_flag_match.search(rel.flags) or len(rel.flags) != len(set(rel.flags)):
             errs.append(self.CreateSyntaxError("Bad Regular Expression Flags"))
         return errs
 
@@ -10618,15 +10646,15 @@ def GetTemplateObject(templateLiteral):
         prop = ToString(index)
         cookedValue = cookedStrings[index]
         template.DefineOwnProperty(
-            prop, PropertyDescriptor(value=cookedValue, writable=False, enumerable=True, configurable=False)
+            prop, PropertyDescriptor(value=cookedValue, writable=False, enumerable=True, configurable=False),
         )
         rawValue = rawStrings[index]
         rawObj.DefineOwnProperty(
-            prop, PropertyDescriptor(value=rawValue, writable=False, enumerable=True, configurable=False)
+            prop, PropertyDescriptor(value=rawValue, writable=False, enumerable=True, configurable=False),
         )
     SetIntegrityLevel(rawObj, "frozen")
     template.DefineOwnProperty(
-        "raw", PropertyDescriptor(value=rawObj, writable=False, enumerable=False, configurable=False)
+        "raw", PropertyDescriptor(value=rawObj, writable=False, enumerable=False, configurable=False),
     )
     SetIntegrityLevel(template, "frozen")
     templateRegistry.append((templateLiteral, template))
@@ -14870,7 +14898,7 @@ def parse_AssignmentExpression(context, lexer, In, Yield, Await):
     if lhs:
         # AssignmentOperator: one of  *= /= %= += -= <<= >>= >>>= &= ^= |= **=
         op = lexer.next_token(goal=lexer.InputElementDiv)
-        if op and op.type in ("=", "*=", "/=", "%=", "+=", "-=", "<<=", ">>=", ">>>=", "&=", "^=", "|=", "**="):
+        if op and op.type in ("=", "*=", "/=", "%=", "+=", "-=", "<<=", ">>=", ">>>=", "&=", "^=", "|=", "**=",):
             ae = parse_AssignmentExpression(context, lexer, In, Yield, Await)
             if ae:
                 ctor = (
@@ -15279,7 +15307,7 @@ def parse_ArrayAssignmentPattern(context, lexer, Yield, Await):
         are = parse_AssignmentRestElement(context, lexer, Yield, Await)
         rbracket = lexer.next_token_if("]")
         if rbracket:
-            children = list(filter(lambda x: x is not None, [lbracket, ael, comma, elision, are, rbracket]))
+            children = list(filter(lambda x: x is not None, [lbracket, ael, comma, elision, are, rbracket],))
             # "ael", "elision", and "are" are the potential bits here. They can exist or not in 2^3 = 8 different ways.
             # So the following table is all the functions that might be.
             index = int(ael is not None) * 4 + int(elision is not None) * 2 + int(are is not None)
@@ -19882,7 +19910,7 @@ def parse_IfStatement(context, lexer, Yield, Await, Return):
                             stmt_else = parse_Statement(context, lexer, Yield, Await, Return)
                             if stmt_else:
                                 return P2_IfStatement_Expression_Statement_Statement(
-                                    context, [if_token, lp, exp, rp, stmt, else_token, stmt_else]
+                                    context, [if_token, lp, exp, rp, stmt, else_token, stmt_else,],
                                 )
                             lexer.reset_position(book2)
                         return P2_IfStatement_Expression_Statement(context, [if_token, lp, exp, rp, stmt])
@@ -20361,7 +20389,7 @@ class P2_IterationStatement_FOR_LexicalDeclaration_ExpressionTest_ExpressionInc_
             else:
                 perIterationLets = []
             return ForBodyEvaluation(
-                self.ExpressionTest, self.ExpressionInc, self.Statement, perIterationLets, labelSet
+                self.ExpressionTest, self.ExpressionInc, self.Statement, perIterationLets, labelSet,
             )
         finally:
             surrounding_agent.running_ec.lexical_environment = oldEnv
@@ -20481,7 +20509,7 @@ class P2_IterationStatement_FOR_LeftHandSideExpression_IN_Expression_Statement(P
         #   2. Return ? ForIn/OfBodyEvaluation(LeftHandSideExpression, Statement, keyResult, enumerate, assignment, labelSet).
         keyResult = ForInOfHeadEvaluation([], self.Expression, ENUMERATE)
         return ForInOfBodyEvaluation(
-            self.LeftHandSideExpression, self.Statement, keyResult, ENUMERATE, ASSIGNMENT, labelSet
+            self.LeftHandSideExpression, self.Statement, keyResult, ENUMERATE, ASSIGNMENT, labelSet,
         )
 
 
@@ -20584,7 +20612,7 @@ class P2_IterationStatement_FOR_ForDeclaration_IN_Expression_Statement(P2_Iterat
         #   2. Return ? ForIn/OfBodyEvaluation(ForDeclaration, Statement, keyResult, enumerate, lexicalBinding, labelSet).
         keyResult = ForInOfHeadEvaluation(self.ForDeclaration.BoundNames(), self.Expression, ENUMERATE)
         return ForInOfBodyEvaluation(
-            self.ForDeclaration, self.Statement, keyResult, ENUMERATE, LEXICALBINDING, labelSet
+            self.ForDeclaration, self.Statement, keyResult, ENUMERATE, LEXICALBINDING, labelSet,
         )
 
 
@@ -20623,7 +20651,7 @@ class P2_IterationStatement_FOR_LeftHandSideExpression_OF_AssignmentExpression_S
         #   2. Return ? ForIn/OfBodyEvaluation(LeftHandSideExpression, Statement, keyResult, iterate, assignment, labelSet).
         keyResult = ForInOfHeadEvaluation([], self.AssignmentExpression, ITERATE)
         return ForInOfBodyEvaluation(
-            self.LeftHandSideExpression, self.Statement, keyResult, ITERATE, ASSIGNMENT, labelSet
+            self.LeftHandSideExpression, self.Statement, keyResult, ITERATE, ASSIGNMENT, labelSet,
         )
 
 
@@ -20704,7 +20732,7 @@ class P2_IterationStatement_FOR_ForDeclaration_OF_AssignmentExpression_Statement
         #   1. Let keyResult be the result of performing ? ForIn/OfHeadEvaluation(BoundNames of ForDeclaration, AssignmentExpression, iterate).
         #   2. Return ? ForIn/OfBodyEvaluation(ForDeclaration, Statement, keyResult, iterate, lexicalBinding, labelSet).
         keyResult = ForInOfHeadEvaluation(self.ForDeclaration.BoundNames(), self.AssignmentExpression, ITERATE)
-        return ForInOfBodyEvaluation(self.ForDeclaration, self.Statement, keyResult, ITERATE, LEXICALBINDING, labelSet)
+        return ForInOfBodyEvaluation(self.ForDeclaration, self.Statement, keyResult, ITERATE, LEXICALBINDING, labelSet,)
 
 
 class P2_IterationStatement_FOR_AWAIT_LeftHandSideExpression_OF_AssignmentExpression_Statement(
@@ -20788,7 +20816,7 @@ def parse_IterationStatement(context, lexer, Yield, Await, Return):
                             semi = lexer.next_token_if(";")
                             if semi:
                                 return P2_IterationStatement_DO_Statement_WHILE_Expression(
-                                    context, [do_token, stmt1, while_token1, lp1, exp1, rp1, semi]
+                                    context, [do_token, stmt1, while_token1, lp1, exp1, rp1, semi,],
                                 )
         lexer.reset_position(bookmark)
     while_token2 = lexer.next_id_if("while")
@@ -20831,7 +20859,7 @@ def parse_IterationStatement(context, lexer, Yield, Await, Return):
                         stmt3 = parse_Statement(context, lexer, Yield, Await, Return)
                         if stmt3:
                             return P2_IterationStatement_FOR_ExpressionInit_ExpressionTest_ExpressionInc_Statement(
-                                context, [for_token, lp3, exp_init, semi2, exp_test, semi3, exp_inc, rp3, stmt3]
+                                context, [for_token, lp3, exp_init, semi2, exp_test, semi3, exp_inc, rp3, stmt3,],
                             )
             lexer.reset_position(after_open)
 
@@ -20852,7 +20880,18 @@ def parse_IterationStatement(context, lexer, Yield, Await, Return):
                                 if stmt4:
                                     return P2_IterationStatement_FOR_VAR_VariableDeclarationList_ExpressionTest_ExpressionInc_Statement(
                                         context,
-                                        [for_token, lp3, var_token, vdl, semi4, exp_test2, semi5, exp_inc2, rp4, stmt4],
+                                        [
+                                            for_token,
+                                            lp3,
+                                            var_token,
+                                            vdl,
+                                            semi4,
+                                            exp_test2,
+                                            semi5,
+                                            exp_inc2,
+                                            rp4,
+                                            stmt4,
+                                        ],
                                     )
             lexer.reset_position(after_open)
 
@@ -20868,7 +20907,7 @@ def parse_IterationStatement(context, lexer, Yield, Await, Return):
                         stmt_ld = parse_Statement(context, lexer, Yield, Await, Return)
                         if stmt_ld:
                             return P2_IterationStatement_FOR_LexicalDeclaration_ExpressionTest_ExpressionInc_Statement(
-                                context, [for_token, lp3, ld, exp_test_ld, semi_ld, exp_inc_ld, rp_ld, stmt_ld]
+                                context, [for_token, lp3, ld, exp_test_ld, semi_ld, exp_inc_ld, rp_ld, stmt_ld,],
                             )
             lexer.reset_position(after_open)
 
@@ -20889,7 +20928,7 @@ def parse_IterationStatement(context, lexer, Yield, Await, Return):
                                 stmt_lhs_in = parse_Statement(context, lexer, Yield, Await, Return)
                                 if stmt_lhs_in:
                                     return P2_IterationStatement_FOR_LeftHandSideExpression_IN_Expression_Statement(
-                                        context, [for_token, lp3, lhs, in_token, exp_lhs_in, rp_lhs_in, stmt_lhs_in]
+                                        context, [for_token, lp3, lhs, in_token, exp_lhs_in, rp_lhs_in, stmt_lhs_in,],
                                     )
             lexer.reset_position(after_open)
 
@@ -20907,7 +20946,7 @@ def parse_IterationStatement(context, lexer, Yield, Await, Return):
                                 stmt_fb = parse_Statement(context, lexer, Yield, Await, Return)
                                 if stmt_fb:
                                     return P2_IterationStatement_FOR_VAR_ForBinding_IN_Expression_Statement(
-                                        context, [for_token, lp3, var_fb, fb, in_fb, exp_fb, rp_fb, stmt_fb]
+                                        context, [for_token, lp3, var_fb, fb, in_fb, exp_fb, rp_fb, stmt_fb,],
                                     )
             lexer.reset_position(after_open)
 
@@ -20923,7 +20962,7 @@ def parse_IterationStatement(context, lexer, Yield, Await, Return):
                             stmt_fd = parse_Statement(context, lexer, Yield, Await, Return)
                             if stmt_fd:
                                 return P2_IterationStatement_FOR_ForDeclaration_IN_Expression_Statement(
-                                    context, [for_token, lp3, fd, in_fd, exp_fd, rp_fd, stmt_fd]
+                                    context, [for_token, lp3, fd, in_fd, exp_fd, rp_fd, stmt_fd],
                                 )
             lexer.reset_position(after_open)
 
@@ -20941,7 +20980,7 @@ def parse_IterationStatement(context, lexer, Yield, Await, Return):
                                 stmt_lhs_of = parse_Statement(context, lexer, Yield, Await, Return)
                                 if stmt_lhs_of:
                                     return P2_IterationStatement_FOR_LeftHandSideExpression_OF_AssignmentExpression_Statement(
-                                        context, [for_token, lp3, lhs_of, of_lhs, ae_lhs, rp_lhs_of, stmt_lhs_of]
+                                        context, [for_token, lp3, lhs_of, of_lhs, ae_lhs, rp_lhs_of, stmt_lhs_of,],
                                     )
             lexer.reset_position(after_open)
 
@@ -20960,7 +20999,7 @@ def parse_IterationStatement(context, lexer, Yield, Await, Return):
                                 if stmt_fb_of:
                                     return P2_IterationStatement_FOR_VAR_ForBinding_OF_AssignmentExpression_Statement(
                                         context,
-                                        [for_token, lp3, var_fb_of, fb_of, of_fb, ae_fb_of, rp_fb_of, stmt_fb_of],
+                                        [for_token, lp3, var_fb_of, fb_of, of_fb, ae_fb_of, rp_fb_of, stmt_fb_of,],
                                     )
             lexer.reset_position(after_open)
 
@@ -20976,7 +21015,7 @@ def parse_IterationStatement(context, lexer, Yield, Await, Return):
                             stmt_fd = parse_Statement(context, lexer, Yield, Await, Return)
                             if stmt_fd:
                                 return P2_IterationStatement_FOR_ForDeclaration_OF_AssignmentExpression_Statement(
-                                    context, [for_token, lp3, fd_of, of_fd, ae_fd, rp_fd, stmt_fd]
+                                    context, [for_token, lp3, fd_of, of_fd, ae_fd, rp_fd, stmt_fd,],
                                 )
         if Await:
             lexer.reset_position(after_for)
@@ -21375,7 +21414,7 @@ def EnumerateObjectProperties(O):
                 if propkey not in visited:
                     yield propkey
 
-    iterator_obj = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics["%IteratorPrototype%"], ["python_iter"])
+    iterator_obj = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics["%IteratorPrototype%"], ["python_iter"],)
     iterator_obj.python_iter = py_enum_props(O)
 
     def enum_next(this_value, new_target, *_):
@@ -21947,7 +21986,7 @@ class P2_WithStatement_WITH_Expression_Statement(P2_WithStatement):
         #   * It is a Syntax Error if IsLabelledFunction(Statement) is true.
         # NOTE: It is only necessary to apply the second rule if the extension specified in B.3.2 is implemented.
         return list(
-            filter(None, [self.strict and self.CreateSyntaxError("Strict mode code may not include a with statement")])
+            filter(None, [self.strict and self.CreateSyntaxError("Strict mode code may not include a with statement")],)
         )
 
     def ContainsDuplicateLabels(self, labelSet):
@@ -23173,7 +23212,10 @@ def FunctionDecl_EarlyErrors(pn):
     errs = []
     if pn.strict:
         errs.extend(UniqueFormalParameters_EarlyErrors(pn.FormalParameters))
-        if pn.BindingIdentifier and pn.BindingIdentifier.StringValue() in ["eval", "arguments"]:
+        if pn.BindingIdentifier and pn.BindingIdentifier.StringValue() in [
+            "eval",
+            "arguments",
+        ]:
             errs.append(
                 pn.CreateSyntaxError(f"Redefining '{pn.BindingIdentifier.StringValue()}' is not allowed in strict mode")
             )
@@ -23357,7 +23399,7 @@ def parse_FunctionDeclaration(context, lexer, Yield, Await, Default):
                                 if rc:
                                     if bi:
                                         return P2_FunctionDeclaration_FUNCTION_BindingIdentifier_FormalParameters_FunctionBody(
-                                            context, [function, bi, lp, fp, rp, lc, body, rc]
+                                            context, [function, bi, lp, fp, rp, lc, body, rc],
                                         )
                                     return P2_FunctionDeclaration_FUNCTION_FormalParameters_FunctionBody(
                                         context, [function, lp, fp, rp, lc, body, rc]
@@ -23548,7 +23590,7 @@ def parse_FunctionExpression(context, lexer):
                             if rc:
                                 if bi:
                                     return P2_FunctionExpression_FUNCTION_BindingIdentifier_FormalParameters_FunctionBody(
-                                        context, [function, bi, lp, fp, rp, lc, body, rc]
+                                        context, [function, bi, lp, fp, rp, lc, body, rc],
                                     )
                                 return P2_FunctionExpression_FUNCTION_FormalParameters_FunctionBody(
                                     context, [function, lp, fp, rp, lc, body, rc]
@@ -24305,7 +24347,7 @@ class P2_ArrowFunction_ArrowParameters_ConciseBody(P2_ArrowFunction):
         #   1. If symbol is not one of NewTarget, SuperProperty, SuperCall, super or this, return false.
         #   2. If ArrowParameters Contains symbol is true, return true.
         #   3. Return ConciseBody Contains symbol.
-        return symbol in ("NewTarget", "SuperProperty", "SuperCall", "super", "this") and (
+        return symbol in ("NewTarget", "SuperProperty", "SuperCall", "super", "this",) and (
             self.ArrowParameters.Contains(symbol) or self.ConciseBody.Contains(symbol)
         )
 
@@ -24780,7 +24822,7 @@ class P2_MethodDefinition_PropertyName_UniqueFormalParameters_FunctionBody(P2_Me
         else:
             kind = METHOD
             prototype = surrounding_agent.running_ec.realm.intrinsics["%FunctionPrototype%"]
-        closure = FunctionCreate(kind, self.UniqueFormalParameters, self.FunctionBody, scope, self.strict, prototype)
+        closure = FunctionCreate(kind, self.UniqueFormalParameters, self.FunctionBody, scope, self.strict, prototype,)
         MakeMethod(closure, object)
         closure.SourceText = self.matched_source()
         return MethodDefinitionRecord(Key=propKey, Closure=closure)
@@ -24795,7 +24837,7 @@ class P2_MethodDefinition_PropertyName_UniqueFormalParameters_FunctionBody(P2_Me
         #   5. Return ? DefinePropertyOrThrow(object, methodDef.[[Key]], desc).
         methodDef = self.DefineMethod(object)
         SetFunctionName(methodDef.Closure, methodDef.Key)
-        desc = PropertyDescriptor(value=methodDef.Closure, writable=True, enumerable=enumerable, configurable=True)
+        desc = PropertyDescriptor(value=methodDef.Closure, writable=True, enumerable=enumerable, configurable=True,)
         return DefinePropertyOrThrow(object, methodDef.Key, desc)
 
 
@@ -24998,7 +25040,7 @@ def parse_MethodDefinition(context, lexer, Yield, Await):
                             rc_get = lexer.next_token_if("}")
                             if rc_get:
                                 return P2_MethodDefinition_GET_PropertyName_FunctionBody(
-                                    context, [get, pn_get, lp_get, rp_get, lc_get, fb_get, rc_get]
+                                    context, [get, pn_get, lp_get, rp_get, lc_get, fb_get, rc_get,],
                                 )
         lexer.reset_position(bookmark)
     set_tok = lexer.next_id_if("set")
@@ -25018,7 +25060,7 @@ def parse_MethodDefinition(context, lexer, Yield, Await):
                                 rc_set = lexer.next_token_if("}")
                                 if rc_set:
                                     return P2_MethodDefinition_SET_PropertyName_PropertySetParameterList_FunctionBody(
-                                        context, [set_tok, pn_set, lp_set, pspl, rp_set, lc_set, fb_set, rc_set]
+                                        context, [set_tok, pn_set, lp_set, pspl, rp_set, lc_set, fb_set, rc_set,],
                                     )
         lexer.reset_position(bookmark)
     return None
@@ -25300,7 +25342,10 @@ class GeneratorCommon(ParseNode2):
         errs = []
         if self.strict:
             errs.extend(UniqueFormalParameters_EarlyErrors(self.FormalParameters))
-            if self.BindingIdentifier and self.BindingIdentifier.StringValue() in ["eval", "arguments"]:
+            if self.BindingIdentifier and self.BindingIdentifier.StringValue() in [
+                "eval",
+                "arguments",
+            ]:
                 errs.append(
                     ESSyntaxError('Strict mode disallows "eval" and "arguments" as identifier names in this context')
                 )
@@ -25376,7 +25421,7 @@ class P2_GeneratorDeclaration_FUNCTION_BindingIdentifier_FormalParameters_Genera
         F = GeneratorFunctionCreate(NORMAL, self.FormalParameters, self.GeneratorBody, scope, self.strict)
         prototype = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics["%GeneratorPrototype%"])
         DefinePropertyOrThrow(
-            F, "prototype", PropertyDescriptor(value=prototype, writable=True, enumerable=False, configurable=False)
+            F, "prototype", PropertyDescriptor(value=prototype, writable=True, enumerable=False, configurable=False),
         )
         SetFunctionName(F, name)
         return F
@@ -25417,7 +25462,7 @@ class P2_GeneratorDeclaration_FUNCTION_FormalParameters_GeneratorBody(P2_Generat
         F = GeneratorFunctionCreate(NORMAL, self.FormalParameters, self.GeneratorBody, scope, True)
         prototype = ObjectCreate(surrounding_agent.running_ec.realm["%GeneratorPrototype%"])
         DefinePropertyOrThrow(
-            F, "prototype", PropertyDescriptor(value=prototype, writable=True, enumerable=False, configurable=False)
+            F, "prototype", PropertyDescriptor(value=prototype, writable=True, enumerable=False, configurable=False),
         )
         SetFunctionName(F, "default")
         F.SourceText = self.matched_source()
@@ -25453,7 +25498,7 @@ def parse_GeneratorDeclaration(context, lexer, Yield, Await, Default):
                                             if bi
                                             else P2_GeneratorDeclaration_FUNCTION_FormalParameters_GeneratorBody
                                         )
-                                        children = list(filter(None, [fun, star, bi, lp, fp, rp, lc, gb, rc]))
+                                        children = list(filter(None, [fun, star, bi, lp, fp, rp, lc, gb, rc],))
                                         return ctor(context, children)
     return None
 
@@ -25595,7 +25640,7 @@ def parse_GeneratorExpression(context, lexer):
                                         if bi
                                         else P2_GeneratorExpression_FUNCTION_FormalParameters_GeneratorBody
                                     )
-                                    children = list(filter(None, [fun, star, bi, lp, fp, rp, lc, gb, rc]))
+                                    children = list(filter(None, [fun, star, bi, lp, fp, rp, lc, gb, rc],))
                                     return ctor(context, children)
     return None
 
@@ -25626,7 +25671,7 @@ class P2_GeneratorBody_FunctionBody(P2_GeneratorBody):
         #   4. Return Completion { [[Type]]: return, [[Value]]: G, [[Target]]: empty }.
         FunctionDeclarationInstantiation(functionObject, argumentsList)
         G = OrdinaryCreateFromConstructor(
-            functionObject, "%GeneratorPrototype%", ["GeneratorState", "GeneratorContext"]
+            functionObject, "%GeneratorPrototype%", ["GeneratorState", "GeneratorContext"],
         )
         GeneratorStart(G, self.FunctionBody)
         raise ESReturn(value=G)
@@ -26139,7 +26184,7 @@ class P2_ScriptBody_StatementList(P2_ScriptBody):
         # 15.1.2 Static Semantics: IsStrict
         # ScriptBody : StatementList
         #    1. If the Directive Prologue of StatementList contains a Use Strict Directive, return true; otherwise, return false.
-        _, dp = self.StatementList.LeadingStrings()  # This is a list of strings, subsets of the source text
+        (_, dp,) = self.StatementList.LeadingStrings()  # This is a list of strings, subsets of the source text
         return "'use strict'" in dp or '"use strict"' in dp
 
     def LexicallyDeclaredNames(self):
@@ -26538,14 +26583,85 @@ Y88b. .d88P 888 d88P    888 Y8b.     Y88b.    Y88b.       X88
 def BindBuiltinFunctions(realm, obj, details):
     for key, fcn, length in details:
         func_obj = CreateBuiltinFunction(fcn, [], realm)
+        # Check a bunch of things. We need to make our bindable functions in a particular way...
+        argspec = inspect.getfullargspec(fcn)
+        # function arity must be at least 2: (an empty arg list still has a this pointer and a new target).
+        assert len(argspec.args) >= 2
+        # All but the first two positional args must have default values:
+        # From section 17:
+        #   Unless otherwise specified in the description of a particular function, if a built-in function or
+        #   constructor is given fewer arguments than the function is specified to require, the function or constructor
+        #   shall behave exactly as if it had been given sufficient additional arguments, each such argument being the
+        #   undefined value. Such missing arguments are considered to be “not present” and may be identified in that
+        #   manner by specification algorithms.
+        assert len(argspec.defaults or ()) >= len(argspec.args) - 2
+        # Functions must allow any number of arguments:
+        # From section 17:
+        #   Unless otherwise specified in the description of a particular function, if a built-in function or
+        #   constructor described is given more arguments than the function is specified to allow, the extra arguments
+        #   are evaluated by the call and then ignored by the function.
+        assert argspec.varargs is not None
+
+        # The 'length' property:
+        # From section 17:
+        #   Every built-in function object, including constructors, has a "length" property whose value is an integer.
+        #       Unless otherwise specified, this value is equal to the largest number of named arguments shown in the
+        #       subclause headings for the function description. Optional parameters (which are indicated with
+        #       brackets: [ ]) or rest parameters (which are shown using the form «...name») are not included in the
+        #       default argument count.
+        #   Unless otherwise specified, the "length" property of a built-in function object has the attributes
+        #       { [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true }.
+
+        # (Old implementation had us passing in length. We assert for consistency here, I'll eventually remove the old
+        # implementation.)
+        if length is None:
+            length = getattr(fcn, "length", len(argspec.args) - 2)
+        assert getattr(fcn, "length", len(argspec.args) - 2) == length
         DefinePropertyOrThrow(
-            func_obj, "length", PropertyDescriptor(value=length, writable=False, enumerable=False, configurable=True)
+            func_obj, "length", PropertyDescriptor(value=length, writable=False, enumerable=False, configurable=True),
         )
+
+        # The 'name' property:
+        # From section 17:
+        #   Every built-in function object, including constructors, that is not identified as an anonymous function has
+        #       a name property whose value is a String. Unless otherwise specified, this value is the name that is
+        #       given to the function in this specification. For functions that are specified as properties of objects,
+        #       the name value is the property name string used to access the function. Functions that are specified as
+        #       get or set accessor functions of built-in properties have "get " or "set " prepended to the property
+        #       name string. The value of the name property is explicitly specified for each built-in functions whose
+        #       property key is a Symbol value.
+        #   Unless otherwise specified, the name property of a built-in function object, if it exists, has the
+        #       attributes { [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true }.
+
+        # Again: old implementation uses the key as the name; I want to break that and record the name along with the
+        # function definition. A get-with-default is here to ease the pain.
+        name = getattr(fcn, "name", key)
         DefinePropertyOrThrow(
-            func_obj, "name", PropertyDescriptor(value=key, writable=False, enumerable=False, configurable=True)
+            func_obj, "name", PropertyDescriptor(value=name, writable=False, enumerable=False, configurable=True),
         )
         CreateMethodPropertyOrThrow(obj, key, func_obj)
     return None
+
+
+def CreateAndAnnotateBuiltinFunction(fcn, realm):
+    argspec = inspect.getfullargspec(fcn)
+    assert len(argspec.args) >= 2
+    assert len(argspec.defaults or ()) >= len(argspec.args) - 2
+    assert argspec.varargs is not None
+
+    f = CreateBuiltinFunction(fcn, [], realm)
+    for key in ("length", "name"):
+        DefinePropertyOrThrow(
+            f, key, PropertyDescriptor(value=getattr(fcn, key), writable=False, enumerable=False, configurable=True)
+        )
+    return f
+
+
+def BindBuiltinAccessors(realm, obj, details):
+    for key, get_fcn, set_fcn in details:
+        g = CreateAndAnnotateBuiltinFunction(get_fcn, realm) if get_fcn else None
+        s = CreateAndAnnotateBuiltinFunction(set_fcn, realm) if set_fcn else None
+        DefinePropertyOrThrow(obj, key, PropertyDescriptor(Get=g, Set=s, enumerable=False, configurable=True))
 
 
 def Object_establish_intrinsics(realm):
@@ -26559,12 +26675,14 @@ def CreateObjectConstructor(realm):
     obj = CreateBuiltinFunction(ObjectFunction, ["Construct"], realm=realm)
     for key, value in [("length", 1), ("name", "Object")]:
         DefinePropertyOrThrow(
-            obj, key, PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)
+            obj, key, PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True),
         )
     DefinePropertyOrThrow(
         obj,
         "prototype",
-        PropertyDescriptor(value=intrinsics["%ObjectPrototype%"], writable=False, enumerable=False, configurable=False),
+        PropertyDescriptor(
+            value=intrinsics["%ObjectPrototype%"], writable=False, enumerable=False, configurable=False,
+        ),
     )
     BindBuiltinFunctions(
         realm,
@@ -26646,6 +26764,9 @@ def ObjectMethod_assign(_a, _b, target=None, *sources):
     # 5. Return to.
     return to_obj
 
+
+ObjectMethod_assign.length = 2
+ObjectMethod_assign.name = "assign"
 
 # 19.1.2.2 Object.create ( O, Properties )
 def ObjectMethod_create(_a, _b, o_value=None, properties=None, *_):
@@ -26969,7 +27090,7 @@ def AddObjectPrototypeProps(realm_rec):
     DefinePropertyOrThrow(
         obj,
         "constructor",
-        PropertyDescriptor(value=intrinsics["%Object%"], writable=False, enumerable=False, configurable=False),
+        PropertyDescriptor(value=intrinsics["%Object%"], writable=False, enumerable=False, configurable=False,),
     )
     BindBuiltinFunctions(
         realm_rec,
@@ -27065,6 +27186,9 @@ def ObjectPrototype_toLocaleString(this_value, _nt, reserved1=EMPTY, reserved2=E
     # NOTE 2
     # ECMA-402 intentionally does not provide an alternative to this default implementation.
 
+
+ObjectPrototype_toLocaleString.length = 0
+ObjectPrototype_toLocaleString.name = "toLocaleString"
 
 # 19.1.3.6 Object.prototype.toString ( )
 def ObjectPrototype_toString(this_value, new_target, *_):
@@ -27371,12 +27495,12 @@ def CreateDynamicFunction(constructor, newTarget, kind, args):
     if kind == "generator":
         prototype = ObjectCreate(surrounding_agent.running_ec.realm["%GeneratorPrototype%"])
         DefinePropertyOrThrow(
-            F, "prototype", PropertyDescriptor(value=prototype, writable=True, enumerable=False, configurable=False)
+            F, "prototype", PropertyDescriptor(value=prototype, writable=True, enumerable=False, configurable=False),
         )
     elif kind == "async generator":
         prototype = ObjectCreate(surrounding_agent.running_ec.realm["%AsyncGeneratorPrototype%"])
         DefinePropertyOrThrow(
-            F, "prototype", PropertyDescriptor(value=prototype, writable=True, enumerable=False, configurable=False)
+            F, "prototype", PropertyDescriptor(value=prototype, writable=True, enumerable=False, configurable=False),
         )
     elif kind == "normal":
         MakeConstructor(F)
@@ -27427,18 +27551,18 @@ def AttachFunctionPrototypeProperties(proto, realm):
     )
     func = CreateBuiltinFunction(FunctionPrototype_hasInstance, [], realm)
     DefinePropertyOrThrow(
-        func, "length", PropertyDescriptor(value=1, writable=False, enumerable=False, configurable=True)
+        func, "length", PropertyDescriptor(value=1, writable=False, enumerable=False, configurable=True),
     )
     DefinePropertyOrThrow(
         func,
         "name",
-        PropertyDescriptor(value="[Symbol.hasInstance]", writable=False, enumerable=False, configurable=False),
+        PropertyDescriptor(value="[Symbol.hasInstance]", writable=False, enumerable=False, configurable=False,),
     )
     CreateMethodPropertyOrThrow(proto, wks_has_instance, func)
 
 
 # 19.2.3.1 Function.prototype.apply ( thisArg, argArray )
-def FunctionPrototype_apply(this_value, new_target, thisArg, argArray, *_):
+def FunctionPrototype_apply(this_value, new_target, thisArg=None, argArray=None, *_):
     # When the apply method is called on an object func with arguments thisArg and argArray, the following steps are
     # taken:
     #
@@ -27469,7 +27593,7 @@ def FunctionPrototype_apply(this_value, new_target, thisArg, argArray, *_):
 
 
 # 19.2.3.2 Function.prototype.bind ( thisArg, ...args )
-def FunctionPrototype_bind(this_value, new_target, thisArg, *args):
+def FunctionPrototype_bind(this_value, new_target, thisArg=None, *args):
     # When the bind method is called with argument thisArg and zero or more args, it performs the following steps:
     #
     #   1. Let Target be the this value.
@@ -27519,7 +27643,7 @@ def FunctionPrototype_bind(this_value, new_target, thisArg, *args):
 
 
 # 19.2.3.3 Function.prototype.call ( thisArg, ...args )
-def FunctionPrototype_call(this_value, new_target, thisArg, *args):
+def FunctionPrototype_call(this_value, new_target, thisArg=None, *args):
     # When the call method is called on an object func with argument, thisArg and zero or more args, the following
     # steps are taken:
     #
@@ -27670,7 +27794,7 @@ def BooleanFixups(realm):
     DefinePropertyOrThrow(
         boolean_constructor,
         "prototype",
-        PropertyDescriptor(value=boolean_prototype, writable=False, enumerable=False, configurable=False),
+        PropertyDescriptor(value=boolean_prototype, writable=False, enumerable=False, configurable=False,),
     )
     DefinePropertyOrThrow(boolean_prototype, "constructor", PropertyDescriptor(value=boolean_constructor))
     return None
@@ -27688,7 +27812,9 @@ def CreateBooleanPrototype(realm):
     boolean_prototype = ObjectCreate(realm.intrinsics["%ObjectPrototype%"], ["BooleanData"])
     boolean_prototype.BooleanData = False
     BindBuiltinFunctions(
-        realm, boolean_prototype, [("toString", BooleanPrototype_toString, 0), ("valueOf", BooleanPrototype_valueOf, 0)]
+        realm,
+        boolean_prototype,
+        [("toString", BooleanPrototype_toString, 0), ("valueOf", BooleanPrototype_valueOf, 0),],
     )
     return boolean_prototype
 
@@ -27712,7 +27838,7 @@ def thisBooleanValue(value):
 
 
 # 19.3.3.2 Boolean.prototype.toString ( )
-def BooleanPrototype_toString(this_value, *_):
+def BooleanPrototype_toString(this_value, nt, *_):
     # The following steps are taken:
     #
     # 1. Let b be ? thisBooleanValue(this value).
@@ -27722,7 +27848,7 @@ def BooleanPrototype_toString(this_value, *_):
 
 
 # 19.3.3.3 Boolean.prototype.valueOf ( )
-def BooleanPrototype_valueOf(this_value, *_):
+def BooleanPrototype_valueOf(this_value, nt, *_):
     # The following steps are taken:
     #
     # 1. Return ? thisBooleanValue(this value).
@@ -27844,12 +27970,12 @@ def CreateErrorPrototype(realm):
     # The initial value of Error.prototype.name is "Error".
     for key, value in [("message", ""), ("name", "Error")]:
         Set(error_prototype, key, value, True)
-    BindBuiltinFunctions(realm, error_prototype, [("toString", ErrorPrototype_toString, 1)])
+    BindBuiltinFunctions(realm, error_prototype, [("toString", ErrorPrototype_toString, 0)])
     return error_prototype
 
 
 # 19.5.3.4 Error.prototype.toString ( )
-def ErrorPrototype_toString(this_value, *_):
+def ErrorPrototype_toString(this_value, new_target, *_):
     # The following steps are taken:
     #
     # 1. Let O be the this value.
@@ -27995,7 +28121,7 @@ def CreateNumberConstructor(realm):
         # In the IEEE 754-2008 double precision binary representation, the smallest possible value is a denormalized
         # number. If an implementation does not support denormalized values, the value of Number.MIN_VALUE must be the
         # smallest non-zero positive value that can actually be represented by the implementation.
-        ("MIN_VALUE", 5e-324),  # sys.float_info.min is the smalled normalized float, in python.
+        ("MIN_VALUE", 5e-324,),  # sys.float_info.min is the smalled normalized float, in python.
         # 20.1.2.10 Number.NaN
         # The value of Number.NaN is NaN.
         ("NaN", math.nan),
@@ -28110,7 +28236,7 @@ def CreateNumberPrototype(realm):
     number_prototype = ObjectCreate(realm.intrinsics["%ObjectPrototype%"], ["NumberData"])
     number_prototype.NumberData = 0
     BindBuiltinFunctions(
-        realm, number_prototype, [("toString", NumberPrototype_toString, 1), ("valueOf", NumberPrototype_valueOf, 0)]
+        realm, number_prototype, [("toString", NumberPrototype_toString, 1), ("valueOf", NumberPrototype_valueOf, 0),],
     )
     return number_prototype
 
@@ -28167,7 +28293,7 @@ def NumberPrototype_toString(this_value, _, radix=None, *args):
 
 
 # 20.1.3.7 Number.prototype.valueOf ( )
-def NumberPrototype_valueOf(this_value, *_):
+def NumberPrototype_valueOf(this_value, nt, *_):
     # 1. Return ? thisNumberValue(this value).
     return thisNumberValue(this_value)
 
@@ -28205,10 +28331,10 @@ def CreateMathObject(realm):
         ("SQRT2", math.sqrt(2)),
     ):
         DefinePropertyOrThrow(
-            obj, name, PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=False)
+            obj, name, PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=False),
         )
     DefinePropertyOrThrow(
-        obj, wks_to_string_tag, PropertyDescriptor(vlaue="Math", writable=False, enumerable=False, configurable=True)
+        obj, wks_to_string_tag, PropertyDescriptor(vlaue="Math", writable=False, enumerable=False, configurable=True),
     )
     BindBuiltinFunctions(
         realm,
@@ -28375,6 +28501,10 @@ def Math_hypot(this_value, new_target, *args):
     return math.hypot(*values)
 
 
+Math_hypot.length = 2
+Math_hypot.name = "hypot"
+
+
 def Math_imul(this_value, new_target, x=None, y=None, *_):
     a = ToUint32(x)
     b = ToUint32(y)
@@ -28428,8 +28558,16 @@ def Math_max(this_value, new_target, *args):
     return max((ToNumber(x) for x in args), default=-math.inf)
 
 
+Math_max.length = 2
+Math_max.name = "max"
+
+
 def Math_min(this_value, new_target, *args):
     return min((ToNumber(x) for x in args), default=math.inf)
+
+
+Math_min.length = 2
+Math_min.name = "min"
 
 
 def Math_pow(this_value, new_target, base=None, exponent=None, *_):
@@ -28774,7 +28912,20 @@ def MakeDay(year, month, date):
     mn = round(m % 12)
     t = TimeFromYear(y)
     days_to_start_of_month = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]
-    days_to_start_of_month_leap = [0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335]
+    days_to_start_of_month_leap = [
+        0,
+        31,
+        60,
+        91,
+        121,
+        152,
+        182,
+        213,
+        244,
+        274,
+        305,
+        335,
+    ]
     t += msPerDay * (days_to_start_of_month_leap if InLeapYear(t) else days_to_start_of_month)[mn]
     assert YearFromTime(t) == ym and MonthFromTime(t) == mn and DateFromTime(t) == 1
     return Day(t) + dt - 1
@@ -28854,7 +29005,7 @@ def CreateDateConstructor(realm):
 #       k. Set O.[[DateValue]] to TimeClip(UTC(finalDate)).
 #       l. Return O.
 def Date_Function_2plus(
-    this_value, new_target, year, month, date=EMPTY, hours=EMPTY, minutes=EMPTY, seconds=EMPTY, ms=EMPTY, *_
+    this_value, new_target, year, month, date=EMPTY, hours=EMPTY, minutes=EMPTY, seconds=EMPTY, ms=EMPTY, *_,
 ):
     assert new_target is not None
     y = ToNumber(year)
@@ -28978,7 +29129,20 @@ def ToDateString(tv):
 
 
 weekday_names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+month_names = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+]
 
 # 20.3.4.41.2 Runtime Semantics: DateString ( tv )
 def DateString(tv):
@@ -29133,12 +29297,12 @@ def CreateDatePrototype(realm):
     )
     func_obj = CreateBuiltinFunction(DatePrototype_toPrimitive, [], realm)
     DefinePropertyOrThrow(
-        func_obj, "length", PropertyDescriptor(value=1, writable=False, enumerable=False, configurable=True)
+        func_obj, "length", PropertyDescriptor(value=1, writable=False, enumerable=False, configurable=True),
     )
     DefinePropertyOrThrow(
         func_obj,
         "name",
-        PropertyDescriptor(value="[Symbol.toPrimitive]", writable=False, enumerable=False, configurable=False),
+        PropertyDescriptor(value="[Symbol.toPrimitive]", writable=False, enumerable=False, configurable=False,),
     )
     CreateMethodPropertyOrThrow(date_prototype, wks_to_primitive, func_obj)
     return date_prototype
@@ -29743,7 +29907,7 @@ def locale_date(localtime):
 def locale_time(localtime):
     time = TimeWithinDay(localtime)
     hour = HourFromTime(time)
-    display_hour = (12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)[hour]
+    display_hour = (12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,)[hour]
     ampm = ("AM", "PM")[hour >= 12]
     return f"{display_hour}:{MinFromTime(time):02d}:{SecFromTime(time):02d} {ampm}"
 
@@ -29767,6 +29931,9 @@ def DatePrototype_toLocaleDateString(this_value, new_target, reserved1=EMPTY, re
     return locale_date(LocalTime(tv))
 
 
+DatePrototype_toLocaleDateString.length = 0
+DatePrototype_toLocaleDateString.name = "toLocaleDateString"
+
 # 20.3.4.39 Date.prototype.toLocaleString ( [ reserved1 [ , reserved2 ] ] )
 def DatePrototype_toLocaleString(this_value, new_target, reserved1=EMPTY, reserved2=EMPTY, *_):
     # An ECMAScript implementation that includes the ECMA-402 Internationalization API must implement the
@@ -29784,6 +29951,10 @@ def DatePrototype_toLocaleString(this_value, new_target, reserved1=EMPTY, reserv
         return "Invalid Date"
     lt = LocalTime(tv)
     return f"{locale_date(lt)}, {locale_time(lt)}"
+
+
+DatePrototype_toLocaleString.length = 0
+DatePrototype_toLocaleString.name = "toLocaleDateString"
 
 
 # 20.3.4.40 Date.prototype.toLocaleTimeString ( [ reserved1 [ , reserved2 ] ] )
@@ -29805,6 +29976,9 @@ def DatePrototype_toLocaleTimeString(this_value, new_target, reserved1=EMPTY, re
     return locale_time(LocalTime(tv))
 
 
+DatePrototype_toLocaleTimeString.length = 0
+DatePrototype_toLocaleTimeString.name = "toLocaleTimeString"
+
 # 20.3.4.41 Date.prototype.toString ( )
 def DatePrototype_toString(this_value, new_target, *_):
     # The following steps are performed:
@@ -29822,7 +29996,7 @@ def DatePrototype_toString(this_value, new_target, *_):
 
 
 # 20.3.4.42 Date.prototype.toTimeString ( )
-def DatePrototype_toTimeString(this_value, *_):
+def DatePrototype_toTimeString(this_value, nt, *_):
     # The following steps are performed:
     #
     #   1. Let O be this Date object.
@@ -29944,7 +30118,7 @@ def CreateStringConstructor(realm):
         desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)
         DefinePropertyOrThrow(obj, key, desc)
     BindBuiltinFunctions(
-        realm, obj, [("fromCharCode", String_fromCharCode, 1), ("fromCodePoint", String_fromCodePoint, 1)]
+        realm, obj, [("fromCharCode", String_fromCharCode, 1), ("fromCodePoint", String_fromCodePoint, 1),],
     )
     return obj
 
@@ -30004,6 +30178,9 @@ def String_fromCharCode(this_value, new_target, *codeUnits):
     # The length property of the fromCharCode function is 1.
 
 
+String_fromCharCode.length = 1
+String_fromCharCode.name = "fromCharCode"
+
 # ------------------------------------ 𝟐𝟏.𝟏.𝟐.𝟐 𝑺𝒕𝒓𝒊𝒏𝒈.𝒇𝒓𝒐𝒎𝑪𝒐𝒅𝒆𝑷𝒐𝒊𝒏𝒕 ( ...𝒄𝒐𝒅𝒆𝑷𝒐𝒊𝒏𝒕𝒔 ) ------------------------------------
 # 21.1.2.2 String.fromCodePoint ( ...codePoints )
 def String_fromCodePoint(this_value, new_target, *codePoints):
@@ -30035,6 +30212,9 @@ def String_fromCodePoint(this_value, new_target, *codePoints):
     # The length property of the fromCodePoint function is 1.
 
 
+String_fromCodePoint.length = 1
+String_fromCodePoint.name = "fromCodePoint"
+
 # ------------------------------------ 𝟐𝟏.𝟏.𝟑 𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒊𝒆𝒔 𝒐𝒇 𝒕𝒉𝒆 𝑺𝒕𝒓𝒊𝒏𝒈 𝑷𝒓𝒐𝒕𝒐𝒕𝒚𝒑𝒆 𝑶𝒃𝒋𝒆𝒄𝒕 ------------------------------------
 # 21.1.3 Properties of the String Prototype Object
 # The String prototype object:
@@ -30052,7 +30232,7 @@ def String_fromCodePoint(this_value, new_target, *codePoints):
 def CreateStringPrototype(realm):
     string_prototype = StringCreate("", realm.intrinsics["%ObjectPrototype%"])
     BindBuiltinFunctions(
-        realm, string_prototype, [("toString", StringPrototype_toString, 0), ("valueOf", StringPrototype_valueOf, 0)]
+        realm, string_prototype, [("toString", StringPrototype_toString, 0), ("valueOf", StringPrototype_valueOf, 0),],
     )
     return string_prototype
 
@@ -30075,7 +30255,7 @@ def thisStringValue(value):
 
 # ------------------------------------ 𝟐𝟏.𝟏.𝟑.𝟐𝟓 𝑺𝒕𝒓𝒊𝒏𝒈.𝒑𝒓𝒐𝒕𝒐𝒕𝒚𝒑𝒆.𝒕𝒐𝑺𝒕𝒓𝒊𝒏𝒈 ( ) ------------------------------------
 # 21.1.3.25 String.prototype.toString ( )
-def StringPrototype_toString(this_value, new_target):
+def StringPrototype_toString(this_value, new_target, *_):
     # When the toString method is called, the following steps are taken:
     #
     # 1. Return ? thisStringValue(this value).
@@ -30086,7 +30266,7 @@ def StringPrototype_toString(this_value, new_target):
 
 # ------------------------------------ 𝟐𝟏.𝟏.𝟑.𝟐𝟖 𝑺𝒕𝒓𝒊𝒏𝒈.𝒑𝒓𝒐𝒕𝒐𝒕𝒚𝒑𝒆.𝒗𝒂𝒍𝒖𝒆𝑶𝒇 ( ) ------------------------------------
 # 21.1.3.28 String.prototype.valueOf ( )
-def StringPrototype_valueOf(this_value, new_target):
+def StringPrototype_valueOf(this_value, new_target, *_):
     # When the valueOf method is called, the following steps are taken:
     #
     # 1. Return ? thisStringValue(this value).
@@ -30103,6 +30283,54 @@ def StringFixups(realm):
     return None
 
 
+#######################################################################################################################
+#
+#  .d8888b.   d888        .d8888b.      8888888b.                    8888888888
+# d88P  Y88b d8888       d88P  Y88b     888   Y88b                   888
+#        888   888              888     888    888                   888
+#      .d88P   888            .d88P     888   d88P  .d88b.   .d88b.  8888888    888  888 88888b.
+#  .od888P"    888        .od888P"      8888888P"  d8P  Y8b d88P"88b 888        `Y8bd8P' 888 "88b
+# d88P"        888       d88P"          888 T88b   88888888 888  888 888          X88K   888  888
+# 888"         888   d8b 888"           888  T88b  Y8b.     Y88b 888 888        .d8""8b. 888 d88P
+# 888888888  8888888 Y8P 888888888      888   T88b  "Y8888   "Y88888 8888888888 888  888 88888P"
+#                                                                888                     888
+#                                                           Y8b d88P                     888
+#                                                            "Y88P"                      888
+#   .d88 8888888b.                             888
+#  d88P" 888   Y88b                            888
+# d88P   888    888                            888
+# 888    888   d88P  .d88b.   .d88b.  888  888 888  8888b.  888d888
+# 888    8888888P"  d8P  Y8b d88P"88b 888  888 888     "88b 888P"
+# Y88b   888 T88b   88888888 888  888 888  888 888 .d888888 888
+#  Y88b. 888  T88b  Y8b.     Y88b 888 Y88b 888 888 888  888 888
+#   "Y88 888   T88b  "Y8888   "Y88888  "Y88888 888 "Y888888 888
+#                                 888
+#                            Y8b d88P
+#                             "Y88P"
+# 8888888888                                                      d8b                   88b.
+# 888                                                             Y8P                   "Y88b
+# 888                                                                                     Y88b
+# 8888888    888  888 88888b.  888d888  .d88b.  .d8888b  .d8888b  888  .d88b.  88888b.     888
+# 888        `Y8bd8P' 888 "88b 888P"   d8P  Y8b 88K      88K      888 d88""88b 888 "88b    888
+# 888          X88K   888  888 888     88888888 "Y8888b. "Y8888b. 888 888  888 888  888   d88P
+# 888        .d8""8b. 888 d88P 888     Y8b.          X88      X88 888 Y88..88P 888  888 .d88P
+# 8888888888 888  888 88888P"  888      "Y8888   88888P'  88888P' 888  "Y88P"  888  888 88P"
+#                     888
+#                     888
+#                     888
+#  .d88888b.  888         d8b                   888
+# d88P" "Y88b 888         Y8P                   888
+# 888     888 888                               888
+# 888     888 88888b.    8888  .d88b.   .d8888b 888888 .d8888b
+# 888     888 888 "88b   "888 d8P  Y8b d88P"    888    88K
+# 888     888 888  888    888 88888888 888      888    "Y8888b.
+# Y88b. .d88P 888 d88P    888 Y8b.     Y88b.    Y88b.       X88
+#  "Y88888P"  88888P"     888  "Y8888   "Y8888P  "Y888  88888P'
+#                         888
+#                        d88P
+#                      888P"
+#
+#######################################################################################################################
 # 21.2 RegExp (Regular Expression) Objects
 # 21.2.1 Patterns
 # 21.2.2 Pattern Semantics
@@ -30112,9 +30340,1114 @@ def StringFixups(realm):
 # 21.2.3.2.1 RS: RegExpAlloc ( newTarget )
 # 21.2.3.2.2 RS: RegExpInitialize ( obj, pattern, flags )
 # 21.2.3.2.3 RS: RegExpCreate ( P, F )
-def RegExpCreate(P, F):
-    raise ESTypeError("Regular Expressions not yet supported")
+# 21.2.3.2.4 RS: EscapeRegExpPattern ( P, F )
+# 21.2.4 Properties of the RegExp Constructor
+# 21.2.4.1 RegExp.prototype
+# 21.2.4.2 get RegExp [ @@species ]
+# 21.2.5 Properties of the RegExp Prototype Object
+# 21.2.5.1 RegExp.prototype.constructor
+# 21.2.5.2 RegExp.prototype.exec ( string )
+# 21.2.5.2.1 RS: RegExpExec ( R, S )
+# 21.2.5.2.2 RS: RegExpBuiltinExec ( R, S )
+# 21.2.5.2.3 AdvanceStringIndex ( S, index, unicode )
+# 21.2.5.3 get RegExp.prototype.dotAll
+# 21.2.5.4 get RegExp.prototype.flags
+# 21.2.5.5 get RegExp.prototype.global
+# 21.2.5.6 get RegExp.prototype.ignoreCase
+# 21.2.5.7 RegExp.prototype [ @@match ] ( string )
+# 21.2.5.8 get RegExp.prototype.multiline
+# 21.2.5.9 RegExp.prototype [ @@replace ] ( string, replaceValue )
+# 21.2.5.10 RegExp.prototype [ @@search ] ( string )
+# 21.2.5.11 get RegExp.prototype.source
+# 21.2.5.12 RegExp.prototype [ @@split ] ( string, limit )
+# 21.2.5.13 get RegExp.prototype.sticky
+# 21.2.5.14 RegExp.prototype.test ( S )
+# 21.2.5.15 RegExp.prototype.toString ( )
+# 21.2.5.16 get RegExp.prototype.unicode
+# 21.2.6 Properties of RegExp Instances
+# 21.2.6.1 lastIndex
+#######################################################################################################################
 
+# 21.2.3 The RegExp Constructor
+# The RegExp constructor:
+#
+#   * is the intrinsic object %RegExp%.
+#   * is the initial value of the RegExp property of the global object.
+#   * creates and initializes a new RegExp object when called as a function rather than as a constructor. Thus the
+#     function call RegExp(…) is equivalent to the object creation expression new RegExp(…) with the same arguments.
+#   * is designed to be subclassable. It may be used as the value of an extends clause of a class definition. Subclass
+#     constructors that intend to inherit the specified RegExp behaviour must include a super call to the RegExp
+#     constructor to create and initialize subclass instances with the necessary internal slots.
+def CreateRegexConstructor(realm: Realm) -> JSObject:
+    obj = CreateBuiltinFunction(RegexpFunction, ["Construct"], realm=realm)
+    for key, value in (("length", 2), ("name", "RegExp")):
+        desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)
+        DefinePropertyOrThrow(obj, key, desc)
+    BindBuiltinAccessors(realm, obj, [(wks_species, RegExp_species, None)])
+    return obj
+
+
+# 21.2.3.1 RegExp ( pattern, flags )
+def RegexpFunction(this_value, new_target, pattern=None, flags=None, *_):
+    # The following steps are taken:
+    #
+    #   1. Let patternIsRegExp be ? IsRegExp(pattern).
+    #   2. If NewTarget is undefined, then
+    #       a. Let newTarget be the active function object.
+    #       b. If patternIsRegExp is true and flags is undefined, then
+    #           i. Let patternConstructor be ? Get(pattern, "constructor").
+    #           ii. If SameValue(newTarget, patternConstructor) is true, return pattern.
+    #   3. Else, let newTarget be NewTarget.
+    #   4. If Type(pattern) is Object and pattern has a [[RegExpMatcher]] internal slot, then
+    #       a. Let P be pattern.[[OriginalSource]].
+    #       b. If flags is undefined, let F be pattern.[[OriginalFlags]].
+    #       c. Else, let F be flags.
+    #   5. Else if patternIsRegExp is true, then
+    #       a. Let P be ? Get(pattern, "source").
+    #       b. If flags is undefined, then
+    #           i. Let F be ? Get(pattern, "flags").
+    #       c. Else, let F be flags.
+    #   6. Else,
+    #       a. Let P be pattern.
+    #       b. Let F be flags.
+    #   7. Let O be ? RegExpAlloc(newTarget).
+    #   8. Return ? RegExpInitialize(O, P, F).
+    patternIsRegExp = IsRegExp(pattern)
+    if new_target is None:
+        newTarget = surrounding_agent.running_ec.function
+        if patternIsRegExp and flags is None:
+            patternConstructor = Get(pattern, "constructor")
+            if SameValue(newTarget, patternConstructor):
+                return pattern
+    else:
+        newTarget = new_target
+    if isObject(pattern) and hasattr(pattern, "RegExpMatcher"):
+        P = pattern.OriginalSource
+        if flags is None:
+            F = pattern.OriginalFlags
+        else:
+            F = flags
+    elif patternIsRegExp:
+        P = Get(pattern, "source")
+        if flags is None:
+            F = Get(pattern, "flags")
+        else:
+            F = flags
+    else:
+        P = pattern
+        F = flags
+    O = RegExpAlloc(newTarget)
+    return RegExpInitialize(O, P, F)
+    # NOTE  | If pattern is supplied using a StringLiteral, the usual escape sequence substitutions are performed
+    #       | before the String is processed by RegExp. If pattern must contain an escape sequence to be recognized by
+    #       | RegExp, any U+005C (REVERSE SOLIDUS) code points must be escaped within the StringLiteral to prevent them
+    #       | being removed when the contents of the StringLiteral are formed.
+
+
+# 21.2.3.2.1 Runtime Semantics: RegExpAlloc ( newTarget )
+def RegExpAlloc(newTarget):
+    # When the abstract operation RegExpAlloc with argument newTarget is called, the following steps are taken:
+    #   1. Let obj be ? OrdinaryCreateFromConstructor(newTarget, "%RegExpPrototype%", « [[RegExpMatcher]],
+    #      [[OriginalSource]], [[OriginalFlags]] »).
+    #   2. Perform ! DefinePropertyOrThrow(obj, "lastIndex", PropertyDescriptor { [[Writable]]: true,
+    #      [[Enumerable]]: false, [[Configurable]]: false }).
+    #   3. Return obj.
+    obj = OrdinaryCreateFromConstructor(
+        newTarget, "%RegExpPrototype%", ["RegExpMatcher", "OriginalSource", "OriginalFlags"],
+    )
+    DefinePropertyOrThrow(
+        obj, "lastIndex", PropertyDescriptor(writable=True, enumerable=False, configurable=False),
+    )
+    return obj
+
+
+# 21.2.3.2.2 Runtime Semantics: RegExpInitialize ( obj, pattern, flags )
+def RegExpInitialize(obj, pattern, flags):
+    # When the abstract operation RegExpInitialize with arguments obj, pattern, and flags is called, the following
+    # steps are taken:
+    #   1. If pattern is undefined, let P be the empty String.
+    #   2. Else, let P be ? ToString(pattern).
+    #   3. If flags is undefined, let F be the empty String.
+    #   4. Else, let F be ? ToString(flags).
+    #   5. If F contains any code unit other than "g", "i", "m", "s", "u", or "y" or if it contains the same code unit
+    #      more than once, throw a SyntaxError exception.
+    #   6. If F contains "u", let BMP be false; else let BMP be true.
+    #   7. If BMP is true, then
+    #       a. Parse P using the grammars in 21.2.1 and interpreting each of its 16-bit elements as a Unicode BMP code
+    #          point. UTF-16 decoding is not applied to the elements. The goal symbol for the parse is Pattern[~U, ~N].
+    #          If the result of parsing contains a GroupName, reparse with the goal symbol Pattern[~U, +N] and use this
+    #          result instead. Throw a SyntaxError exception if P did not conform to the grammar, if any elements of P
+    #          were not matched by the parse, or if any Early Error conditions exist.
+    #       b. Let patternCharacters be a List whose elements are the code unit elements of P.
+    #   8. Else,
+    #       a. Parse P using the grammars in 21.2.1 and interpreting P as UTF-16 encoded Unicode code points (6.1.4).
+    #          The goal symbol for the parse is Pattern[+U, +N]. Throw a SyntaxError exception if P did not conform to
+    #          the grammar, if any elements of P were not matched by the parse, or if any Early Error conditions exist.
+    #       b. Let patternCharacters be a List whose elements are the code points resulting from applying UTF-16
+    #          decoding to P's sequence of elements.
+    #   9. Set obj.[[OriginalSource]] to P.
+    #   10. Set obj.[[OriginalFlags]] to F.
+    #   11. Set obj.[[RegExpMatcher]] to the internal procedure that evaluates the above parse of P by applying the
+    #       semantics provided in 21.2.2 using patternCharacters as the pattern's List of SourceCharacter values and F
+    #       as the flag parameters.
+    #   12. Perform ? Set(obj, "lastIndex", 0, true).
+    #   13. Return obj.
+    P = "" if pattern is None else ToString(pattern)
+    F = "" if flags is None else ToString(flags)
+    if bad_regex_flag_match.search(F) or len(F) != len(set(F)):
+        raise ESSyntaxError(f"Bad flags for regex: {F}")
+    BMP = "u" not in F
+    if BMP:
+        pat = e262_regexp.parse_Pattern(P, 0, False, False)
+        if pat and pat.group_names:
+            pat = e262_regexp.parse_Pattern(P, 0, False, True)
+        if not pat or pat.span.after != len(P):
+            raise ESSyntaxError(f"Bad Regex: {P}")
+        patternCharacters = P
+    else:
+        pat = e262_regexp.parse_Pattern(P, 0, True, True)
+        if not pat or pat.span.after != len(pat):
+            raise ESSyntaxError(f"Bad Regex: {P}")
+        patternCharacters = utf_16_decode(P)
+    if pat.earlyerrors:
+        raise ESSyntaxError("\n".join(chain((f"Bad Regex: {P}",), pat.earlyerrors)))
+
+    obj.OriginalSource = P
+    obj.OriginalFlags = F
+    obj.RegExpMatcher = e262_regexp.matcher(pat, patternCharacters, F)
+    obj.capture_map = pat.capture_map
+    Set(obj, "lastIndex", 0, True)
+    return obj
+
+
+# 21.2.3.2.3 Runtime Semantics: RegExpCreate ( P, F )
+def RegExpCreate(P, F):
+    # When the abstract operation RegExpCreate with arguments P and F is called, the following steps are taken:
+    #   1. Let obj be ? RegExpAlloc(%RegExp%).
+    #   2. Return ? RegExpInitialize(obj, P, F).
+    obj = RegExpAlloc(surrounding_agent.running_ec.realm.intrinsics["%RegExp%"])
+    return RegExpInitialize(obj, P, F)
+
+
+# 21.2.3.2.4 Runtime Semantics: EscapeRegExpPattern ( P, F )
+def EscapeRegExpPattern(P, F):
+    # When the abstract operation EscapeRegExpPattern with arguments P and F is called, the following occurs:
+    #   1. Let S be a String in the form of a Pattern[~U] (Pattern[+U] if F contains "u") equivalent to P interpreted
+    #      as UTF-16 encoded Unicode code points (6.1.4), in which certain code points are escaped as described below.
+    #      S may or may not be identical to P; however, the internal procedure that would result from evaluating S as a
+    #      Pattern[~U] (Pattern[+U] if F contains "u") must behave identically to the internal procedure given by the
+    #      constructed object's [[RegExpMatcher]] internal slot. Multiple calls to this abstract operation using the
+    #      same values for P and F must produce identical results.
+    #   2. The code points / or any LineTerminator occurring in the pattern shall be escaped in S as necessary to
+    #      ensure that the string-concatenation of "/", S, "/", and F can be parsed (in an appropriate lexical context)
+    #      as a RegularExpressionLiteral that behaves identically to the constructed regular expression. For example,
+    #      if P is "/", then S could be "\/" or "\u002F", among other possibilities, but not "/", because /// followed
+    #      by F would be parsed as a SingleLineComment rather than a RegularExpressionLiteral. If P is the empty
+    #      String, this specification can be met by letting S be "(?:)".
+    #   3. Return S.
+    if any(ch in P for ch in "/\n\r\u2028\u2029"):
+        raise NotImplementedError()
+    return P
+
+
+# 21.2.4 Properties of the RegExp Constructor
+# The RegExp constructor:
+#   * has a [[Prototype]] internal slot whose value is the intrinsic object %FunctionPrototype%.
+
+
+def RegExpFixups(realm: Realm) -> None:
+    regexp_constructor = realm.intrinsics["%RegExp%"]
+    regexp_prototype = realm.intrinsics["%RegExpPrototype%"]
+    # 21.2.4.1 RegExp.prototype
+    # The initial value of RegExp.prototype is the intrinsic object %RegExpPrototype%.
+    # This property has the attributes { [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: false }.
+    proto_desc = PropertyDescriptor(value=regexp_prototype, writable=False, enumerable=False, Configurable=False)
+    DefinePropertyOrThrow(regexp_constructor, "prototype", proto_desc)
+    # 21.2.5.1 RegExp.prototype.constructor
+    # The initial value of RegExp.prototype.constructor is the intrinsic object %RegExp%.
+    constructor_desc = PropertyDescriptor(value=regexp_constructor, writable=True, enumerable=False, Configurable=True)
+    DefinePropertyOrThrow(regexp_prototype, "constructor", constructor_desc)
+
+
+# 21.2.4.2 get RegExp [ @@species ]
+def RegExp_species(this_value, new_target, *_):
+    # RegExp[@@species] is an accessor property whose set accessor function is undefined. Its get accessor function
+    # performs the following steps:
+    #   1. Return the this value.
+    return this_value
+    # The value of the name property of this function is "get [Symbol.species]".
+    # NOTE  | RegExp prototype methods normally use their this object's constructor to create a derived object.
+    #       | However, a subclass constructor may over-ride that default behaviour by redefining its @@species
+    #       | property.
+
+
+RegExp_species.length = 0
+RegExp_species.name = "get [Symbol.species]"
+
+# 21.2.5 Properties of the RegExp Prototype Object
+# The RegExp prototype object:
+#   * is the intrinsic object %RegExpPrototype%.
+#   * is an ordinary object.
+#   * is not a RegExp instance and does not have a [[RegExpMatcher]] internal slot or any of the other internal slots
+#     of RegExp instance objects.
+#   * has a [[Prototype]] internal slot whose value is the intrinsic object %ObjectPrototype%.
+# NOTE  | The RegExp prototype object does not have a valueOf property of its own; however, it inherits the valueOf
+#       | property from the Object prototype object.
+def CreateRegExpPrototype(realm: Realm) -> JSObject:
+    obj = ObjectCreate(realm.intrinsics["%ObjectPrototype%"])
+    BindBuiltinFunctions(
+        realm,
+        obj,
+        [
+            ("exec", RegExpPrototype_exec, None),
+            (wks_match, RegExpPrototype_match, None),
+            (wks_replace, RegExpPrototype_replace, None),
+            (wks_search, RegExpPrototype_search, None),
+            (wks_split, RegExpPrototype_split, None),
+            ("test", RegExpPrototype_test, None),
+            ("toString", RegExpPrototype_toString, None),
+        ],
+    )
+    BindBuiltinAccessors(
+        realm,
+        obj,
+        [
+            ("dotAll", RegExpPrototype_getDotAll, None),
+            ("flags", RegExpPrototype_getFlags, None),
+            ("global", RegExpPrototype_getGlobal, None),
+            ("ignoreCase", RegExpPrototype_getIgnoreCase, None),
+            ("multiline", RegExpPrototype_getMultiline, None),
+            ("source", RegExpPrototype_getSource, None),
+            ("sticky", RegExpPrototype_getSticky, None),
+            ("unicode", RegExpPrototype_getUnicode, None),
+        ],
+    )
+    return obj
+
+
+# 21.2.5.2 RegExp.prototype.exec ( string )
+def RegExpPrototype_exec(this_value, new_target, string=None, *_):
+    # Performs a regular expression match of string against the regular expression and returns an Array object
+    # containing the results of the match, or null if string did not match.
+    #
+    # The String ToString(string) is searched for an occurrence of the regular expression pattern as follows:
+    #   1. Let R be the this value.
+    #   2. If Type(R) is not Object, throw a TypeError exception.
+    #   3. If R does not have a [[RegExpMatcher]] internal slot, throw a TypeError exception.
+    #   4. Let S be ? ToString(string).
+    #   5. Return ? RegExpBuiltinExec(R, S).
+    R = this_value
+    if not isObject(R) or not hasattr(R, "RegExpMatcher"):
+        raise ESTypeError(f"RegExp.prototype.exec called on incompatible receiver {ToString(R)}")
+    S = ToString(string)
+    return RegExpBuiltinExec(R, S)
+
+
+RegExpPrototype_exec.length = 1
+RegExpPrototype_exec.name = "exec"
+
+# 21.2.5.2.1 Runtime Semantics: RegExpExec ( R, S )
+def RegExpExec(R, S):
+    # The abstract operation RegExpExec with arguments R and S performs the following steps:
+    #   1. Assert: Type(R) is Object.
+    #   2. Assert: Type(S) is String.
+    #   3. Let exec be ? Get(R, "exec").
+    #   4. If IsCallable(exec) is true, then
+    #       a. Let result be ? Call(exec, R, « S »).
+    #       b. If Type(result) is neither Object or Null, throw a TypeError exception.
+    #       c. Return result.
+    #   5. If R does not have a [[RegExpMatcher]] internal slot, throw a TypeError exception.
+    #   6. Return ? RegExpBuiltinExec(R, S).
+    # NOTE  | If a callable exec property is not found this algorithm falls back to attempting to use the built-in
+    #       | RegExp matching algorithm. This provides compatible behaviour for code written for prior editions where
+    #       | most built-in algorithms that use regular expressions did not perform a dynamic property lookup of exec.
+    assert isObject(R)
+    assert isString(S)
+    exec = Get(R, "exec")
+    if IsCallable(exec):
+        result = Call(exec, R, [S])
+        if not isObject(R) and not isNull(R):
+            raise ESTypeError(f'Invalid result from RegExp "exec" call: {ToString(R)}')
+        return result
+    if not hasattr(R, "RegExpMatcher"):
+        raise ESTypeError(f"RegExp exec called with invalid reciever {ToString(R)}")
+    return RegExpBuiltinExec(R, S)
+
+
+# 21.2.5.2.2 Runtime Semantics: RegExpBuiltinExec ( R, S )
+def RegExpBuiltinExec(R, S):
+    # The abstract operation RegExpBuiltinExec with arguments R and S performs the following steps:
+    #   1. Assert: R is an initialized RegExp instance.
+    #   2. Assert: Type(S) is String.
+    #   3. Let length be the number of code units in S.
+    #   4. Let lastIndex be ? ToLength(? Get(R, "lastIndex")).
+    #   5. Let flags be R.[[OriginalFlags]].
+    #   6. If flags contains "g", let global be true, else let global be false.
+    #   7. If flags contains "y", let sticky be true, else let sticky be false.
+    #   8. If global is false and sticky is false, set lastIndex to 0.
+    #   9. Let matcher be R.[[RegExpMatcher]].
+    #   10. If flags contains "u", let fullUnicode be true, else let fullUnicode be false.
+    #   11. Let matchSucceeded be false.
+    #   12. Repeat, while matchSucceeded is false
+    #       a. If lastIndex > length, then
+    #           i. If global is true or sticky is true, then
+    #               1. Perform ? Set(R, "lastIndex", 0, true).
+    #           ii. Return null.
+    #       b. Let r be matcher(S, lastIndex).
+    #       c. If r is failure, then
+    #           i. If sticky is true, then
+    #               1. Perform ? Set(R, "lastIndex", 0, true).
+    #               2. Return null.
+    #           ii. Set lastIndex to AdvanceStringIndex(S, lastIndex, fullUnicode).
+    #       d. Else,
+    #           i. Assert: r is a State.
+    #           ii. Set matchSucceeded to true.
+    #   13. Let e be r's endIndex value.
+    #   14. If fullUnicode is true, then
+    #       a. e is an index into the Input character list, derived from S, matched by matcher. Let eUTF be the
+    #          smallest index into S that corresponds to the character at element e of Input. If e is greater than or
+    #          equal to the number of elements in Input, then eUTF is the number of code units in S.
+    #       b. Set e to eUTF.
+    #   15. If global is true or sticky is true, then
+    #       a. Perform ? Set(R, "lastIndex", e, true).
+    #   16. Let n be the number of elements in r's captures List. (This is the same value as 21.2.2.1's
+    #       NcapturingParens.)
+    #   17. Assert: n < 2^32 - 1.
+    #   18. Let A be ! ArrayCreate(n + 1).
+    #   19. Assert: The value of A's "length" property is n + 1.
+    #   20. Perform ! CreateDataProperty(A, "index", lastIndex).
+    #   21. Perform ! CreateDataProperty(A, "input", S).
+    #   22. Let matchedSubstr be the matched substring (i.e. the portion of S between offset lastIndex inclusive and
+    #       offset e exclusive).
+    #   23. Perform ! CreateDataProperty(A, "0", matchedSubstr).
+    #   24. If R contains any GroupName, then
+    #       a. Let groups be ObjectCreate(null).
+    #   25. Else,
+    #       a. Let groups be undefined.
+    #   26. Perform ! CreateDataProperty(A, "groups", groups).
+    #   27. For each integer i such that i > 0 and i ≤ n, do
+    #       a. Let captureI be ith element of r's captures List.
+    #       b. If captureI is undefined, let capturedValue be undefined.
+    #       c. Else if fullUnicode is true, then
+    #           i. Assert: captureI is a List of code points.
+    #           ii. Let capturedValue be the String value whose code units are the UTF16Encoding of the code points of
+    #               captureI.
+    #       d. Else fullUnicode is false,
+    #           i. Assert: captureI is a List of code units.
+    #           ii. Let capturedValue be the String value consisting of the code units of captureI.
+    #       e. Perform ! CreateDataProperty(A, ! ToString(i), capturedValue).
+    #       f. If the ith capture of R was defined with a GroupName, then
+    #           i. Let s be the StringValue of the corresponding RegExpIdentifierName.
+    #           ii. Perform ! CreateDataProperty(groups, s, capturedValue).
+    #   28. Return A.
+    assert all(getattr(R, attr, None) is not None for attr in ("RegExpMatcher", "OriginalSource", "OriginalFlags"))
+    assert isString(S)
+    length = len(S)
+    lastIndex = ToLength(Get(R, "lastIndex"))
+    flags = R.OriginalFlags
+    global_ = "g" in flags
+    sticky = "y" in flags
+    if not global_ and not sticky:
+        lastIndex = 0
+    matcher = R.RegExpMatcher
+    fullUnicode = "u" in flags
+    matchSucceeded = False
+    while not matchSucceeded:
+        if lastIndex > length:
+            if global_ or sticky:
+                Set(R, "lastIndex", 0, True)
+            return JSNull.NULL
+        r = matcher(S, lastIndex)
+        if r == FAILURE:
+            if sticky:
+                Set(R, "lastIndex", 0, True)
+                return JSNull.NULL
+            lastIndex = AdvanceStringIndex(S, lastIndex, fullUnicode)
+        else:
+            assert isinstance(r, e262_regexp.State)
+            matchSucceeded = True
+    e = r.endIndex
+    if fullUnicode:
+        # The matcher counts code points, not code units. We need the code units, though, which is what the paragraph
+        # in the steps, above, is really saying. Essentially, we need to count unicode _characters_ in S until we've
+        # counted e of them, and then eUTF is the index we're sitting at. Essentially: eUTF = e + number of high/low
+        # surrogate pairs in the first e characters.
+        idx = 0
+        charsleft = e
+        while charsleft > 0:
+            if idx < len(S) - 1 and 0xD800 <= ord(S[idx]) <= 0xDBFF and 0xDC00 <= ord(S[idx + 1]) <= 0xDFFF:
+                idx += 2
+            else:
+                idx += 1
+            charsleft -= 1
+        e = idx
+    if global_ or sticky:
+        Set(R, "lastIndex", e, True)
+    n = len(r.captures)
+    assert n < 2 ** 32 - 1
+    A = ArrayCreate(n + 1)
+    assert Get(A, "length") == n + 1
+    CreateDataProperty(A, "index", lastIndex)
+    CreateDataProperty(A, "input", S)
+    matchedSubstr = S[lastIndex:e]
+    CreateDataProperty(A, "0", matchedSubstr)
+    if len(R.capture_map) > 0:
+        groups = ObjectCreate(JSNull.NULL)
+    else:
+        groups = None
+    CreateDataProperty(A, "groups", groups)
+    for i in range(1, n + 1):
+        captureI = r.captures[i - 1]
+        if captureI is None:
+            capturedValue = None
+        elif fullUnicode:
+            capturedValue = utf_16_encode(captureI)
+        else:
+            capturedValue = captureI
+        CreateDataProperty(A, ToString(i), capturedValue)
+        if i - 1 in R.capture_map:
+            s = R.capture_map[i - 1]
+            CreateDataProperty(groups, s, capturedValue)
+    return A
+
+
+# 21.2.5.2.3 AdvanceStringIndex ( S, index, unicode )
+def AdvanceStringIndex(S, index, unicode):
+    # The abstract operation AdvanceStringIndex with arguments S, index, and unicode performs the following steps:
+    #   1. Assert: Type(S) is String.
+    #   2. Assert: index is an integer such that 0 ≤ index ≤ 2^53 - 1.
+    #   3. Assert: Type(unicode) is Boolean.
+    #   4. If unicode is false, return index + 1.
+    #   5. Let length be the number of code units in S.
+    #   6. If index + 1 ≥ length, return index + 1.
+    #   7. Let first be the numeric value of the code unit at index index within S.
+    #   8. If first < 0xD800 or first > 0xDBFF, return index + 1.
+    #   9. Let second be the numeric value of the code unit at index index + 1 within S.
+    #   10. If second < 0xDC00 or second > 0xDFFF, return index + 1.
+    #   11. Return index + 2.
+    assert isString(S)
+    assert IsInteger(index) and 0 <= index <= 2 ** 53 - 1
+    assert isBoolean(unicode)
+
+    if not unicode:
+        return index + 1
+    length = len(S)
+    if index + 1 >= length:
+        return index + 1
+    first = ord(S[index])
+    if first < 0xD800 or first > 0xDBFF:
+        return index + 1
+    second = ord(S[index + 1])
+    if second < 0xDC00 or second > 0xDFFF:
+        return index + 1
+    return index + 2
+
+
+def regexp_object_validator(obj, callername):
+    err = lambda name, obj: ESTypeError(f"{name} called with bad receiver {ToString(obj)}")
+    if not isObject(obj):
+        raise err(callername, obj)
+    if not hasattr(obj, "OriginalFlags"):
+        if SameValue(obj, surrounding_agent.running_ec.realm.intrinsics["%RegExpPrototype%"]):
+            return False
+        raise err(callername, obj)
+    return True
+
+
+def regexp_flag_checker(obj, name, ch):
+    if not regexp_object_validator(obj, name):
+        return None
+    return ch in obj.OriginalFlags
+
+
+# 21.2.5.3 get RegExp.prototype.dotAll
+def RegExpPrototype_getDotAll(this_value, new_target, *_):
+    # RegExp.prototype.dotAll is an accessor property whose set accessor function is undefined. Its get accessor
+    # function performs the following steps:
+    #   1. Let R be the this value.
+    #   2. If Type(R) is not Object, throw a TypeError exception.
+    #   3. If R does not have an [[OriginalFlags]] internal slot, then
+    #       a. If SameValue(R, %RegExpPrototype%) is true, return undefined.
+    #       b. Otherwise, throw a TypeError exception.
+    #   4. Let flags be R.[[OriginalFlags]].
+    #   5. If flags contains the code unit 0x0073 (LATIN SMALL LETTER S), return true.
+    #   6. Return false.
+    return regexp_flag_checker(this_value, "RegExp.prototype.dotAll", "s")
+
+
+RegExpPrototype_getDotAll.length = 0
+RegExpPrototype_getDotAll.name = "get dotAll"
+
+# 21.2.5.4 get RegExp.prototype.flags
+def RegExpPrototype_getFlags(this_value, new_target, *_):
+    # RegExp.prototype.flags is an accessor property whose set accessor function is undefined. Its get accessor
+    # function performs the following steps:
+    #   1. Let R be the this value.
+    #   2. If Type(R) is not Object, throw a TypeError exception.
+    #   3. Let result be the empty String.
+    #   4. Let global be ToBoolean(? Get(R, "global")).
+    #   5. If global is true, append the code unit 0x0067 (LATIN SMALL LETTER G) as the last code unit of result.
+    #   6. Let ignoreCase be ToBoolean(? Get(R, "ignoreCase")).
+    #   7. If ignoreCase is true, append the code unit 0x0069 (LATIN SMALL LETTER I) as the last code unit of result.
+    #   8. Let multiline be ToBoolean(? Get(R, "multiline")).
+    #   9. If multiline is true, append the code unit 0x006D (LATIN SMALL LETTER M) as the last code unit of result.
+    #   10. Let dotAll be ToBoolean(? Get(R, "dotAll")).
+    #   11. If dotAll is true, append the code unit 0x0073 (LATIN SMALL LETTER S) as the last code unit of result.
+    #   12. Let unicode be ToBoolean(? Get(R, "unicode")).
+    #   13. If unicode is true, append the code unit 0x0075 (LATIN SMALL LETTER U) as the last code unit of result.
+    #   14. Let sticky be ToBoolean(? Get(R, "sticky")).
+    #   15. If sticky is true, append the code unit 0x0079 (LATIN SMALL LETTER Y) as the last code unit of result.
+    #   16. Return result.
+    if not isObject(this_value):
+        raise ESTypeError(f"RegExp.prototype.flags called with invalid receiver {ToString(this_value)}")
+    return "".join(
+        ch
+        for key, ch in (
+            ("global", "g"),
+            ("ignoreCase", "i"),
+            ("multiline", "m"),
+            ("dotAll", "s"),
+            ("unicode", "u"),
+            ("sticky", "y"),
+        )
+        if ToBoolean(Get(this_value, key))
+    )
+
+
+RegExpPrototype_getFlags.length = 0
+RegExpPrototype_getFlags.name = "get flags"
+
+# 21.2.5.5 get RegExp.prototype.global
+def RegExpPrototype_getGlobal(this_value, new_target, *_):
+    # RegExp.prototype.global is an accessor property whose set accessor function is undefined. Its get accessor function performs the following steps:
+    #   1. Let R be the this value.
+    #   2. If Type(R) is not Object, throw a TypeError exception.
+    #   3. If R does not have an [[OriginalFlags]] internal slot, then
+    #       a. If SameValue(R, %RegExpPrototype%) is true, return undefined.
+    #       b. Otherwise, throw a TypeError exception.
+    #   4. Let flags be R.[[OriginalFlags]].
+    #   5. If flags contains the code unit 0x0067 (LATIN SMALL LETTER G), return true.
+    #   6. Return false.
+    return regexp_flag_checker(this_value, "RegExp.prototype.global", "g")
+
+
+RegExpPrototype_getGlobal.length = 0
+RegExpPrototype_getGlobal.name = "get global"
+
+# 21.2.5.6 get RegExp.prototype.ignoreCase
+def RegExpPrototype_getIgnoreCase(this_value, new_target, *_):
+    # RegExp.prototype.ignoreCase is an accessor property whose set accessor function is undefined. Its get accessor
+    # function performs the following steps:
+    #   1. Let R be the this value.
+    #   2. If Type(R) is not Object, throw a TypeError exception.
+    #   3. If R does not have an [[OriginalFlags]] internal slot, then
+    #       a. If SameValue(R, %RegExpPrototype%) is true, return undefined.
+    #       b. Otherwise, throw a TypeError exception.
+    #   4. Let flags be R.[[OriginalFlags]].
+    #   5. If flags contains the code unit 0x0069 (LATIN SMALL LETTER I), return true.
+    #   6. Return false.
+    return regexp_flag_checker(this_value, "RegExp.prototype.ignoreCase", "i")
+
+
+RegExpPrototype_getIgnoreCase.length = 0
+RegExpPrototype_getIgnoreCase.name = "get ignoreCase"
+
+# 21.2.5.7 RegExp.prototype [ @@match ] ( string )
+def RegExpPrototype_match(this_value, new_target, string=None, *_):
+    # When the @@match method is called with argument string, the following steps are taken:
+    #   1. Let rx be the this value.
+    #   2. If Type(rx) is not Object, throw a TypeError exception.
+    #   3. Let S be ? ToString(string).
+    #   4. Let global be ToBoolean(? Get(rx, "global")).
+    #   5. If global is false, then
+    #       a. Return ? RegExpExec(rx, S).
+    #   6. Else global is true,
+    #       a. Let fullUnicode be ToBoolean(? Get(rx, "unicode")).
+    #       b. Perform ? Set(rx, "lastIndex", 0, true).
+    #       c. Let A be ! ArrayCreate(0).
+    #       d. Let n be 0.
+    #       e. Repeat,
+    #           i. Let result be ? RegExpExec(rx, S).
+    #           ii. If result is null, then
+    #               1. If n = 0, return null.
+    #               2. Return A.
+    #           iii. Else result is not null,
+    #               1. Let matchStr be ? ToString(? Get(result, "0")).
+    #               2. Let status be CreateDataProperty(A, ! ToString(n), matchStr).
+    #               3. Assert: status is true.
+    #               4. If matchStr is the empty String, then
+    #                   a. Let thisIndex be ? ToLength(? Get(rx, "lastIndex")).
+    #                   b. Let nextIndex be AdvanceStringIndex(S, thisIndex, fullUnicode).
+    #                   c. Perform ? Set(rx, "lastIndex", nextIndex, true).
+    #               5. Increment n.
+    if not isObject(this_value):
+        raise ESTypeError(f"RegExp.prototype.@@match called with invalid receiver {ToString(this_value)}")
+    S = ToString(string)
+    if not ToBoolean(Get(this_value, "global")):
+        return RegExpExec(this_value, S)
+    fullUnicode = ToBoolean(Get(this_value, "unicode"))
+    Set(this_value, "lastIndex", 0, True)
+    A = ArrayCreate(0)
+    n = 0
+    while 1:
+        result = RegExpExec(this_value, S)
+        if isNull(result):
+            return A if n != 0 else JSNull.NULL
+        matchStr = ToString(Get(result, "0"))
+        status = CreateDataProperty(A, ToString(n), matchStr)
+        assert status
+        if matchStr == "":
+            thisIndex = ToLength(Get(this_value, "lastIndex"))
+            nextIndex = AdvanceStringIndex(S, thisIndex, fullUnicode)
+            Set(this_value, "lastIndex", nextIndex, True)
+        n += 1
+
+
+# The value of the name property of this function is "[Symbol.match]".
+RegExpPrototype_match.length = 1
+RegExpPrototype_match.name = "[Symbol.match]"
+# NOTE  | The @@match property is used by the IsRegExp abstract operation to identify objects that have the basic
+#       | behaviour of regular expressions. The absence of a @@match property or the existence of such a property
+#       | whose value does not Boolean coerce to true indicates that the object is not intended to be used as a
+#       | regular expression object.
+
+# 21.2.5.8 get RegExp.prototype.multiline
+def RegExpPrototype_getMultiline(this_value, new_target, *_):
+    # RegExp.prototype.multiline is an accessor property whose set accessor function is undefined. Its get accessor
+    # function performs the following steps:
+    #   1. Let R be the this value.
+    #   2. If Type(R) is not Object, throw a TypeError exception.
+    #   3. If R does not have an [[OriginalFlags]] internal slot, then
+    #       a. If SameValue(R, %RegExpPrototype%) is true, return undefined.
+    #       b. Otherwise, throw a TypeError exception.
+    #   4. Let flags be R.[[OriginalFlags]].
+    #   5. If flags contains the code unit 0x006D (LATIN SMALL LETTER M), return true.
+    #   6. Return false.
+    return regexp_flag_checker(this_value, "RegExp.prototype.multiline", "m")
+
+
+RegExpPrototype_getMultiline.length = 0
+RegExpPrototype_getMultiline.name = "get multiline"
+
+# 21.2.5.9 RegExp.prototype [ @@replace ] ( string, replaceValue )
+def RegExpPrototype_replace(this_value, new_target, string=None, replaceValue=None, *_):
+    # When the @@replace method is called with arguments string and replaceValue, the following steps are taken:
+    #   1. Let rx be the this value.
+    #   2. If Type(rx) is not Object, throw a TypeError exception.
+    #   3. Let S be ? ToString(string).
+    #   4. Let lengthS be the number of code unit elements in S.
+    #   5. Let functionalReplace be IsCallable(replaceValue).
+    #   6. If functionalReplace is false, then
+    #   a. Set replaceValue to ? ToString(replaceValue).
+    #   7. Let global be ToBoolean(? Get(rx, "global")).
+    #   8. If global is true, then
+    #       a. Let fullUnicode be ToBoolean(? Get(rx, "unicode")).
+    #       b. Perform ? Set(rx, "lastIndex", 0, true).
+    #   9. Let results be a new empty List.
+    #   10. Let done be false.
+    #   11. Repeat, while done is false
+    #       a. Let result be ? RegExpExec(rx, S).
+    #       b. If result is null, set done to true.
+    #       c. Else result is not null,
+    #           i. Append result to the end of results.
+    #           ii. If global is false, set done to true.
+    #           iii. Else,
+    #               1. Let matchStr be ? ToString(? Get(result, "0")).
+    #               2. If matchStr is the empty String, then
+    #                   a. Let thisIndex be ? ToLength(? Get(rx, "lastIndex")).
+    #                   b. Let nextIndex be AdvanceStringIndex(S, thisIndex, fullUnicode).
+    #                   c. Perform ? Set(rx, "lastIndex", nextIndex, true).
+    #   12. Let accumulatedResult be the empty String value.
+    #   13. Let nextSourcePosition be 0.
+    #   14. For each result in results, do
+    #       a. Let nCaptures be ? ToLength(? Get(result, "length")).
+    #       b. Set nCaptures to max(nCaptures - 1, 0).
+    #       c. Let matched be ? ToString(? Get(result, "0")).
+    #       d. Let matchLength be the number of code units in matched.
+    #       e. Let position be ? ToInteger(? Get(result, "index")).
+    #       f. Set position to max(min(position, lengthS), 0).
+    #       g. Let n be 1.
+    #       h. Let captures be a new empty List.
+    #       i. Repeat, while n ≤ nCaptures
+    #           i. Let capN be ? Get(result, ! ToString(n)).
+    #           ii. If capN is not undefined, then
+    #               1. Set capN to ? ToString(capN).
+    #           iii. Append capN as the last element of captures.
+    #           iv. Increase n by 1.
+    #       j. Let namedCaptures be ? Get(result, "groups").
+    #       k. If functionalReplace is true, then
+    #           i. Let replacerArgs be « matched ».
+    #           ii. Append in list order the elements of captures to the end of the List replacerArgs.
+    #           iii. Append position and S to replacerArgs.
+    #           iv. If namedCaptures is not undefined, then
+    #               1. Append namedCaptures as the last element of replacerArgs.
+    #           v. Let replValue be ? Call(replaceValue, undefined, replacerArgs).
+    #           vi. Let replacement be ? ToString(replValue).
+    #       l. Else,
+    #           i. Let replacement be GetSubstitution(matched, S, position, captures, namedCaptures, replaceValue).
+    #       m. If position ≥ nextSourcePosition, then
+    #           i. NOTE: position should not normally move backwards. If it does, it is an indication of an ill-behaving
+    #              RegExp subclass or use of an access triggered side-effect to change the global flag or other
+    #              characteristics of rx. In such cases, the corresponding substitution is ignored.
+    #           ii. Set accumulatedResult to the string-concatenation of the current value of accumulatedResult, the
+    #               substring of S consisting of the code units from nextSourcePosition (inclusive) up to position
+    #               (exclusive), and replacement.
+    #           iii. Set nextSourcePosition to position + matchLength.
+    #   15. If nextSourcePosition ≥ lengthS, return accumulatedResult.
+    #   16. Return the string-concatenation of accumulatedResult and the substring of S consisting of the code units
+    #       from nextSourcePosition (inclusive) up through the final code unit of S (inclusive).
+    if not isObject(this_value):
+        raise ESTypeError(f"RegExp.prototype.@@replace called with invalid receiver {ToString(this_value)}")
+    S = ToString(string)
+    lengthS = len(S)
+    functionalReplace = IsCallable(replaceValue)
+    if not functionalReplace:
+        replaceValue = ToString(replaceValue)
+    global_ = ToBoolean(Get(this_value, "global"))
+    if global_:
+        fullUnicode = ToBoolean(Get(this_value, "unicode"))
+        Set(this_value, "lastIndex", 0, True)
+    results = []
+    done = False
+    while not done:
+        result = RegExpExec(this_value, S)
+        if isNull(result):
+            done = True
+        else:
+            results.append(result)
+            if not global_:
+                done = True
+            else:
+                matchStr = ToString(Get(result, "0"))
+                if matchStr == "":
+                    thisIndex = ToLength(Get(this_value, "lastIndex"))
+                    nextIndex = AdvanceStringIndex(S, thisIndex, fullUnicode)
+                    Set(this_value, "lastIndex", nextIndex, True)
+    accumulatedResult = ""
+    nextSourcePosition = 0
+    for result in results:
+        nCaptures = ToLength(Get(result, "length"))
+        nCaptures = max(nCaptures - 1, 0)
+        matched = ToString(Get(result, "0"))
+        matchLength = len(matched)
+        position = ToInteger(Get(result, "index"))
+        position = max(min(position, lengthS), 0)
+        n = 1
+        captures = []
+        while n <= nCaptures:
+            capN = Get(result, ToString(n))
+            if capN is not None:
+                capN = ToString(capN)
+            captures.append(capN)
+            n += 1
+        namedCaptures = Get(result, "groups")
+        if functionalReplace:
+            replacerArgs = [matched]
+            replacerArgs.extend(captures)
+            replacerArgs.append(position)
+            replacerArgs.append(S)
+            if namedCaptures is not None:
+                replacerArgs.append(namedCaptures)
+            replValue = Call(replaceValue, None, replacerArgs)
+            replacement = ToString(replValue)
+        else:
+            replacement = GetSubstitution(matched, S, position, captures, namedCaptures, replaceValue)
+        if position >= nextSourcePosition:
+            accumulatedResult = f"{accumulatedResult}{S[nextSourcePosition:position]}{replacement}"
+            nextSourcePosition = position + matchLength
+    if nextSourcePosition >= lengthS:
+        return accumulatedResult
+    return f"{accumulatedResult}{S[nextSourcePosition:]}"
+    # The value of the name property of this function is "[Symbol.replace]".
+
+
+RegExpPrototype_replace.length = 2
+RegExpPrototype_replace.name = "[Symbol.replace]"
+
+# 21.2.5.10 RegExp.prototype [ @@search ] ( string )
+def RegExpPrototype_search(this_value, new_target, string=None, *_):
+    # When the @@search method is called with argument string, the following steps are taken:
+    #
+    #   1. Let rx be the this value.
+    #   2. If Type(rx) is not Object, throw a TypeError exception.
+    #   3. Let S be ? ToString(string).
+    #   4. Let previousLastIndex be ? Get(rx, "lastIndex").
+    #   5. If SameValue(previousLastIndex, 0) is false, then
+    #       a. Perform ? Set(rx, "lastIndex", 0, true).
+    #   6. Let result be ? RegExpExec(rx, S).
+    #   7. Let currentLastIndex be ? Get(rx, "lastIndex").
+    #   8. If SameValue(currentLastIndex, previousLastIndex) is false, then
+    #       a. Perform ? Set(rx, "lastIndex", previousLastIndex, true).
+    #   9. If result is null, return -1.
+    #   10. Return ? Get(result, "index").
+    #
+    # NOTE  | The lastIndex and global properties of this RegExp object are ignored when performing the search. The
+    #       | lastIndex property is left unchanged.
+    if not isObject(this_value):
+        raise ESTypeError(f"RegExp.prototype.@@search called with invalid receiver {ToString(this_value)}")
+    S = ToString(string)
+    previousLastIndex = Get(this_value, "lastIndex")
+    if not SameValue(previousLastIndex, 0):
+        Set(this_value, "lastIndex", 0, True)
+    result = RegExpExec(this_value, S)
+    currentLastIndex = Get(this_value, "lastIndex")
+    if not SameValue(currentLastIndex, previousLastIndex):
+        Set(this_value, "lastIndex", previousLastIndex, True)
+    if isNull(result):
+        return -1
+    return Get(result, "index")
+
+
+# The value of the name property of this function is "[Symbol.search]".
+RegExpPrototype_search.length = 1
+RegExpPrototype_search.name = "[Symbol.search]"
+
+# 21.2.5.11 get RegExp.prototype.source
+def RegExpPrototype_getSource(this_value, new_target, *_):
+    # RegExp.prototype.source is an accessor property whose set accessor function is undefined. Its get accessor
+    # function performs the following steps:
+    #   1. Let R be the this value.
+    #   2. If Type(R) is not Object, throw a TypeError exception.
+    #   3. If R does not have an [[OriginalSource]] internal slot, then
+    #       a. If SameValue(R, %RegExpPrototype%) is true, return "(?:)".
+    #       b. Otherwise, throw a TypeError exception.
+    #   4. Assert: R has an [[OriginalFlags]] internal slot.
+    #   5. Let src be R.[[OriginalSource]].
+    #   6. Let flags be R.[[OriginalFlags]].
+    #   7. Return EscapeRegExpPattern(src, flags).
+    if not regexp_object_validator(this_value, "RegExp.source"):
+        return "(?:)"
+    return EscapeRegExpPattern(this_value.OriginalSource, this_value.OriginalFlags)
+
+
+RegExpPrototype_getSource.length = 0
+RegExpPrototype_getSource.name = "get source"
+
+# 21.2.5.12 RegExp.prototype [ @@split ] ( string, limit )
+def RegExpPrototype_split(this_value, new_target, string=None, limit=None, *_):
+    # NOTE 1    | Returns an Array object into which substrings of the result of converting string to a String have
+    #           | been stored. The substrings are determined by searching from left to right for matches of the this
+    #           | value regular expression; these occurrences are not part of any substring in the returned array, but
+    #           | serve to divide up the String value.
+    #           |
+    #           | The this value may be an empty regular expression or a regular expression that can match an empty
+    #           | String. In this case, the regular expression does not match the empty substring at the beginning or
+    #           | end of the input String, nor does it match the empty substring at the end of the previous separator
+    #           | match. (For example, if the regular expression matches the empty String, the String is split up into
+    #           | individual code unit elements; the length of the result array equals the length of the String, and
+    #           | each substring contains one code unit.) Only the first match at a given index of the String is
+    #           | considered, even if backtracking could yield a non-empty-substring match at that index. (For example,
+    #           | /a*?/[Symbol.split]("ab") evaluates to the array ["a", "b"], while /a*/[Symbol.split]("ab") evaluates
+    #           | to the array ["","b"].)
+    #           |
+    #           | If the string is (or converts to) the empty String, the result depends on whether the regular
+    #           | expression can match the empty String. If it can, the result array contains no elements. Otherwise,
+    #           | the result array contains one element, which is the empty String.
+    #           |
+    #           | If the regular expression contains capturing parentheses, then each time separator is matched the
+    #           | results (including any undefined results) of the capturing parentheses are spliced into the output
+    #           | array. For example,
+    #           |
+    #           |   /<(\/)?([^<>]+)>/[Symbol.split]("A<B>bold</B>and<CODE>coded</CODE>")
+    #           |
+    #           | evaluates to the array
+    #           |
+    #           |   ["A", undefined, "B", "bold", "/", "B", "and", undefined, "CODE", "coded", "/", "CODE", ""]
+    #           |
+    #           | If limit is not undefined, then the output array is truncated so that it contains no more than limit
+    #           | elements.
+    #
+    # When the @@split method is called, the following steps are taken:
+    #
+    #   1. Let rx be the this value.
+    #   2. If Type(rx) is not Object, throw a TypeError exception.
+    #   3. Let S be ? ToString(string).
+    #   4. Let C be ? SpeciesConstructor(rx, %RegExp%).
+    #   5. Let flags be ? ToString(? Get(rx, "flags")).
+    #   6. If flags contains "u", let unicodeMatching be true.
+    #   7. Else, let unicodeMatching be false.
+    #   8. If flags contains "y", let newFlags be flags.
+    #   9. Else, let newFlags be the string-concatenation of flags and "y".
+    #   10. Let splitter be ? Construct(C, « rx, newFlags »).
+    #   11. Let A be ! ArrayCreate(0).
+    #   12. Let lengthA be 0.
+    #   13. If limit is undefined, let lim be 2^32 - 1; else let lim be ? ToUint32(limit).
+    #   14. Let size be the length of S.
+    #   15. Let p be 0.
+    #   16. If lim = 0, return A.
+    #   17. If size = 0, then
+    #       a. Let z be ? RegExpExec(splitter, S).
+    #       b. If z is not null, return A.
+    #       c. Perform ! CreateDataProperty(A, "0", S).
+    #       d. Return A.
+    #   18. Let q be p.
+    #   19. Repeat, while q < size
+    #       a. Perform ? Set(splitter, "lastIndex", q, true).
+    #       b. Let z be ? RegExpExec(splitter, S).
+    #       c. If z is null, set q to AdvanceStringIndex(S, q, unicodeMatching).
+    #       d. Else z is not null,
+    #           i. Let e be ? ToLength(? Get(splitter, "lastIndex")).
+    #           ii. Set e to min(e, size).
+    #           iii. If e = p, set q to AdvanceStringIndex(S, q, unicodeMatching).
+    #           iv. Else e ≠ p,
+    #               1. Let T be the String value equal to the substring of S consisting of the code units at indices p
+    #                  (inclusive) through q (exclusive).
+    #               2. Perform ! CreateDataProperty(A, ! ToString(lengthA), T).
+    #               3. Increase lengthA by 1.
+    #               4. If lengthA = lim, return A.
+    #               5. Set p to e.
+    #               6. Let numberOfCaptures be ? ToLength(? Get(z, "length")).
+    #               7. Set numberOfCaptures to max(numberOfCaptures - 1, 0).
+    #               8. Let i be 1.
+    #               9. Repeat, while i ≤ numberOfCaptures,
+    #                   a. Let nextCapture be ? Get(z, ! ToString(i)).
+    #                   b. Perform ! CreateDataProperty(A, ! ToString(lengthA), nextCapture).
+    #                   c. Increase i by 1.
+    #                   d. Increase lengthA by 1.
+    #                   e. If lengthA = lim, return A.
+    #               10. Set q to p.
+    #   20. Let T be the String value equal to the substring of S consisting of the code units at indices p (inclusive)
+    #       through size (exclusive).
+    #   21. Perform ! CreateDataProperty(A, ! ToString(lengthA), T).
+    #   22. Return A.
+    #
+    # NOTE 2
+    # The @@split method ignores the value of the global and sticky properties of this RegExp object.
+    if not isObject(this_value):
+        raise ESTypeError(f"RegExp.prototype.@@split called with invalid receiver {ToString(this_value)}")
+    S = ToString(string)
+    C = SpeciesConstructor(this_value, surrounding_agent.running_ec.realm.intrinsics["%RegExp%"])
+    flags = ToString(Get(this_value, "flags"))
+    unicodeMatching = "u" in flags
+    newFlags = flags if "y" in flags else flags + "y"
+    splitter = Construct(C, [this_value, newFlags])
+    A = ArrayCreate(0)
+    lengthA = 0
+    if limit is None:
+        lim = 2 ** 32 - 1
+    else:
+        lim = ToUint32(limit)
+    if lim == 0:
+        return A
+    size = len(S)
+    if size == 0:
+        z = RegExpExec(splitter, S)
+        if not isNull(z):
+            return A
+        CreateDataProperty(A, "0", S)
+        return A
+    p = 0
+    q = 0
+    while q < size:
+        Set(splitter, "lastIndex", q, True)
+        z = RegExpExec(splitter, S)
+        if isNull(z):
+            q = AdvanceStringIndex(S, q, unicodeMatching)
+        else:
+            e = ToLength(Get(splitter, "lastIndex"))
+            e = min(e, size)
+            if e == p:
+                q = AdvanceStringIndex(S, q, unicodeMatching)
+            else:
+                T = S[p:q]
+                CreateDataProperty(A, ToString(lengthA), T)
+                lengthA += 1
+                if lengthA == lim:
+                    return A
+                p = e
+                numberOfCaptures = ToLength(Get(z, "length"))
+                numberOfCaptures = max(numberOfCaptures - 1, 0)
+                i = 1
+                while i <= numberOfCaptures:
+                    nextCapture = Get(z, ToString(i))
+                    CreateDataProperty(A, ToString(lengthA), nextCapture)
+                    i += 1
+                    lengthA += 1
+                    if lengthA == lim:
+                        return A
+                q = p
+    T = S[p:]
+    CreateDataProperty(A, ToString(lengthA), T)
+    return A
+
+
+# The value of the name property of this function is "[Symbol.split]".
+RegExpPrototype_split.length = 2
+RegExpPrototype_split.name = "[Symbol.split]"
+
+# 21.2.5.13 get RegExp.prototype.sticky
+def RegExpPrototype_getSticky(this_value, new_target, *_):
+    # RegExp.prototype.sticky is an accessor property whose set accessor function is undefined. Its get accessor
+    # function performs the following steps:
+    #   1. Let R be the this value.
+    #   2. If Type(R) is not Object, throw a TypeError exception.
+    #   3. If R does not have an [[OriginalFlags]] internal slot, then
+    #       a. If SameValue(R, %RegExpPrototype%) is true, return undefined.
+    #       b. Otherwise, throw a TypeError exception.
+    #   4. Let flags be R.[[OriginalFlags]].
+    #   5. If flags contains the code unit 0x0079 (LATIN SMALL LETTER Y), return true.
+    #   6. Return false.
+    return regexp_flag_checker(this_value, "RegExp.prototype.sticky", "y")
+
+
+RegExpPrototype_getSticky.length = 0
+RegExpPrototype_getSticky.name = "get sticky"
+
+# 21.2.5.14 RegExp.prototype.test ( S )
+def RegExpPrototype_test(this_value, new_target, S=None, *_):
+    # The following steps are taken:
+    #
+    #   1. Let R be the this value.
+    #   2. If Type(R) is not Object, throw a TypeError exception.
+    #   3. Let string be ? ToString(S).
+    #   4. Let match be ? RegExpExec(R, string).
+    #   5. If match is not null, return true; else return false.
+    if not isObject(this_value):
+        raise ESTypeError(f"RegExp.prototype.test called with invalid receiver {ToObject(this_value)}")
+    string = ToString(S)
+    match = RegExpExec(this_value, string)
+    return not isNull(match)
+
+
+RegExpPrototype_test.length = 1
+RegExpPrototype_test.name = "test"
+
+# 21.2.5.15 RegExp.prototype.toString ( )
+def RegExpPrototype_toString(this_value, new_target, *_):
+    #   1. Let R be the this value.
+    #   2. If Type(R) is not Object, throw a TypeError exception.
+    #   3. Let pattern be ? ToString(? Get(R, "source")).
+    #   4. Let flags be ? ToString(? Get(R, "flags")).
+    #   5. Let result be the string-concatenation of "/", pattern, "/", and flags.
+    #   6. Return result.
+    # NOTE  | The returned String has the form of a RegularExpressionLiteral that evaluates to another RegExp object
+    #       | with the same behaviour as this object.
+    if not isObject(this_value):
+        raise ESTypeError(f"RegExp.prototype.toString called with invalid receiver {ToString(this_value)}")
+    pattern = ToString(Get(this_value, "source"))
+    flags = ToString(Get(this_value, "flags"))
+    return f"/{pattern}/{flags}"
+
+
+RegExpPrototype_toString.length = 0
+RegExpPrototype_toString.name = "toString"
+
+# 21.2.5.16 get RegExp.prototype.unicode
+def RegExpPrototype_getUnicode(this_value, new_target, *_):
+    # RegExp.prototype.unicode is an accessor property whose set accessor function is undefined. Its get accessor function performs the following steps:
+    #   1. Let R be the this value.
+    #   2. If Type(R) is not Object, throw a TypeError exception.
+    #   3. If R does not have an [[OriginalFlags]] internal slot, then
+    #       a. If SameValue(R, %RegExpPrototype%) is true, return undefined.
+    #       b. Otherwise, throw a TypeError exception.
+    #   4. Let flags be R.[[OriginalFlags]].
+    #   5. If flags contains the code unit 0x0075 (LATIN SMALL LETTER U), return true.
+    #   6. Return false.
+    return regexp_flag_checker(this_value, "RegExp.prototype.unicode", "u")
+
+
+RegExpPrototype_getUnicode.length = 0
+RegExpPrototype_getUnicode.name = "get unicode"
 
 # ------------------------------------ 𝟐𝟐 𝑰𝒏𝒅𝒆𝒙𝒆𝒅 𝑪𝒐𝒍𝒍𝒆𝒄𝒕𝒊𝒐𝒏𝒔 ------------------------------------
 # ------------------------------------ 𝟐𝟐.𝟏 𝑨𝒓𝒓𝒂𝒚 𝑶𝒃𝒋𝒆𝒄𝒕𝒔 ------------------------------------
@@ -30171,14 +31504,16 @@ def CreateArrayConstructor(realm):
 
     fcn_obj = CreateBuiltinFunction(get_species, [], realm)
     DefinePropertyOrThrow(
-        fcn_obj, "length", PropertyDescriptor(value=0, writable=False, enumerable=False, configurable=True)
+        fcn_obj, "length", PropertyDescriptor(value=0, writable=False, enumerable=False, configurable=True),
     )
     DefinePropertyOrThrow(
         fcn_obj,
         "name",
-        PropertyDescriptor(value="get [Symbol.species]", writable=False, enumerable=False, configurable=True),
+        PropertyDescriptor(value="get [Symbol.species]", writable=False, enumerable=False, configurable=True,),
     )
-    DefinePropertyOrThrow(obj, wks_species, PropertyDescriptor(Get=fcn_obj, enumerable=False, configurable=True))
+    DefinePropertyOrThrow(
+        obj, wks_species, PropertyDescriptor(Get=fcn_obj, enumerable=False, configurable=True),
+    )
 
     return obj
 
@@ -30278,7 +31613,7 @@ def ArrayFunction(this_value, new_target, *items):
 
 # ------------------------------------ 𝟐𝟐.𝟏.𝟐.𝟏 𝑨𝒓𝒓𝒂𝒚.𝒇𝒓𝒐𝒎 ( 𝒊𝒕𝒆𝒎𝒔 [ , 𝒎𝒂𝒑𝒇𝒏 [ , 𝒕𝒉𝒊𝒔𝑨𝒓𝒈 ] ] ) ------------------------------------
 # 22.1.2.1 Array.from ( items [ , mapfn [ , thisArg ] ] )
-def Array_from(this_value, new_target, items, mapfn=EMPTY, thisArg=EMPTY):
+def Array_from(this_value, new_target, items=None, mapfn=None, thisArg=None, *_):
     # When the from method is called with argument items and optional arguments mapfn and thisArg, the following steps
     # are taken:
     #
@@ -30339,6 +31674,9 @@ def Array_from(this_value, new_target, items, mapfn=EMPTY, thisArg=EMPTY):
     raise NotImplementedError  # This wants iterators. @@@ I'm not there yet.
 
 
+Array_from.length = 1
+Array_from.name = "from"
+
 # 22.1.3 Properties of the Array Prototype Object
 # The Array prototype object:
 #
@@ -30368,7 +31706,7 @@ def CreateArrayPrototype(realm):
 
 
 # 22.1.3.13 Array.prototype.join ( separator )
-def ArrayPrototype_join(this_value, new_target, separator=","):
+def ArrayPrototype_join(this_value, new_target, separator=",", *_):
     # NOTE 1
     # The elements of the array are converted to Strings, and these Strings are then concatenated, separated by
     # occurrences of the separator. If no separator is provided, a single comma is used as the separator.
@@ -30402,7 +31740,7 @@ def ArrayPrototype_join(this_value, new_target, separator=","):
 
 
 # 22.1.3.28 Array.prototype.toString ( )
-def ArrayPrototype_toString(this_value, new_target):
+def ArrayPrototype_toString(this_value, new_target, *_):
     # When the toString method is called, the following steps are taken:
     #
     #   1. Let array be ? ToObject(this value).
@@ -30420,7 +31758,7 @@ def ArrayPrototype_toString(this_value, new_target):
 
 
 # 22.1.3.30 Array.prototype.values ( )
-def ArrayPrototype_values(this_value, new_target):
+def ArrayPrototype_values(this_value, new_target, *_):
     # The following steps are taken:
     #
     #   1. Let O be ? ToObject(this value).
@@ -30489,7 +31827,7 @@ def CreateArrayIteratorPrototype(realm):
 
 
 # 22.1.5.2.1 %ArrayIteratorPrototype%.next ( )
-def ArrayIteratorPrototype_next(this_value, new_target):
+def ArrayIteratorPrototype_next(this_value, new_target, *_):
     #   1. Let O be the this value.
     #   2. If Type(O) is not Object, throw a TypeError exception.
     #   3. If O does not have all of the internal slots of an Array Iterator Instance (22.1.5.3), throw a TypeError exception.
@@ -30582,7 +31920,7 @@ def AllocateArrayBuffer(constructor, byteLength):
     #   5. Set obj.[[ArrayBufferByteLength]] to byteLength.
     #   6. Return obj.
     obj = OrdinaryCreateFromConstructor(
-        constructor, "%ArrayBufferPrototype%", ["ArrayBufferData", "ArrayBufferByteLength", "ArrayBufferDetachKey"]
+        constructor, "%ArrayBufferPrototype%", ["ArrayBufferData", "ArrayBufferByteLength", "ArrayBufferDetachKey"],
     )
     assert IsInteger(byteLength) and byteLength >= 0
     block = CreateByteDataBlock(byteLength)
@@ -30875,14 +32213,16 @@ def CreateArrayBufferConstructor(realm):
 
     fcn_obj = CreateBuiltinFunction(get_species, [], realm)
     DefinePropertyOrThrow(
-        fcn_obj, "length", PropertyDescriptor(value=0, writable=False, enumerable=False, configurable=True)
+        fcn_obj, "length", PropertyDescriptor(value=0, writable=False, enumerable=False, configurable=True),
     )
     DefinePropertyOrThrow(
         fcn_obj,
         "name",
-        PropertyDescriptor(value="get [Symbol.species]", writable=False, enumerable=False, configurable=True),
+        PropertyDescriptor(value="get [Symbol.species]", writable=False, enumerable=False, configurable=True,),
     )
-    DefinePropertyOrThrow(obj, wks_species, PropertyDescriptor(Get=fcn_obj, enumerable=False, configurable=True))
+    DefinePropertyOrThrow(
+        obj, wks_species, PropertyDescriptor(Get=fcn_obj, enumerable=False, configurable=True),
+    )
     return obj
 
 
@@ -30922,14 +32262,16 @@ def CreateArrayBufferPrototype(realm):
     BindBuiltinFunctions(realm, proto, [("slice", ArrayBufferPrototype_slice, 2)])
     byteLength = CreateBuiltinFunction(get_ArrayBufferPrototype_byteLength, [], realm)
     DefinePropertyOrThrow(
-        byteLength, "length", PropertyDescriptor(value=0, writable=False, enumerable=False, configurable=True)
+        byteLength, "length", PropertyDescriptor(value=0, writable=False, enumerable=False, configurable=True),
     )
     DefinePropertyOrThrow(
         byteLength,
         "name",
         PropertyDescriptor(value="get byteLength", writable=False, enumerable=False, configurable=True),
     )
-    DefinePropertyOrThrow(proto, "byteLength", PropertyDescriptor(Get=byteLength, enumerable=False, configurable=True))
+    DefinePropertyOrThrow(
+        proto, "byteLength", PropertyDescriptor(Get=byteLength, enumerable=False, configurable=True),
+    )
     DefinePropertyOrThrow(
         proto,
         wks_to_string_tag,
@@ -31259,12 +32601,12 @@ def CreateIteratorPrototype(realm):
     proto = ObjectCreate(realm.intrinsics["%ObjectPrototype%"])
     func_obj = CreateBuiltinFunction(IteratorPrototype_iterator, [], realm)
     DefinePropertyOrThrow(
-        func_obj, "length", PropertyDescriptor(value=0, writable=False, enumerable=False, configurable=True)
+        func_obj, "length", PropertyDescriptor(value=0, writable=False, enumerable=False, configurable=True),
     )
     DefinePropertyOrThrow(
         func_obj,
         "name",
-        PropertyDescriptor(value="[Symbol.iterator]", writable=False, enumerable=False, configurable=False),
+        PropertyDescriptor(value="[Symbol.iterator]", writable=False, enumerable=False, configurable=False,),
     )
     CreateMethodPropertyOrThrow(proto, wks_iterator, func_obj)
     return proto
@@ -31363,7 +32705,7 @@ def CreateGeneratorFunctionPrototype(realm):
     DefinePropertyOrThrow(
         obj,
         wks_to_string_tag,
-        PropertyDescriptor(value="GeneratorFunction", writable=False, enumerable=False, configurable=True),
+        PropertyDescriptor(value="GeneratorFunction", writable=False, enumerable=False, configurable=True,),
     )
     return obj
 
@@ -31463,12 +32805,12 @@ def GeneratorFixups(realm):
     DefinePropertyOrThrow(
         generator,
         "prototype",
-        PropertyDescriptor(value=generator_prototype, writable=False, enumerable=False, configurable=True),
+        PropertyDescriptor(value=generator_prototype, writable=False, enumerable=False, configurable=True,),
     )
     DefinePropertyOrThrow(
         generator,
         "constructor",
-        PropertyDescriptor(value=generator_function, writable=False, enumerable=False, configurable=True),
+        PropertyDescriptor(value=generator_function, writable=False, enumerable=False, configurable=True,),
     )
     DefinePropertyOrThrow(
         generator_function,
@@ -31753,6 +33095,9 @@ def Reflect_construct(this_value, new_target, target=None, argumentsList=None, n
     return Construct(target, args, newTarget)
 
 
+Reflect_construct.length = 2
+Reflect_construct.name = "construct"
+
 # 26.1.3 Reflect.defineProperty ( target, propertyKey, attributes )
 def Reflect_defineProperty(this_value, new_target, target=None, propertyKey=None, attributes=None, *_):
     # When the defineProperty function is called with arguments target, propertyKey, and attributes, the following
@@ -31795,6 +33140,9 @@ def Reflect_get(this_value, new_target, target=None, propertyKey=None, receiver=
         receiver = target
     return target.Get(key, receiver)
 
+
+Reflect_get.length = 2
+Reflect_get.name = "get"
 
 # 26.1.6 Reflect.getOwnPropertyDescriptor ( target, propertyKey )
 def Reflect_getOwnPropertyDescriptor(this_value, new_target, target=None, propertyKey=None, *_):
@@ -31876,6 +33224,9 @@ def Reflect_set(this_value, new_target, target=None, propertyKey=None, V=None, r
         raise ESTypeError("Reflect.set called with non-object target")
     return target.Set(ToPropertyKey(propertyKey), V, receiver if receiver != EMPTY else target)
 
+
+Reflect_set.length = 3
+Reflect_set.name = "set"
 
 # 26.1.13 Reflect.setPrototypeOf ( target, proto )
 def Reflect_setPrototypeOf(this_value, new_target, target=None, proto=None, *_):
