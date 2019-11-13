@@ -9892,13 +9892,6 @@ class P2_LiteralPropertyName(ParseNode2):
     def __init__(self, ctx, children):
         super().__init__(ctx, "LiteralPropertyName", children)
 
-
-class P2_LiteralPropertyName_IdentifierName(P2_LiteralPropertyName):
-    # LiteralPropertyName : IdentifierName
-    @property
-    def IdentifierName(self):
-        return self.children[0]
-
     def evaluate(self):
         # 12.2.6.7 Runtime Semantics: Evaluation
         # LiteralPropertyName : IdentifierName
@@ -9911,6 +9904,13 @@ class P2_LiteralPropertyName_IdentifierName(P2_LiteralPropertyName):
 
         # ..... all of which are the same thing as PropName.
         return self.PropName()
+
+
+class P2_LiteralPropertyName_IdentifierName(P2_LiteralPropertyName):
+    # LiteralPropertyName : IdentifierName
+    @property
+    def IdentifierName(self):
+        return self.children[0]
 
     def Contains(self, symbol):
         # 12.2.6.3 Static Semantics: Contains

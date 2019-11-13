@@ -1654,6 +1654,39 @@ def test_parse_ObjectLiteral_03(mocker, context, token_stream):
     assert lexer.pos == 0
 
 
+# 12.2.6.7 Runtime Semantics: Evaluation
+# ObjectLiteral : { }
+#   1. Return ObjectCreate(%ObjectPrototype%).
+def test_ObjectLiteral_LCURLY_RCURLY_evaluate(realm, context, mocker):
+    lexer = lexer2.Lexer("{}")
+    ol = ecmascript.ecmascript.parse_ObjectLiteral(context, lexer, False, False)
+
+    oc = mocker.patch("ecmascript.ecmascript.ObjectCreate", return_value="object_create")
+    proto = realm.intrinsics["%ObjectPrototype%"]
+    rv = ol.evaluate()
+    oc.assert_called_with(proto)
+    assert rv == "object_create"
+
+
+# 12.2.6.7 Runtime Semantics: Evaluation
+# ObjectLiteral : { PropertyDefinitionList }
+# ObjectLiteral : { PropertyDefinitionList , }
+#   1. Let obj be ObjectCreate(%ObjectPrototype%).
+#   2. Perform ? PropertyDefinitionEvaluation of PropertyDefinitionList with arguments obj and true.
+#   3. Return obj.
+@pytest.mark.parametrize("src", ["{a}", "{a,}"])
+def test_ObjectLiteral_PropertyDefinitionList_evaluate(realm, context, mocker, src):
+    lexer = lexer2.Lexer(src)
+    ol = ecmascript.ecmascript.parse_ObjectLiteral(context, lexer, False, False)
+    oc = mocker.patch("ecmascript.ecmascript.ObjectCreate", return_value="object_create")
+    ol.PropertyDefinitionList.PropertyDefinitionEvaluation = mocker.Mock(return_value=None)
+
+    rv = ol.evaluate()
+    assert rv == "object_create"
+    oc.assert_called_with(realm.intrinsics["%ObjectPrototype%"])
+    ol.PropertyDefinitionList.PropertyDefinitionEvaluation.assert_called_with("object_create", True)
+
+
 #### PropertyDefinitionList ######################################################################################################################################################
 #
 #     8888888b.                                             888             8888888b.            .d888 d8b          d8b 888    d8b                   888      d8b          888
@@ -2198,6 +2231,22 @@ def test_LiteralPropertyName_PropName(context, src, expected):
     assert rv == expected
 
 
+# 12.2.6.7 Runtime Semantics: Evaluation
+# LiteralPropertyName : IdentifierName
+#   1. Return StringValue of IdentifierName.
+# LiteralPropertyName : StringLiteral
+#   1. Return the String value whose code units are the SV of the StringLiteral.
+# LiteralPropertyName : NumericLiteral
+#   1. Let nbr be the result of forming the value of the NumericLiteral.
+#   2. Return ! ToString(nbr).
+@pytest.mark.parametrize("src, expected", [("idn", "idn"), ('"whitetail"', "whitetail"), ("1000", "1000")])
+def test_LiteralPropertyName_evaluate(context, src, expected):
+    lexer = lexer2.Lexer(src)
+    lpn = ecmascript.ecmascript.parse_LiteralPropertyName(context, lexer)
+    rv = lpn.evaluate()
+    assert rv == expected
+
+
 #### ComputedPropertyName #######################################################################################################################################################################
 #
 #  .d8888b.                                           888                  888 8888888b.                                             888             888b    888
@@ -2264,6 +2313,34 @@ def test_ComputedPropertyName_PropName(context):
     lexer = lexer2.Lexer("[1]")
     cpn = ecmascript.ecmascript.parse_ComputedPropertyName(context, lexer, False, False)
     assert cpn.PropName() == ecmascript.ecmascript.EMPTY
+
+
+# 12.2.6.7 Runtime Semantics: Evaluation
+# ComputedPropertyName : [ AssignmentExpression ]
+#   1. Let exprValue be the result of evaluating AssignmentExpression.
+#   2. Let propName be ? GetValue(exprValue).
+#   3. Return ? ToPropertyKey(propName).
+def test_ComputedPropertyName_evaluate(realm, context, mocker):
+    lexer = lexer2.Lexer("[1]")
+    cpn = ecmascript.ecmascript.parse_ComputedPropertyName(context, lexer, False, False)
+    cpn.AssignmentExpression.evaluate = mocker.Mock(return_value="exprValue")
+    gv = mocker.patch("ecmascript.ecmascript.GetValue", return_value="propName")
+    tpk = mocker.patch("ecmascript.ecmascript.ToPropertyKey", return_value="evaluate")
+
+    rv = cpn.evaluate()
+    cpn.AssignmentExpression.evaluate.assert_called_with()
+    gv.assert_called_with("exprValue")
+    tpk.assert_called_with("propName")
+    assert rv == "evaluate"
+
+
+@pytest.mark.parametrize("src, expected", [("[1]", "1"), ("[67*4-12]", "256"), ("[`prop${8*12}z`]", "prop96z")])
+def test_ComputedPropertyName_evaluate_nomocks(realm, context, src, expected):
+    lexer = lexer2.Lexer(src)
+    cpn = ecmascript.ecmascript.parse_ComputedPropertyName(context, lexer, False, False)
+
+    rv = cpn.evaluate()
+    assert rv == expected
 
 
 #### CoverInitializedName ##############################################################################################################################################
