@@ -2334,6 +2334,15 @@ def test_ComputedPropertyName_evaluate(realm, context, mocker):
     assert rv == "evaluate"
 
 
+@pytest.mark.parametrize("src, expected", [("[1]", "1"), ("[67*4-12]", "256"), ("[`prop${8*12}z`]", "prop96z")])
+def test_ComputedPropertyName_evaluate_nomocks(realm, context, src, expected):
+    lexer = lexer2.Lexer(src)
+    cpn = ecmascript.ecmascript.parse_ComputedPropertyName(context, lexer, False, False)
+
+    rv = cpn.evaluate()
+    assert rv == expected
+
+
 #### CoverInitializedName ##############################################################################################################################################
 #
 #  .d8888b.                                     8888888          d8b 888    d8b          888 d8b                        888 888b    888
