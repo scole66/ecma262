@@ -1,7 +1,8 @@
-import snoop
+import snoop  # type: ignore
 from enum import Enum, unique, auto
 from collections import namedtuple
-import regex
+import regex  # type: ignore
+from typing import Generator
 
 Span = namedtuple("Span", ["start", "after"])
 
@@ -12,20 +13,20 @@ RegExp = namedtuple("RegExp", ["body", "flags"])
 Template = namedtuple("Template", ["tv", "trv"])
 
 
-def utf_16_encode(str):
-    def enc(ch):
+def utf_16_encode(string: str) -> str:
+    def enc(ch: str) -> str:
         if ord(ch) <= 0xFFFF:
             return ch
         cpx = ord(ch) - 0x10000
         return chr((cpx >> 10) + 0xD800) + chr((cpx & 0x3FF) + 0xDC00)
 
-    return "".join(enc(c) for c in str)
+    return "".join(enc(c) for c in string)
 
 
-def utf_16_decode(str):
-    def dec(str):
+def utf_16_decode(string: str, throw: bool = True) -> str:
+    def dec(string: str) -> Generator[str, None, None]:
         lead = 0
-        for c in str:
+        for c in string:
             if lead == 0:
                 if ord(c) < 0xD800 or ord(c) > 0xDBFF:
                     yield c
@@ -33,14 +34,20 @@ def utf_16_decode(str):
                     lead = ord(c)
             else:
                 if ord(c) < 0xDC00 or ord(c) > 0xDFFF:
-                    raise SyntaxError("Invalid or Unexpected Token")
-                yield chr(((lead - 0xD800) << 10) + ord(c) - 0xDC00 + 0x10000)
+                    if throw:
+                        raise SyntaxError("Invalid or Unexpected Token")
+                    yield chr(lead)
+                    yield c
+                else:
+                    yield chr(((lead - 0xD800) << 10) + ord(c) - 0xDC00 + 0x10000)
                 lead = 0
         if lead:
             # Ended the string with an uncompleted surrogate.
-            raise SyntaxError("Invalid or Unexpected Token")
+            if throw:
+                raise SyntaxError("Invalid or Unexpected Token")
+            yield chr(lead)
 
-    return "".join(c for c in dec(str))
+    return "".join(c for c in dec(string))
 
 
 escape_match = regex.compile(r"\\u(?:([0-9A-Fa-f]{4})|(?:\{([0-9a-fA-F]+)\}))")
@@ -229,7 +236,7 @@ class LexerCore:
     )
 
     _RegularExpressionFlags = r"(([\p{ID_Continue}$\N{ZWJ}\N{ZWNJ}]|(\\u([0-9a-fA-F]{4}|({[0-9a-fA-F]*}))))*)"
-    _RegularExpressionNonTerminator = r"([^\N{LF}\N{LINE SEPARATOR}\N{PARAGRAPH SEPARATOR\N{CR}])"
+    _RegularExpressionNonTerminator = r"([^\N{LF}\N{LINE SEPARATOR}\N{PARAGRAPH SEPARATOR}\N{CR}])"
     _RegularExpressionBackslashSequence = r"(\\" + _RegularExpressionNonTerminator + r")"
     _RegularExpressionClassChar = (
         r"([^\N{LF}\N{LINE SEPARATOR}\N{PARAGRAPH SEPARATOR\N{CR}\]\\]|" + _RegularExpressionBackslashSequence + ")"

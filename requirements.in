@@ -5,6 +5,7 @@ pytest-mock
 pyyaml
 black
 snoop
+mypy
 
 python-dateutil
 regex
