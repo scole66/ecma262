@@ -27662,7 +27662,7 @@ def FunctionPrototype_call(this_value, new_target, thisArg=None, *args):
     if not IsCallable(this_value):
         raise TypeError("'call' called from a non-function")
     PrepareForTailCall()
-    Call(this_value, thisArg, args)
+    return Call(this_value, thisArg, args)
     # NOTE 1
     # The thisArg value is passed without modification as the this value. This is a change from Edition 3, where an
     # undefined or null thisArg is replaced with the global object and ToObject is applied to all other values and that
