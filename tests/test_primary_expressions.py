@@ -332,7 +332,7 @@ def test_PrimaryExpression_CoveredParenthesizedExpression_01(context, mocker):
     lexer = lexer2.Lexer("(a)")
     cpeaap = ecmascript.ecmascript.parse_CoverParenthesizedExpressionAndArrowParameterList(context, lexer, False, False)
 
-    rv = cpeaap.CoveredParenthesizedExpression()
+    rv = cpeaap.CoveredParenthesizedExpression
     assert rv and isinstance(rv, parse2.P2_ParenthesizedExpression_LPAREN_Expression_RPAREN)
     assert [t.value for t in rv.terminals()] == ["(", "a", ")"]
 
@@ -357,7 +357,7 @@ def test_PrimaryExpression_HasName_01(context, mocker, fundef, hasname, expected
     expr.IsFunctionDefinition = mocker.Mock(return_value=fundef)
     expr.HasName = mocker.Mock(return_value=hasname)
     cpeaapl = mocker.Mock()
-    cpeaapl.CoveredParenthesizedExpression = mocker.Mock(return_value=expr)
+    cpeaapl.CoveredParenthesizedExpression = expr
     mocker.patch("ecmascript.ecmascript.parse_CoverParenthesizedExpressionAndArrowParameterList", return_value=cpeaapl)
     pe = ecmascript.ecmascript.parse_PrimaryExpression(context, lexer, False, False)
 
@@ -403,13 +403,12 @@ def test_PrimaryExpression_IsFunctionDefinition_02(context, mocker):
     expr = mocker.Mock()
     expr.IsFunctionDefinition = mocker.Mock(return_value="IsFunDef")
     cpeaapl = mocker.Mock()
-    cpeaapl.CoveredParenthesizedExpression = mocker.Mock(return_value=expr)
+    cpeaapl.CoveredParenthesizedExpression = expr
     mocker.patch("ecmascript.ecmascript.parse_CoverParenthesizedExpressionAndArrowParameterList", return_value=cpeaapl)
     pe = ecmascript.ecmascript.parse_PrimaryExpression(context, lexer, False, False)
 
     rv = pe.IsFunctionDefinition()
 
-    cpeaapl.CoveredParenthesizedExpression.assert_called()
     expr.IsFunctionDefinition.assert_called()
     assert rv == "IsFunDef"
 
@@ -505,7 +504,7 @@ def test_PrimaryExpression_AssignmentTargetType_CPEAAPL(context, mocker):
     expr = mocker.Mock()
     expr.AssignmentTargetType = mocker.Mock(return_value="ATT")
     cpeaapl = mocker.Mock()
-    cpeaapl.CoveredParenthesizedExpression = mocker.Mock(return_value=expr)
+    cpeaapl.CoveredParenthesizedExpression = expr
     mocker.patch("ecmascript.ecmascript.parse_CoverParenthesizedExpressionAndArrowParameterList", return_value=cpeaapl)
     pe = ecmascript.ecmascript.parse_PrimaryExpression(context, lexer, False, False)
 
