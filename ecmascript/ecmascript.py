@@ -1484,7 +1484,9 @@ def ToObject(argument):
     if isString(argument):
         return Construct(intrinsics["%String%"], [argument])
     if isSymbol(argument):
-        return Construct(intrinsics["%Symbol%"], [argument])
+        symobj = ObjectCreate(intrinsics["%SymbolPrototype%"], ["SymbolData"])
+        symobj.SymbolData = argument
+        return symobj
     if isObject(argument):
         return argument
     raise ESTypeError("undefined and null cannot be converted to objects")
@@ -4105,6 +4107,9 @@ def CreateIntrinsics(realm_rec):
     intrinsics["%RegExp%"] = CreateRegexConstructor(realm_rec)
     intrinsics["%RegExpPrototype%"] = CreateRegExpPrototype(realm_rec)
     RegExpFixups(realm_rec)
+    intrinsics["%Symbol%"] = CreateSymbolConstructor(realm_rec)
+    intrinsics["%SymbolPrototype%"] = CreateSymbolPrototype(realm_rec)
+    SymbolFixups(realm_rec)
 
     # 14. Return intrinsics.
     return intrinsics
@@ -26649,6 +26654,15 @@ def BindBuiltinFunctions(realm, obj, details):
             func_obj, "name", PropertyDescriptor(value=name, writable=False, enumerable=False, configurable=True),
         )
         CreateMethodPropertyOrThrow(obj, key, func_obj)
+
+        overrides = getattr(fcn, "attributes", None)
+        if overrides:
+            desc = obj.GetOwnProperty(key)
+            for attr in ("Get", "Set", "value", "writable", "enumerable", "configurable"):
+                if hasattr(overrides, attr):
+                    setattr(desc, attr, getattr(overrides, attr))
+            DefinePropertyOrThrow(obj, key, desc)
+
     return None
 
 
@@ -27864,6 +27878,203 @@ def BooleanPrototype_valueOf(this_value, nt, *_):
     return thisBooleanValue(this_value)
 
 
+# 19.4 Symbol Objects
+
+# 19.4.1The Symbol Constructor
+# The Symbol constructor:
+#
+#   * is the intrinsic object %Symbol%.
+#   * is the initial value of the Symbol property of the global object.
+#   * returns a new Symbol value when called as a function.
+#   * is not intended to be used with the new operator.
+#   * is not intended to be subclassed.
+#   * may be used as the value of an extends clause of a class definition but a super call to it will cause an
+#     exception.
+
+
+def CreateSymbolConstructor(realm: Realm) -> JSObject:
+    obj = CreateBuiltinFunction(SymbolFunction, ["Construct"], realm=realm)
+    # Symbol has configurable (but not enumerable nor writable) properties as well as
+    # unconfigurable, unenumerable, unwritable properties.
+    for key, value, configurable in (
+        ("length", 0, True),
+        ("name", "Symbol", True),
+        ("asyncIterator", wks_async_iterator, False),
+        ("hasInstance", wks_has_instance, False),
+        ("isConcatSpreadable", wks_is_concat_spreadable, False),
+        ("iterator", wks_iterator, False),
+        ("match", wks_match, False),
+        ("replace", wks_replace, False),
+        ("search", wks_search, False),
+        ("species", wks_species, False),
+        ("split", wks_split, False),
+        ("toPrimitive", wks_to_primitive, False),
+        ("toStringTag", wks_to_string_tag, False),
+        ("unscopables", wks_unscopables, False),
+    ):
+        desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=configurable)
+        DefinePropertyOrThrow(obj, key, desc)
+    BindBuiltinFunctions(realm, obj, (("for", SymbolFor, None), ("keyFor", SymbolKeyFor, None),))
+    return obj
+
+
+# 19.4.1.1 Symbol ( [ description ] )
+def SymbolFunction(this_value, new_target, description=None, *_):
+    # When Symbol is called with optional argument description, the following steps are taken:
+    #   1. If NewTarget is not undefined, throw a TypeError exception.
+    #   2. If description is undefined, let descString be undefined.
+    #   3. Else, let descString be ? ToString(description).
+    #   4. Return a new unique Symbol value whose [[Description]] value is descString.
+    if new_target is not None:
+        raise ESTypeError("Symbol is not a constructor")
+    descString = ToString(description) if description is not None else None
+    return JSSymbol(descString)
+
+
+# 19.4.2 Properties of the Symbol Constructor
+
+# 19.4.2.2 Symbol.for ( key )
+GlobalSymbolRegistry = {}
+
+
+def SymbolFor(this_value, new_target, key=None, *_):
+    # When Symbol.for is called with argument key it performs the following steps:
+    #   1. Let stringKey be ? ToString(key).
+    #   2. For each element e of the GlobalSymbolRegistry List, do
+    #       a. If SameValue(e.[[Key]], stringKey) is true, return e.[[Symbol]].
+    #   3. Assert: GlobalSymbolRegistry does not currently contain an entry for stringKey.
+    #   4. Let newSymbol be a new unique Symbol value whose [[Description]] value is stringKey.
+    #   5. Append the Record { [[Key]]: stringKey, [[Symbol]]: newSymbol } to the GlobalSymbolRegistry List.
+    #   6. Return newSymbol.
+    #
+    # The GlobalSymbolRegistry is a List that is globally available. It is shared by all realms. Prior to the
+    # evaluation of any ECMAScript code it is initialized as a new empty List. Elements of the GlobalSymbolRegistry
+    # are Records with the structure defined in Table 48.
+    #
+    # Table 48: GlobalSymbolRegistry Record Fields
+    # +------------+----------+----------------------------------------------------------------------------------------
+    # | Field Name | Value    | Usage
+    # +------------+----------+----------------------------------------------------------------------------------------
+    # | [[Key]]    | A String | A string key used to globally identify a Symbol.
+    # +------------+----------+----------------------------------------------------------------------------------------
+    # | [[Symbol]] | A Symbol | A symbol that can be retrieved from any realm.
+    # +------------+----------+----------------------------------------------------------------------------------------
+    stringKey = ToString(key)
+    if stringKey in GlobalSymbolRegistry:
+        return GlobalSymbolRegistry[stringKey]
+    newSymbol = JSSymbol(stringKey)
+    GlobalSymbolRegistry[stringKey] = newSymbol
+    return newSymbol
+
+
+SymbolFor.name = "for"
+SymbolFor.length = 1
+
+# 19.4.2.6 Symbol.keyFor ( sym )
+def SymbolKeyFor(this_value, new_target, sym=None, *_):
+    # When Symbol.keyFor is called with argument sym it performs the following steps:
+    #   1. If Type(sym) is not Symbol, throw a TypeError exception.
+    #   2. For each element e of the GlobalSymbolRegistry List (see 19.4.2.2), do
+    #       a. If SameValue(e.[[Symbol]], sym) is true, return e.[[Key]].
+    #   3. Assert: GlobalSymbolRegistry does not currently contain an entry for sym.
+    #   4. Return undefined.
+    if not isSymbol(sym):
+        raise ESTypeError(f"{ToString(sym)} is not a symbol")
+    return next((key for key, value in GlobalSymbolRegistry.items() if SameValue(value, sym)), None)
+
+
+SymbolKeyFor.name = "keyFor"
+SymbolKeyFor.length = 1
+
+# 19.4.3 Properties of the Symbol Prototype Object
+
+# The Symbol prototype object:
+#
+#   * is the intrinsic object %SymbolPrototype%.
+#   * is an ordinary object.
+#   * is not a Symbol instance and does not have a [[SymbolData]] internal slot.
+#   * has a [[Prototype]] internal slot whose value is the intrinsic object %ObjectPrototype%.
+
+
+def CreateSymbolPrototype(realm: Realm) -> JSObject:
+    prototype = ObjectCreate(realm.intrinsics["%ObjectPrototype%"], [])
+    BindBuiltinFunctions(
+        realm,
+        prototype,
+        (
+            ("toString", SymbolPrototype_toString, None),
+            ("valueOf", SymbolPrototype_valueOf, None),
+            (wks_to_primitive, SymbolPrototype_toPrimitive, None),
+        ),
+    )
+    BindBuiltinAccessors(realm, prototype, (("description", SymbolPrototype_getDescription, None),))
+    DefinePropertyOrThrow(
+        prototype,
+        wks_to_string_tag,
+        PropertyDescriptor(value="Symbol", writable=False, enumerable=False, configurable=True),
+    )
+    return prototype
+
+
+def thisSymbolValue(value):
+    # The abstract operation thisSymbolValue(value) performs the following steps:
+    #
+    #   1. If Type(value) is Symbol, return value.
+    #   2. If Type(value) is Object and value has a [[SymbolData]] internal slot, then
+    #       a. Let s be value.[[SymbolData]].
+    #       b. Assert: Type(s) is Symbol.
+    #       c. Return s.
+    #   3. Throw a TypeError exception.
+    if isSymbol(value):
+        return value
+    if isObject(value) and hasattr(value, "SymbolData"):
+        s = value.SymbolData
+        assert isSymbol(s)
+        return s
+    raise ESTypeError(f"{ToString(value)} is not a symbol")
+
+
+# 19.4.3.2 get Symbol.prototype.description
+def SymbolPrototype_getDescription(this_value, new_target, *_):
+    # Symbol.prototype.description is an accessor property whose set accessor function is undefined. Its get accessor
+    # function performs the following steps:
+    #   1. Let s be the this value.
+    #   2. Let sym be ? thisSymbolValue(s).
+    #   3. Return sym.[[Description]].
+    sym = thisSymbolValue(this_value)
+    return sym.description
+
+
+SymbolPrototype_getDescription.length = 0
+SymbolPrototype_getDescription.name = "get description"
+
+# 19.4.3.3 Symbol.prototype.toString ( )
+def SymbolPrototype_toString(this_value, new_target, *_):
+    # The following steps are taken:
+    #   1. Let sym be ? thisSymbolValue(this value).
+    #   2. Return SymbolDescriptiveString(sym).
+    return SymbolDescriptiveString(thisSymbolValue(this_value))
+
+
+SymbolPrototype_toString.length = 0
+SymbolPrototype_toString.name = "toString"
+
+
+def SymbolFixups(realm: Realm) -> None:
+    constructor = realm.intrinsics["%Symbol%"]
+    prototype = realm.intrinsics["%SymbolPrototype%"]
+    DefinePropertyOrThrow(
+        constructor,
+        "prototype",
+        PropertyDescriptor(value=prototype, writable=False, enumerable=False, configurable=False),
+    )
+    DefinePropertyOrThrow(
+        prototype,
+        "constructor",
+        PropertyDescriptor(value=constructor, writable=True, enumerable=False, configurable=True),
+    )
+
+
 ##################################################################################################################################################################################
 # ------------------------------------ 𝟏𝟗.𝟒.𝟑.𝟐.𝟏 𝑺𝒚𝒎𝒃𝒐𝒍𝑫𝒆𝒔𝒄𝒓𝒊𝒑𝒕𝒊𝒗𝒆𝑺𝒕𝒓𝒊𝒏𝒈 ( 𝒔𝒚𝒎 ) ------------------------------------
 # 19.4.3.2.1 Runtime Semantics: SymbolDescriptiveString ( sym )
@@ -27880,6 +28091,33 @@ def SymbolDescriptiveString(sym):
     assert isString(desc)
     return f"Symbol({desc})"
 
+
+# 19.4.3.4 Symbol.prototype.valueOf ( )
+def SymbolPrototype_valueOf(this_value, new_target, *_):
+    # The following steps are taken:
+    #
+    #   1. Return ? thisSymbolValue(this value).
+    return thisSymbolValue(this_value)
+
+
+SymbolPrototype_valueOf.length = 0
+SymbolPrototype_valueOf.name = "valueOf"
+
+# 19.4.3.5 Symbol.prototype [ @@toPrimitive ] ( hint )
+def SymbolPrototype_toPrimitive(this_value, new_target, hint=None, *_):
+    # This function is called by ECMAScript language operators to convert a Symbol object to a primitive value. The
+    # allowed values for hint are "default", "number", and "string".
+    #
+    # When the @@toPrimitive method is called with argument hint, the following steps are taken:
+    #   1. Return ? thisSymbolValue(this value).
+    return thisSymbolValue(this_value)
+    # The value of the name property of this function is "[Symbol.toPrimitive]".
+    # This property has the attributes { [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true }.
+
+
+SymbolPrototype_toPrimitive.length = 1
+SymbolPrototype_toPrimitive.name = "[Symbol.toPrimitive]"
+SymbolPrototype_toPrimitive.attributes = Record(writable=False, enumerable=False, configurable=True)
 
 ##################################################################################################################################################################################
 #
