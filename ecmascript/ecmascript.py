@@ -31945,6 +31945,7 @@ def CreateArrayPrototype(realm):
         [
             ("toString", ArrayPrototype_toString, 0),
             ("join", ArrayPrototype_join, 1),
+            ("push", ArrayPrototype_push, None),
             ("values", ArrayPrototype_values, 0),
         ],
     )
@@ -32002,6 +32003,42 @@ def ArrayPrototype_toString(this_value, new_target, *_):
     if not IsCallable(func):
         func = surrounding_agent.running_ec.realm.intrinsics["%ObjProto_toString%"]
     return Call(func, array)
+
+
+# 22.1.3.20 Array.prototype.push ( ...items )
+def ArrayPrototype_push(this_value, new_target, *items):
+    # NOTE 1    | The arguments are appended to the end of the array, in the order in which they appear. The new length
+    #           | of the array is returned as the result of the call.
+    #
+    # When the push method is called with zero or more arguments, the following steps are taken:
+    #   1. Let O be ? ToObject(this value).
+    #   2. Let len be ? ToLength(? Get(O, "length")).
+    #   3. Let items be a List whose elements are, in left to right order, the arguments that were passed to this
+    #      function invocation.
+    #   4. Let argCount be the number of elements in items.
+    #   5. If len + argCount > 2^53 - 1, throw a TypeError exception.
+    #   6. Repeat, while items is not empty
+    #       a. Remove the first element from items and let E be the value of the element.
+    #       b. Perform ? Set(O, ! ToString(len), E, true).
+    #       c. Increase len by 1.
+    #   7. Perform ? Set(O, "length", len, true).
+    #   8. Return len.
+    # The "length" property of the push method is 1.
+    # NOTE 2    | The push function is intentionally generic; it does not require that its this value be an Array
+    #           | object. Therefore it can be transferred to other kinds of objects for use as a method.
+    obj = ToObject(this_value)
+    length = ToLength(Get(obj, "length"))
+    argCount = len(items)
+    if length + argCount > 2 ** 53 - 1:
+        raise ESTypeError("Array too large")
+    for idx, item in enumerate(items):
+        Set(obj, ToString(idx + length), item, True)
+    Set(obj, "length", length + argCount, True)
+    return length + argCount
+
+
+ArrayPrototype_push.length = 1
+ArrayPrototype_push.name = "push"
 
 
 # 22.1.3.30 Array.prototype.values ( )
