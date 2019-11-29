@@ -239,19 +239,19 @@ class LexerCore:
     _RegularExpressionNonTerminator = r"([^\N{LF}\N{LINE SEPARATOR}\N{PARAGRAPH SEPARATOR}\N{CR}])"
     _RegularExpressionBackslashSequence = r"(\\" + _RegularExpressionNonTerminator + r")"
     _RegularExpressionClassChar = (
-        r"([^\N{LF}\N{LINE SEPARATOR}\N{PARAGRAPH SEPARATOR\N{CR}\]\\]|" + _RegularExpressionBackslashSequence + ")"
+        r"([^\N{LF}\N{LINE SEPARATOR}\N{PARAGRAPH SEPARATOR}\N{CR}\]\\]|" + _RegularExpressionBackslashSequence + ")"
     )
     _RegularExpressionClassChars = "(" + _RegularExpressionClassChar + "*)"
     _RegularExpressionClass = r"(\[" + _RegularExpressionClassChars + r"\])"
     _RegularExpressionChar = (
-        r"([^\N{LF}\N{LINE SEPARATOR}\N{PARAGRAPH SEPARATOR\N{CR}[/\\]|"
+        r"([^\N{LF}\N{LINE SEPARATOR}\N{PARAGRAPH SEPARATOR}\N{CR}[/\\]|"
         + _RegularExpressionBackslashSequence
         + "|"
         + _RegularExpressionClass
         + ")"
     )
     _RegularExpressionFirstChar = (
-        r"([^\N{LF}\N{LINE SEPARATOR}\N{PARAGRAPH SEPARATOR\N{CR}*/[\]]|"
+        r"([^\N{LF}\N{LINE SEPARATOR}\N{PARAGRAPH SEPARATOR}\N{CR}*/[\]]|"
         + _RegularExpressionBackslashSequence
         + "|"
         + _RegularExpressionClass
