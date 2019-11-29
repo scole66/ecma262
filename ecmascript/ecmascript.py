@@ -7578,8 +7578,9 @@ class ParseNode2:
     def ContainsUseStrict(self, *args, **kwargs):
         return self.defer_target().ContainsUseStrict(*args, **kwargs)
 
-    def AssignmentTargetType(self, *args, **kwargs):
-        return self.defer_target().AssignmentTargetType(*args, **kwargs)
+    @cached_property
+    def AssignmentTargetType(self):
+        return self.defer_target().AssignmentTargetType
 
     def IsMissingInitializers(self, *args, **kwargs):
         return self.defer_target().IsMissingInitializers(*args, **kwargs)
@@ -7727,6 +7728,7 @@ class P2_IdentifierReference_Identifier(_P2_Common_Identifier_Identifier, P2_Ide
     def Identifier(self):
         return self.children[0]
 
+    @cached_property
     def AssignmentTargetType(self):
         # 12.1.3 Static Semantics: AssignmentTargetType
         #   IdentifierReference : Identifier
@@ -7752,11 +7754,11 @@ class P2_IdentifierReference_Identifier(_P2_Common_Identifier_Identifier, P2_Ide
 
 class P2_IdentifierReference_YIELD(_P2_Common_Identifier_YIELD, P2_IdentifierReference):
     # IdentifierReference : yield
-    def AssignmentTargetType(self):
-        # 12.1.3 Static Semantics: AssignmentTargetType
-        #   IdentifierReference : yield
-        #   1. Return simple.
-        return SIMPLE
+
+    # 12.1.3 Static Semantics: AssignmentTargetType
+    #   IdentifierReference : yield
+    #   1. Return simple.
+    AssignmentTargetType = SIMPLE
 
     def evaluate(self):
         # 12.1.6 Runtime Semantics: Evaluation
@@ -7773,11 +7775,11 @@ class P2_IdentifierReference_YIELD(_P2_Common_Identifier_YIELD, P2_IdentifierRef
 
 class P2_IdentifierReference_AWAIT(_P2_Common_Identifier_AWAIT, P2_IdentifierReference):
     # IdentifierReference : await
-    def AssignmentTargetType(self):
-        # 12.1.3 Static Semantics: AssignmentTargetType
-        #   IdentifierReference : await
-        #   1. Return simple.
-        return SIMPLE
+
+    # 12.1.3 Static Semantics: AssignmentTargetType
+    #   IdentifierReference : await
+    #   1. Return simple.
+    AssignmentTargetType = SIMPLE
 
     def evaluate(self):
         # 12.1.6 Runtime Semantics: Evaluation
@@ -8205,11 +8207,10 @@ class P2_PrimaryExpression_THIS(P2_PrimaryExpression):
         #   1. Return false.
         return False
 
-    def AssignmentTargetType(self):
-        # 12.2.1.5 Static Semantics: AssignmentTargetType
-        #   PrimaryExpression : this
-        #   1. Return invalid.
-        return INVALID
+    # 12.2.1.5 Static Semantics: AssignmentTargetType
+    #   PrimaryExpression : this
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
     def evaluate(self):
         # 12.2.2.1 Runtime Semantics: Evaluation
@@ -8255,11 +8256,10 @@ class P2_PrimaryExpression_Literal(P2_PrimaryExpression):
         #   1. Return false.
         return False
 
-    def AssignmentTargetType(self):
-        # 12.2.1.5 Static Semantics: AssignmentTargetType
-        #   PrimaryExpression : Literal
-        #   1. Return invalid.
-        return INVALID
+    # 12.2.1.5 Static Semantics: AssignmentTargetType
+    #   PrimaryExpression : Literal
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
 
 class P2_PrimaryExpression_ArrayLiteral(P2_PrimaryExpression):
@@ -8280,11 +8280,10 @@ class P2_PrimaryExpression_ArrayLiteral(P2_PrimaryExpression):
         #   1. Return false.
         return False
 
-    def AssignmentTargetType(self):
-        # 12.2.1.5 Static Semantics: AssignmentTargetType
-        #   PrimaryExpression : ArrayLiteral
-        #   1. Return invalid.
-        return INVALID
+    # 12.2.1.5 Static Semantics: AssignmentTargetType
+    #   PrimaryExpression : ArrayLiteral
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
 
 class P2_PrimaryExpression_ObjectLiteral(P2_PrimaryExpression):
@@ -8305,11 +8304,10 @@ class P2_PrimaryExpression_ObjectLiteral(P2_PrimaryExpression):
         #   1. Return false.
         return False
 
-    def AssignmentTargetType(self):
-        # 12.2.1.5 Static Semantics: AssignmentTargetType
-        #   PrimaryExpression : ObjectLiteral
-        #   1. Return invalid.
-        return INVALID
+    # 12.2.1.5 Static Semantics: AssignmentTargetType
+    #   PrimaryExpression : ObjectLiteral
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
 
 class P2_PrimaryExpression_FunctionExpression(P2_PrimaryExpression):
@@ -8324,11 +8322,10 @@ class P2_PrimaryExpression_FunctionExpression(P2_PrimaryExpression):
         #   1. Return false.
         return False
 
-    def AssignmentTargetType(self):
-        # 12.2.1.5 Static Semantics: AssignmentTargetType
-        #   PrimaryExpression : FunctionExpression
-        #   1. Return invalid.
-        return INVALID
+    # 12.2.1.5 Static Semantics: AssignmentTargetType
+    #   PrimaryExpression : FunctionExpression
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
 
 class P2_PrimaryExpression_ClassExpression(P2_PrimaryExpression):
@@ -8343,11 +8340,10 @@ class P2_PrimaryExpression_ClassExpression(P2_PrimaryExpression):
         #   1. Return false.
         return False
 
-    def AssignmentTargetType(self):
-        # 12.2.1.5 Static Semantics: AssignmentTargetType
-        #   PrimaryExpression : ClassExpression
-        #   1. Return invalid.
-        return INVALID
+    # 12.2.1.5 Static Semantics: AssignmentTargetType
+    #   PrimaryExpression : ClassExpression
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
 
 class P2_PrimaryExpression_GeneratorExpression(P2_PrimaryExpression):
@@ -8362,11 +8358,10 @@ class P2_PrimaryExpression_GeneratorExpression(P2_PrimaryExpression):
         #   1. Return false.
         return False
 
-    def AssignmentTargetType(self):
-        # 12.2.1.5 Static Semantics: AssignmentTargetType
-        #   PrimaryExpression : GeneratorExpression
-        #   1. Return invalid.
-        return INVALID
+    # 12.2.1.5 Static Semantics: AssignmentTargetType
+    #   PrimaryExpression : GeneratorExpression
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
 
 class P2_PrimaryExpression_AsyncFunctionExpression(P2_PrimaryExpression):
@@ -8381,11 +8376,10 @@ class P2_PrimaryExpression_AsyncFunctionExpression(P2_PrimaryExpression):
         #   1. Return false.
         return False
 
-    def AssignmentTargetType(self):
-        # 12.2.1.5 Static Semantics: AssignmentTargetType
-        #   PrimaryExpression : AsyncFunctionExpression
-        #   1. Return invalid.
-        return INVALID
+    # 12.2.1.5 Static Semantics: AssignmentTargetType
+    #   PrimaryExpression : AsyncFunctionExpression
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
 
 class P2_PrimaryExpression_AsyncGeneratorExpression(P2_PrimaryExpression):
@@ -8400,11 +8394,10 @@ class P2_PrimaryExpression_AsyncGeneratorExpression(P2_PrimaryExpression):
         #   1. Return false.
         return False
 
-    def AssignmentTargetType(self):
-        # 12.2.1.5 Static Semantics: AssignmentTargetType
-        #   PrimaryExpression : AsyncGeneratorExpression
-        #   1. Return invalid.
-        return INVALID
+    # 12.2.1.5 Static Semantics: AssignmentTargetType
+    #   PrimaryExpression : AsyncGeneratorExpression
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
 
 bad_regex_flag_match = regex.compile("[^gimsuy]")
@@ -8428,11 +8421,10 @@ class P2_PrimaryExpression_RegularExpressionLiteral(P2_PrimaryExpression):
         #   1. Return false.
         return False
 
-    def AssignmentTargetType(self):
-        # 12.2.1.5 Static Semantics: AssignmentTargetType
-        #   PrimaryExpression : RegularExpressionLiteral
-        #   1. Return invalid.
-        return INVALID
+    # 12.2.1.5 Static Semantics: AssignmentTargetType
+    #   PrimaryExpression : RegularExpressionLiteral
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
     def EarlyErrors(self):
         # 12.2.8.1 Static Semantics: Early Errors
@@ -8480,11 +8472,10 @@ class P2_PrimaryExpression_TemplateLiteral(P2_PrimaryExpression):
         #   1. Return false.
         return False
 
-    def AssignmentTargetType(self):
-        # 12.2.1.5 Static Semantics: AssignmentTargetType
-        #   PrimaryExpression : TemplateLiteral
-        #   1. Return invalid.
-        return INVALID
+    # 12.2.1.5 Static Semantics: AssignmentTargetType
+    #   PrimaryExpression : TemplateLiteral
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
 
 class P2_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(P2_PrimaryExpression):
@@ -8516,13 +8507,14 @@ class P2_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(P2_
         #   1. Return false.
         return False
 
+    @cached_property
     def AssignmentTargetType(self):
         # 12.2.1.5 Static Semantics: AssignmentTargetType
         #   PrimaryExpression : CoverParenthesizedExpressionAndArrowParameterList
         #   1. Let expr be CoveredParenthesizedExpression of CoverParenthesizedExpressionAndArrowParameterList.
         #   2. Return AssignmentTargetType of expr.
         expr = self.CoverParenthesizedExpressionAndArrowParameterList.CoveredParenthesizedExpression
-        return expr.AssignmentTargetType()
+        return expr.AssignmentTargetType
 
     def EarlyErrors(self):
         # 12.2.10.1 Static Semantics: Early Errors
@@ -10819,11 +10811,10 @@ class P2_MemberExpression_MemberExpression_LBRACKET_Expression_RBRACKET(P2_Membe
     def Expression(self):
         return self.children[2]
 
-    def AssignmentTargetType(self):
-        # 12.3.1.6 Static Semantics: AssignmentTargetType
-        # MemberExpression : MemberExpression [ Expression ]
-        #   1. Return simple.
-        return SIMPLE
+    # 12.3.1.6 Static Semantics: AssignmentTargetType
+    # MemberExpression : MemberExpression [ Expression ]
+    #   1. Return simple.
+    AssignmentTargetType = SIMPLE
 
     def evaluate(self):
         # 12.3.2.1 Runtime Semantics: Evaluation
@@ -10872,11 +10863,10 @@ class P2_MemberExpression_MemberExpression_PERIOD_IdentifierName(P2_MemberExpres
             symbol not in self.context.lexer_interface.reserved_words and symbol == self.IdentifierName.value
         )
 
-    def AssignmentTargetType(self):
-        # 12.3.1.6 Static Semantics: AssignmentTargetType
-        # MemberExpression : MemberExpression . IdentifierName
-        #   1. Return simple.
-        return SIMPLE
+    # 12.3.1.6 Static Semantics: AssignmentTargetType
+    # MemberExpression : MemberExpression . IdentifierName
+    #   1. Return simple.
+    AssignmentTargetType = SIMPLE
 
     def evaluate(self):
         # 12.3.2.1 Runtime Semantics: Evaluation
@@ -10908,11 +10898,10 @@ class P2_MemberExpression_MemberExpression_TemplateLiteral(P2_MemberExpression_b
     def TemplateLiteral(self):
         return self.children[1]
 
-    def AssignmentTargetType(self):
-        # 12.3.1.6 Static Semantics: AssignmentTargetType
-        # MemberExpression : MemberExpression TemplateLiteral
-        #   1. Return invalid.
-        return INVALID
+    # 12.3.1.6 Static Semantics: AssignmentTargetType
+    # MemberExpression : MemberExpression TemplateLiteral
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
     def evaluate(self):
         # 12.3.7.1 Runtime Semantics: Evaluation
@@ -10933,11 +10922,10 @@ class P2_MemberExpression_SuperProperty(P2_MemberExpression_base):
     def SuperProperty(self):
         return self.children[0]
 
-    def AssignmentTargetType(self):
-        # 12.3.1.6 Static Semantics: AssignmentTargetType
-        # MemberExpression : SuperProperty
-        #   1. Return simple.
-        return SIMPLE
+    # 12.3.1.6 Static Semantics: AssignmentTargetType
+    # MemberExpression : SuperProperty
+    #   1. Return simple.
+    AssignmentTargetType = SIMPLE
 
 
 class P2_MemberExpression_MetaProperty(P2_MemberExpression):
@@ -10955,11 +10943,10 @@ class P2_MemberExpression_NEW_MemberExpression_Arguments(P2_MemberExpression_bas
     def Arguments(self):
         return self.children[2]
 
-    def AssignmentTargetType(self):
-        # 12.3.1.6 Static Semantics: AssignmentTargetType
-        # MemberExpression : new MemberExpression Arguments
-        #   1. Return invalid.
-        return INVALID
+    # 12.3.1.6 Static Semantics: AssignmentTargetType
+    # MemberExpression : new MemberExpression Arguments
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
     def evaluate(self):
         # 12.3.3.1 Runtime Semantics: Evaluation
@@ -11165,11 +11152,10 @@ class P2_NewTarget(ParseNode2):
 
 
 class P2_NewTarget_NEW_PERIOD_TARGET(P2_NewTarget):
-    def AssignmentTargetType(self):
-        # 12.3.1.6 Static Semantics: AssignmentTargetType
-        # NewTarget : new . target
-        #   1. Return invalid.
-        return INVALID
+    # 12.3.1.6 Static Semantics: AssignmentTargetType
+    # NewTarget : new . target
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
     def evaluate(self):
         # 12.3.8.1 Runtime Semantics: Evaluation
@@ -11237,11 +11223,10 @@ class P2_NewExpression_NEW_NewExpression(P2_NewExpression):
         #   1. Return false.
         return False
 
-    def AssignmentTargetType(self):
-        # 12.3.1.6 Static Semantics: AssignmentTargetType
-        # NewExpression : new NewExpression
-        #   1. Return invalid.
-        return INVALID
+    # 12.3.1.6 Static Semantics: AssignmentTargetType
+    # NewExpression : new NewExpression
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
     def evaluate(self):
         # 12.3.3.1 Runtime Semantics: Evaluation
@@ -11338,11 +11323,10 @@ class P2_CallExpression_CoverCallExpressionAndAsyncArrowHead(P2_CallExpression):
         #   1. Return the CallMemberExpression that is covered by CoverCallExpressionAndAsyncArrowHead.
         return self.CallMemberExpression
 
-    def AssignmentTargetType(self):
-        # 12.3.1.6 Static Semantics: AssignmentTargetType
-        # CallExpression : CoverCallExpressionAndAsyncArrowHead
-        #   1. Return invalid.
-        return INVALID
+    # 12.3.1.6 Static Semantics: AssignmentTargetType
+    # CallExpression : CoverCallExpressionAndAsyncArrowHead
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
     def evaluate(self):
         # 12.3.4.1 Runtime Semantics: Evaluation
@@ -11392,11 +11376,10 @@ class P2_CallExpression_SuperCall(P2_CallExpression):
     def SuperCall(self):
         return self.children[0]
 
-    def AssignmentTargetType(self):
-        # 12.3.1.6 Static Semantics: AssignmentTargetType
-        # CallExpression : SuperCall
-        #   1. Return invalid.
-        return INVALID
+    # 12.3.1.6 Static Semantics: AssignmentTargetType
+    # CallExpression : SuperCall
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
 
 class P2_CallExpression_CallExpression_Arguments(P2_CallExpression):
@@ -11408,11 +11391,10 @@ class P2_CallExpression_CallExpression_Arguments(P2_CallExpression):
     def Arguments(self):
         return self.children[1]
 
-    def AssignmentTargetType(self):
-        # 12.3.1.6 Static Semantics: AssignmentTargetType
-        # CallExpression : CallExpression Arguments
-        #   1. Return invalid.
-        return INVALID
+    # 12.3.1.6 Static Semantics: AssignmentTargetType
+    # CallExpression : CallExpression Arguments
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
     def evaluate(self):
         # 12.3.4.1 Runtime Semantics: Evaluation
@@ -11482,11 +11464,10 @@ class P2_CallExpression_CallExpression_LBRACKET_Expression_RBRACKET(P2_CallExpre
     def Expression(self):
         return self.children[2]
 
-    def AssignmentTargetType(self):
-        # 12.3.1.6 Static Semantics: AssignmentTargetType
-        # CallExpression : CallExpression [ Expression ]
-        #   1. Return simple.
-        return SIMPLE
+    # 12.3.1.6 Static Semantics: AssignmentTargetType
+    # CallExpression : CallExpression [ Expression ]
+    #   1. Return simple.
+    AssignmentTargetType = SIMPLE
 
     def evaluate(self):
         # 12.3.2.1 Runtime Semantics: Evaluation
@@ -11517,11 +11498,10 @@ class P2_CallExpression_CallExpression_PERIOD_IdentifierName(P2_CallExpression):
             symbol not in self.context.lexer_interface.reserved_words and symbol == self.IdentifierName.value
         )
 
-    def AssignmentTargetType(self):
-        # 12.3.1.6 Static Semantics: AssignmentTargetType
-        # CallExpression : CallExpression . IdentifierName
-        #   1. Return simple.
-        return SIMPLE
+    # 12.3.1.6 Static Semantics: AssignmentTargetType
+    # CallExpression : CallExpression . IdentifierName
+    #   1. Return simple.
+    AssignmentTargetType = SIMPLE
 
     def evaluate(self):
         # 12.3.2.1 Runtime Semantics: Evaluation
@@ -11539,11 +11519,10 @@ class P2_CallExpression_CallExpression_TemplateLiteral(P2_CallExpression):
     def TemplateLiteral(self):
         return self.children[1]
 
-    def AssignmentTargetType(self):
-        # 12.3.1.6 Static Semantics: AssignmentTargetType
-        # CallExpression : CallExpression TemplateLiteral
-        #   1. Return invalid.
-        return INVALID
+    # 12.3.1.6 Static Semantics: AssignmentTargetType
+    # CallExpression : CallExpression TemplateLiteral
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
     def evaluate(self):
         # 12.3.7.1 Runtime Semantics: Evaluation
@@ -12100,14 +12079,13 @@ class P2_UpdateExpression_NotFallThru(P2_UpdateExpression):
         #   1. Return false.
         return False
 
-    def AssignmentTargetType(self):
-        # 12.4.3 Static Semantics: AssignmentTargetType
-        # UpdateExpression : LeftHandSideExpression ++
-        # UpdateExpression : LeftHandSideExpression --
-        # UpdateExpression : ++ UnaryExpression
-        # UpdateExpression : -- UnaryExpression
-        #   1. Return invalid.
-        return INVALID
+    # 12.4.3 Static Semantics: AssignmentTargetType
+    # UpdateExpression : LeftHandSideExpression ++
+    # UpdateExpression : LeftHandSideExpression --
+    # UpdateExpression : ++ UnaryExpression
+    # UpdateExpression : -- UnaryExpression
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
 
 class P2_UpdateExpression_Post(P2_UpdateExpression_NotFallThru):
@@ -12124,7 +12102,7 @@ class P2_UpdateExpression_Post(P2_UpdateExpression_NotFallThru):
             filter(
                 None,
                 [
-                    self.LeftHandSideExpression.AssignmentTargetType() != SIMPLE
+                    self.LeftHandSideExpression.AssignmentTargetType != SIMPLE
                     and self.CreateSyntaxError("Invalid Reference for postfix update")
                 ],
             )
@@ -12145,7 +12123,7 @@ class P2_UpdateExpression_Pre(P2_UpdateExpression_NotFallThru):
             filter(
                 None,
                 [
-                    self.UnaryExpression.AssignmentTargetType() != SIMPLE
+                    self.UnaryExpression.AssignmentTargetType != SIMPLE
                     and self.CreateSyntaxError("Invalid Reference for prefix update")
                 ],
             )
@@ -12361,18 +12339,17 @@ class P2_UnaryExpression_NotFallThru(P2_UnaryExpression):
         #   1. Return false.
         return False
 
-    def AssignmentTargetType(self):
-        # 12.5.2 Static Semantics: AssignmentTargetType
-        # UnaryExpression : delete UnaryExpression
-        # UnaryExpression : void UnaryExpression
-        # UnaryExpression : typeof UnaryExpression
-        # UnaryExpression : + UnaryExpression
-        # UnaryExpression : - UnaryExpression
-        # UnaryExpression : ~ UnaryExpression
-        # UnaryExpression : ! UnaryExpression
-        # UnaryExpression : AwaitExpression
-        #   1. Return invalid.
-        return INVALID
+    # 12.5.2 Static Semantics: AssignmentTargetType
+    # UnaryExpression : delete UnaryExpression
+    # UnaryExpression : void UnaryExpression
+    # UnaryExpression : typeof UnaryExpression
+    # UnaryExpression : + UnaryExpression
+    # UnaryExpression : - UnaryExpression
+    # UnaryExpression : ~ UnaryExpression
+    # UnaryExpression : ! UnaryExpression
+    # UnaryExpression : AwaitExpression
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
 
 class P2_UnaryExpression_DELETE_UnaryExpression(P2_UnaryExpression_NotFallThru):
@@ -12729,11 +12706,10 @@ class P2_ExponentiationExpression_UpdateExpression_STARSTAR_ExponentiationExpres
         #   1. Return false.
         return False
 
-    def AssignmentTargetType(self):
-        # 12.6.2 Static Semantics: AssignmentTargetType
-        # ExponentiationExpression : UpdateExpression ** ExponentiationExpression
-        #   1. Return invalid.
-        return INVALID
+    # 12.6.2 Static Semantics: AssignmentTargetType
+    # ExponentiationExpression : UpdateExpression ** ExponentiationExpression
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
     def evaluate(self):
         # 12.6.3 Runtime Semantics: Evaluation
@@ -12917,11 +12893,10 @@ class P2_MultiplicativeExpression_MultiplicativeExpression_MultiplicativeOperato
         #   1. Return false.
         return False
 
-    def AssignmentTargetType(self):
-        # 12.7.2 Static Semantics: AssignmentTargetType
-        #       MultiplicativeExpression : MultiplicativeExpression MultiplicativeOperator ExponentiationExpression
-        #   1. Return invalid.
-        return INVALID
+    # 12.7.2 Static Semantics: AssignmentTargetType
+    #       MultiplicativeExpression : MultiplicativeExpression MultiplicativeOperator ExponentiationExpression
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
     def evaluate(self):
         # 12.7.3 Runtime Semantics: Evaluation
@@ -13175,12 +13150,11 @@ class P2_AdditiveExpression_NotPassThru(P2_AdditiveExpression):
         #   1. Return false.
         return False
 
-    def AssignmentTargetType(self):
-        # 12.8.2 Static Semantics: AssignmentTargetType
-        # AdditiveExpression : AdditiveExpression + MultiplicativeExpression
-        # AdditiveExpression : AdditiveExpression - MultiplicativeExpression
-        #   1. Return invalid.
-        return INVALID
+    # 12.8.2 Static Semantics: AssignmentTargetType
+    # AdditiveExpression : AdditiveExpression + MultiplicativeExpression
+    # AdditiveExpression : AdditiveExpression - MultiplicativeExpression
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
 
 class P2_AdditiveExpression_AdditiveExpression_PLUS_MultiplicativeExpression(P2_AdditiveExpression_NotPassThru):
@@ -13423,13 +13397,12 @@ class P2_ShiftExpression_NotPassThru(P2_ShiftExpression):
         #   1. Return false.
         return False
 
-    def AssignmentTargetType(self):
-        # 12.9.2 Static Semantics: AssignmentTargetType
-        # ShiftExpression : ShiftExpression << AdditiveExpression
-        # ShiftExpression : ShiftExpression >> AdditiveExpression
-        # ShiftExpression : ShiftExpression >>> AdditiveExpression
-        #   1. Return invalid.
-        return INVALID
+    # 12.9.2 Static Semantics: AssignmentTargetType
+    # ShiftExpression : ShiftExpression << AdditiveExpression
+    # ShiftExpression : ShiftExpression >> AdditiveExpression
+    # ShiftExpression : ShiftExpression >>> AdditiveExpression
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
     # --- The first 7 steps are (nearly) common for all 3 productions.
     def evaluate(self):
@@ -13617,16 +13590,15 @@ class P2_RelationalExpression_RelationalExpression_OP_ShiftExpression(P2_Relatio
         #   1. Return false.
         return False
 
-    def AssignmentTargetType(self):
-        # 12.10.2 Static Semantics: AssignmentTargetType
-        # RelationalExpression : RelationalExpression < ShiftExpression
-        # RelationalExpression : RelationalExpression > ShiftExpression
-        # RelationalExpression : RelationalExpression <= ShiftExpression
-        # RelationalExpression : RelationalExpression >= ShiftExpression
-        # RelationalExpression : RelationalExpression instanceof ShiftExpression
-        # RelationalExpression : RelationalExpression in ShiftExpression
-        #   1. Return invalid.
-        return INVALID
+    # 12.10.2 Static Semantics: AssignmentTargetType
+    # RelationalExpression : RelationalExpression < ShiftExpression
+    # RelationalExpression : RelationalExpression > ShiftExpression
+    # RelationalExpression : RelationalExpression <= ShiftExpression
+    # RelationalExpression : RelationalExpression >= ShiftExpression
+    # RelationalExpression : RelationalExpression instanceof ShiftExpression
+    # RelationalExpression : RelationalExpression in ShiftExpression
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
     def evaluate(self):
         # 12.10.3 Runtime Semantics: Evaluation
@@ -13865,14 +13837,13 @@ class P2_EqualityExpression_EqualityExpression_OP_RelationalExpression(P2_Equali
         #   1. Return false.
         return False
 
-    def AssignmentTargetType(self):
-        # 12.11.2 Static Semantics: AssignmentTargetType
-        # EqualityExpression : EqualityExpression == RelationalExpression
-        # EqualityExpression : EqualityExpression != RelationalExpression
-        # EqualityExpression : EqualityExpression === RelationalExpression
-        # EqualityExpression : EqualityExpression !== RelationalExpression
-        #   1. Return invalid.
-        return INVALID
+    # 12.11.2 Static Semantics: AssignmentTargetType
+    # EqualityExpression : EqualityExpression == RelationalExpression
+    # EqualityExpression : EqualityExpression != RelationalExpression
+    # EqualityExpression : EqualityExpression === RelationalExpression
+    # EqualityExpression : EqualityExpression !== RelationalExpression
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
     def evaluate(self):
         # 12.11.3 Runtime Semantics: Evaluation
@@ -14029,13 +14000,12 @@ class P2_BitwiseExpression(ParseNode2):
         #   1. Return false.
         return False
 
-    def AssignmentTargetType(self):
-        # 12.12.2 Static Semantics: AssignmentTargetType
-        # BitwiseANDExpression : BitwiseANDExpression & EqualityExpression
-        # BitwiseXORExpression : BitwiseXORExpression ^ BitwiseANDExpression
-        # BitwiseORExpression : BitwiseORExpression | BitwiseXORExpression
-        #   1. Return invalid.
-        return INVALID
+    # 12.12.2 Static Semantics: AssignmentTargetType
+    # BitwiseANDExpression : BitwiseANDExpression & EqualityExpression
+    # BitwiseXORExpression : BitwiseXORExpression ^ BitwiseANDExpression
+    # BitwiseORExpression : BitwiseORExpression | BitwiseXORExpression
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
     # 12.12.3 Runtime Semantics: Evaluation
     def evaluate(self):
@@ -14297,12 +14267,11 @@ class P2_LogicalExpression(ParseNode2):
         #   1. Return false.
         return False
 
-    def AssignmentTargetType(self):
-        # 12.13.2 Static Semantics: AssignmentTargetType
-        # LogicalANDExpression : LogicalANDExpression && BitwiseORExpression
-        # LogicalORExpression : LogicalORExpression || LogicalANDExpression
-        #   1. Return invalid.
-        return INVALID
+    # 12.13.2 Static Semantics: AssignmentTargetType
+    # LogicalANDExpression : LogicalANDExpression && BitwiseORExpression
+    # LogicalORExpression : LogicalORExpression || LogicalANDExpression
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
 
 # --------======= 𝓛𝓸𝓰𝓲𝓬𝓪𝓵𝓐𝓝𝓓𝓔𝔁𝓹𝓻𝓮𝓼𝓼𝓲𝓸𝓷 =======--------
@@ -14541,11 +14510,10 @@ class P2_ConditionalExpression_LogicalORExpression_QUESTION_AssignmentExpression
         #   1. Return false.
         return False
 
-    def AssignmentTargetType(self):
-        # 12.14.2 Static Semantics: AssignmentTargetType
-        # ConditionalExpression : LogicalORExpression ? AssignmentExpression : AssignmentExpression
-        #   1. Return invalid.
-        return INVALID
+    # 12.14.2 Static Semantics: AssignmentTargetType
+    # ConditionalExpression : LogicalORExpression ? AssignmentExpression : AssignmentExpression
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
     # 12.14.3 Runtime Semantics: Evaluation
     # ConditionalExpression : LogicalORExpression ? AssignmentExpression : AssignmentExpression
@@ -14682,11 +14650,10 @@ class P2_AssignmentExpression_YieldExpression(P2_AssignmentExpression):
         #   1. Return false.
         return False
 
-    def AssignmentTargetType(self):
-        # 12.15.3 Static Semantics: AssignmentTargetType
-        # AssignmentExpression : YieldExpression
-        #   1. Return invalid.
-        return INVALID
+    # 12.15.3 Static Semantics: AssignmentTargetType
+    # AssignmentExpression : YieldExpression
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
 
 class P2_AssignmentExpression_ArrowFunction(P2_AssignmentExpression):
@@ -14700,11 +14667,10 @@ class P2_AssignmentExpression_ArrowFunction(P2_AssignmentExpression):
         #   1. Return true.
         return True
 
-    def AssignmentTargetType(self):
-        # 12.15.3 Static Semantics: AssignmentTargetType
-        # AssignmentExpression : ArrowFunction
-        #   1. Return invalid.
-        return INVALID
+    # 12.15.3 Static Semantics: AssignmentTargetType
+    # AssignmentExpression : ArrowFunction
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
 
 class P2_AssignmentExpression_AsyncArrowFunction(P2_AssignmentExpression):
@@ -14718,11 +14684,10 @@ class P2_AssignmentExpression_AsyncArrowFunction(P2_AssignmentExpression):
         #   1. Return true.
         return True
 
-    def AssignmentTargetType(self):
-        # 12.15.3 Static Semantics: AssignmentTargetType
-        # AssignmentExpression : AsyncArrowFunction
-        #   1. Return invalid.
-        return INVALID
+    # 12.15.3 Static Semantics: AssignmentTargetType
+    # AssignmentExpression : AsyncArrowFunction
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
 
 class P2_AssignmentExpression_LeftHandSideExpression_EQ_AssignmentExpression(P2_AssignmentExpression):
@@ -14755,7 +14720,7 @@ class P2_AssignmentExpression_LeftHandSideExpression_EQ_AssignmentExpression(P2_
                     and self.CreateSyntaxError("Invalid destructuring assignment target"),
                     # new f() = 3;
                     not is_structured
-                    and self.LeftHandSideExpression.AssignmentTargetType() != SIMPLE
+                    and self.LeftHandSideExpression.AssignmentTargetType != SIMPLE
                     and self.CreateSyntaxError("Invalid left-hand side in assignment"),
                 ],
             )
@@ -14767,11 +14732,10 @@ class P2_AssignmentExpression_LeftHandSideExpression_EQ_AssignmentExpression(P2_
         #   1. Return false.
         return False
 
-    def AssignmentTargetType(self):
-        # 12.15.3 Static Semantics: AssignmentTargetType
-        # AssignmentExpression : LeftHandSideExpression = AssignmentExpression
-        #   1. Return invalid.
-        return INVALID
+    # 12.15.3 Static Semantics: AssignmentTargetType
+    # AssignmentExpression : LeftHandSideExpression = AssignmentExpression
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
     def evaluate(self):
         # 12.15.4 Runtime Semantics: Evaluation
@@ -14833,7 +14797,7 @@ class P2_AssignmentExpression_LeftHandSideExpression_AssignmentOperator_Assignme
             filter(
                 None,
                 [
-                    self.LeftHandSideExpression.AssignmentTargetType() != SIMPLE
+                    self.LeftHandSideExpression.AssignmentTargetType != SIMPLE
                     and self.CreateSyntaxError("Invalid left-hand side in assignment")
                 ],
             )
@@ -14845,11 +14809,10 @@ class P2_AssignmentExpression_LeftHandSideExpression_AssignmentOperator_Assignme
         #   1. Return false.
         return False
 
-    def AssignmentTargetType(self):
-        # 12.15.3 Static Semantics: AssignmentTargetType
-        # AssignmentExpression : LeftHandSideExpression AssignmentOperator AssignmentExpression
-        #   1. Return invalid.
-        return INVALID
+    # 12.15.3 Static Semantics: AssignmentTargetType
+    # AssignmentExpression : LeftHandSideExpression AssignmentOperator AssignmentExpression
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
     op_function = {
         "*=": MultiplyOperation,
@@ -15629,7 +15592,7 @@ class P2_AssignmentProperty_IdentifierReference_Initializer(P2_AssignmentPropert
             filter(
                 None,
                 [
-                    self.IdentifierReference.AssignmentTargetType() != SIMPLE
+                    self.IdentifierReference.AssignmentTargetType != SIMPLE
                     and self.CreateSyntaxError("Invalid destructuring assignment target")
                 ],
             )
@@ -15981,7 +15944,7 @@ class P2_DestructuringAssignmentTarget_LeftHandSideExpression(P2_DestructuringAs
                     and not self.LeftHandSideExpression.AssignmentPattern
                     and self.CreateSyntaxError(f"Invalid Assignment Pattern: {self.LeftHandSideExpression}"),
                     not is_structured_literal
-                    and self.LeftHandSideExpression.AssignmentTargetType() != SIMPLE
+                    and self.LeftHandSideExpression.AssignmentTargetType != SIMPLE
                     and self.CreateSyntaxError(f"Invalid Assignment Target: {self.LeftHandSideExpression}"),
                 ],
             )
@@ -16070,11 +16033,10 @@ class P2_Expression_Expression_COMMA_AssignmentExpression(P2_Expression):
         #   1. Return false.
         return False
 
-    def AssignmentTargetType(self):
-        # 12.16.2 Static Semantics: AssignmentTargetType
-        # Expression : Expression , AssignmentExpression
-        #   1. Return invalid.
-        return INVALID
+    # 12.16.2 Static Semantics: AssignmentTargetType
+    # Expression : Expression , AssignmentExpression
+    #   1. Return invalid.
+    AssignmentTargetType = INVALID
 
     def evaluate(self):
         # 12.16.3 Runtime Semantics: Evaluation
@@ -26266,7 +26228,11 @@ def ParseScript(sourceText, realm, hostDefined):
                 None,
                 [
                     not tree and ESSyntaxError("Bad parse of script"),
-                    tree and not lex.is_done(after) and ESSyntaxError(f"Syntax error at position {after}"),
+                    tree
+                    and not lex.is_done(after)
+                    and ESSyntaxError(
+                        f"Syntax error at position {after}; {sourceText[after-100:after]}-$-$-$->{sourceText[after:]}"
+                    ),
                 ],
             ),
             (tree.EarlyErrorsScan() if tree else ()),

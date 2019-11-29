@@ -99,12 +99,12 @@ def test_IdentifierReference_Identifier_StringValue(context):
 
 def test_IdentifierReference_YIELD_AssignmentTargetType(context):
     ir = ecmascript.P2_IdentifierReference_YIELD(context, [], False, False)
-    assert ir.AssignmentTargetType() == ecmascript.SIMPLE
+    assert ir.AssignmentTargetType == ecmascript.SIMPLE
 
 
 def test_IdentifierReference_AWAIT_AssignmentTargetType(context):
     ir = ecmascript.P2_IdentifierReference_AWAIT(context, [], False, False)
-    assert ir.AssignmentTargetType() == ecmascript.SIMPLE
+    assert ir.AssignmentTargetType == ecmascript.SIMPLE
 
 
 @pytest.mark.parametrize(
@@ -121,7 +121,7 @@ def test_IdentifierReference_Identifier_AssignmentTargetType(context, strict, na
 
     ir = ecmascript.P2_IdentifierReference_Identifier(context, [Check(context, "Check", [])], False, False)
     ir.strict = strict
-    assert ir.AssignmentTargetType() == expected
+    assert ir.AssignmentTargetType == expected
 
 
 def test_IdentifierReference_Identifier_evaluate(context, mocker):
