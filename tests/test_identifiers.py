@@ -50,8 +50,7 @@ def test_IdentifierReference_AWAIT_init(context):
 )
 def test_IdentifierReference_Identifier_EarlyErrors(context, Yield, Await, identifiername, expected):
     class Check(ecmascript.ParseNode2):
-        def StringValue(self):
-            return identifiername
+        StringValue = identifiername
 
     ir = ecmascript.P2_IdentifierReference_Identifier(context, [Check(context, "Check", [])], Yield, Await)
     errs = ir.EarlyErrors()
@@ -82,21 +81,20 @@ def test_IdentifierReference_YIELD_EarlyErrors(context, strict, expected):
 
 def test_IdentifierReference_YIELD_StringValue(context):
     ir = ecmascript.P2_IdentifierReference_YIELD(context, [], False, False)
-    assert ir.StringValue() == "yield"
+    assert ir.StringValue == "yield"
 
 
 def test_IdentifierReference_AWAIT_StringValue(context):
     ir = ecmascript.P2_IdentifierReference_AWAIT(context, [], False, False)
-    assert ir.StringValue() == "await"
+    assert ir.StringValue == "await"
 
 
 def test_IdentifierReference_Identifier_StringValue(context):
     class Check(ecmascript.ParseNode2):
-        def StringValue(self):
-            return "identifiername"
+        StringValue = "identifiername"
 
     ir = ecmascript.P2_IdentifierReference_Identifier(context, [Check(context, "Check", [])], False, False)
-    assert ir.StringValue() == "identifiername"
+    assert ir.StringValue == "identifiername"
 
 
 def test_IdentifierReference_YIELD_AssignmentTargetType(context):
@@ -119,8 +117,7 @@ def test_IdentifierReference_AWAIT_AssignmentTargetType(context):
 )
 def test_IdentifierReference_Identifier_AssignmentTargetType(context, strict, name, expected):
     class Check(ecmascript.ParseNode2):
-        def StringValue(self):
-            return name
+        StringValue = name
 
     ir = ecmascript.P2_IdentifierReference_Identifier(context, [Check(context, "Check", [])], False, False)
     ir.strict = strict
@@ -132,9 +129,9 @@ def test_IdentifierReference_Identifier_evaluate(context, mocker):
     #       IdentifierReference : Identifier
     #   1. Return ? ResolveBinding(StringValue of Identifier).
 
-    # Setup: StringValue() will return 'identifier_test', and ResolveBinding will return 67.
+    # Setup: StringValue will be 'identifier_test', and ResolveBinding will return 67.
     identifier = mocker.Mock()
-    identifier.StringValue = mocker.Mock(return_value="identifier_test")
+    identifier.StringValue = "identifier_test"
     ir = ecmascript.P2_IdentifierReference_Identifier(context, [identifier], False, False)
     ir.strict = "strict"
     rb = mocker.patch("ecmascript.ecmascript.ResolveBinding", return_value=67)
@@ -145,7 +142,6 @@ def test_IdentifierReference_Identifier_evaluate(context, mocker):
     # Examine results
     assert rv == 67
     rb.assert_called_with("identifier_test", "strict")
-    identifier.StringValue.assert_called()
 
 
 def test_IdentifierReference_YIELD_evaluate(context, mocker):
@@ -261,7 +257,7 @@ def test_P2_Identifier_IdentifierName_init(context):
 
 def test_P2_Identifier_IdentifierName_StringValue(context):
     ident = ecmascript.P2_Identifier_IdentifierName(context, [Token("IDENTFIER", "value")])
-    assert ident.StringValue() == "value"
+    assert ident.StringValue == "value"
 
 
 @pytest.mark.parametrize(
@@ -380,8 +376,7 @@ def test_P2_BindingIdentifier_Identifier_init(context):
 )
 def test_P2_BindingIdentifier_Identifier_EarlyErrors(context, Yield, Await, identifiername, strict, expected):
     class Check(ecmascript.ParseNode2):
-        def StringValue(self):
-            return identifiername
+        StringValue = identifiername
 
     bi = ecmascript.P2_BindingIdentifier_Identifier(context, [Check(context, "Check", [])], Yield, Await)
     bi.strict = strict
@@ -439,8 +434,7 @@ def test_BindingIdentifier_Identifier_BoundNames(context):
     identifiername = "test_result"
 
     class Check(ecmascript.ParseNode2):
-        def StringValue(self):
-            return identifiername
+        StringValue = identifiername
 
     bi = ecmascript.P2_BindingIdentifier_Identifier(context, [Check(context, "Check", [])], False, False)
     assert bi.BoundNames() == [identifiername]
@@ -460,9 +454,9 @@ def test_BindingIdentifier_Identifier_BindingInitialization(context, mocker):
     #   1. Let name be StringValue of Identifier.
     #   2. Return ? InitializeBoundName(name, value, environment).
 
-    # Setup: StringValue() will return 'identifier_test', and InitializeBoundName will return 67.
+    # Setup: StringValue will be 'identifier_test', and InitializeBoundName will return 67.
     identifier = mocker.Mock()
-    identifier.StringValue = mocker.Mock(return_value="identifier_test")
+    identifier.StringValue = "identifier_test"
     bi = ecmascript.P2_BindingIdentifier_Identifier(context, [identifier], False, False)
     bi.strict = "strict"
     ibn = mocker.patch("ecmascript.ecmascript.InitializeBoundName", return_value=67)
@@ -473,7 +467,6 @@ def test_BindingIdentifier_Identifier_BindingInitialization(context, mocker):
     # Examine results
     assert rv == 67
     ibn.assert_called_with("identifier_test", "value", "environment", "strict")
-    identifier.StringValue.assert_called()
 
 
 def test_BindingIdentifier_YIELD_BindingInitialization(context, mocker):
@@ -593,8 +586,7 @@ def test_P2_LabelIdentifier_AWAIT_init(context):
 )
 def test_LabelIdentifier_Identifier_EarlyErrors(context, Yield, Await, identifiername, expected):
     class Check(ecmascript.ParseNode2):
-        def StringValue(self):
-            return identifiername
+        StringValue = identifiername
 
     li = ecmascript.P2_LabelIdentifier_Identifier(context, [Check(context, "Check", [])], Yield, Await)
     errs = li.EarlyErrors()

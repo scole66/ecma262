@@ -4317,8 +4317,8 @@ class ExecutionContext:
         self.generator = None
         # The following are "code evaluation state"
         self.is_suspended = False
-        caller = inspect.stack()[1]
-        self.created_by = f"{caller.function} on line {caller.lineno}"
+        # caller = inspect.stack()[1]
+        # self.created_by = f"{caller.function} on line {caller.lineno}"
 
     def suspend(self, on_resume=None):
         self.is_suspended = True
@@ -7523,8 +7523,9 @@ class ParseNode2:
     def BoundNames(self, *args, **kwargs):
         return self.defer_target().BoundNames(*args, **kwargs)
 
-    def StringValue(self, *args, **kwargs):
-        return self.defer_target().StringValue(*args, **kwargs)
+    @cached_property
+    def StringValue(self):
+        return self.defer_target().StringValue
 
     def ArgumentListEvaluation(self, *args, **kwargs):
         return self.defer_target().ArgumentListEvaluation(*args, **kwargs)
@@ -7663,13 +7664,12 @@ class _P2_Common_Identifier_YIELD(ParseNode2):
             return [self.CreateSyntaxError("'yield' not allowed as an identifier in strict mode")]
         return []
 
-    def StringValue(self):
-        # 12.1.4 Static Semantics: StringValue
-        # IdentifierReference : yield
-        # BindingIdentifier : yield
-        # LabelIdentifier : yield
-        #   1. Return "yield".
-        return "yield"
+    # 12.1.4 Static Semantics: StringValue
+    # IdentifierReference : yield
+    # BindingIdentifier : yield
+    # LabelIdentifier : yield
+    #   1. Return "yield".
+    StringValue = "yield"
 
 
 class _P2_Common_Identifier_AWAIT(ParseNode2):
@@ -7680,13 +7680,12 @@ class _P2_Common_Identifier_AWAIT(ParseNode2):
             return [self.CreateSyntaxError("'await' not allowed as an identifier in modules")]
         return []
 
-    def StringValue(self):
-        # 12.1.4 Static Semantics: StringValue
-        # IdentifierReference : await
-        # BindingIdentifier : await
-        # LabelIdentifier : await
-        #   1. Return "await".
-        return "await"
+    # 12.1.4 Static Semantics: StringValue
+    # IdentifierReference : await
+    # BindingIdentifier : await
+    # LabelIdentifier : await
+    #   1. Return "await".
+    StringValue = "await"
 
 
 class _P2_Common_Identifier_Identifier(ParseNode2):
@@ -7695,11 +7694,11 @@ class _P2_Common_Identifier_Identifier(ParseNode2):
         # * It is a Syntax Error if this production has a [Yield] parameter and StringValue of Identifier is "yield".
         # * It is a Syntax Error if this production has an [Await] parameter and StringValue of Identifier is "await".
         # pylint: disable=no-member
-        if self.Yield and self.Identifier.StringValue() == "yield":
+        if self.Yield and self.Identifier.StringValue == "yield":
             return [
                 self.CreateSyntaxError("'yield' not allowed as an identifier when 'yield' can be used as a statement")
             ]
-        if self.Await and self.Identifier.StringValue() == "await":
+        if self.Await and self.Identifier.StringValue == "await":
             return [
                 self.CreateSyntaxError(
                     "'await' not allowed as an identifier when 'await' can be used as a statement keyword"
@@ -7734,7 +7733,7 @@ class P2_IdentifierReference_Identifier(_P2_Common_Identifier_Identifier, P2_Ide
         #   1. If this IdentifierReference is contained in strict mode code and StringValue of Identifier is "eval" or
         #      "arguments", return strict.
         #   2. Return simple.
-        if self.strict and self.Identifier.StringValue() in ("eval", "arguments"):
+        if self.strict and self.Identifier.StringValue in ("eval", "arguments"):
             return STRICT
         return SIMPLE
 
@@ -7748,7 +7747,7 @@ class P2_IdentifierReference_Identifier(_P2_Common_Identifier_Identifier, P2_Ide
         # In non-strict code, the keyword yield may be used as an identifier. Evaluating the IdentifierReference
         # resolves the binding of yield as if it was an Identifier. Early Error restriction ensures that such an
         # evaluation only can occur for non-strict code.
-        return ResolveBinding(self.Identifier.StringValue(), self.strict)
+        return ResolveBinding(self.Identifier.StringValue, self.strict)
 
 
 class P2_IdentifierReference_YIELD(_P2_Common_Identifier_YIELD, P2_IdentifierReference):
@@ -7818,6 +7817,7 @@ class P2_Identifier_IdentifierName(P2_Identifier):
     def IdentifierName(self):
         return self.children[0]
 
+    @cached_property
     def StringValue(self):
         return self.IdentifierName.value
 
@@ -7833,7 +7833,7 @@ class P2_Identifier_IdentifierName(P2_Identifier):
         # NOTE
         #   StringValue of IdentifierName normalizes any Unicode escape sequences in IdentifierName hence such escapes
         #   cannot be used to write an Identifier whose code point sequence is the same as a ReservedWord.
-        identifier_name = self.StringValue()
+        identifier_name = self.StringValue
         if self.strict and identifier_name in (
             "implements",
             "interface",
@@ -7926,7 +7926,7 @@ class P2_BindingIdentifier_Identifier(_P2_Common_Identifier_Identifier, P2_Bindi
         #   * It is a Syntax Error if the code matched by this production is contained in strict mode code and the
         #     StringValue of Identifier is  "arguments" or "eval".
         #   * See the common EarlyErrors for the remaining syntax errors
-        sv = self.Identifier.StringValue()
+        sv = self.Identifier.StringValue
         if self.strict and sv in ("arguments", "eval"):
             return [self.CreateSyntaxError(f"'{sv}' not allowed as an identifier in strict mode")]
         return super().EarlyErrors()
@@ -7935,14 +7935,14 @@ class P2_BindingIdentifier_Identifier(_P2_Common_Identifier_Identifier, P2_Bindi
         # 12.1.2 Static Semantics: BoundNames
         #   BindingIdentifier : Identifier
         #   1. Return a new List containing the StringValue of Identifier.
-        return [self.Identifier.StringValue()]
+        return [self.Identifier.StringValue]
 
     def BindingInitialization(self, value, environment):
         # 12.1.5 Runtime Semantics: BindingInitialization
         #   BindingIdentifier : Identifier
         #   1. Let name be StringValue of Identifier.
         #   2. Return ? InitializeBoundName(name, value, environment).
-        return InitializeBoundName(self.Identifier.StringValue(), value, environment, self.strict)
+        return InitializeBoundName(self.Identifier.StringValue, value, environment, self.strict)
 
 
 class P2_BindingIdentifier_YIELD(_P2_Common_Identifier_YIELD, P2_BindingIdentifier):
@@ -8499,7 +8499,7 @@ class P2_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(P2_
         #   1. Let expr be CoveredParenthesizedExpression of CoverParenthesizedExpressionAndArrowParameterList.
         #   2. If IsFunctionDefinition of expr is false, return false.
         #   3. Return HasName of expr.
-        expr = self.CoverParenthesizedExpressionAndArrowParameterList.CoveredParenthesizedExpression()
+        expr = self.CoverParenthesizedExpressionAndArrowParameterList.CoveredParenthesizedExpression
         return expr.IsFunctionDefinition() and expr.HasName()
 
     def IsFunctionDefinition(self):
@@ -8507,7 +8507,7 @@ class P2_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(P2_
         #   PrimaryExpression : CoverParenthesizedExpressionAndArrowParameterList
         #   1. Let expr be CoveredParenthesizedExpression of CoverParenthesizedExpressionAndArrowParameterList.
         #   2. Return IsFunctionDefinition of expr.
-        expr = self.CoverParenthesizedExpressionAndArrowParameterList.CoveredParenthesizedExpression()
+        expr = self.CoverParenthesizedExpressionAndArrowParameterList.CoveredParenthesizedExpression
         return expr.IsFunctionDefinition()
 
     def IsIdentifierRef(self):
@@ -8521,7 +8521,7 @@ class P2_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(P2_
         #   PrimaryExpression : CoverParenthesizedExpressionAndArrowParameterList
         #   1. Let expr be CoveredParenthesizedExpression of CoverParenthesizedExpressionAndArrowParameterList.
         #   2. Return AssignmentTargetType of expr.
-        expr = self.CoverParenthesizedExpressionAndArrowParameterList.CoveredParenthesizedExpression()
+        expr = self.CoverParenthesizedExpressionAndArrowParameterList.CoveredParenthesizedExpression
         return expr.AssignmentTargetType()
 
     def EarlyErrors(self):
@@ -8531,7 +8531,7 @@ class P2_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(P2_
         #     ParenthesizedExpression.
         #   * All Early Error rules for ParenthesizedExpression and its derived productions also apply to
         #     CoveredParenthesizedExpression of CoverParenthesizedExpressionAndArrowParameterList.
-        expr = self.CoverParenthesizedExpressionAndArrowParameterList.CoveredParenthesizedExpression()
+        expr = self.CoverParenthesizedExpressionAndArrowParameterList.CoveredParenthesizedExpression
         if expr:
             return expr.EarlyErrorsScan()
         return [self.CreateSyntaxError("Bad grouping syntax")]
@@ -8542,7 +8542,7 @@ class P2_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(P2_
         # PrimaryExpression : CoverParenthesizedExpressionAndArrowParameterList
         #   1. Let expr be CoveredParenthesizedExpression of CoverParenthesizedExpressionAndArrowParameterList.
         #   2. Return the result of performing NamedEvaluation for expr with argument name.
-        return self.CoverParenthesizedExpressionAndArrowParameterList.CoveredParenthesizedExpression().NamedEvaluation(
+        return self.CoverParenthesizedExpressionAndArrowParameterList.CoveredParenthesizedExpression.NamedEvaluation(
             name
         )
 
@@ -8551,7 +8551,7 @@ class P2_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(P2_
         # PrimaryExpression : CoverParenthesizedExpressionAndArrowParameterList
         #   1. Let expr be CoveredParenthesizedExpression of CoverParenthesizedExpressionAndArrowParameterList.
         #   2. Return the result of evaluating expr.
-        return self.CoverParenthesizedExpressionAndArrowParameterList.CoveredParenthesizedExpression().evaluate()
+        return self.CoverParenthesizedExpressionAndArrowParameterList.CoveredParenthesizedExpression.evaluate()
 
 
 def parse_PrimaryExpression(ctx, lexer, Yield, Await):
@@ -8634,10 +8634,9 @@ class P2_CoverParenthesizedExpressionAndArrowParameterList(ParseNode2):
         self.has_parenthesized_expression = False  # We have not yet tried to parse the covered expression
         self.parenthesized_expression = None  # But not a legit none until we try
 
-    def CoveredParenthesizedExpression(self):
-        # 12.2.1.1 Static Semantics: CoveredParenthesizedExpression
-        # This is the default implementation: the return value means, nope, there's no covered production.
-        return None
+    # 12.2.1.1 Static Semantics: CoveredParenthesizedExpression
+    # This is the default implementation: the return value means, nope, there's no covered production.
+    CoveredParenthesizedExpression = None
 
     @cached_property
     def CoveredFormalsList(self):
@@ -8653,17 +8652,12 @@ class P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_RPA
     def Expression(self):
         return self.children[1]
 
-    @property
-    def ParenthesizedExpression(self):
-        if not hasattr(self, "_parenthesized_expression"):
-            self._parenthesized_expression = self.covering(parse_ParenthesizedExpression, self.Yield, self.Await)
-        return self._parenthesized_expression
-
+    @cached_property
     def CoveredParenthesizedExpression(self):
         # 12.2.1.1 Static Semantics: CoveredParenthesizedExpression
         #   CoverParenthesizedExpressionAndArrowParameterList : ( Expression )
         #   1. Return the ParenthesizedExpression that is covered by CoverParenthesizedExpressionAndArrowParameterList.
-        return self.ParenthesizedExpression
+        return self.covering(parse_ParenthesizedExpression, self.Yield, self.Await)
 
 
 class P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_COMMA_RPAREN(
@@ -9681,7 +9675,7 @@ class P2_PropertyDefinition_IdentifierReference(P2_PropertyDefinition):
         # 12.2.6.5 Static Semantics: PropName
         # PropertyDefinition : IdentifierReference
         #   1. Return StringValue of IdentifierReference.
-        return self.IdentifierReference.StringValue()
+        return self.IdentifierReference.StringValue
 
     def PropertyDefinitionEvaluation(self, object, enumerable):
         # 12.2.6.8 Runtime Semantics: PropertyDefinitionEvaluation
@@ -9695,7 +9689,7 @@ class P2_PropertyDefinition_IdentifierReference(P2_PropertyDefinition):
         #   6. Return CreateDataPropertyOrThrow(object, propName, propValue).
         assert enumerable
         # @@@ the assertion in step 5 is new. Need to implement.
-        propName = self.IdentifierReference.StringValue()
+        propName = self.IdentifierReference.StringValue
         propValue = GetValue(self.IdentifierReference.evaluate())
         return CreateDataPropertyOrThrow(object, propName, propValue)
 
@@ -15656,7 +15650,7 @@ class P2_AssignmentProperty_IdentifierReference_Initializer(P2_AssignmentPropert
         #           ii. If hasNameProperty is false, perform SetFunctionName(v, P).
         #   5. Perform ? PutValue(lref, v).
         #   6. Return a new List containing P.
-        P = self.IdentifierReference.StringValue()
+        P = self.IdentifierReference.StringValue
         lref = ResolveBinding(P, self.strict)
         v = GetV(value, P)
         if self.Initializer and v is None:
@@ -17822,7 +17816,7 @@ class P2_LexicalBinding_BindingIdentifier(P2_LexicalBinding):
         #   2. Return InitializeReferencedBinding(lhs, undefined).
         # NOTE
         # A static semantics rule ensures that this form of LexicalBinding never occurs in a const declaration.
-        lhs = ResolveBinding(self.BindingIdentifier.StringValue(), self.strict)
+        lhs = ResolveBinding(self.BindingIdentifier.StringValue, self.strict)
         return InitializeReferencedBinding(lhs, None)
 
 
@@ -17855,7 +17849,7 @@ class P2_LexicalBinding_BindingIdentifier_Initializer(P2_LexicalBinding):
         #       a. Let rhs be the result of evaluating Initializer.
         #       b. Let value be ? GetValue(rhs).
         #   5. Return InitializeReferencedBinding(lhs, value).
-        bindingId = self.BindingIdentifier.StringValue()
+        bindingId = self.BindingIdentifier.StringValue
         lhs = ResolveBinding(bindingId, self.strict)
         value = (
             self.Initializer.NamedEvaluation(bindingId)
@@ -18107,7 +18101,7 @@ class P2_VariableDeclaration_BindingIdentifier_Initializer(P2_VariableDeclaratio
         #       a. Let rhs be the result of evaluating Initializer.
         #       b. Let value be ? GetValue(rhs).
         #   5. Return ? PutValue(lhs, value).
-        bindingId = self.BindingIdentifier.StringValue()
+        bindingId = self.BindingIdentifier.StringValue
         lhs = ResolveBinding(bindingId, self.strict)
         value = (
             self.Initializer.NamedEvaluation(bindingId)
@@ -18608,7 +18602,7 @@ class P2_BindingRestProperty_BindingIdentifier(P2_BindingRestProperty):
         #       3. Perform ? CopyDataProperties(restObj, value, excludedNames).
         #       4. If environment is undefined, return PutValue(lhs, restObj).
         #       5. Return InitializeReferencedBinding(lhs, restObj).
-        lhs = ResolveBinding(self.BindingIdentifier.StringValue(), self.strict, environment)
+        lhs = ResolveBinding(self.BindingIdentifier.StringValue, self.strict, environment)
         restObj = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics["%ObjectPrototype%"])
         CopyDataProperties(restObj, value, excludedNames)
         if environment is None:
@@ -19239,7 +19233,7 @@ class P2_SingleNameBinding_BindingIdentifier(P2_SingleNameBinding):
         #   4. If iteratorRecord.[[Done]] is true, let v be undefined.
         #   5. If environment is undefined, return ? PutValue(lhs, v).
         #   6. Return InitializeReferencedBinding(lhs, v).
-        bindingId = self.BindingIdentifier.StringValue()
+        bindingId = self.BindingIdentifier.StringValue
         lhs = ResolveBinding(bindingId, self.strict, environment)
         if not iteratorRecord.Done:
             try:
@@ -19270,7 +19264,7 @@ class P2_SingleNameBinding_BindingIdentifier(P2_SingleNameBinding):
         #   3. Let v be ? GetV(value, propertyName).
         #   4. If environment is undefined, return ? PutValue(lhs, v).
         #   5. Return InitializeReferencedBinding(lhs, v).
-        bindingId = self.BindingIdentifier.StringValue()
+        bindingId = self.BindingIdentifier.StringValue
         lhs = ResolveBinding(bindingId, self.strict, environment)
         v = GetV(value, propertyName)
         if environment is None:
@@ -19335,7 +19329,7 @@ class P2_SingleNameBinding_BindingIdentifier_Initializer(P2_SingleNameBinding):
         #               ii. If hasNameProperty is false, perform SetFunctionName(v, bindingId).
         #       6. If environment is undefined, return ? PutValue(lhs, v).
         #       7. Return InitializeReferencedBinding(lhs, v).
-        bindingId = self.BindingIdentifier.StringValue()
+        bindingId = self.BindingIdentifier.StringValue
         lhs = ResolveBinding(bindingId, self.strict, environment)
         if not iteratorRecord.Done:
             try:
@@ -19379,7 +19373,7 @@ class P2_SingleNameBinding_BindingIdentifier_Initializer(P2_SingleNameBinding):
         #               ii. Set v to ? GetValue(defaultValue).
         #       5. If environment is undefined, return ? PutValue(lhs, v).
         #       6. Return InitializeReferencedBinding(lhs, v).
-        bindingId = self.BindingIdentifier.StringValue()
+        bindingId = self.BindingIdentifier.StringValue
         lhs = ResolveBinding(bindingId, self.strict, environment)
         v = GetV(value, propertyName)
         if v is None:
@@ -19447,7 +19441,7 @@ class P2_BindingRestElement_BindingIdentifier(P2_BindingRestElement):
         #           f. Let status be CreateDataProperty(A, ! ToString(n), nextValue).
         #           g. Assert: status is true.
         #           h. Increment n by 1.
-        lhs = ResolveBinding(self.BindingIdentifier.StringValue(), self.strict, environment)
+        lhs = ResolveBinding(self.BindingIdentifier.StringValue, self.strict, environment)
         A = ArrayCreate(0)
         n = 0
         while 1:
@@ -21554,7 +21548,7 @@ class P2_ForBinding_BindingIdentifier(P2_ForBinding):
         #           ForBinding : BindingIdentifier
         # 1. Let bindingId be StringValue of BindingIdentifier.
         # 2. Return ? ResolveBinding(bindingId).
-        return ResolveBinding(self.BindingIdentifier.StringValue(), self.strict)
+        return ResolveBinding(self.BindingIdentifier.StringValue, self.strict)
 
 
 class P2_ForBinding_BindingPattern(P2_ForBinding):
@@ -21679,14 +21673,14 @@ class P2_ContinueStatement_CONTINUE_LabelIdentifier(P2_ContinueStatement):
         #           ContinueStatement : continue LabelIdentifier ;
         # 1. If the StringValue of LabelIdentifier is not an element of iterationSet, return true.
         # 2. Return false.
-        return self.LabelIdentifier.StringValue() not in iterationSet
+        return self.LabelIdentifier.StringValue not in iterationSet
 
     def evaluate(self):
         # 13.8.3 Runtime Semantics: Evaluation
         #           ContinueStatement : continue LabelIdentifier ;
         # 1. Let label be the StringValue of LabelIdentifier.
         # 2. Return Completion { [[Type]]: continue, [[Value]]: empty, [[Target]]: label }.
-        return ESContinue(target=self.LabelIdentifier.StringValue())
+        return ESContinue(target=self.LabelIdentifier.StringValue)
 
 
 def parse_ContinueStatement(context, lexer, Yield, Await):
@@ -21774,14 +21768,14 @@ class P2_BreakStatement_BREAK_LabelIdentifier(P2_BreakStatement):
         # BreakStatement : break LabelIdentifier ;
         #   1. If the StringValue of LabelIdentifier is not an element of labelSet, return true.
         #   2. Return false.
-        return self.LabelIdentifier.StringValue() not in labelSet
+        return self.LabelIdentifier.StringValue not in labelSet
 
     def evaluate(self):
         # 13.9.3 Runtime Semantics: Evaluation
         # BreakStatement : break LabelIdentifier ;
         #   1. Let label be the StringValue of LabelIdentifier.
         #   2. Return Completion { [[Type]]: break, [[Value]]: empty, [[Target]]: label }.
-        raise ESBreak(target=self.LabelIdentifier.StringValue())
+        raise ESBreak(target=self.LabelIdentifier.StringValue)
 
 
 class P2_BreakStatement_BREAK(P2_BreakStatement):
@@ -23226,12 +23220,12 @@ def FunctionDecl_EarlyErrors(pn):
     errs = []
     if pn.strict:
         errs.extend(UniqueFormalParameters_EarlyErrors(pn.FormalParameters))
-        if pn.BindingIdentifier and pn.BindingIdentifier.StringValue() in [
+        if pn.BindingIdentifier and pn.BindingIdentifier.StringValue in [
             "eval",
             "arguments",
         ]:
             errs.append(
-                pn.CreateSyntaxError(f"Redefining '{pn.BindingIdentifier.StringValue()}' is not allowed in strict mode")
+                pn.CreateSyntaxError(f"Redefining '{pn.BindingIdentifier.StringValue}' is not allowed in strict mode")
             )
     if pn.FunctionBody.ContainsUseStrict() and not pn.FormalParameters.IsSimpleParameterList():
         errs.append(pn.CreateSyntaxError("Parameters must be simple for strict mode functions"))
@@ -23305,7 +23299,7 @@ class P2_FunctionDeclaration_FUNCTION_BindingIdentifier_FormalParameters_Functio
         #   5. Perform SetFunctionName(F, name).
         #   6. Set F.[[SourceText]] to the source text matched by FunctionDeclaration.
         #   7. Return F.
-        name = self.BindingIdentifier.StringValue()
+        name = self.BindingIdentifier.StringValue
         F = FunctionCreate(NORMAL, self.FormalParameters, self.FunctionBody, scope, self.strict)
         MakeConstructor(F)
         SetFunctionName(F, name)
@@ -23509,7 +23503,7 @@ class P2_FunctionExpression_FUNCTION_BindingIdentifier_FormalParameters_Function
         scope = surrounding_agent.running_ec.lexical_environment
         funcEnv = NewDeclarativeEnvironment(scope)
         envRec = funcEnv.environment_record
-        name = self.BindingIdentifier.StringValue()
+        name = self.BindingIdentifier.StringValue
         envRec.CreateImmutableBinding(name, False)
         closure = FunctionCreate(NORMAL, self.FormalParameters, self.FunctionBody, funcEnv, strict)
         MakeConstructor(closure)
@@ -25356,7 +25350,7 @@ class GeneratorCommon(ParseNode2):
         errs = []
         if self.strict:
             errs.extend(UniqueFormalParameters_EarlyErrors(self.FormalParameters))
-            if self.BindingIdentifier and self.BindingIdentifier.StringValue() in [
+            if self.BindingIdentifier and self.BindingIdentifier.StringValue in [
                 "eval",
                 "arguments",
             ]:
@@ -25431,7 +25425,7 @@ class P2_GeneratorDeclaration_FUNCTION_BindingIdentifier_FormalParameters_Genera
         #      [[Writable]]: true, [[Enumerable]]: false, [[Configurable]]: false }).
         #   6. Perform SetFunctionName(F, name).
         #   7. Return F.
-        name = self.BindingIdentifier.StringValue()
+        name = self.BindingIdentifier.StringValue
         F = GeneratorFunctionCreate(NORMAL, self.FormalParameters, self.GeneratorBody, scope, self.strict)
         prototype = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics["%GeneratorPrototype%"])
         DefinePropertyOrThrow(
@@ -25571,7 +25565,7 @@ class P2_GeneratorExpression_FUNCTION_BindingIdentifier_FormalParameters_Generat
         scope = surrounding_agent.running_ec.lexical_environment
         funcEnv = NewDeclarativeEnvironment(scope)
         envRec = funcEnv.environment_record
-        name = self.BindingIdentifier.StringValue()
+        name = self.BindingIdentifier.StringValue
         envRec.CreateImmutableBinding(name, False)
         closure = GeneratorFunctionCreate(NORMAL, self.FormalParameters, self.GeneratorBody, funcEnv, self.strict)
         prototype = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics["%GeneratorPrototype%"])
