@@ -491,7 +491,7 @@ def test_PrimaryExpression_AssignmentTargetType_01(context, mocker, token):
     lexer = Lexer([token])
     PrimaryExpression_mocks(mocker)
     pe = ecmascript.ecmascript.parse_PrimaryExpression(context, lexer, False, False)
-    assert pe.AssignmentTargetType() == parse2.INVALID
+    assert pe.AssignmentTargetType == parse2.INVALID
 
 
 # 12.2.1.5 Static Semantics: AssignmentTargetType
@@ -502,13 +502,13 @@ def test_PrimaryExpression_AssignmentTargetType_CPEAAPL(context, mocker):
     lexer = Lexer([COVERPARENTHESIZEDEXPRESSIONANDARROWPARAMETERLIST])
 
     expr = mocker.Mock()
-    expr.AssignmentTargetType = mocker.Mock(return_value="ATT")
+    expr.AssignmentTargetType = "ATT"
     cpeaapl = mocker.Mock()
     cpeaapl.CoveredParenthesizedExpression = expr
     mocker.patch("ecmascript.ecmascript.parse_CoverParenthesizedExpressionAndArrowParameterList", return_value=cpeaapl)
     pe = ecmascript.ecmascript.parse_PrimaryExpression(context, lexer, False, False)
 
-    rv = pe.AssignmentTargetType()
+    rv = pe.AssignmentTargetType
     assert rv == "ATT"
 
 
