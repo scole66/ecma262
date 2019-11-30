@@ -4110,6 +4110,7 @@ def CreateIntrinsics(realm_rec):
     intrinsics["%Symbol%"] = CreateSymbolConstructor(realm_rec)
     intrinsics["%SymbolPrototype%"] = CreateSymbolPrototype(realm_rec)
     SymbolFixups(realm_rec)
+    intrinsics["%eval%"] = CreateEvalFunction(realm_rec)
 
     # 14. Return intrinsics.
     return intrinsics
@@ -7467,6 +7468,24 @@ class ParseNode2:
 
     def EarlyErrors(self):
         return []
+
+    @cached_property
+    def early_errors_eval_outside_functions(self):
+        return tuple(
+            chain(*(c.early_errors_eval_outside_functions for c in self.children if isinstance(c, ParseNode2)))
+        )
+
+    @cached_property
+    def early_errors_eval_outside_methods(self):
+        return tuple(chain(*(c.early_errors_eval_outside_methods for c in self.children if isinstance(c, ParseNode2))))
+
+    @cached_property
+    def early_errors_eval_outside_constructor_methods(self):
+        return tuple(
+            chain(
+                *(c.early_errors_eval_outside_constructor_methods for c in self.children if isinstance(c, ParseNode2))
+            )
+        )
 
     def set_strict_in_subtree(self):
         self.strict = True
@@ -26150,6 +26169,65 @@ class P2_ScriptBody_StatementList(P2_ScriptBody):
             errs.append("Undefined Continue Target")
         return [self.CreateSyntaxError(msg) for msg in errs]
 
+    @cached_property
+    def early_errors_eval_outside_functions(self):
+        # 18.2.1.1.1 Additional Early Error Rules for Eval Outside Functions
+        # These static semantics are applied by PerformEval when a direct eval call occurs outside of any function.
+        #   ScriptBody : StatementList
+        #   * It is a Syntax Error if StatementList Contains NewTarget.
+        return tuple(
+            chain(
+                filter(
+                    None,
+                    (
+                        self.StatementList.Contains("NewTarget")
+                        and self.CreateSyntaxError("'new.target' not allowed in this context"),
+                    ),
+                ),
+                super().early_errors_eval_outside_functions,
+            )
+        )
+
+    @cached_property
+    def early_errors_eval_outside_methods(self):
+        # 18.2.1.1.2 Additional Early Error Rules for Eval Outside Methods
+        # These static semantics are applied by PerformEval when a direct eval call occurs outside of a
+        # MethodDefinition.
+        #   ScriptBody : StatementList
+        #   * It is a Syntax Error if StatementList Contains SuperProperty.
+        return tuple(
+            chain(
+                filter(
+                    None,
+                    (
+                        self.StatementList.Contains("SuperProperty")
+                        and self.CreateSyntaxError("'super' properties not allowed in this context"),
+                    ),
+                ),
+                super().early_errors_eval_outside_methods,
+            )
+        )
+
+    @cached_property
+    def early_errors_eval_outside_constructor_methods(self):
+        # 18.2.1.1.3 Additional Early Error Rules for Eval Outside Constructor Methods
+        # These static semantics are applied by PerformEval when a direct eval call occurs outside of the constructor
+        # method of a ClassDeclaration or ClassExpression.
+        #   ScriptBody : StatementList
+        #   * It is a Syntax Error if StatementList Contains SuperCall.
+        return tuple(
+            chain(
+                filter(
+                    None,
+                    (
+                        self.StatementList.Contains("SuperCall")
+                        and self.CreateSyntaxError("'super' calls not allowed in this context"),
+                    ),
+                ),
+                super().early_errors_eval_outside_constructor_methods,
+            )
+        )
+
     def IsStrict(self):
         # 15.1.2 Static Semantics: IsStrict
         # ScriptBody : StatementList
@@ -26497,9 +26575,165 @@ def HostReportErrors(errorList):
 
 # 18.2 Function Properties of the Global Object
 # 18.2.1 eval ( x )
+def global_eval(this_value, new_target, x=None, *_):
+    # The eval function is the %eval% intrinsic object. When the eval function is called with one argument x, the
+    # following steps are taken:
+    #   1. Assert: The execution context stack has at least two elements.
+    #   2. Let callerContext be the second to top element of the execution context stack.
+    #   3. Let callerRealm be callerContext's Realm.
+    #   4. Let calleeRealm be the current Realm Record.
+    #   5. Perform ? HostEnsureCanCompileStrings(callerRealm, calleeRealm).
+    #   6. Return ? PerformEval(x, calleeRealm, false, false).
+    assert len(surrounding_agent.ec_stack) >= 2
+    callerContext = surrounding_agent.ec_stack[-2]
+    callerRealm = callerContext.realm
+    calleeRealm = surrounding_agent.running_ec.realm
+    HostEnsureCanCompileStrings(callerRealm, calleeRealm)
+    return PerformEval(x, calleeRealm, False, False)
+
+
+def CreateEvalFunction(realm: Realm) -> JSObject:
+    func = CreateBuiltinFunction(global_eval, [], realm)
+    DefinePropertyOrThrow(
+        func, "length", PropertyDescriptor(value=1, writable=False, enumerable=False, configurable=True)
+    )
+    DefinePropertyOrThrow(
+        func, "name", PropertyDescriptor(value="eval", writable=False, enumerable=False, configurable=True)
+    )
+    return func
+
+
 # 18.2.1.1 Runtime Semantics: PerformEval ( x, evalRealm, strictCaller, direct )
 def PerformEval(x, evalRealm, strictCaller, direct):
-    raise NotImplementedError("Eval not yet supported")
+    # The abstract operation PerformEval with arguments x, evalRealm, strictCaller, and direct performs the following
+    # steps:
+    #   1. Assert: If direct is false, then strictCaller is also false.
+    #   2. If Type(x) is not String, return x.
+    #   3. Let thisEnvRec be ! GetThisEnvironment().
+    #   4. If thisEnvRec is a function Environment Record, then
+    #       a. Let F be thisEnvRec.[[FunctionObject]].
+    #       b. Let inFunction be true.
+    #       c. Let inMethod be thisEnvRec.HasSuperBinding().
+    #       d. If F.[[ConstructorKind]] is "derived", let inDerivedConstructor be true; otherwise, let
+    #          inDerivedConstructor be false.
+    #   5. Else,
+    #       a. Let inFunction be false.
+    #       b. Let inMethod be false.
+    #       c. Let inDerivedConstructor be false.
+    #   6. Let script be the ECMAScript code that is the result of parsing x, interpreted as UTF-16 encoded Unicode
+    #      text as described in 6.1.4, for the goal symbol Script. If inFunction is false, additional early error rules
+    #      from 18.2.1.1.1 are applied. If inMethod is false, additional early error rules from 18.2.1.1.2 are applied.
+    #      If inDerivedConstructor is false, additional early error rules from 18.2.1.1.3 are applied. If the parse
+    #      fails, throw a SyntaxError exception. If any early errors are detected, throw a SyntaxError or a
+    #      ReferenceError exception, depending on the type of the error (but see also clause 16). Parsing and early
+    #      error detection may be interweaved in an implementation-dependent manner.
+    #   7. If script Contains ScriptBody is false, return undefined.
+    #   8. Let body be the ScriptBody of script.
+    #   9. If strictCaller is true, let strictEval be true.
+    #   10. Else, let strictEval be IsStrict of script.
+    #   11. Let ctx be the running execution context.
+    #   12. NOTE: If direct is true, ctx will be the execution context that performed the direct eval. If direct is
+    #       false, ctx will be the execution context for the invocation of the eval function.
+    #   13. If direct is true, then
+    #       a. Let lexEnv be NewDeclarativeEnvironment(ctx's LexicalEnvironment).
+    #       b. Let varEnv be ctx's VariableEnvironment.
+    #   14. Else,
+    #       a. Let lexEnv be NewDeclarativeEnvironment(evalRealm.[[GlobalEnv]]).
+    #       b. Let varEnv be evalRealm.[[GlobalEnv]].
+    #   15. If strictEval is true, set varEnv to lexEnv.
+    #   16. If ctx is not already suspended, suspend ctx.
+    #   17. Let evalCxt be a new ECMAScript code execution context.
+    #   18. Set the evalCxt's Function to null.
+    #   19. Set the evalCxt's Realm to evalRealm.
+    #   20. Set the evalCxt's ScriptOrModule to ctx's ScriptOrModule.
+    #   21. Set the evalCxt's VariableEnvironment to varEnv.
+    #   22. Set the evalCxt's LexicalEnvironment to lexEnv.
+    #   23. Push evalCxt on to the execution context stack; evalCxt is now the running execution context.
+    #   24. Let result be EvalDeclarationInstantiation(body, varEnv, lexEnv, strictEval).
+    #   25. If result.[[Type]] is normal, then
+    #       a. Set result to the result of evaluating body.
+    #   26. If result.[[Type]] is normal and result.[[Value]] is empty, then
+    #       a. Set result to NormalCompletion(undefined).
+    #   27. Suspend evalCxt and remove it from the execution context stack.
+    #   28. Resume the context that is now on the top of the execution context stack as the running execution context.
+    #   29. Return Completion(result).
+    # NOTE  | The eval code cannot instantiate variable or function bindings in the variable environment of the
+    #       | calling context that invoked the eval if the calling context is evaluating formal parameter initializers
+    #       | or if either the code of the calling context or the eval code is strict mode code. Instead such bindings
+    #       | are instantiated in a new VariableEnvironment that is only accessible to the eval code. Bindings
+    #       | introduced by let, const, or class declarations are always instantiated in a new LexicalEnvironment.
+    assert direct or not strictCaller
+    if not isString(x):
+        return x
+    thisEnvRec = GetThisEnvironment()
+    if isinstance(thisEnvRec, FunctionEnvironmentRecord):
+        F = thisEnvRec.function_object
+        inFunction = True
+        inMethod = thisEnvRec.HasSuperBinding()
+        inDerivedConstructor = F.ConstructorKind == "derived"
+    else:
+        inFunction = False
+        inMethod = False
+        inDerivedConstructor = False
+    lex = Lexer(x)
+    context = Parse2Context(direct_eval=direct, syntax_error_ctor=CreateSyntaxError)
+    tree = parse_Script(context, lex)
+    after = max((t.span.after for t in tree.terminals()), default=0) if tree else 0
+    errs = list(
+        chain(
+            filter(
+                None,
+                (
+                    not tree and CreateSyntaxError("Not valid ECMAScript"),
+                    tree
+                    and not lex.is_done(after)
+                    and CreateSyntaxError(
+                        f"Syntax error at position {after}; {x[after-min(after, 100):after]}-$-$-$->{x[after:]}"
+                    ),
+                ),
+            ),
+            (tree.EarlyErrorsScan() if tree else ()),
+            (tree.early_errors_eval_outside_functions if tree and not inFunction else ()),
+            (tree.early_errors_eval_outside_methods if tree and not inMethod else ()),
+            (tree.early_errors_eval_outside_constructor_methods if tree and not inDerivedConstructor else ()),
+        )
+    )
+    if errs:
+        raise ESSyntaxError("\n".join(msg for msg in (Get(obj, "message") for obj in errs) if isString(msg)))
+
+    if not tree.Contains("ScriptBody"):
+        return None
+
+    body = tree.ScriptBody
+    strictEval = strictCaller or tree.IsStrict()
+    ctx = surrounding_agent.running_ec
+    if direct:
+        lexEnv = NewDeclarativeEnvironment(ctx.lexical_environment)
+        varEnv = ctx.variable_environment
+    else:
+        lexEnv = NewDeclarativeEnvironment(evalRealm.global_env)
+        varEnv = evalRealm.global_env
+    if strictEval:
+        varEnv = lexEnv
+    ctx.suspend()
+    evalCtx = ExecutionContext()
+    evalCtx.function = JSNull.NULL
+    evalCtx.realm = evalRealm
+    evalCtx.script_or_module = ctx.script_or_module
+    evalCtx.variable_environment = varEnv
+    evalCtx.lexical_environment = lexEnv
+    surrounding_agent.ec_stack.append(evalCtx)
+    surrounding_agent.running_ec = evalCtx
+    try:
+        EvalDeclarationInstantiation(body, varEnv, lexEnv, strictEval)
+        result = body.evaluate()
+        if result == EMPTY:
+            result = None
+    finally:
+        evalCtx.suspend()
+        surrounding_agent.ec_stack.pop()
+        surrounding_agent.running_ec = surrounding_agent.ec_stack[-1]
+    return result
 
 
 # 18.2.1.2 HostEnsureCanCompileStrings ( callerRealm, calleeRealm )
@@ -26510,6 +26744,169 @@ def HostEnsureCanCompileStrings(callerRealm, calleeRealm):
     # An implementation of HostEnsureCanCompileStrings may complete normally or abruptly. Any abrupt completions will
     # be propagated to its callers. The default implementation of HostEnsureCanCompileStrings is to unconditionally
     # return an empty normal completion.
+    return EMPTY
+
+
+# 18.2.1.3 Runtime Semantics: EvalDeclarationInstantiation ( body, varEnv, lexEnv, strict )
+def EvalDeclarationInstantiation(body, varEnv, lexEnv, strict):
+    # When the abstract operation EvalDeclarationInstantiation is called with arguments body, varEnv, lexEnv, and
+    # strict, the following steps are taken:
+    #   1. Let varNames be the VarDeclaredNames of body.
+    #   2. Let varDeclarations be the VarScopedDeclarations of body.
+    #   3. Let lexEnvRec be lexEnv's EnvironmentRecord.
+    #   4. Let varEnvRec be varEnv's EnvironmentRecord.
+    #   5. If strict is false, then
+    #       a. If varEnvRec is a global Environment Record, then
+    #           i. For each name in varNames, do
+    #               1. If varEnvRec.HasLexicalDeclaration(name) is true, throw a SyntaxError exception.
+    #               2. NOTE: eval will not create a global var declaration that would be shadowed by a global lexical
+    #                  declaration.
+    #       b. Let thisLex be lexEnv.
+    #       c. Assert: The following loop will terminate.
+    #       d. Repeat, while thisLex is not the same as varEnv,
+    #           i. Let thisEnvRec be thisLex's EnvironmentRecord.
+    #           ii. If thisEnvRec is not an object Environment Record, then
+    #               1. NOTE: The environment of with statements cannot contain any lexical declaration so it doesn't
+    #                  need to be checked for var/let hoisting conflicts.
+    #               2. For each name in varNames, do
+    #                   a. If thisEnvRec.HasBinding(name) is true, then
+    #                       i. Throw a SyntaxError exception.
+    #                       ii. NOTE: Annex B.3.5 defines alternate semantics for the above step.
+    #                   b. NOTE: A direct eval will not hoist var declaration over a like-named lexical declaration.
+    #           iii. Set thisLex to thisLex's outer environment reference.
+    #   6. Let functionsToInitialize be a new empty List.
+    #   7. Let declaredFunctionNames be a new empty List.
+    #   8. For each d in varDeclarations, in reverse list order, do
+    #       a. If d is neither a VariableDeclaration nor a ForBinding nor a BindingIdentifier, then
+    #           i. Assert: d is either a FunctionDeclaration, a GeneratorDeclaration, an AsyncFunctionDeclaration, or
+    #              an AsyncGeneratorDeclaration.
+    #           ii. NOTE: If there are multiple function declarations for the same name, the last declaration is used.
+    #           iii. Let fn be the sole element of the BoundNames of d.
+    #           iv. If fn is not an element of declaredFunctionNames, then
+    #               1. If varEnvRec is a global Environment Record, then
+    #                   a. Let fnDefinable be ? varEnvRec.CanDeclareGlobalFunction(fn).
+    #                   b. If fnDefinable is false, throw a TypeError exception.
+    #               2. Append fn to declaredFunctionNames.
+    #               3. Insert d as the first element of functionsToInitialize.
+    #   9. NOTE: Annex B.3.3.3 adds additional steps at this point.
+    #   10. Let declaredVarNames be a new empty List.
+    #   11. For each d in varDeclarations, do
+    #       a. If d is a VariableDeclaration, a ForBinding, or a BindingIdentifier, then
+    #           i. For each String vn in the BoundNames of d, do
+    #               1. If vn is not an element of declaredFunctionNames, then
+    #                   a. If varEnvRec is a global Environment Record, then
+    #                       i. Let vnDefinable be ? varEnvRec.CanDeclareGlobalVar(vn).
+    #                       ii. If vnDefinable is false, throw a TypeError exception.
+    #                   b. If vn is not an element of declaredVarNames, then
+    #                       i. Append vn to declaredVarNames.
+    #   12. NOTE: No abnormal terminations occur after this algorithm step unless varEnvRec is a global Environment
+    #       Record and the global object is a Proxy exotic object.
+    #   13. Let lexDeclarations be the LexicallyScopedDeclarations of body.
+    #   14. For each element d in lexDeclarations, do
+    #       a. NOTE: Lexically declared names are only instantiated here but not initialized.
+    #       b. For each element dn of the BoundNames of d, do
+    #           i. If IsConstantDeclaration of d is true, then
+    #               1. Perform ? lexEnvRec.CreateImmutableBinding(dn, true).
+    #           ii. Else,
+    #               1. Perform ? lexEnvRec.CreateMutableBinding(dn, false).
+    #   15. For each Parse Node f in functionsToInitialize, do
+    #       a. Let fn be the sole element of the BoundNames of f.
+    #       b. Let fo be the result of performing InstantiateFunctionObject for f with argument lexEnv.
+    #       c. If varEnvRec is a global Environment Record, then
+    #           i. Perform ? varEnvRec.CreateGlobalFunctionBinding(fn, fo, true).
+    #       d. Else,
+    #           i. Let bindingExists be varEnvRec.HasBinding(fn).
+    #           ii. If bindingExists is false, then
+    #               1. Let status be ! varEnvRec.CreateMutableBinding(fn, true).
+    #               2. Assert: status is not an abrupt completion because of validation preceding step 12.
+    #               3. Perform ! varEnvRec.InitializeBinding(fn, fo).
+    #           iii. Else,
+    #               1. Perform ! varEnvRec.SetMutableBinding(fn, fo, false).
+    #   16. For each String vn in declaredVarNames, in list order, do
+    #       a. If varEnvRec is a global Environment Record, then
+    #           i. Perform ? varEnvRec.CreateGlobalVarBinding(vn, true).
+    #       b. Else,
+    #           i. Let bindingExists be varEnvRec.HasBinding(vn).
+    #           ii. If bindingExists is false, then
+    #               1. Let status be ! varEnvRec.CreateMutableBinding(vn, true).
+    #               2. Assert: status is not an abrupt completion because of validation preceding step 12.
+    #               3. Perform ! varEnvRec.InitializeBinding(vn, undefined).
+    #   17. Return NormalCompletion(empty).
+    varNames = body.VarDeclaredNames()
+    varDeclarations = body.VarScopedDeclarations()
+    lexEnvRec = lexEnv.environment_record
+    varEnvRec = varEnv.environment_record
+    if not strict:
+        if isinstance(varEnvRec, GlobalEnvironmentRecord):
+            for name in varNames:
+                if varEnvRec.HasLexicalDeclaration(name):
+                    raise ESSyntaxError(f"Cannot delcare variable {name} when already lexically declared")
+        thisLex = lexEnv
+        while thisLex != varEnv:
+            thisEnvRec = thisLex.environment_record
+            if not isinstance(thisEnvRec, ObjectEnvironmentRecord):
+                for name in varNames:
+                    if thisEnvRec.HasBinding(name):
+                        raise ESSyntaxError(f"var/let hoisting conflict: {name}")
+            thisLex = thisLex.outer
+    functionsToInitialize = deque([])
+    declaredFunctionNames = []
+    for d in reversed(varDeclarations):
+        if not isinstance(d, (P2_VariableDeclaration, P2_ForBinding, P2_BindingIdentifier)):
+            assert isinstance(
+                d,
+                (
+                    P2_FunctionDeclaration,
+                    P2_GeneratorDeclaration,
+                    P2_AsyncFunctionDeclaration,
+                    P2_AsyncGeneratorDeclaration,
+                ),
+            )
+            fn = d.BoundNames()[0]
+            if fn not in declaredFunctionNames:
+                if isinstance(varEnvRec, GlobalEnvironmentRecord):
+                    fnDefinable = varEnvRec.CanDeclareGlobalFunction(fn)
+                    if not fnDefinable:
+                        raise ESTypeError(f"Cannot define function {fn}.")
+                    declaredFunctionNames.append(fn)
+                    functionsToInitialize.appendleft(d)
+    declaredVarNames = []
+    for d in varDeclarations:
+        if isinstance(d, (P2_VariableDeclaration, P2_ForBinding, P2_BindingIdentifier)):
+            for vn in d.BoundNames():
+                if vn not in declaredFunctionNames:
+                    if isinstance(varEnvRec, GlobalEnvironmentRecord):
+                        vnDefinable = varEnvRec.CanDeclareGlobalVar(vn)
+                        if not vnDefinable:
+                            raise ESTypeError(f"Cannot declare global {vn}")
+                    if vn not in declaredVarNames:
+                        declaredVarNames.append(vn)
+    lexDeclarations = body.LexicallyScopedDeclarations()
+    for d in lexDeclarations:
+        for dn in d.BoundNames():
+            if d.IsConstantDeclaration():
+                lexEnvRec.CreateImmutableBinding(dn, True)
+            else:
+                lexEnvRec.CreateMutableBinding(dn, False)
+    for f in functionsToInitialize:
+        fn = f.BoundNames()[0]
+        fo = f.InstantiateFunctionObject(lexEnv)
+        if isinstance(varEnvRec, GlobalEnvironmentRecord):
+            varEnvRec.CreateGlobalFunctionBinding(fn, fo, True)
+        else:
+            bindingExists = varEnvRec.HasBinding(fn)
+            if not bindingExists:
+                varEnvRec.CreateMutableBinding(fn, True)
+                varEnvRec.InitializeBinding(fn, fo)
+            else:
+                varEnvRec.SetMutableBinding(fn, fo, False)
+    for vn in declaredVarNames:
+        if isinstance(varEnvRec, GlobalEnvironmentRecord):
+            varEnvRec.CreateGlobalVarBinding(vn, True)
+        else:
+            if not varEnvRec.HasBinding(vn):
+                varenvRec.CreateMutableBinding(vn, True)
+                varenvRec.InitializeBinding(vn, None)
     return EMPTY
 
 
