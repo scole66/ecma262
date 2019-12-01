@@ -82,8 +82,9 @@ class Test_identifier_name_early_errors:
 
 class Test_LexerCore:
     def test_LexerCore_init(self):
-        lc = lexer2.LexerCore("I am a source string")
+        lc = lexer2.LexerCore("I am a source string", "I am an error constructor")
         assert lc.src == "I am a source string"
+        assert lc.syntax_error_ctor == "I am an error constructor"
 
     @pytest.mark.parametrize(
         "input, expected",
@@ -103,13 +104,15 @@ class Test_LexerCore:
         ],
     )
     def test_string_value(self, input, expected):
-        rv = lexer2.LexerCore._string_value(input)
+        lc = lexer2.LexerCore("", SyntaxError)
+        rv = lc._string_value(input)
         assert rv == expected
 
     @pytest.mark.parametrize("input", ['"badness: \\u{7451980347895104359810451}"'])
     def test_string_value_errs(self, input):
+        lc = lexer2.LexerCore("", SyntaxError)
         with pytest.raises(SyntaxError):
-            lexer2.LexerCore._string_value(input)
+            lc._string_value(input)
 
     @pytest.mark.parametrize(
         "input_src, startpos, goal, expected",
@@ -229,7 +232,7 @@ class Test_LexerCore:
         ],
     )
     def test_goodlexing(self, input_src, startpos, goal, expected):
-        lex = lexer2.LexerCore(input_src)
+        lex = lexer2.LexerCore(input_src, SyntaxError)
         rv = lex.token(startpos, getattr(lex, goal))
         assert rv == expected
 
@@ -248,16 +251,17 @@ class Test_LexerCore:
         ],
     )
     def test_badlexing(self, input, goal):
-        lex = lexer2.LexerCore(input)
+        lex = lexer2.LexerCore(input, SyntaxError)
         rv = lex.token(0, getattr(lex, goal))
         assert rv is None
 
 
 class Test_Lexer:
     def test_Lexer_init(self):
-        lex = lexer2.Lexer("I am source text")
+        lex = lexer2.Lexer("I am source text", SyntaxError)
         assert lex.src == "I am source text"
         assert lex.pos == 0
+        assert lex.syntax_error_ctor == SyntaxError
         assert isinstance(lex, lexer2.LexerCore)
         assert isinstance(lex, lexer2.Lexer)
 
@@ -271,14 +275,14 @@ class Test_Lexer:
         ],
     )
     def test_Lexer_repr(self, source_text, where, expected):
-        lex = lexer2.Lexer(source_text)
+        lex = lexer2.Lexer(source_text, SyntaxError)
         lex.reset_position(where)
 
         rv = f"{lex!r}"
         assert rv == expected
 
     def test_position(self):
-        lex = lexer2.Lexer("I am source text")
+        lex = lexer2.Lexer("I am source text", SyntaxError)
         assert lex.current_position() == 0
         lex.reset_position(5)
         assert lex.current_position() == 5
@@ -314,7 +318,7 @@ class Test_Lexer:
         ],
     )
     def test_peek_token(self, count, expected):
-        lex = lexer2.Lexer("one two three")
+        lex = lexer2.Lexer("one two three", SyntaxError)
         rv = lex.peek_token(count)
         assert rv == expected
 
@@ -326,7 +330,7 @@ class Test_Lexer:
         ],
     )
     def test_next_token(self, src, newpos, tok):
-        lex = lexer2.Lexer(src)
+        lex = lexer2.Lexer(src, SyntaxError)
         token = lex.next_token()
         assert token == tok
         assert lex.current_position() == newpos
@@ -347,7 +351,7 @@ class Test_Lexer:
         ],
     )
     def test_next_token_if(self, src, check, newline, expected, newpos):
-        lex = lexer2.Lexer(src)
+        lex = lexer2.Lexer(src, SyntaxError)
         rv = lex.next_token_if(check, prior_newline_allowed=newline)
         assert rv == expected
         assert lex.current_position() == newpos
@@ -380,7 +384,7 @@ class Test_Lexer:
         ],
     )
     def test_next_id_if(self, src, check, newline, expected, newpos):
-        lex = lexer2.Lexer(src)
+        lex = lexer2.Lexer(src, SyntaxError)
         rv = lex.next_id_if(check, prior_newline_allowed=newline)
         assert rv == expected
         assert lex.current_position() == newpos

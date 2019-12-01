@@ -1602,7 +1602,7 @@ class RegExpIdentifierStart_escape(RegExpIdentifierStart):
         # RegExpIdentifierStart :: \ RegExpUnicodeEscapeSequence
         #   * It is a Syntax Error if SV(RegExpUnicodeEscapeSequence) is none of "$", or "_", or the UTF16Encoding of a
         #     code point matched by the UnicodeIDStart lexical grammar production.
-        sv = utf_16_decode(self.children[1].SV)
+        sv = utf_16_decode(self.children[1].SV, throw=False)
         return list(
             chain(
                 filter(
@@ -1661,7 +1661,7 @@ class RegExpIdentifierPart_escape(RegExpIdentifierPart):
         #   * It is a Syntax Error if SV(RegExpUnicodeEscapeSequence) is none of "$", or "_", or the UTF16Encoding of
         #     either <ZWNJ> or <ZWJ>, or the UTF16Encoding of a Unicode code point that would be matched by the
         #     UnicodeIDContinue lexical grammar production.
-        sv = utf_16_decode(self.children[1].SV)
+        sv = utf_16_decode(self.children[1].SV, throw=False)
         return list(
             chain(
                 filter(
@@ -2001,7 +2001,7 @@ class RegExpUnicodeEscapeSequence_2surrogates(RegExpUnicodeEscapeSequence):
     def CharacterValue(self) -> int:
         lead = chr(int(self.children[0][1:5], 16))
         trail = chr(int(self.children[0][7:11], 16))
-        return ord(utf_16_decode(lead + trail))
+        return ord(utf_16_decode(lead + trail, throw=False))
 
 
 _REUES_Hex4Digits_pattern = regex.compile(r"u(?P<digits>[0-9a-fA-F]{4})")
@@ -2909,7 +2909,7 @@ class Pattern(Production):
         def closure(string: str, index: int) -> Union[Failure, State]:
             assert index <= len(string)
             if context.Unicode:
-                context.Input = utf_16_decode(string)
+                context.Input = utf_16_decode(string, throw=False)
                 idx = 0
                 listIndex = 0
                 while idx < index:

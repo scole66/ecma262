@@ -23,7 +23,7 @@ def utf_16_encode(string: str) -> str:
     return "".join(enc(c) for c in string)
 
 
-def utf_16_decode(string: str, throw: bool = True) -> str:
+def utf_16_decode(string: str, throw: bool = True, syntax_error_ctor=SyntaxError) -> str:
     def dec(string: str) -> Generator[str, None, None]:
         lead = 0
         for c in string:
@@ -35,7 +35,7 @@ def utf_16_decode(string: str, throw: bool = True) -> str:
             else:
                 if ord(c) < 0xDC00 or ord(c) > 0xDFFF:
                     if throw:
-                        raise SyntaxError("Invalid or Unexpected Token")
+                        raise syntax_error_ctor("Invalid or Unexpected Token")
                     yield chr(lead)
                     yield c
                 else:
@@ -44,7 +44,7 @@ def utf_16_decode(string: str, throw: bool = True) -> str:
         if lead:
             # Ended the string with an uncompleted surrogate.
             if throw:
-                raise SyntaxError("Invalid or Unexpected Token")
+                raise syntax_error_ctor("Invalid or Unexpected Token")
             yield chr(lead)
 
     return "".join(c for c in dec(string))
@@ -53,7 +53,7 @@ def utf_16_decode(string: str, throw: bool = True) -> str:
 escape_match = regex.compile(r"\\u(?:([0-9A-Fa-f]{4})|(?:\{([0-9a-fA-F]+)\}))")
 
 
-def identifier_name_string_value(src):
+def identifier_name_string_value(src, syntax_error_ctor=SyntaxError):
     # Return the String value consisting of the sequence of code units corresponding to IdentifierName. In determining
     # the sequence any occurrences of \ UnicodeEscapeSequence are first replaced with the code point represented by the
     # UnicodeEscapeSequence and then the code points of the entire IdentifierName are converted to code units by
@@ -69,14 +69,14 @@ def identifier_name_string_value(src):
         chval = int(escape.group(1) or escape.group(2), 16)
         if chval > 0x10FFFF:
             # Not a character. Throw a syntax error.
-            raise SyntaxError("Undefined Unicode code-point")
+            raise syntax_error_ctor("Undefined Unicode code-point")
         assert chval >= 0  # Negative numbers should have been avoided via the regex match
         result += src[scan_pos : span[0]] + chr(chval)
         scan_pos = span[1]
     return utf_16_encode(result)
 
 
-def identifier_name_early_errors(id_token):
+def identifier_name_early_errors(id_token, syntax_error_ctor=SyntaxError):
     # 11.6.1.1 Static Semantics: Early Errors
     # IdentifierStart :: \ UnicodeEscapeSequence
     #     It is a Syntax Error if SV(UnicodeEscapeSequence) is none of "$", or "_", or the UTF16Encoding of a code
@@ -88,10 +88,10 @@ def identifier_name_early_errors(id_token):
 
     # Since the string value in the token has already had the unicode escapes processed, we just validate according to
     # the rules in 11.6.
-    name = utf_16_decode(id_token.value)
+    name = utf_16_decode(id_token.value, throw=True, syntax_error_ctor=syntax_error_ctor)
     id_validate_match = regex.compile(r"[\p{ID_Start}_$][\p{ID_Continue}$\N{ZWJ}\N{ZWNJ}]*$")
     if not id_validate_match.match(name):
-        raise SyntaxError("Invalid or Unexpected Token")
+        raise syntax_error_ctor("Invalid or Unexpected Token")
 
 
 class LexerCore:
@@ -130,15 +130,15 @@ class LexerCore:
     InputElementRegExpOrTemplateTail = Goal.InputElementRegExpOrTemplateTail
     InputElementTemplateTail = Goal.InputElementTemplateTail
 
-    def __init__(self, source_text):
+    def __init__(self, source_text, syntax_error_ctor):
         """
         Make a new Lexer. The only info that needs providing is the source text. It should be encoded in utf-16.
         """
         self.src = source_text
         self.cache = {}
+        self.syntax_error_ctor = syntax_error_ctor
 
-    @staticmethod
-    def _string_value(chars):
+    def _string_value(self, chars):
         assert (chars[0] == "'" and chars[-1] == "'") or (chars[0] == '"' and chars[-1] == '"')
         # Remove the quotes
         chars = chars[1 : len(chars) - 1]
@@ -167,7 +167,7 @@ class LexerCore:
                     chval = int(chars[index + 3 : closing], 16)
                     if chval > 0x10FFFF:
                         # Not a valid Unicode code point. Throw a syntax error.
-                        raise SyntaxError("Undefined Unicode code-point")
+                        raise self.syntax_error_ctor("Undefined Unicode code-point")
                     assert chval >= 0  # Negative values here should have been alredy rejected via regex
                     decoded += chr(chval)
                     index = closing + 1
@@ -407,10 +407,10 @@ class LexerCore:
             if ident:
                 span = ident.span()
                 identifier_src = self.src[span[0] : span[1]]
-                sv = identifier_name_string_value(identifier_src)
+                sv = identifier_name_string_value(identifier_src, syntax_error_ctor=self.syntax_error_ctor)
                 id_token = Token(type="IDENTIFIER", src=self.src, value=sv, span=Span(*span), newlines=newlines)
                 # Check Early Errors (section 11.6.1.1)
-                identifier_name_early_errors(id_token)
+                identifier_name_early_errors(id_token, syntax_error_ctor=self.syntax_error_ctor)
                 return id_token
 
             # Punctuator
@@ -648,8 +648,8 @@ class LexerCore:
 
 class Lexer(LexerCore):
     # Adds a bit more state for a more stateful API.
-    def __init__(self, source_text):
-        super().__init__(source_text)
+    def __init__(self, source_text, syntax_error_ctor):
+        super().__init__(source_text, syntax_error_ctor)
         self.pos = 0
 
     def __repr__(self):
