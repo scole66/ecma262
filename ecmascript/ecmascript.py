@@ -17646,7 +17646,7 @@ def parse_LexicalDeclaration(context, lexer, In, Yield, Await):
     if loc:
         bl = parse_BindingList(context, lexer, In, Yield, Await)
         if bl:
-            semi = lexer.next_token_if(";")
+            semi = lexer.next_token_asi()
             if semi:
                 return P2_LexicalDeclaration_LetOrConst_BindingList(context, [loc, bl, semi])
         lexer.reset_position(bookmark)
@@ -17936,7 +17936,7 @@ def parse_VariableStatement(context, lexer, Yield, Await):
     if var:
         vdl = parse_VariableDeclarationList(context, lexer, True, Yield, Await)
         if vdl:
-            semi = lexer.next_token_if(";")
+            semi = lexer.next_token_asi()
             if semi:
                 return P2_VariableStatement_VariableDeclarationList(context, [var, vdl, semi])
         lexer.reset_position(bookmark)
@@ -19686,7 +19686,7 @@ def parse_ExpressionStatement(ctx, lexer, Yield, Await):
     bookmark = lexer.current_position()
     exp = parse_Expression(ctx, lexer, True, Yield, Await)
     if exp:
-        semi = lexer.next_token_if(";")
+        semi = lexer.next_token_asi()
         if semi:
             return P2_ExpressionStatement_Expression_SEMICOLON(ctx, [exp, semi])
     lexer.reset_position(bookmark)
@@ -20802,7 +20802,7 @@ def parse_IterationStatement(context, lexer, Yield, Await, Return):
                     if exp1:
                         rp1 = lexer.next_token_if(")")
                         if rp1:
-                            semi = lexer.next_token_if(";")
+                            semi = lexer.next_token_asi(do_while=True)
                             if semi:
                                 return P2_IterationStatement_DO_Statement_WHILE_Expression(
                                     context, [do_token, stmt1, while_token1, lp1, exp1, rp1, semi,],
@@ -21679,11 +21679,11 @@ def parse_ContinueStatement(context, lexer, Yield, Await):
         if peek and not peek.newlines:
             li = parse_LabelIdentifier(context, lexer, Yield, Await)
             if li:
-                semi_li = lexer.next_token_if(";")
+                semi_li = lexer.next_token_asi()
                 if semi_li:
                     return P2_ContinueStatement_CONTINUE_LabelIdentifier(context, [continue_token, li, semi_li])
                 lexer.reset_position(after_continue)
-        semi_plain = lexer.next_token_if(";")
+        semi_plain = lexer.next_token_asi()
         if semi_plain:
             return P2_ContinueStatement_CONTINUE(context, [continue_token, semi_plain])
         lexer.reset_position(bookmark)
@@ -21796,11 +21796,11 @@ def parse_BreakStatement(context, lexer, Yield, Await):
         if peek and not peek.newlines:
             li = parse_LabelIdentifier(context, lexer, Yield, Await)
             if li:
-                semi1 = lexer.next_token_if(";")
+                semi1 = lexer.next_token_asi()
                 if semi1:
                     return P2_BreakStatement_BREAK_LabelIdentifier(context, [break_token, li, semi1])
             lexer.reset_position(after_break)
-        semi2 = lexer.next_token_if(";")
+        semi2 = lexer.next_token_asi()
         if semi2:
             return P2_BreakStatement_BREAK(context, [break_token, semi2])
         lexer.reset_position(bookmark)
@@ -21896,11 +21896,11 @@ def parse_ReturnStatement(context, lexer, Yield, Await):
         if peek and not peek.newlines:
             exp = parse_Expression(context, lexer, True, Yield, Await)
             if exp:
-                semi1 = lexer.next_token_if(";")
+                semi1 = lexer.next_token_asi()
                 if semi1:
                     return P2_ReturnStatement_RETURN_Expression(context, [ret, exp, semi1])
             lexer.reset_position(after_return)
-        semi2 = lexer.next_token_if(";")
+        semi2 = lexer.next_token_asi()
         if semi2:
             return P2_ReturnStatement_RETURN(context, [ret, semi2])
         lexer.reset_position(bookmark)
@@ -22608,7 +22608,7 @@ def parse_ThrowStatement(context, lexer, Yield, Await):
         if peek and not peek.newlines:
             exp = parse_Expression(context, lexer, True, Yield, Await)
             if exp:
-                semi = lexer.next_token_if(";")
+                semi = lexer.next_token_asi()
                 if semi:
                     return P2_ThrowStatement_THROW_Expression(context, [throw_tok, exp, semi])
         lexer.reset_position(bookmark)
@@ -23103,7 +23103,7 @@ def parse_DebuggerStatement(context, lexer):
     bookmark = lexer.current_position()
     deb = lexer.next_id_if("debugger")
     if deb:
-        semi = lexer.next_token_if(";")
+        semi = lexer.next_token_asi()
         if semi:
             return P2_DebuggerStatement_DEBUGGER(context, [deb, semi])
         lexer.reset_position(bookmark)

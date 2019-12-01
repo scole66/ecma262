@@ -104,20 +104,22 @@ class Test_BreakStatement:
     @pytest.mark.parametrize(
         "src, parse_args, expected_type",
         [
-            ("break;", (Yield, Await), parse2.P2_BreakStatement_BREAK)
+            (srcstream, (Yield, Await), parse2.P2_BreakStatement_BREAK)
             for Yield in (False, True)
             for Await in (False, True)
+            for srcstream in ("break", "break;", "break\nmumble;")
         ]
         + [
-            ("break mumble;", (Yield, Await), parse2.P2_BreakStatement_BREAK_LabelIdentifier)
+            (srcstream, (Yield, Await), parse2.P2_BreakStatement_BREAK_LabelIdentifier)
             for Yield in (False, True)
             for Await in (False, True)
+            for srcstream in ("break mumble;", "break mumble")
         ]
         + [
             (errstream, (Yield, Await), type(None))
             for Yield in (False, True)
             for Await in (False, True)
-            for errstream in ("break =", "break", "", "break mumble =", "break mumble", "break\nmumble;")
+            for errstream in ("break =", "", "break mumble =")
         ],
     )
     def test_01(self, src, parse_args, expected_type):
@@ -128,20 +130,22 @@ class Test_ReturnStatement:
     @pytest.mark.parametrize(
         "src, parse_args, expected_type",
         [
-            ("return;", (Yield, Await), parse2.P2_ReturnStatement_RETURN)
+            (srcstream, (Yield, Await), parse2.P2_ReturnStatement_RETURN)
             for Yield in (False, True)
             for Await in (False, True)
+            for srcstream in ("return;", "return", "return\nmumble;")
         ]
         + [
-            ("return mumble;", (Yield, Await), parse2.P2_ReturnStatement_RETURN_Expression)
+            (srcstream, (Yield, Await), parse2.P2_ReturnStatement_RETURN_Expression)
             for Yield in (False, True)
             for Await in (False, True)
+            for srcstream in ("return mumble;", "return mumble")
         ]
         + [
             (errstream, (Yield, Await), type(None))
             for Yield in (False, True)
             for Await in (False, True)
-            for errstream in ("return =", "return", "", "return mumble =", "return mumble", "return\nmumble;")
+            for errstream in ("return =", "", "return mumble =")
         ],
     )
     def test_01(self, src, parse_args, expected_type):

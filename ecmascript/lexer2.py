@@ -688,6 +688,31 @@ class Lexer(LexerCore):
             return tok
         return None
 
+    def next_token_asi(self, do_while=False, goal=LexerCore.InputElementRegExp):
+        tok = self.peek_token(1, goal)
+        if not tok:
+            if self.is_done(self.pos):
+                # ASI condition 2:
+                # When, as the source text is parsed from left to right, the end of the input stream of tokens is
+                # encountered and the parser is unable to parse the input token stream as a single instance of the goal
+                # nonterminal, then a semicolon is automatically inserted at the end of the input stream.
+                return Token(";", self.src, ";", Span(self.pos, self.pos), [])
+        else:
+            if tok.type == ";":
+                self.pos = tok.span.after
+                return tok
+            if tok.newlines or tok.type == "}" or do_while:
+                # ASI condition 1:
+                # When, as the source text is parsed from left to right, a token (called the offending token) is
+                # encountered that is not allowed by any production of the grammar, then a semicolon is automatically
+                # inserted before the offending token if one or more of the following conditions is true:
+                #   a. The offending token is separated from the previous token by at least one LineTerminator.
+                #   b. The offending token is }.
+                #   c. The previous token is ) and the inserted semicolon would then be parsed as the terminating
+                #      semicolon of a do-while statement (13.7.2).
+                return Token(";", self.src, ";", Span(self.pos, self.pos), [])
+        return None
+
     def next_id_if(self, id_value, prior_newline_allowed=True, goal=LexerCore.InputElementRegExp):
         tok = self.peek_token(1, goal)
         if (
