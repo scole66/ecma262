@@ -583,7 +583,6 @@ def test_ToObject_06(realm):
     assert res.StringData == "tricky"
 
 
-@pytest.mark.xfail(reason="Needs Symbol Object Support")
 def test_ToObject_07(realm):
     # Symbol -> Object
     res = ToObject(wks_to_primitive)
