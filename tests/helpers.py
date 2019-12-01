@@ -47,6 +47,17 @@ class Lexer:
             return self.next_token()
         return None
 
+    def next_token_asi(self, do_while=False, goal="unused"):
+        peek = self.peek_token()
+        if not peek:
+            return Token(";", ";", [])
+        else:
+            if peek.type == ";":
+                return self.next_token()
+            if peek.newlines or peek.type == "}" or do_while:
+                return Token(";", ";", [])
+        return None
+
     def next_id_if(self, id_value, prior_newline_allowed=True):
         peek = self.peek_token()
         if (
