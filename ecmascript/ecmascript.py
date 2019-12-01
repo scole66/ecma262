@@ -7453,7 +7453,7 @@ class ParseNode2:
         assert all(t.src == tokens[0].src for t in tokens)
         assert 0 <= first_idx and first_idx <= last_idx and last_idx <= len(tokens[0].src)
 
-        sublexer = self.context.lexer_interface(tokens[0].src[first_idx:last_idx])
+        sublexer = self.context.lexer_interface(tokens[0].src[first_idx:last_idx], self.CreateSyntaxError)
         parse_node = parse_fcn(self.context, sublexer, *args)
         return parse_node if max(t.span[1] for t in parse_node.terminals()) == last_idx - first_idx else None
 
@@ -26296,7 +26296,7 @@ def ParseScript(sourceText, realm, hostDefined):
     #    and early error detection may be interweaved in an implementation-dependent manner. If more than one parsing error or
     #    early error is present, the number and ordering of error objects in the list is implementation-dependent, but at least
     #    one must be present.
-    lex = Lexer(sourceText)
+    lex = Lexer(sourceText, ESSyntaxError)
     context = Parse2Context(direct_eval=True, syntax_error_ctor=CreateSyntaxError)
     tree = parse_Script(context, lex)
     after = max((t.span.after for t in tree.terminals()), default=0) if tree else 0
@@ -26675,7 +26675,7 @@ def PerformEval(x, evalRealm, strictCaller, direct):
         inFunction = False
         inMethod = False
         inDerivedConstructor = False
-    lex = Lexer(x)
+    lex = Lexer(x, ESSyntaxError)
     context = Parse2Context(direct_eval=direct, syntax_error_ctor=CreateSyntaxError)
     tree = parse_Script(context, lex)
     after = max((t.span.after for t in tree.terminals()), default=0) if tree else 0
@@ -27825,14 +27825,14 @@ def CreateDynamicFunction(constructor, newTarget, kind, args):
     bodyText = ToString(bodyText)
 
     parameter_context = Parse2Context(direct_eval=False, syntax_error_ctor=ESSyntaxError, goal=parameterGoal)
-    plexer = Lexer(P)
+    plexer = Lexer(P, ESSyntaxError)
     try:
         parameters = param_parse(parameter_context, plexer)
     except ESError as err:
         raise ESSyntaxError(ToString(err.ecma_object))
 
     body_context = Parse2Context(direct_eval=False, syntax_error_ctor=ESSyntaxError, goal=goal)
-    blexer = Lexer(bodyText)
+    blexer = Lexer(bodyText, ESSyntaxError)
     try:
         body = goal_parse(body_context, blexer)
     except ESError as err:
@@ -31112,7 +31112,7 @@ def RegExpInitialize(obj, pattern, flags):
         pat = e262_regexp.parse_Pattern(P, 0, True, True)
         if not pat or pat.span.after != len(pat):
             raise ESSyntaxError(f"Bad Regex: {P}")
-        patternCharacters = utf_16_decode(P)
+        patternCharacters = utf_16_decode(P, throw=True, syntax_error_ctor=ESSyntaxError)
     if pat.earlyerrors:
         raise ESSyntaxError("\n".join(chain((f"Bad Regex: {P}",), pat.earlyerrors)))
 

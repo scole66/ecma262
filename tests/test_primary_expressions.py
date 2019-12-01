@@ -329,7 +329,7 @@ def PrimaryExpression_mocks(mocker):
 #   1. Return the ParenthesizedExpression that is covered by CoverParenthesizedExpressionAndArrowParameterList.
 def test_PrimaryExpression_CoveredParenthesizedExpression_01(context, mocker):
     # This one is _so_ much easier with a real lexer.
-    lexer = lexer2.Lexer("(a)")
+    lexer = lexer2.Lexer("(a)", SyntaxError)
     cpeaap = ecmascript.ecmascript.parse_CoverParenthesizedExpressionAndArrowParameterList(context, lexer, False, False)
 
     rv = cpeaap.CoveredParenthesizedExpression
@@ -517,7 +517,7 @@ def test_PrimaryExpression_AssignmentTargetType_CPEAAPL(context, mocker):
 #   1. Return ? ResolveThisBinding().
 def test_PrimaryExpression_Evaluation_THIS(context, mocker):
     rtb = mocker.patch("ecmascript.ecmascript.ResolveThisBinding", return_value="RTB")
-    lexer = lexer2.Lexer("this")
+    lexer = lexer2.Lexer("this", SyntaxError)
     pe = ecmascript.ecmascript.parse_PrimaryExpression(context, lexer, False, False)
 
     rv = pe.evaluate()
@@ -546,7 +546,7 @@ def test_PrimaryExpression_Evaluation_THIS(context, mocker):
     ],
 )
 def test_PrimaryExpression_Evaluation_Literal(context, mocker, src, expected):
-    lexer = lexer2.Lexer(src)
+    lexer = lexer2.Lexer(src, SyntaxError)
     pe = ecmascript.ecmascript.parse_PrimaryExpression(context, lexer, False, False)
 
     rv = pe.evaluate()
@@ -919,7 +919,7 @@ def test_parse_Elision(context, token_stream, expected):
 
 @pytest.mark.parametrize("src, expected", [(",", 1), (",,,,", 4)])
 def test_Elision_ElisionWidth(context, mocker, src, expected):
-    lexer = lexer2.Lexer(src)
+    lexer = lexer2.Lexer(src, SyntaxError)
     elision = ecmascript.ecmascript.parse_Elision(context, lexer)
 
     rv = elision.ElisionWidth()
@@ -1081,7 +1081,7 @@ def test_parse_ArrayLiteral_05(mocker, context, token_stream):
 #   5. Return array.
 @pytest.mark.parametrize("src, pad", [("[]", 0), ("[,,,]", 3)])
 def test_ArrayLiteral_Elision_evaluate(context, mocker, src, pad):
-    lexer = lexer2.Lexer(src)
+    lexer = lexer2.Lexer(src, SyntaxError)
     al = ecmascript.ecmascript.parse_ArrayLiteral(context, lexer, False, False)
     ac = mocker.patch("ecmascript.ecmascript.ArrayCreate", return_value="array")
     st = mocker.patch("ecmascript.ecmascript.Set", return_value=None)
@@ -1101,7 +1101,7 @@ def test_ArrayLiteral_Elision_evaluate(context, mocker, src, pad):
 #   5. NOTE: The above Set cannot fail because of the nature of the object returned by ArrayCreate.
 #   6. Return array.
 def test_ArrayLiteral_ElementList_evaluate(context, mocker):
-    lexer = lexer2.Lexer("[5]")
+    lexer = lexer2.Lexer("[5]", SyntaxError)
     al = ecmascript.ecmascript.parse_ArrayLiteral(context, lexer, False, False)
     ac = mocker.patch("ecmascript.ecmascript.ArrayCreate", return_value="array")
     al.ElementList.ArrayAccumulation = mocker.Mock(return_value=100)
@@ -1125,7 +1125,7 @@ def test_ArrayLiteral_ElementList_evaluate(context, mocker):
 #   7. Return array.
 @pytest.mark.parametrize("src, padding", [("[6,]", 0), ("[7,,,]", 2)])
 def test_ArrayLiteral_ElementList_Elision_evaluate(context, mocker, src, padding):
-    lexer = lexer2.Lexer(src)
+    lexer = lexer2.Lexer(src, SyntaxError)
     al = ecmascript.ecmascript.parse_ArrayLiteral(context, lexer, False, False)
     ac = mocker.patch("ecmascript.ecmascript.ArrayCreate", return_value="array")
     al.ElementList.ArrayAccumulation = mocker.Mock(return_value=1)
@@ -1381,7 +1381,7 @@ def test_parse_ElementList_10(mocker, context, token_stream):
 def test_ElementList_ArrayAccumulation_Elision_AssignmentExpression(
     context, mocker, src, expected_delta, expected_propname
 ):
-    lexer = lexer2.Lexer(src)
+    lexer = lexer2.Lexer(src, SyntaxError)
     el = ecmascript.ecmascript.parse_ElementList(context, lexer, False, False)
     el.AssignmentExpression.evaluate = mocker.Mock(return_value="initResult")
     cdp = mocker.patch("ecmascript.ecmascript.CreateDataProperty", return_value=True)
@@ -1401,7 +1401,7 @@ def test_ElementList_ArrayAccumulation_Elision_AssignmentExpression(
 #      nextIndex + padding.
 @pytest.mark.parametrize("src, expected_index", [(",,, ...3", 13), ("...4", 10)])
 def test_ElementList_ArrayAccumulation_Elision_SpreadElement(context, mocker, src, expected_index):
-    lexer = lexer2.Lexer(src)
+    lexer = lexer2.Lexer(src, SyntaxError)
     el = ecmascript.ecmascript.parse_ElementList(context, lexer, False, False)
     el.SpreadElement.ArrayAccumulation = mocker.Mock(return_value="AA")
 
@@ -1423,7 +1423,7 @@ def test_ElementList_ArrayAccumulation_Elision_SpreadElement(context, mocker, sr
 #   8. Return postIndex + padding + 1.
 @pytest.mark.parametrize("src, expected", [("3,4", 12), ("2,,6", 13)])
 def test_ElementList_ArrayAccumulation_ElementList_Elision_AssignmentExpression(context, mocker, src, expected):
-    lexer = lexer2.Lexer(src)
+    lexer = lexer2.Lexer(src, SyntaxError)
     el = ecmascript.ecmascript.parse_ElementList(context, lexer, False, False)
     el.ElementList.ArrayAccumulation = mocker.Mock(side_effect=lambda array, nextIndex: nextIndex + 1)
     el.AssignmentExpression.evaluate = mocker.Mock(return_value="initResult")
@@ -1448,7 +1448,7 @@ def test_ElementList_ArrayAccumulation_ElementList_Elision_AssignmentExpression(
 #      postIndex + padding.
 @pytest.mark.parametrize("src, delta", [("3,,,...8", 3), ("4,...9", 1)])
 def test_ElementList_ArrayAccumulation_ElementList_Elision_SpreadElement(context, mocker, src, delta):
-    lexer = lexer2.Lexer(src)
+    lexer = lexer2.Lexer(src, SyntaxError)
     el = ecmascript.ecmascript.parse_ElementList(context, lexer, False, False)
     el.ElementList.ArrayAccumulation = mocker.Mock(side_effect=lambda array, nextIndex: nextIndex + 1)
     el.SpreadElement.ArrayAccumulation = mocker.Mock(return_value="AA")
@@ -1529,7 +1529,7 @@ def test_parse_SpreadElement_02(mocker, context, token_stream):
 #       f. Increase nextIndex by 1.
 @pytest.mark.parametrize("size", [0, 1, 3])
 def test_SpreadElement_ArrayAccumulation(context, mocker, size):
-    lexer = lexer2.Lexer("...8")
+    lexer = lexer2.Lexer("...8", SyntaxError)
     se = ecmascript.ecmascript.parse_SpreadElement(context, lexer, False, False)
 
     se.AssignmentExpression.evaluate = mocker.Mock(return_value="spreadRef")
@@ -1657,7 +1657,7 @@ def test_parse_ObjectLiteral_03(mocker, context, token_stream):
 # ObjectLiteral : { }
 #   1. Return ObjectCreate(%ObjectPrototype%).
 def test_ObjectLiteral_LCURLY_RCURLY_evaluate(realm, context, mocker):
-    lexer = lexer2.Lexer("{}")
+    lexer = lexer2.Lexer("{}", SyntaxError)
     ol = ecmascript.ecmascript.parse_ObjectLiteral(context, lexer, False, False)
 
     oc = mocker.patch("ecmascript.ecmascript.ObjectCreate", return_value="object_create")
@@ -1675,7 +1675,7 @@ def test_ObjectLiteral_LCURLY_RCURLY_evaluate(realm, context, mocker):
 #   3. Return obj.
 @pytest.mark.parametrize("src", ["{a}", "{a,}"])
 def test_ObjectLiteral_PropertyDefinitionList_evaluate(realm, context, mocker, src):
-    lexer = lexer2.Lexer(src)
+    lexer = lexer2.Lexer(src, SyntaxError)
     ol = ecmascript.ecmascript.parse_ObjectLiteral(context, lexer, False, False)
     oc = mocker.patch("ecmascript.ecmascript.ObjectCreate", return_value="object_create")
     ol.PropertyDefinitionList.PropertyDefinitionEvaluation = mocker.Mock(return_value=None)
@@ -1789,7 +1789,7 @@ def test_parse_PropertyDefinitionList_04(mocker, context):
     [("...3", []), ("id", ["id"]), ("blue, ...4", ["blue"]), ("blue, red", ["blue", "red"]), ("...4, ...88", [])],
 )
 def test_PropertyDefinitionList_PropertyNameList(context, src, expected):
-    lexer = lexer2.Lexer(src)
+    lexer = lexer2.Lexer(src, SyntaxError)
     pdl = ecmascript.ecmascript.parse_PropertyDefinitionList(context, lexer, False, False)
     assert pdl.PropertyNameList() == expected
 
@@ -1942,7 +1942,7 @@ def test_parse_PropertyDefinition_06(mocker, context, token_stream):
 #   * It is a Syntax Error if HasDirectSuper of MethodDefinition is true.
 @pytest.mark.parametrize("has_super, count", [(False, 0), (True, 1)])
 def test_PropertyDefinition_MethodDefinition_EarlyErrors(context, mocker, has_super, count):
-    lexer = lexer2.Lexer("a(){}")
+    lexer = lexer2.Lexer("a(){}", SyntaxError)
     pd = ecmascript.ecmascript.parse_PropertyDefinition(context, lexer, False, False)
     pd.MethodDefinition.HasDirectSuper = mocker.Mock(return_value=has_super)
 
@@ -1956,7 +1956,7 @@ def test_PropertyDefinition_MethodDefinition_EarlyErrors(context, mocker, has_su
 # PropertyDefinition : CoverInitializedName
 #   * Always throw a Syntax Error if code matches this production.
 def test_PropertyDefinition_CoverInitializedName(context):
-    lexer = lexer2.Lexer("a=1")
+    lexer = lexer2.Lexer("a=1", SyntaxError)
     pd = ecmascript.ecmascript.parse_PropertyDefinition(context, lexer, False, False)
 
     rv = pd.EarlyErrors()
@@ -1971,7 +1971,7 @@ def test_PropertyDefinition_CoverInitializedName(context):
 #   2. Return the result of ComputedPropertyContains for MethodDefinition with argument symbol.
 @pytest.mark.parametrize("symbol, expected", [("MethodDefinition", True), ("OtherSymbol", "cpc")])
 def test_PropertyDefinition_MethodDefinition_Contains(context, mocker, symbol, expected):
-    lexer = lexer2.Lexer("a(){}")
+    lexer = lexer2.Lexer("a(){}", SyntaxError)
     pd = ecmascript.ecmascript.parse_PropertyDefinition(context, lexer, False, False)
     pd.MethodDefinition.ComputedPropertyContains = mocker.Mock(return_value="cpc")
 
@@ -1993,7 +1993,7 @@ def test_PropertyDefinition_MethodDefinition_Contains(context, mocker, symbol, e
     [("identifier_ref", "identifier_ref"), ("... 67", ecmascript.ecmascript.EMPTY), ('bluegill: "5 lbs."', "bluegill")],
 )
 def test_PropertyDefinition_PropName(context, src, expected):
-    lexer = lexer2.Lexer(src)
+    lexer = lexer2.Lexer(src, SyntaxError)
     pd = ecmascript.ecmascript.parse_PropertyDefinition(context, lexer, False, False)
     rv = pd.PropName()
     assert rv == expected
@@ -2079,7 +2079,7 @@ def test_parse_PropertyName_03(mocker, context):
 # PropertyName : LiteralPropertyName
 #   1. Return false.
 def test_PropertyName_LiteralPropertyName_ComputedPropertyContains(context):
-    lexer = lexer2.Lexer("1")
+    lexer = lexer2.Lexer("1", SyntaxError)
     pn = ecmascript.ecmascript.parse_PropertyName(context, lexer, False, False)
     rv = pn.ComputedPropertyContains("Nonsense")
     assert rv == False
@@ -2090,7 +2090,7 @@ def test_PropertyName_LiteralPropertyName_ComputedPropertyContains(context):
 # PropertyName : ComputedPropertyName
 #   1. Return the result of ComputedPropertyName Contains symbol.
 def test_PropertyName_ComputedPropertyName_ComputedPropertyContains(context, mocker):
-    lexer = lexer2.Lexer("[1]")
+    lexer = lexer2.Lexer("[1]", SyntaxError)
     pn = ecmascript.ecmascript.parse_PropertyName(context, lexer, False, False)
     pn.ComputedPropertyName.Contains = mocker.Mock(return_value="contained")
     rv = pn.ComputedPropertyContains("Nonsense")
@@ -2105,7 +2105,7 @@ def test_PropertyName_ComputedPropertyName_ComputedPropertyContains(context, moc
 #   1. Return true.
 @pytest.mark.parametrize("src, expected", [("a", False), ("[1]", True)])
 def test_PropertyName_IsComputedPropertyKey(context, src, expected):
-    lexer = lexer2.Lexer(src)
+    lexer = lexer2.Lexer(src, SyntaxError)
     pn = ecmascript.ecmascript.parse_PropertyName(context, lexer, False, False)
     rv = pn.IsComputedPropertyKey()
     assert rv == expected
@@ -2207,7 +2207,7 @@ def test_parse_LiteralPropertyName_04(context, token_stream):
     ],
 )
 def test_LiteralPropertyName_IdentifierName_Contains(context, src, symbol, expected):
-    lexer = lexer2.Lexer(src)
+    lexer = lexer2.Lexer(src, SyntaxError)
     lpn = ecmascript.ecmascript.parse_LiteralPropertyName(context, lexer)
 
     rv = lpn.Contains(symbol)
@@ -2224,7 +2224,7 @@ def test_LiteralPropertyName_IdentifierName_Contains(context, src, symbol, expec
 #   2. Return ! ToString(nbr).
 @pytest.mark.parametrize("src, expected", [("idn", "idn"), ('"whitetail"', "whitetail"), ("1000", "1000")])
 def test_LiteralPropertyName_PropName(context, src, expected):
-    lexer = lexer2.Lexer(src)
+    lexer = lexer2.Lexer(src, SyntaxError)
     lpn = ecmascript.ecmascript.parse_LiteralPropertyName(context, lexer)
     rv = lpn.PropName()
     assert rv == expected
@@ -2240,7 +2240,7 @@ def test_LiteralPropertyName_PropName(context, src, expected):
 #   2. Return ! ToString(nbr).
 @pytest.mark.parametrize("src, expected", [("idn", "idn"), ('"whitetail"', "whitetail"), ("1000", "1000")])
 def test_LiteralPropertyName_evaluate(context, src, expected):
-    lexer = lexer2.Lexer(src)
+    lexer = lexer2.Lexer(src, SyntaxError)
     lpn = ecmascript.ecmascript.parse_LiteralPropertyName(context, lexer)
     rv = lpn.evaluate()
     assert rv == expected
@@ -2309,7 +2309,7 @@ def test_parse_ComputedPropertyName_02(mocker, context, token_stream):
 # ComputedPropertyName : [ AssignmentExpression ]
 #   1. Return empty.
 def test_ComputedPropertyName_PropName(context):
-    lexer = lexer2.Lexer("[1]")
+    lexer = lexer2.Lexer("[1]", SyntaxError)
     cpn = ecmascript.ecmascript.parse_ComputedPropertyName(context, lexer, False, False)
     assert cpn.PropName() == ecmascript.ecmascript.EMPTY
 
@@ -2320,7 +2320,7 @@ def test_ComputedPropertyName_PropName(context):
 #   2. Let propName be ? GetValue(exprValue).
 #   3. Return ? ToPropertyKey(propName).
 def test_ComputedPropertyName_evaluate(realm, context, mocker):
-    lexer = lexer2.Lexer("[1]")
+    lexer = lexer2.Lexer("[1]", SyntaxError)
     cpn = ecmascript.ecmascript.parse_ComputedPropertyName(context, lexer, False, False)
     cpn.AssignmentExpression.evaluate = mocker.Mock(return_value="exprValue")
     gv = mocker.patch("ecmascript.ecmascript.GetValue", return_value="propName")
@@ -2335,7 +2335,7 @@ def test_ComputedPropertyName_evaluate(realm, context, mocker):
 
 @pytest.mark.parametrize("src, expected", [("[1]", "1"), ("[67*4-12]", "256"), ("[`prop${8*12}z`]", "prop96z")])
 def test_ComputedPropertyName_evaluate_nomocks(realm, context, src, expected):
-    lexer = lexer2.Lexer(src)
+    lexer = lexer2.Lexer(src, SyntaxError)
     cpn = ecmascript.ecmascript.parse_ComputedPropertyName(context, lexer, False, False)
 
     rv = cpn.evaluate()
