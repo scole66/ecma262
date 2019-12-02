@@ -23503,6 +23503,8 @@ class P2_FunctionExpression_FUNCTION_FormalParameters_FunctionBody(P2_FunctionEx
     def FunctionBody(self):
         return self.children[5]
 
+    BindingIdentifier = None
+
     def EarlyErrors(self):
         return FunctionDecl_EarlyErrors(self)
 
