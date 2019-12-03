@@ -24,15 +24,16 @@ import ecmascript.lexer2 as lexer2
 #
 ############################################################
 def test_Literal_init(context):
-    lit = ecmascript.ecmascript.P2_Literal(context, ["child"])
+    lit = ecmascript.ecmascript.P2_Literal(context, "StrictArg", ["child"])
 
     assert lit.name == "Literal"
     assert lit.context == context
     assert lit.children == ["child"]
+    assert lit.strict == "StrictArg"
 
 
 def test_Literal_NullLiteral_init(context):
-    lit = ecmascript.ecmascript.P2_Literal_NullLiteral(context, ["child"])
+    lit = ecmascript.ecmascript.P2_Literal_NullLiteral(context, "StrictArg", ["child"])
 
     assert lit.name == "Literal"
     assert lit.context == context
@@ -41,7 +42,7 @@ def test_Literal_NullLiteral_init(context):
 
 
 def test_Literal_BooleanLiteral_init(context):
-    lit = ecmascript.ecmascript.P2_Literal_BooleanLiteral(context, ["child"])
+    lit = ecmascript.ecmascript.P2_Literal_BooleanLiteral(context, "StrictArg", ["child"])
 
     assert lit.name == "Literal"
     assert lit.context == context
@@ -50,7 +51,7 @@ def test_Literal_BooleanLiteral_init(context):
 
 
 def test_Literal_NumericLiteral_init(context):
-    lit = ecmascript.ecmascript.P2_Literal_NumericLiteral(context, ["child"])
+    lit = ecmascript.ecmascript.P2_Literal_NumericLiteral(context, "StrictArg", ["child"])
 
     assert lit.name == "Literal"
     assert lit.context == context
@@ -59,7 +60,7 @@ def test_Literal_NumericLiteral_init(context):
 
 
 def test_Literal_StringLiteral_init(context):
-    lit = ecmascript.ecmascript.P2_Literal_StringLiteral(context, ["child"])
+    lit = ecmascript.ecmascript.P2_Literal_StringLiteral(context, "StrictArg", ["child"])
 
     assert lit.name == "Literal"
     assert lit.context == context
@@ -81,7 +82,7 @@ def test_Literal_StringLiteral_init(context):
 )
 def test_parse_Literal(context, token_stream, result_type):
     lexer = Lexer(token_stream)
-    lit = ecmascript.ecmascript.parse_Literal(context, lexer)
+    lit = ecmascript.ecmascript.parse_Literal(context, lexer, False)
 
     assert isinstance(lit, result_type)
     if lit is not None:
@@ -92,7 +93,7 @@ def test_parse_Literal(context, token_stream, result_type):
 
 
 def test_PrimaryExpression_init(context):
-    pe = ecmascript.ecmascript.P2_PrimaryExpression(context, ["child"])
+    pe = ecmascript.ecmascript.P2_PrimaryExpression(context, "StrictArg", ["child"])
 
     assert pe.name == "PrimaryExpression"
     assert pe.context == context
@@ -100,7 +101,7 @@ def test_PrimaryExpression_init(context):
 
 
 def test_PrimaryExpression_THIS_init(context):
-    pe = ecmascript.ecmascript.P2_PrimaryExpression_THIS(context, ["child"])
+    pe = ecmascript.ecmascript.P2_PrimaryExpression_THIS(context, "StrictArg", ["child"])
 
     assert pe.name == "PrimaryExpression"
     assert pe.context == context
@@ -108,7 +109,7 @@ def test_PrimaryExpression_THIS_init(context):
 
 
 def test_PrimaryExpression_IdentifierReference_init(context):
-    pe = ecmascript.ecmascript.P2_PrimaryExpression_IdentifierReference(context, ["child"])
+    pe = ecmascript.ecmascript.P2_PrimaryExpression_IdentifierReference(context, "StrictArg", ["child"])
 
     assert pe.name == "PrimaryExpression"
     assert pe.context == context
@@ -117,7 +118,7 @@ def test_PrimaryExpression_IdentifierReference_init(context):
 
 
 def test_PrimaryExpression_Literal_init(context):
-    pe = ecmascript.ecmascript.P2_PrimaryExpression_Literal(context, ["child"])
+    pe = ecmascript.ecmascript.P2_PrimaryExpression_Literal(context, "StrictArg", ["child"])
 
     assert pe.name == "PrimaryExpression"
     assert pe.context == context
@@ -126,7 +127,7 @@ def test_PrimaryExpression_Literal_init(context):
 
 
 def test_PrimaryExpression_ArrayLiteral_init(context):
-    pe = ecmascript.ecmascript.P2_PrimaryExpression_ArrayLiteral(context, ["child"])
+    pe = ecmascript.ecmascript.P2_PrimaryExpression_ArrayLiteral(context, "StrictArg", ["child"])
 
     assert pe.name == "PrimaryExpression"
     assert pe.context == context
@@ -135,7 +136,7 @@ def test_PrimaryExpression_ArrayLiteral_init(context):
 
 
 def test_PrimaryExpression_ObjectLiteral_init(context):
-    pe = ecmascript.ecmascript.P2_PrimaryExpression_ObjectLiteral(context, ["child"])
+    pe = ecmascript.ecmascript.P2_PrimaryExpression_ObjectLiteral(context, "StrictArg", ["child"])
 
     assert pe.name == "PrimaryExpression"
     assert pe.context == context
@@ -144,7 +145,7 @@ def test_PrimaryExpression_ObjectLiteral_init(context):
 
 
 def test_PrimaryExpression_FunctionExpression_init(context):
-    pe = ecmascript.ecmascript.P2_PrimaryExpression_FunctionExpression(context, ["child"])
+    pe = ecmascript.ecmascript.P2_PrimaryExpression_FunctionExpression(context, "StrictArg", ["child"])
 
     assert pe.name == "PrimaryExpression"
     assert pe.context == context
@@ -153,7 +154,7 @@ def test_PrimaryExpression_FunctionExpression_init(context):
 
 
 def test_PrimaryExpression_ClassExpression_init(context):
-    pe = ecmascript.ecmascript.P2_PrimaryExpression_ClassExpression(context, ["child"])
+    pe = ecmascript.ecmascript.P2_PrimaryExpression_ClassExpression(context, "StrictArg", ["child"])
 
     assert pe.name == "PrimaryExpression"
     assert pe.context == context
@@ -162,7 +163,7 @@ def test_PrimaryExpression_ClassExpression_init(context):
 
 
 def test_PrimaryExpression_GeneratorExpression_init(context):
-    pe = ecmascript.ecmascript.P2_PrimaryExpression_GeneratorExpression(context, ["child"])
+    pe = ecmascript.ecmascript.P2_PrimaryExpression_GeneratorExpression(context, "StrictArg", ["child"])
 
     assert pe.name == "PrimaryExpression"
     assert pe.context == context
@@ -171,7 +172,7 @@ def test_PrimaryExpression_GeneratorExpression_init(context):
 
 
 def test_PrimaryExpression_AsyncFunctionExpression_init(context):
-    pe = ecmascript.ecmascript.P2_PrimaryExpression_AsyncFunctionExpression(context, ["child"])
+    pe = ecmascript.ecmascript.P2_PrimaryExpression_AsyncFunctionExpression(context, "StrictArg", ["child"])
 
     assert pe.name == "PrimaryExpression"
     assert pe.context == context
@@ -180,7 +181,7 @@ def test_PrimaryExpression_AsyncFunctionExpression_init(context):
 
 
 def test_PrimaryExpression_AsyncGeneratorExpression_init(context):
-    pe = ecmascript.ecmascript.P2_PrimaryExpression_AsyncGeneratorExpression(context, ["child"])
+    pe = ecmascript.ecmascript.P2_PrimaryExpression_AsyncGeneratorExpression(context, "StrictArg", ["child"])
 
     assert pe.name == "PrimaryExpression"
     assert pe.context == context
@@ -189,7 +190,7 @@ def test_PrimaryExpression_AsyncGeneratorExpression_init(context):
 
 
 def test_PrimaryExpression_RegularExpressionLiteral_init(context):
-    pe = ecmascript.ecmascript.P2_PrimaryExpression_RegularExpressionLiteral(context, ["child"])
+    pe = ecmascript.ecmascript.P2_PrimaryExpression_RegularExpressionLiteral(context, "StrictArg", ["child"])
 
     assert pe.name == "PrimaryExpression"
     assert pe.context == context
@@ -198,7 +199,7 @@ def test_PrimaryExpression_RegularExpressionLiteral_init(context):
 
 
 def test_PrimaryExpression_TemplateLiteral_init(context):
-    pe = ecmascript.ecmascript.P2_PrimaryExpression_TemplateLiteral(context, ["child"])
+    pe = ecmascript.ecmascript.P2_PrimaryExpression_TemplateLiteral(context, "StrictArg", ["child"])
 
     assert pe.name == "PrimaryExpression"
     assert pe.context == context
@@ -208,7 +209,7 @@ def test_PrimaryExpression_TemplateLiteral_init(context):
 
 def test_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList_init(context):
     pe = ecmascript.ecmascript.P2_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(
-        context, ["child"]
+        context, "StrictArg", ["child"]
     )
 
     assert pe.name == "PrimaryExpression"
@@ -235,7 +236,7 @@ def trees_compare(pn, expected):
 )
 def test_parse_PrimaryExpression_01(context, token_stream, expected):
     lexer = Lexer(token_stream)
-    pe = ecmascript.ecmascript.parse_PrimaryExpression(context, lexer, False, True)
+    pe = ecmascript.ecmascript.parse_PrimaryExpression(context, lexer, False, False, True)
 
     if expected is None:
         assert pe is None
@@ -276,15 +277,15 @@ def test_parse_PrimaryExpression_02(mocker, context, name, ya, tagged, expected_
 
     mocked = mocker.patch(f"ecmascript.ecmascript.parse_{name}", side_effect=side_effect)
     lexer = Lexer([MATCHES_NONE])
-    pe = ecmascript.ecmascript.parse_PrimaryExpression(context, lexer, "YieldArg", "AwaitArg")
+    pe = ecmascript.ecmascript.parse_PrimaryExpression(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
 
     assert isinstance(pe, expected_class)
     if ya and not tagged:
-        mocked.assert_called_with(context, lexer, "YieldArg", "AwaitArg")
+        mocked.assert_called_with(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     elif ya and tagged:
-        mocked.assert_called_with(context, lexer, "YieldArg", "AwaitArg", False)
+        mocked.assert_called_with(context, lexer, "StrictArg", "YieldArg", "AwaitArg", False)
     else:
-        mocked.assert_called_with(context, lexer)
+        mocked.assert_called_with(context, lexer, "StrictArg")
     assert getattr(pe, name) == name
     assert lexer.pos == tokens_consumed
 
@@ -330,7 +331,9 @@ def PrimaryExpression_mocks(mocker):
 def test_PrimaryExpression_CoveredParenthesizedExpression_01(context, mocker):
     # This one is _so_ much easier with a real lexer.
     lexer = lexer2.Lexer("(a)", SyntaxError)
-    cpeaap = ecmascript.ecmascript.parse_CoverParenthesizedExpressionAndArrowParameterList(context, lexer, False, False)
+    cpeaap = ecmascript.ecmascript.parse_CoverParenthesizedExpressionAndArrowParameterList(
+        context, lexer, False, False, False
+    )
 
     rv = cpeaap.CoveredParenthesizedExpression
     assert rv and isinstance(rv, parse2.P2_ParenthesizedExpression_LPAREN_Expression_RPAREN)
@@ -359,7 +362,7 @@ def test_PrimaryExpression_HasName_01(context, mocker, fundef, hasname, expected
     cpeaapl = mocker.Mock()
     cpeaapl.CoveredParenthesizedExpression = expr
     mocker.patch("ecmascript.ecmascript.parse_CoverParenthesizedExpressionAndArrowParameterList", return_value=cpeaapl)
-    pe = ecmascript.ecmascript.parse_PrimaryExpression(context, lexer, False, False)
+    pe = ecmascript.ecmascript.parse_PrimaryExpression(context, lexer, False, False, False)
 
     rv = pe.HasName()
     assert rv == expected
@@ -389,7 +392,7 @@ def test_PrimaryExpression_HasName_01(context, mocker, fundef, hasname, expected
 def test_PrimaryExpression_IsFunctionDefinition_01(context, mocker, token_stream):
     lexer = Lexer(token_stream)
     PrimaryExpression_mocks(mocker)
-    pe = ecmascript.ecmascript.parse_PrimaryExpression(context, lexer, False, False)
+    pe = ecmascript.ecmascript.parse_PrimaryExpression(context, lexer, "StrictArg", False, False)
     assert not pe.IsFunctionDefinition()
 
 
@@ -405,7 +408,7 @@ def test_PrimaryExpression_IsFunctionDefinition_02(context, mocker):
     cpeaapl = mocker.Mock()
     cpeaapl.CoveredParenthesizedExpression = expr
     mocker.patch("ecmascript.ecmascript.parse_CoverParenthesizedExpressionAndArrowParameterList", return_value=cpeaapl)
-    pe = ecmascript.ecmascript.parse_PrimaryExpression(context, lexer, False, False)
+    pe = ecmascript.ecmascript.parse_PrimaryExpression(context, lexer, "StrictArg", False, False)
 
     rv = pe.IsFunctionDefinition()
 
@@ -454,7 +457,7 @@ def test_PrimaryExpression_IsFunctionDefinition_02(context, mocker):
 def test_PrimaryExpression_IsIdentifierRef_01(context, mocker, token, expected):
     lexer = Lexer([token])
     PrimaryExpression_mocks(mocker)
-    pe = ecmascript.ecmascript.parse_PrimaryExpression(context, lexer, False, False)
+    pe = ecmascript.ecmascript.parse_PrimaryExpression(context, lexer, "StrictArg", False, False)
     assert pe.IsIdentifierRef() == expected
 
 
@@ -490,7 +493,7 @@ def test_PrimaryExpression_IsIdentifierRef_01(context, mocker, token, expected):
 def test_PrimaryExpression_AssignmentTargetType_01(context, mocker, token):
     lexer = Lexer([token])
     PrimaryExpression_mocks(mocker)
-    pe = ecmascript.ecmascript.parse_PrimaryExpression(context, lexer, False, False)
+    pe = ecmascript.ecmascript.parse_PrimaryExpression(context, lexer, "StrictArg", False, False)
     assert pe.AssignmentTargetType == parse2.INVALID
 
 
@@ -506,7 +509,7 @@ def test_PrimaryExpression_AssignmentTargetType_CPEAAPL(context, mocker):
     cpeaapl = mocker.Mock()
     cpeaapl.CoveredParenthesizedExpression = expr
     mocker.patch("ecmascript.ecmascript.parse_CoverParenthesizedExpressionAndArrowParameterList", return_value=cpeaapl)
-    pe = ecmascript.ecmascript.parse_PrimaryExpression(context, lexer, False, False)
+    pe = ecmascript.ecmascript.parse_PrimaryExpression(context, lexer, "StrictArg", False, False)
 
     rv = pe.AssignmentTargetType
     assert rv == "ATT"
@@ -518,7 +521,7 @@ def test_PrimaryExpression_AssignmentTargetType_CPEAAPL(context, mocker):
 def test_PrimaryExpression_Evaluation_THIS(context, mocker):
     rtb = mocker.patch("ecmascript.ecmascript.ResolveThisBinding", return_value="RTB")
     lexer = lexer2.Lexer("this", SyntaxError)
-    pe = ecmascript.ecmascript.parse_PrimaryExpression(context, lexer, False, False)
+    pe = ecmascript.ecmascript.parse_PrimaryExpression(context, lexer, "StrictArg", False, False)
 
     rv = pe.evaluate()
     assert rv == "RTB"
@@ -547,7 +550,7 @@ def test_PrimaryExpression_Evaluation_THIS(context, mocker):
 )
 def test_PrimaryExpression_Evaluation_Literal(context, mocker, src, expected):
     lexer = lexer2.Lexer(src, SyntaxError)
-    pe = ecmascript.ecmascript.parse_PrimaryExpression(context, lexer, False, False)
+    pe = ecmascript.ecmascript.parse_PrimaryExpression(context, lexer, "StrictArg", False, False)
 
     rv = pe.evaluate()
     assert rv == expected
@@ -570,7 +573,7 @@ def test_PrimaryExpression_Evaluation_Literal(context, mocker, src, expected):
 #########################################################################################################################################################################################################################################################################################################################################################################################################################################################
 def test_P2_CoverParenthesizedExpressionAndArrowParameterList_init(context):
     cpeaapl = ecmascript.ecmascript.P2_CoverParenthesizedExpressionAndArrowParameterList(
-        context, ["child"], "YieldArg", "AwaitArg"
+        context, "StrictArg", ["child"], "YieldArg", "AwaitArg"
     )
     assert cpeaapl.name == "CoverParenthesizedExpressionAndArrowParameterList"
     assert cpeaapl.context == context
@@ -581,7 +584,7 @@ def test_P2_CoverParenthesizedExpressionAndArrowParameterList_init(context):
 
 def test_P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_RPAREN_init(context):
     cpeaapl = ecmascript.ecmascript.P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_RPAREN(
-        context, ["(", "Expression", ")"], "Y", "A"
+        context, "StrictArg", ["(", "Expression", ")"], "Y", "A"
     )
     assert cpeaapl.name == "CoverParenthesizedExpressionAndArrowParameterList"
     assert cpeaapl.Expression == "Expression"
@@ -589,7 +592,7 @@ def test_P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_
 
 def test_P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_COMMA_RPAREN_init(context):
     cpeaapl = ecmascript.ecmascript.P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_COMMA_RPAREN(
-        context, ["(", "Expression", ")", ","], "Y", "A"
+        context, "StrictArg", ["(", "Expression", ")", ","], "Y", "A"
     )
     assert cpeaapl.name == "CoverParenthesizedExpressionAndArrowParameterList"
     assert cpeaapl.Expression == "Expression"
@@ -597,14 +600,14 @@ def test_P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_
 
 def test_P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_RPAREN_init(context):
     cpeaapl = ecmascript.ecmascript.P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_RPAREN(
-        context, ["(", ")"], "Y", "A"
+        context, "StrictArg", ["(", ")"], "Y", "A"
     )
     assert cpeaapl.name == "CoverParenthesizedExpressionAndArrowParameterList"
 
 
 def test_P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_DOTDOTDOT_BindingIdentifier_RPAREN_init(context):
     cpeaapl = ecmascript.ecmascript.P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_DOTDOTDOT_BindingIdentifier_RPAREN(
-        context, ["(", "...", "BindingIdentifier", ")"], "Y", "A"
+        context, "StrictArg", ["(", "...", "BindingIdentifier", ")"], "Y", "A"
     )
     assert cpeaapl.name == "CoverParenthesizedExpressionAndArrowParameterList"
     assert cpeaapl.BindingIdentifier == "BindingIdentifier"
@@ -612,7 +615,7 @@ def test_P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_DOTDOTDOT_B
 
 def test_P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_DOTDOTDOT_BindingPattern_RPAREN_init(context):
     cpeaapl = ecmascript.ecmascript.P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_DOTDOTDOT_BindingPattern_RPAREN(
-        context, ["(", "...", "BindingPattern", ")"], "Y", "A"
+        context, "StrictArg", ["(", "...", "BindingPattern", ")"], "Y", "A"
     )
     assert cpeaapl.name == "CoverParenthesizedExpressionAndArrowParameterList"
     assert cpeaapl.BindingPattern == "BindingPattern"
@@ -622,7 +625,7 @@ def test_P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_
     context,
 ):
     cpeaapl = ecmascript.ecmascript.P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_COMMA_DOTDOTDOT_BindingIdentifier_RPAREN(
-        context, ["(", "Expression", ",", "...", "BindingIdentifier", ")"], "Y", "A"
+        context, "StrictArg", ["(", "Expression", ",", "...", "BindingIdentifier", ")"], "Y", "A"
     )
     assert cpeaapl.name == "CoverParenthesizedExpressionAndArrowParameterList"
     assert cpeaapl.Expression == "Expression"
@@ -633,7 +636,7 @@ def test_P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_
     context,
 ):
     cpeaapl = ecmascript.ecmascript.P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_COMMA_DOTDOTDOT_BindingPattern_RPAREN(
-        context, ["(", "Expression", ",", "...", "BindingPattern", ")"], "Y", "A"
+        context, "StrictArg", ["(", "Expression", ",", "...", "BindingPattern", ")"], "Y", "A"
     )
     assert cpeaapl.name == "CoverParenthesizedExpressionAndArrowParameterList"
     assert cpeaapl.Expression == "Expression"
@@ -668,12 +671,12 @@ def test_parse_CoverParenthesizedExpressionAndArrowParameterList_01(mocker, cont
     mocks = CoverParenthesizedExpressionAndArrowParameterList_mocks(mocker)
 
     cpeaapl = ecmascript.ecmascript.parse_CoverParenthesizedExpressionAndArrowParameterList(
-        context, lexer, "YieldArg", "AwaitArg"
+        context, lexer, "StrictArg", "YieldArg", "AwaitArg"
     )
     assert isinstance(cpeaapl, expected_class)
     assert cpeaapl.Expression == "Expression"
     assert lexer.pos == len(token_stream)
-    mocks["exp"].assert_called_with(context, lexer, True, "YieldArg", "AwaitArg")
+    mocks["exp"].assert_called_with(context, lexer, "StrictArg", True, "YieldArg", "AwaitArg")
 
 
 def test_parse_CoverParenthesizedExpressionAndArrowParameterList_02(mocker, context):
@@ -682,7 +685,7 @@ def test_parse_CoverParenthesizedExpressionAndArrowParameterList_02(mocker, cont
     CoverParenthesizedExpressionAndArrowParameterList_mocks(mocker)
 
     cpeaapl = ecmascript.ecmascript.parse_CoverParenthesizedExpressionAndArrowParameterList(
-        context, lexer, "YieldArg", "AwaitArg"
+        context, lexer, "StrictArg", "YieldArg", "AwaitArg"
     )
     assert isinstance(cpeaapl, ecmascript.ecmascript.P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_RPAREN)
     assert lexer.pos == 2
@@ -694,7 +697,7 @@ def test_parse_CoverParenthesizedExpressionAndArrowParameterList_03(mocker, cont
     mocks = CoverParenthesizedExpressionAndArrowParameterList_mocks(mocker)
 
     cpeaapl = ecmascript.ecmascript.parse_CoverParenthesizedExpressionAndArrowParameterList(
-        context, lexer, "YieldArg", "AwaitArg"
+        context, lexer, "StrictArg", "YieldArg", "AwaitArg"
     )
     assert isinstance(
         cpeaapl,
@@ -702,7 +705,7 @@ def test_parse_CoverParenthesizedExpressionAndArrowParameterList_03(mocker, cont
     )
     assert lexer.pos == 4
     assert cpeaapl.BindingIdentifier == "BindingIdentifier"
-    mocks["bi"].assert_called_with(context, lexer, "YieldArg", "AwaitArg")
+    mocks["bi"].assert_called_with(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
 
 
 def test_parse_CoverParenthesizedExpressionAndArrowParameterList_04(mocker, context):
@@ -711,7 +714,7 @@ def test_parse_CoverParenthesizedExpressionAndArrowParameterList_04(mocker, cont
     mocks = CoverParenthesizedExpressionAndArrowParameterList_mocks(mocker)
 
     cpeaapl = ecmascript.ecmascript.parse_CoverParenthesizedExpressionAndArrowParameterList(
-        context, lexer, "YieldArg", "AwaitArg"
+        context, lexer, "StrictArg", "YieldArg", "AwaitArg"
     )
     assert isinstance(
         cpeaapl,
@@ -719,7 +722,7 @@ def test_parse_CoverParenthesizedExpressionAndArrowParameterList_04(mocker, cont
     )
     assert lexer.pos == 4
     assert cpeaapl.BindingPattern == "BindingPattern"
-    mocks["bp"].assert_called_with(context, lexer, "YieldArg", "AwaitArg")
+    mocks["bp"].assert_called_with(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
 
 
 def test_parse_CoverParenthesizedExpressionAndArrowParameterList_05(mocker, context):
@@ -728,7 +731,7 @@ def test_parse_CoverParenthesizedExpressionAndArrowParameterList_05(mocker, cont
     mocks = CoverParenthesizedExpressionAndArrowParameterList_mocks(mocker)
 
     cpeaapl = ecmascript.ecmascript.parse_CoverParenthesizedExpressionAndArrowParameterList(
-        context, lexer, "YieldArg", "AwaitArg"
+        context, lexer, "StrictArg", "YieldArg", "AwaitArg"
     )
     assert isinstance(
         cpeaapl,
@@ -737,8 +740,8 @@ def test_parse_CoverParenthesizedExpressionAndArrowParameterList_05(mocker, cont
     assert cpeaapl.Expression == "Expression"
     assert cpeaapl.BindingIdentifier == "BindingIdentifier"
     assert lexer.pos == 6
-    mocks["exp"].assert_called_with(context, lexer, True, "YieldArg", "AwaitArg")
-    mocks["bi"].assert_called_with(context, lexer, "YieldArg", "AwaitArg")
+    mocks["exp"].assert_called_with(context, lexer, "StrictArg", True, "YieldArg", "AwaitArg")
+    mocks["bi"].assert_called_with(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
 
 
 def test_parse_CoverParenthesizedExpressionAndArrowParameterList_06(mocker, context):
@@ -747,7 +750,7 @@ def test_parse_CoverParenthesizedExpressionAndArrowParameterList_06(mocker, cont
     mocks = CoverParenthesizedExpressionAndArrowParameterList_mocks(mocker)
 
     cpeaapl = ecmascript.ecmascript.parse_CoverParenthesizedExpressionAndArrowParameterList(
-        context, lexer, "YieldArg", "AwaitArg"
+        context, lexer, "StrictArg", "YieldArg", "AwaitArg"
     )
     assert isinstance(
         cpeaapl,
@@ -756,8 +759,8 @@ def test_parse_CoverParenthesizedExpressionAndArrowParameterList_06(mocker, cont
     assert cpeaapl.Expression == "Expression"
     assert cpeaapl.BindingPattern == "BindingPattern"
     assert lexer.pos == 6
-    mocks["exp"].assert_called_with(context, lexer, True, "YieldArg", "AwaitArg")
-    mocks["bp"].assert_called_with(context, lexer, "YieldArg", "AwaitArg")
+    mocks["exp"].assert_called_with(context, lexer, "StrictArg", True, "YieldArg", "AwaitArg")
+    mocks["bp"].assert_called_with(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
 
 
 @pytest.mark.parametrize(
@@ -782,7 +785,7 @@ def test_parse_CoverParenthesizedExpressionAndArrowParameterList_07(mocker, cont
     CoverParenthesizedExpressionAndArrowParameterList_mocks(mocker)
 
     cpeaapl = ecmascript.ecmascript.parse_CoverParenthesizedExpressionAndArrowParameterList(
-        context, lexer, "YieldArg", "AwaitArg"
+        context, lexer, "StrictArg", "YieldArg", "AwaitArg"
     )
     assert cpeaapl is None
     assert lexer.pos == 0
@@ -804,14 +807,16 @@ def test_parse_CoverParenthesizedExpressionAndArrowParameterList_07(mocker, cont
 #
 ###########################################################################################################################################################################################################
 def test_P2_ParenthesizedExpression_init(context):
-    pe = ecmascript.ecmascript.P2_ParenthesizedExpression(context, ["child"])
+    pe = ecmascript.ecmascript.P2_ParenthesizedExpression(context, "StrictArg", ["child"])
     assert pe.name == "ParenthesizedExpression"
     assert pe.context == context
     assert pe.children == ["child"]
 
 
 def test_P2_ParenthesizedExpression_LPAREN_Expression_RPAREN_init(context):
-    pe = ecmascript.ecmascript.P2_ParenthesizedExpression_LPAREN_Expression_RPAREN(context, ["(", "Expression", ")"])
+    pe = ecmascript.ecmascript.P2_ParenthesizedExpression_LPAREN_Expression_RPAREN(
+        context, "StrictArg", ["(", "Expression", ")"]
+    )
     assert pe.name == "ParenthesizedExpression"
     assert pe.Expression == "Expression"
 
@@ -825,11 +830,11 @@ def test_parse_ParenthesizedExpression_01(mocker, context):
     lexer = Lexer([LPAREN, EXPRESSION, RPAREN])
     mocks = ParenthesizedExpression_mocks(mocker)
 
-    pe = ecmascript.ecmascript.parse_ParenthesizedExpression(context, lexer, "YieldArg", "AwaitArg")
+    pe = ecmascript.ecmascript.parse_ParenthesizedExpression(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert isinstance(pe, ecmascript.ecmascript.P2_ParenthesizedExpression_LPAREN_Expression_RPAREN)
     assert pe.Expression == "Expression"
     assert lexer.pos == 3
-    mocks["exp"].assert_called_with(context, lexer, True, "YieldArg", "AwaitArg")
+    mocks["exp"].assert_called_with(context, lexer, "StrictArg", True, "YieldArg", "AwaitArg")
 
 
 @pytest.mark.parametrize(
@@ -845,7 +850,7 @@ def test_parse_ParenthesizedExpression_02(mocker, context, token_stream, error):
     lexer = Lexer(token_stream)
     ParenthesizedExpression_mocks(mocker)
 
-    pe = ecmascript.ecmascript.parse_ParenthesizedExpression(context, lexer, "YieldArg", "AwaitArg")
+    pe = ecmascript.ecmascript.parse_ParenthesizedExpression(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert pe is None
     assert lexer.pos == 0
 
@@ -865,20 +870,20 @@ def test_parse_ParenthesizedExpression_02(mocker, context, token_stream, error):
 #
 #####################################################################
 def test_Elision_init(context):
-    elision = ecmascript.ecmascript.P2_Elision(context, ["child"])
+    elision = ecmascript.ecmascript.P2_Elision(context, "StrictArg", ["child"])
     assert elision.name == "Elision"
     assert elision.context == context
     assert elision.children == ["child"]
 
 
 def test_Elision_COMMA_init(context):
-    elision = ecmascript.ecmascript.P2_Elision_COMMA(context, [","])
+    elision = ecmascript.ecmascript.P2_Elision_COMMA(context, "StrictArg", [","])
     assert elision.name == "Elision"
     assert elision.children == [","]
 
 
 def test_Elision_Elision_COMMA_init(context):
-    elision = ecmascript.ecmascript.P2_Elision_Elision_COMMA(context, ["child_a", "child_b"])
+    elision = ecmascript.ecmascript.P2_Elision_Elision_COMMA(context, "StrictArg", ["child_a", "child_b"])
     assert elision.name == "Elision"
     assert elision.children == ["child_a", "child_b"]
     assert elision.Elision == "child_a"
@@ -907,7 +912,7 @@ def test_Elision_Elision_COMMA_init(context):
 )
 def test_parse_Elision(context, token_stream, expected):
     lexer = Lexer(token_stream)
-    elision = ecmascript.ecmascript.parse_Elision(context, lexer)
+    elision = ecmascript.ecmascript.parse_Elision(context, lexer, "StrictArg")
 
     if expected is None:
         assert elision is None
@@ -920,7 +925,7 @@ def test_parse_Elision(context, token_stream, expected):
 @pytest.mark.parametrize("src, expected", [(",", 1), (",,,,", 4)])
 def test_Elision_ElisionWidth(context, mocker, src, expected):
     lexer = lexer2.Lexer(src, SyntaxError)
-    elision = ecmascript.ecmascript.parse_Elision(context, lexer)
+    elision = ecmascript.ecmascript.parse_Elision(context, lexer, "StrictArg")
 
     rv = elision.ElisionWidth()
     assert rv == expected
@@ -942,27 +947,29 @@ def test_Elision_ElisionWidth(context, mocker, src, expected):
 #
 ###################################################################################################
 def test_ArrayLiteral_init(context):
-    al = ecmascript.ecmascript.P2_ArrayLiteral(context, ["child"])
+    al = ecmascript.ecmascript.P2_ArrayLiteral(context, "StrictArg", ["child"])
     assert al.name == "ArrayLiteral"
     assert al.context == context
     assert al.children == ["child"]
 
 
 def test_ArrayLiteral_LBRACKET_RBRACKET_init(context):
-    al = ecmascript.ecmascript.P2_ArrayLiteral_LBRACKET_RBRACKET(context, ["[", "]"])
+    al = ecmascript.ecmascript.P2_ArrayLiteral_LBRACKET_RBRACKET(context, "StrictArg", ["[", "]"])
     assert al.name == "ArrayLiteral"
     assert al.children == ["[", "]"]
 
 
 def test_ArrayLiteral_LBRACKET_Elision_RBRACKET_init(context):
-    al = ecmascript.ecmascript.P2_ArrayLiteral_LBRACKET_Elision_RBRACKET(context, ["lbracket", "elision", "rbracket"])
+    al = ecmascript.ecmascript.P2_ArrayLiteral_LBRACKET_Elision_RBRACKET(
+        context, "StrictArg", ["lbracket", "elision", "rbracket"]
+    )
     assert al.name == "ArrayLiteral"
     assert al.Elision == "elision"
 
 
 def test_ArrayLiteral_LBRACKET_ElementList_RBRACKET_init(context):
     al = ecmascript.ecmascript.P2_ArrayLiteral_LBRACKET_ElementList_RBRACKET(
-        context, ["lbracket", "elementlist", "rbracket"]
+        context, "StrictArg", ["lbracket", "elementlist", "rbracket"]
     )
     assert al.name == "ArrayLiteral"
     assert al.ElementList == "elementlist"
@@ -970,7 +977,7 @@ def test_ArrayLiteral_LBRACKET_ElementList_RBRACKET_init(context):
 
 def test_ArrayLiteral_LBRACKET_ElementList_COMMA_RBRACKET_init(context):
     al = ecmascript.ecmascript.P2_ArrayLiteral_LBRACKET_ElementList_COMMA_RBRACKET(
-        context, ["lbra", "elementlist", "comma", "rbra"]
+        context, "StrictArg", ["lbra", "elementlist", "comma", "rbra"]
     )
     assert al.name == "ArrayLiteral"
     assert al.ElementList == "elementlist"
@@ -978,7 +985,7 @@ def test_ArrayLiteral_LBRACKET_ElementList_COMMA_RBRACKET_init(context):
 
 def test_ArrayLiteral_elementlist_elision_init(context):
     al = ecmascript.ecmascript.P2_ArrayLiteral_LBRACKET_ElementList_COMMA_Elision_RBRACKET(
-        context, ["lbra", "elementlist", "comma", "elision", "rbra"]
+        context, "StrictArg", ["lbra", "elementlist", "comma", "elision", "rbra"]
     )
     assert al.name == "ArrayLiteral"
     assert al.ElementList == "elementlist"
@@ -997,7 +1004,7 @@ def test_parse_ArrayLiteral_01(mocker, context):
     lexer = Lexer([LBRACKET, RBRACKET])
     ArrayLiteral_mocks(mocker)
 
-    al = ecmascript.ecmascript.parse_ArrayLiteral(context, lexer, "YieldArg", "AwaitArg")
+    al = ecmascript.ecmascript.parse_ArrayLiteral(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert isinstance(al, ecmascript.ecmascript.P2_ArrayLiteral_LBRACKET_RBRACKET)
     assert lexer.pos == 2
 
@@ -1007,11 +1014,11 @@ def test_parse_ArrayLiteral_02(mocker, context):
     lexer = Lexer([LBRACKET, ELISION_REPLACEMENT, RBRACKET])
     mocks = ArrayLiteral_mocks(mocker)
 
-    al = ecmascript.ecmascript.parse_ArrayLiteral(context, lexer, "YieldArg", "AwaitArg")
+    al = ecmascript.ecmascript.parse_ArrayLiteral(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert isinstance(al, ecmascript.ecmascript.P2_ArrayLiteral_LBRACKET_Elision_RBRACKET)
     assert al.Elision == "Elision"
     assert lexer.pos == 3
-    mocks["elision"].assert_called_with(context, lexer)
+    mocks["elision"].assert_called_with(context, lexer, "StrictArg")
 
 
 @pytest.mark.parametrize(
@@ -1030,11 +1037,11 @@ def test_parse_ArrayLiteral_03(mocker, context, token_stream, expected_class):
     lexer = Lexer(token_stream)
     mocks = ArrayLiteral_mocks(mocker)
 
-    al = ecmascript.ecmascript.parse_ArrayLiteral(context, lexer, "YieldArg", "AwaitArg")
+    al = ecmascript.ecmascript.parse_ArrayLiteral(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert isinstance(al, expected_class)
     assert al.ElementList == "ElementList"
     assert lexer.pos == len(token_stream)
-    mocks["el"].assert_called_with(context, lexer, "YieldArg", "AwaitArg")
+    mocks["el"].assert_called_with(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
 
 
 def test_parse_ArrayLiteral_04(mocker, context):
@@ -1042,13 +1049,13 @@ def test_parse_ArrayLiteral_04(mocker, context):
     lexer = Lexer([LBRACKET, EL_REPLACEMENT, COMMA, ELISION_REPLACEMENT, RBRACKET])
     mocks = ArrayLiteral_mocks(mocker)
 
-    al = ecmascript.ecmascript.parse_ArrayLiteral(context, lexer, "YieldArg", "AwaitArg")
+    al = ecmascript.ecmascript.parse_ArrayLiteral(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert isinstance(al, ecmascript.ecmascript.P2_ArrayLiteral_LBRACKET_ElementList_COMMA_Elision_RBRACKET)
     assert al.ElementList == "ElementList"
     assert al.Elision == "Elision"
     assert lexer.pos == 5
-    mocks["el"].assert_called_with(context, lexer, "YieldArg", "AwaitArg")
-    mocks["elision"].assert_called_with(context, lexer)
+    mocks["el"].assert_called_with(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
+    mocks["elision"].assert_called_with(context, lexer, "StrictArg")
 
 
 @pytest.mark.parametrize(
@@ -1067,7 +1074,7 @@ def test_parse_ArrayLiteral_05(mocker, context, token_stream):
     lexer = Lexer(token_stream)
     ArrayLiteral_mocks(mocker)
 
-    al = ecmascript.ecmascript.parse_ArrayLiteral(context, lexer, "YieldArg", "AwaitArg")
+    al = ecmascript.ecmascript.parse_ArrayLiteral(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert al is None
     assert lexer.pos == 0
 
@@ -1082,7 +1089,7 @@ def test_parse_ArrayLiteral_05(mocker, context, token_stream):
 @pytest.mark.parametrize("src, pad", [("[]", 0), ("[,,,]", 3)])
 def test_ArrayLiteral_Elision_evaluate(context, mocker, src, pad):
     lexer = lexer2.Lexer(src, SyntaxError)
-    al = ecmascript.ecmascript.parse_ArrayLiteral(context, lexer, False, False)
+    al = ecmascript.ecmascript.parse_ArrayLiteral(context, lexer, "StrictArg", False, False)
     ac = mocker.patch("ecmascript.ecmascript.ArrayCreate", return_value="array")
     st = mocker.patch("ecmascript.ecmascript.Set", return_value=None)
 
@@ -1102,7 +1109,7 @@ def test_ArrayLiteral_Elision_evaluate(context, mocker, src, pad):
 #   6. Return array.
 def test_ArrayLiteral_ElementList_evaluate(context, mocker):
     lexer = lexer2.Lexer("[5]", SyntaxError)
-    al = ecmascript.ecmascript.parse_ArrayLiteral(context, lexer, False, False)
+    al = ecmascript.ecmascript.parse_ArrayLiteral(context, lexer, "StrictArg", False, False)
     ac = mocker.patch("ecmascript.ecmascript.ArrayCreate", return_value="array")
     al.ElementList.ArrayAccumulation = mocker.Mock(return_value=100)
     st = mocker.patch("ecmascript.ecmascript.Set", return_value=None)
@@ -1126,7 +1133,7 @@ def test_ArrayLiteral_ElementList_evaluate(context, mocker):
 @pytest.mark.parametrize("src, padding", [("[6,]", 0), ("[7,,,]", 2)])
 def test_ArrayLiteral_ElementList_Elision_evaluate(context, mocker, src, padding):
     lexer = lexer2.Lexer(src, SyntaxError)
-    al = ecmascript.ecmascript.parse_ArrayLiteral(context, lexer, False, False)
+    al = ecmascript.ecmascript.parse_ArrayLiteral(context, lexer, "StrictArg", False, False)
     ac = mocker.patch("ecmascript.ecmascript.ArrayCreate", return_value="array")
     al.ElementList.ArrayAccumulation = mocker.Mock(return_value=1)
     st = mocker.patch("ecmascript.ecmascript.Set", return_value=None)
@@ -1154,33 +1161,35 @@ def test_ArrayLiteral_ElementList_Elision_evaluate(context, mocker, src, padding
 #
 ##################################################################################################
 def test_P2_ElementList_init(context):
-    el = ecmascript.ecmascript.P2_ElementList(context, ["child"])
+    el = ecmascript.ecmascript.P2_ElementList(context, "StrictArg", ["child"])
     assert el.name == "ElementList"
     assert el.context == context
     assert el.children == ["child"]
 
 
 def test_P2_ElementList_AssignmentExpression_init(context):
-    el = ecmascript.ecmascript.P2_ElementList_AssignmentExpression(context, ["AssignmentExpression"])
+    el = ecmascript.ecmascript.P2_ElementList_AssignmentExpression(context, "StrictArg", ["AssignmentExpression"])
     assert el.name == "ElementList"
     assert el.AssignmentExpression == "AssignmentExpression"
 
 
 def test_P2_ElementList_Elision_AssignmentExpression_init(context):
-    el = ecmascript.ecmascript.P2_ElementList_Elision_AssignmentExpression(context, ["Elision", "AssignmentExpression"])
+    el = ecmascript.ecmascript.P2_ElementList_Elision_AssignmentExpression(
+        context, "StrictArg", ["Elision", "AssignmentExpression"]
+    )
     assert el.name == "ElementList"
     assert el.Elision == "Elision"
     assert el.AssignmentExpression == "AssignmentExpression"
 
 
 def test_P2_ElementList_SpreadElement_init(context):
-    el = ecmascript.ecmascript.P2_ElementList_SpreadElement(context, ["SpreadElement"])
+    el = ecmascript.ecmascript.P2_ElementList_SpreadElement(context, "StrictArg", ["SpreadElement"])
     assert el.name == "ElementList"
     assert el.SpreadElement == "SpreadElement"
 
 
 def test_P2_ElementList_Elision_SpreadElement_init(context):
-    el = ecmascript.ecmascript.P2_ElementList_Elision_SpreadElement(context, ["Elision", "SpreadElement"])
+    el = ecmascript.ecmascript.P2_ElementList_Elision_SpreadElement(context, "StrictArg", ["Elision", "SpreadElement"])
     assert el.name == "ElementList"
     assert el.Elision == "Elision"
     assert el.SpreadElement == "SpreadElement"
@@ -1188,7 +1197,7 @@ def test_P2_ElementList_Elision_SpreadElement_init(context):
 
 def test_P2_ElementList_ElementList_COMMA_AssignmentExpression_init(context):
     el = ecmascript.ecmascript.P2_ElementList_ElementList_COMMA_AssignmentExpression(
-        context, ["ElementList", ",", "AssignmentExpression"]
+        context, "StrictArg", ["ElementList", ",", "AssignmentExpression"]
     )
     assert el.name == "ElementList"
     assert el.ElementList == "ElementList"
@@ -1197,7 +1206,7 @@ def test_P2_ElementList_ElementList_COMMA_AssignmentExpression_init(context):
 
 def test_P2_ElementList_ElementList_COMMA_Elision_AssignmentExpression_init(context):
     el = ecmascript.ecmascript.P2_ElementList_ElementList_COMMA_Elision_AssignmentExpression(
-        context, ["ElementList", ",", "Elision", "AssignmentExpression"]
+        context, "StrictArg", ["ElementList", ",", "Elision", "AssignmentExpression"]
     )
     assert el.name == "ElementList"
     assert el.ElementList == "ElementList"
@@ -1207,7 +1216,7 @@ def test_P2_ElementList_ElementList_COMMA_Elision_AssignmentExpression_init(cont
 
 def test_P2_ElementList_ElementList_COMMA_SpreadElement_init(context):
     el = ecmascript.ecmascript.P2_ElementList_ElementList_COMMA_SpreadElement(
-        context, ["ElementList", ",", "SpreadElement"]
+        context, "StrictArg", ["ElementList", ",", "SpreadElement"]
     )
     assert el.name == "ElementList"
     assert el.ElementList == "ElementList"
@@ -1216,7 +1225,7 @@ def test_P2_ElementList_ElementList_COMMA_SpreadElement_init(context):
 
 def test_P2_ElementList_ElementList_COMMA_Elision_SpreadElement_init(context):
     el = ecmascript.ecmascript.P2_ElementList_ElementList_COMMA_Elision_SpreadElement(
-        context, ["ElementList", ",", "Elision", "SpreadElement"]
+        context, "StrictArg", ["ElementList", ",", "Elision", "SpreadElement"]
     )
     assert el.name == "ElementList"
     assert el.ElementList == "ElementList"
@@ -1237,11 +1246,11 @@ def test_parse_ElementList_01(mocker, context):
     lexer = Lexer([AE_REPLACEMENT])
     mocks = ElementList_mocks(mocker)
 
-    el = ecmascript.ecmascript.parse_ElementList(context, lexer, "YieldArg", "AwaitArg")
+    el = ecmascript.ecmascript.parse_ElementList(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert isinstance(el, ecmascript.ecmascript.P2_ElementList_AssignmentExpression)
     assert el.AssignmentExpression == "AssignmentExpression"
     assert lexer.pos == 1
-    mocks["ae"].assert_called_with(context, lexer, True, "YieldArg", "AwaitArg")
+    mocks["ae"].assert_called_with(context, lexer, "StrictArg", True, "YieldArg", "AwaitArg")
 
 
 def test_parse_ElementList_02(mocker, context):
@@ -1249,13 +1258,13 @@ def test_parse_ElementList_02(mocker, context):
     lexer = Lexer([ELISION_REPLACEMENT, AE_REPLACEMENT])
     mocks = ElementList_mocks(mocker)
 
-    el = ecmascript.ecmascript.parse_ElementList(context, lexer, "YieldArg", "AwaitArg")
+    el = ecmascript.ecmascript.parse_ElementList(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert isinstance(el, ecmascript.ecmascript.P2_ElementList_Elision_AssignmentExpression)
     assert el.Elision == "Elision"
     assert el.AssignmentExpression == "AssignmentExpression"
     assert lexer.pos == 2
-    mocks["ae"].assert_called_with(context, lexer, True, "YieldArg", "AwaitArg")
-    mocks["elision"].assert_called_with(context, lexer)
+    mocks["ae"].assert_called_with(context, lexer, "StrictArg", True, "YieldArg", "AwaitArg")
+    mocks["elision"].assert_called_with(context, lexer, "StrictArg")
 
 
 def test_parse_ElementList_03(mocker, context):
@@ -1263,11 +1272,11 @@ def test_parse_ElementList_03(mocker, context):
     lexer = Lexer([SE_REPLACEMENT])
     mocks = ElementList_mocks(mocker)
 
-    el = ecmascript.ecmascript.parse_ElementList(context, lexer, "YieldArg", "AwaitArg")
+    el = ecmascript.ecmascript.parse_ElementList(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert isinstance(el, ecmascript.ecmascript.P2_ElementList_SpreadElement)
     assert el.SpreadElement == "SpreadElement"
     assert lexer.pos == 1
-    mocks["se"].assert_called_with(context, lexer, "YieldArg", "AwaitArg")
+    mocks["se"].assert_called_with(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
 
 
 def test_parse_ElementList_04(mocker, context):
@@ -1275,13 +1284,13 @@ def test_parse_ElementList_04(mocker, context):
     lexer = Lexer([ELISION_REPLACEMENT, SE_REPLACEMENT])
     mocks = ElementList_mocks(mocker)
 
-    el = ecmascript.ecmascript.parse_ElementList(context, lexer, "YieldArg", "AwaitArg")
+    el = ecmascript.ecmascript.parse_ElementList(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert isinstance(el, ecmascript.ecmascript.P2_ElementList_Elision_SpreadElement)
     assert el.Elision == "Elision"
     assert el.SpreadElement == "SpreadElement"
     assert lexer.pos == 2
-    mocks["se"].assert_called_with(context, lexer, "YieldArg", "AwaitArg")
-    mocks["elision"].assert_called_with(context, lexer)
+    mocks["se"].assert_called_with(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
+    mocks["elision"].assert_called_with(context, lexer, "StrictArg")
 
 
 def test_parse_ElementList_05(mocker, context):
@@ -1289,13 +1298,13 @@ def test_parse_ElementList_05(mocker, context):
     lexer = Lexer([SE_REPLACEMENT, COMMA, AE_REPLACEMENT])
     mocks = ElementList_mocks(mocker)
 
-    el = ecmascript.ecmascript.parse_ElementList(context, lexer, "YieldArg", "AwaitArg")
+    el = ecmascript.ecmascript.parse_ElementList(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert isinstance(el, ecmascript.ecmascript.P2_ElementList_ElementList_COMMA_AssignmentExpression)
     assert el.AssignmentExpression == "AssignmentExpression"
     el2 = el.ElementList
     assert isinstance(el2, ecmascript.ecmascript.P2_ElementList_SpreadElement)
     assert lexer.pos == 3
-    mocks["ae"].assert_called_with(context, lexer, True, "YieldArg", "AwaitArg")
+    mocks["ae"].assert_called_with(context, lexer, "StrictArg", True, "YieldArg", "AwaitArg")
 
 
 def test_parse_ElementList_06(mocker, context):
@@ -1303,15 +1312,15 @@ def test_parse_ElementList_06(mocker, context):
     lexer = Lexer([SE_REPLACEMENT, COMMA, ELISION_REPLACEMENT, AE_REPLACEMENT])
     mocks = ElementList_mocks(mocker)
 
-    el = ecmascript.ecmascript.parse_ElementList(context, lexer, "YieldArg", "AwaitArg")
+    el = ecmascript.ecmascript.parse_ElementList(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert isinstance(el, ecmascript.ecmascript.P2_ElementList_ElementList_COMMA_Elision_AssignmentExpression)
     assert el.AssignmentExpression == "AssignmentExpression"
     assert el.Elision == "Elision"
     el2 = el.ElementList
     assert isinstance(el2, ecmascript.ecmascript.P2_ElementList_SpreadElement)
     assert lexer.pos == 4
-    mocks["ae"].assert_called_with(context, lexer, True, "YieldArg", "AwaitArg")
-    mocks["elision"].assert_called_with(context, lexer)
+    mocks["ae"].assert_called_with(context, lexer, "StrictArg", True, "YieldArg", "AwaitArg")
+    mocks["elision"].assert_called_with(context, lexer, "StrictArg")
 
 
 def test_parse_ElementList_07(mocker, context):
@@ -1319,13 +1328,13 @@ def test_parse_ElementList_07(mocker, context):
     lexer = Lexer([AE_REPLACEMENT, COMMA, SE_REPLACEMENT])
     mocks = ElementList_mocks(mocker)
 
-    el = ecmascript.ecmascript.parse_ElementList(context, lexer, "YieldArg", "AwaitArg")
+    el = ecmascript.ecmascript.parse_ElementList(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert isinstance(el, ecmascript.ecmascript.P2_ElementList_ElementList_COMMA_SpreadElement)
     assert el.SpreadElement == "SpreadElement"
     el2 = el.ElementList
     assert isinstance(el2, ecmascript.ecmascript.P2_ElementList_AssignmentExpression)
     assert lexer.pos == 3
-    mocks["se"].assert_called_with(context, lexer, "YieldArg", "AwaitArg")
+    mocks["se"].assert_called_with(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
 
 
 def test_parse_ElementList_08(mocker, context):
@@ -1333,15 +1342,15 @@ def test_parse_ElementList_08(mocker, context):
     lexer = Lexer([AE_REPLACEMENT, COMMA, ELISION_REPLACEMENT, SE_REPLACEMENT])
     mocks = ElementList_mocks(mocker)
 
-    el = ecmascript.ecmascript.parse_ElementList(context, lexer, "YieldArg", "AwaitArg")
+    el = ecmascript.ecmascript.parse_ElementList(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert isinstance(el, ecmascript.ecmascript.P2_ElementList_ElementList_COMMA_Elision_SpreadElement)
     assert el.SpreadElement == "SpreadElement"
     assert el.Elision == "Elision"
     el2 = el.ElementList
     assert isinstance(el2, ecmascript.ecmascript.P2_ElementList_AssignmentExpression)
     assert lexer.pos == 4
-    mocks["se"].assert_called_with(context, lexer, "YieldArg", "AwaitArg")
-    mocks["elision"].assert_called_with(context, lexer)
+    mocks["se"].assert_called_with(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
+    mocks["elision"].assert_called_with(context, lexer, "StrictArg")
 
 
 @pytest.mark.parametrize("token_stream", [[MATCHES_NONE], [ELISION_REPLACEMENT, MATCHES_NONE]])
@@ -1350,7 +1359,7 @@ def test_parse_ElementList_09(mocker, context, token_stream):
     lexer = Lexer(token_stream)
     ElementList_mocks(mocker)
 
-    el = ecmascript.ecmascript.parse_ElementList(context, lexer, "YieldArg", "AwaitArg")
+    el = ecmascript.ecmascript.parse_ElementList(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert el is None
     assert lexer.pos == 0
 
@@ -1363,7 +1372,7 @@ def test_parse_ElementList_10(mocker, context, token_stream):
     lexer = Lexer(token_stream)
     ElementList_mocks(mocker)
 
-    el = ecmascript.ecmascript.parse_ElementList(context, lexer, "YieldArg", "AwaitArg")
+    el = ecmascript.ecmascript.parse_ElementList(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert isinstance(el, ecmascript.ecmascript.P2_ElementList_AssignmentExpression)
     assert lexer.pos == 1
 
@@ -1382,7 +1391,7 @@ def test_ElementList_ArrayAccumulation_Elision_AssignmentExpression(
     context, mocker, src, expected_delta, expected_propname
 ):
     lexer = lexer2.Lexer(src, SyntaxError)
-    el = ecmascript.ecmascript.parse_ElementList(context, lexer, False, False)
+    el = ecmascript.ecmascript.parse_ElementList(context, lexer, "StrictArg", False, False)
     el.AssignmentExpression.evaluate = mocker.Mock(return_value="initResult")
     cdp = mocker.patch("ecmascript.ecmascript.CreateDataProperty", return_value=True)
     gv = mocker.patch("ecmascript.ecmascript.GetValue", return_value="initValue")
@@ -1402,7 +1411,7 @@ def test_ElementList_ArrayAccumulation_Elision_AssignmentExpression(
 @pytest.mark.parametrize("src, expected_index", [(",,, ...3", 13), ("...4", 10)])
 def test_ElementList_ArrayAccumulation_Elision_SpreadElement(context, mocker, src, expected_index):
     lexer = lexer2.Lexer(src, SyntaxError)
-    el = ecmascript.ecmascript.parse_ElementList(context, lexer, False, False)
+    el = ecmascript.ecmascript.parse_ElementList(context, lexer, "StrictArg", False, False)
     el.SpreadElement.ArrayAccumulation = mocker.Mock(return_value="AA")
 
     rv = el.ArrayAccumulation("array", 10)
@@ -1424,7 +1433,7 @@ def test_ElementList_ArrayAccumulation_Elision_SpreadElement(context, mocker, sr
 @pytest.mark.parametrize("src, expected", [("3,4", 12), ("2,,6", 13)])
 def test_ElementList_ArrayAccumulation_ElementList_Elision_AssignmentExpression(context, mocker, src, expected):
     lexer = lexer2.Lexer(src, SyntaxError)
-    el = ecmascript.ecmascript.parse_ElementList(context, lexer, False, False)
+    el = ecmascript.ecmascript.parse_ElementList(context, lexer, "StrictArg", False, False)
     el.ElementList.ArrayAccumulation = mocker.Mock(side_effect=lambda array, nextIndex: nextIndex + 1)
     el.AssignmentExpression.evaluate = mocker.Mock(return_value="initResult")
     gv = mocker.patch("ecmascript.ecmascript.GetValue", return_value="initValue")
@@ -1449,7 +1458,7 @@ def test_ElementList_ArrayAccumulation_ElementList_Elision_AssignmentExpression(
 @pytest.mark.parametrize("src, delta", [("3,,,...8", 3), ("4,...9", 1)])
 def test_ElementList_ArrayAccumulation_ElementList_Elision_SpreadElement(context, mocker, src, delta):
     lexer = lexer2.Lexer(src, SyntaxError)
-    el = ecmascript.ecmascript.parse_ElementList(context, lexer, False, False)
+    el = ecmascript.ecmascript.parse_ElementList(context, lexer, "StrictArg", False, False)
     el.ElementList.ArrayAccumulation = mocker.Mock(side_effect=lambda array, nextIndex: nextIndex + 1)
     el.SpreadElement.ArrayAccumulation = mocker.Mock(return_value="AA")
 
@@ -1475,14 +1484,16 @@ def test_ElementList_ArrayAccumulation_ElementList_Elision_SpreadElement(context
 #
 ############################################################################################################################
 def test_P2_SpreadElement_init(context):
-    se = ecmascript.ecmascript.P2_SpreadElement(context, ["child"])
+    se = ecmascript.ecmascript.P2_SpreadElement(context, "StrictArg", ["child"])
     assert se.name == "SpreadElement"
     assert se.context == context
     assert se.children == ["child"]
 
 
 def test_P2_SpreadElement_DOTDOTDOT_AssignmentExpression_init(context):
-    se = ecmascript.ecmascript.P2_SpreadElement_DOTDOTDOT_AssignmentExpression(context, ["...", "AssignmentExpression"])
+    se = ecmascript.ecmascript.P2_SpreadElement_DOTDOTDOT_AssignmentExpression(
+        context, "StrictArg", ["...", "AssignmentExpression"]
+    )
     assert se.name == "SpreadElement"
     assert se.AssignmentExpression == "AssignmentExpression"
 
@@ -1496,11 +1507,11 @@ def test_parse_SpreadElement_01(mocker, context):
     lexer = Lexer([DOTDOTDOT, AE_REPLACEMENT])
     mocks = SpreadElement_mocks(mocker)
 
-    se = ecmascript.ecmascript.parse_SpreadElement(context, lexer, "YieldArg", "AwaitArg")
+    se = ecmascript.ecmascript.parse_SpreadElement(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert isinstance(se, ecmascript.ecmascript.P2_SpreadElement_DOTDOTDOT_AssignmentExpression)
     assert se.AssignmentExpression == "AssignmentExpression"
     assert lexer.pos == 2
-    mocks["ae"].assert_called_with(context, lexer, True, "YieldArg", "AwaitArg")
+    mocks["ae"].assert_called_with(context, lexer, "StrictArg", True, "YieldArg", "AwaitArg")
 
 
 @pytest.mark.parametrize("token_stream", [[MATCHES_NONE], [DOTDOTDOT, MATCHES_NONE]])
@@ -1509,7 +1520,7 @@ def test_parse_SpreadElement_02(mocker, context, token_stream):
     lexer = Lexer(token_stream)
     SpreadElement_mocks(mocker)
 
-    se = ecmascript.ecmascript.parse_SpreadElement(context, lexer, "YieldArg", "AwaitArg")
+    se = ecmascript.ecmascript.parse_SpreadElement(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert se is None
     assert lexer.pos == 0
 
@@ -1530,7 +1541,7 @@ def test_parse_SpreadElement_02(mocker, context, token_stream):
 @pytest.mark.parametrize("size", [0, 1, 3])
 def test_SpreadElement_ArrayAccumulation(context, mocker, size):
     lexer = lexer2.Lexer("...8", SyntaxError)
-    se = ecmascript.ecmascript.parse_SpreadElement(context, lexer, False, False)
+    se = ecmascript.ecmascript.parse_SpreadElement(context, lexer, "StrictArg", False, False)
 
     se.AssignmentExpression.evaluate = mocker.Mock(return_value="spreadRef")
     gv = mocker.patch("ecmascript.ecmascript.GetValue", return_value="spreadObj")
@@ -1568,20 +1579,20 @@ def test_SpreadElement_ArrayAccumulation(context, mocker, size):
 #
 #########################################################################################################
 def test_P2_ObjectLiteral_init(context):
-    ol = ecmascript.ecmascript.P2_ObjectLiteral(context, ["child"])
+    ol = ecmascript.ecmascript.P2_ObjectLiteral(context, "StrictArg", ["child"])
     assert ol.name == "ObjectLiteral"
     assert ol.context == context
     assert ol.children == ["child"]
 
 
 def test_P2_ObjectLiteral_LCURLY_RCURLY_init(context):
-    ol = ecmascript.ecmascript.P2_ObjectLiteral_LCURLY_RCURLY(context, ["{", "}"])
+    ol = ecmascript.ecmascript.P2_ObjectLiteral_LCURLY_RCURLY(context, "StrictArg", ["{", "}"])
     assert ol.name == "ObjectLiteral"
 
 
 def test_P2_ObjectLiteral_LCURLY_PropertyDefinitionList_RCURLY_init(context):
     ol = ecmascript.ecmascript.P2_ObjectLiteral_LCURLY_PropertyDefinitionList_RCURLY(
-        context, ["{", "PropertyDefinitionList", "}"]
+        context, "StrictArg", ["{", "PropertyDefinitionList", "}"]
     )
     assert ol.name == "ObjectLiteral"
     assert ol.PropertyDefinitionList == "PropertyDefinitionList"
@@ -1589,7 +1600,7 @@ def test_P2_ObjectLiteral_LCURLY_PropertyDefinitionList_RCURLY_init(context):
 
 def test_P2_ObjectLiteral_LCURLY_PropertyDefinitionList_COMMA_RCURLY_init(context):
     ol = ecmascript.ecmascript.P2_ObjectLiteral_LCURLY_PropertyDefinitionList_COMMA_RCURLY(
-        context, ["{", "PropertyDefinitionList", ",", "}"]
+        context, "StrictArg", ["{", "PropertyDefinitionList", ",", "}"]
     )
     assert ol.name == "ObjectLiteral"
     assert ol.PropertyDefinitionList == "PropertyDefinitionList"
@@ -1604,7 +1615,7 @@ def test_parse_ObjectLiteral_01(mocker, context):
     lexer = Lexer([LCURLY, RCURLY])
     ObjectLiteral_mocks(mocker)
 
-    ol = ecmascript.ecmascript.parse_ObjectLiteral(context, lexer, "YieldArg", "AwaitArg")
+    ol = ecmascript.ecmascript.parse_ObjectLiteral(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert isinstance(ol, ecmascript.ecmascript.P2_ObjectLiteral_LCURLY_RCURLY)
     assert lexer.pos == 2
 
@@ -1627,11 +1638,11 @@ def test_parse_ObjectLiteral_02(mocker, context, token_stream, expected_class):
     lexer = Lexer(token_stream)
     mocks = ObjectLiteral_mocks(mocker)
 
-    ol = ecmascript.ecmascript.parse_ObjectLiteral(context, lexer, "YieldArg", "AwaitArg")
+    ol = ecmascript.ecmascript.parse_ObjectLiteral(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert isinstance(ol, expected_class)
     assert ol.PropertyDefinitionList == "PropertyDefinitionList"
     assert lexer.pos == len(token_stream)
-    mocks["pdl"].assert_called_with(context, lexer, "YieldArg", "AwaitArg")
+    mocks["pdl"].assert_called_with(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
 
 
 @pytest.mark.parametrize(
@@ -1648,7 +1659,7 @@ def test_parse_ObjectLiteral_03(mocker, context, token_stream):
     lexer = Lexer(token_stream)
     ObjectLiteral_mocks(mocker)
 
-    ol = ecmascript.ecmascript.parse_ObjectLiteral(context, lexer, "YieldArg", "AwaitArg")
+    ol = ecmascript.ecmascript.parse_ObjectLiteral(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert ol is None
     assert lexer.pos == 0
 
@@ -1658,7 +1669,7 @@ def test_parse_ObjectLiteral_03(mocker, context, token_stream):
 #   1. Return ObjectCreate(%ObjectPrototype%).
 def test_ObjectLiteral_LCURLY_RCURLY_evaluate(realm, context, mocker):
     lexer = lexer2.Lexer("{}", SyntaxError)
-    ol = ecmascript.ecmascript.parse_ObjectLiteral(context, lexer, False, False)
+    ol = ecmascript.ecmascript.parse_ObjectLiteral(context, lexer, "StrictArg", False, False)
 
     oc = mocker.patch("ecmascript.ecmascript.ObjectCreate", return_value="object_create")
     proto = realm.intrinsics["%ObjectPrototype%"]
@@ -1676,7 +1687,7 @@ def test_ObjectLiteral_LCURLY_RCURLY_evaluate(realm, context, mocker):
 @pytest.mark.parametrize("src", ["{a}", "{a,}"])
 def test_ObjectLiteral_PropertyDefinitionList_evaluate(realm, context, mocker, src):
     lexer = lexer2.Lexer(src, SyntaxError)
-    ol = ecmascript.ecmascript.parse_ObjectLiteral(context, lexer, False, False)
+    ol = ecmascript.ecmascript.parse_ObjectLiteral(context, lexer, "StrictArg", False, False)
     oc = mocker.patch("ecmascript.ecmascript.ObjectCreate", return_value="object_create")
     ol.PropertyDefinitionList.PropertyDefinitionEvaluation = mocker.Mock(return_value=None)
 
@@ -1702,21 +1713,23 @@ def test_ObjectLiteral_PropertyDefinitionList_evaluate(realm, context, mocker, s
 #
 ##################################################################################################################################################################################
 def test_P2_PropertyDefinitionList_init(context):
-    pdl = ecmascript.ecmascript.P2_PropertyDefinitionList(context, ["child"])
+    pdl = ecmascript.ecmascript.P2_PropertyDefinitionList(context, "StrictArg", ["child"])
     assert pdl.name == "PropertyDefinitionList"
     assert pdl.context == context
     assert pdl.children == ["child"]
 
 
 def test_P2_PropertyDefinitionList_PropertyDefinition_init(context):
-    pdl = ecmascript.ecmascript.P2_PropertyDefinitionList_PropertyDefinition(context, ["PropertyDefinition"])
+    pdl = ecmascript.ecmascript.P2_PropertyDefinitionList_PropertyDefinition(
+        context, "StrictArg", ["PropertyDefinition"]
+    )
     assert pdl.name == "PropertyDefinitionList"
     assert pdl.PropertyDefinition == "PropertyDefinition"
 
 
 def test_P2_PropertyDefinitionList_PropertyDefinitionList_COMMA_PropertyDefinition_init(context):
     pdl = ecmascript.ecmascript.P2_PropertyDefinitionList_PropertyDefinitionList_COMMA_PropertyDefinition(
-        context, ["PropertyDefinitionList", ",", "PropertyDefinition"]
+        context, "StrictArg", ["PropertyDefinitionList", ",", "PropertyDefinition"]
     )
     assert pdl.name == "PropertyDefinitionList"
     assert pdl.PropertyDefinitionList == "PropertyDefinitionList"
@@ -1732,11 +1745,11 @@ def test_parse_PropertyDefinitionList_01(mocker, context):
     lexer = Lexer([PD_REPLACEMENT])
     mocks = PropertyDefinitionList_mocks(mocker)
 
-    pdl = ecmascript.ecmascript.parse_PropertyDefinitionList(context, lexer, "YieldArg", "AwaitArg")
+    pdl = ecmascript.ecmascript.parse_PropertyDefinitionList(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert isinstance(pdl, ecmascript.ecmascript.P2_PropertyDefinitionList_PropertyDefinition)
     assert pdl.PropertyDefinition == "PropertyDefinition"
     assert lexer.pos == 1
-    mocks["pd"].assert_called_with(context, lexer, "YieldArg", "AwaitArg")
+    mocks["pd"].assert_called_with(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
 
 
 def test_parse_PropertyDefinitionList_02(mocker, context):
@@ -1744,7 +1757,7 @@ def test_parse_PropertyDefinitionList_02(mocker, context):
     lexer = Lexer([PD_REPLACEMENT, COMMA, PD_REPLACEMENT])
     mocks = PropertyDefinitionList_mocks(mocker)
 
-    pdl = ecmascript.ecmascript.parse_PropertyDefinitionList(context, lexer, "YieldArg", "AwaitArg")
+    pdl = ecmascript.ecmascript.parse_PropertyDefinitionList(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert isinstance(
         pdl, ecmascript.ecmascript.P2_PropertyDefinitionList_PropertyDefinitionList_COMMA_PropertyDefinition
     )
@@ -1752,7 +1765,7 @@ def test_parse_PropertyDefinitionList_02(mocker, context):
     assert lexer.pos == 3
     pdl2 = pdl.PropertyDefinitionList
     assert isinstance(pdl2, ecmascript.ecmascript.P2_PropertyDefinitionList_PropertyDefinition)
-    mocks["pd"].assert_called_with(context, lexer, "YieldArg", "AwaitArg")
+    mocks["pd"].assert_called_with(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
 
 
 def test_parse_PropertyDefinitionList_03(mocker, context):
@@ -1760,7 +1773,7 @@ def test_parse_PropertyDefinitionList_03(mocker, context):
     lexer = Lexer([MATCHES_NONE])
     PropertyDefinitionList_mocks(mocker)
 
-    pdl = ecmascript.ecmascript.parse_PropertyDefinitionList(context, lexer, "YieldArg", "AwaitArg")
+    pdl = ecmascript.ecmascript.parse_PropertyDefinitionList(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert pdl is None
     assert lexer.pos == 0
 
@@ -1770,7 +1783,7 @@ def test_parse_PropertyDefinitionList_04(mocker, context):
     lexer = Lexer([PD_REPLACEMENT, COMMA, MATCHES_NONE])
     PropertyDefinitionList_mocks(mocker)
 
-    pdl = ecmascript.ecmascript.parse_PropertyDefinitionList(context, lexer, "YieldArg", "AwaitArg")
+    pdl = ecmascript.ecmascript.parse_PropertyDefinitionList(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert isinstance(pdl, ecmascript.ecmascript.P2_PropertyDefinitionList_PropertyDefinition)
     assert lexer.pos == 1
 
@@ -1790,7 +1803,7 @@ def test_parse_PropertyDefinitionList_04(mocker, context):
 )
 def test_PropertyDefinitionList_PropertyNameList(context, src, expected):
     lexer = lexer2.Lexer(src, SyntaxError)
-    pdl = ecmascript.ecmascript.parse_PropertyDefinitionList(context, lexer, False, False)
+    pdl = ecmascript.ecmascript.parse_PropertyDefinitionList(context, lexer, "StrictArg", False, False)
     assert pdl.PropertyNameList() == expected
 
 
@@ -1810,27 +1823,29 @@ def test_PropertyDefinitionList_PropertyNameList(context, src, expected):
 #
 #####################################################################################################################################################
 def test_P2_PropertyDefinition_init(context):
-    pd = ecmascript.ecmascript.P2_PropertyDefinition(context, ["child"])
+    pd = ecmascript.ecmascript.P2_PropertyDefinition(context, "StrictArg", ["child"])
     assert pd.name == "PropertyDefinition"
     assert pd.context == context
     assert pd.children == ["child"]
 
 
 def test_P2_PropertyDefinition_IdentifierReference_init(context):
-    pd = ecmascript.ecmascript.P2_PropertyDefinition_IdentifierReference(context, ["IdentifierReference"])
+    pd = ecmascript.ecmascript.P2_PropertyDefinition_IdentifierReference(context, "StrictArg", ["IdentifierReference"])
     assert pd.name == "PropertyDefinition"
     assert pd.IdentifierReference == "IdentifierReference"
 
 
 def test_P2_PropertyDefinition_CoverInitializedName_init(context):
-    pd = ecmascript.ecmascript.P2_PropertyDefinition_CoverInitializedName(context, ["CoverInitializedName"])
+    pd = ecmascript.ecmascript.P2_PropertyDefinition_CoverInitializedName(
+        context, "StrictArg", ["CoverInitializedName"]
+    )
     assert pd.name == "PropertyDefinition"
     assert pd.CoverInitializedName == "CoverInitializedName"
 
 
 def test_P2_PropertyDefinition_PropertyName_COLON_AssignmentExpression_init(context):
     pd = ecmascript.ecmascript.P2_PropertyDefinition_PropertyName_COLON_AssignmentExpression(
-        context, ["PropertyName", ":", "AssignmentExpression"]
+        context, "StrictArg", ["PropertyName", ":", "AssignmentExpression"]
     )
     assert pd.name == "PropertyDefinition"
     assert pd.PropertyName == "PropertyName"
@@ -1838,14 +1853,14 @@ def test_P2_PropertyDefinition_PropertyName_COLON_AssignmentExpression_init(cont
 
 
 def test_P2_PropertyDefinition_MethodDefinition_init(context):
-    pd = ecmascript.ecmascript.P2_PropertyDefinition_MethodDefinition(context, ["MethodDefinition"])
+    pd = ecmascript.ecmascript.P2_PropertyDefinition_MethodDefinition(context, "StrictArg", ["MethodDefinition"])
     assert pd.name == "PropertyDefinition"
     assert pd.MethodDefinition == "MethodDefinition"
 
 
 def test_P2_PropertyDefinition_DOTDOTDOT_AssignmentExpression_init(context):
     pd = ecmascript.ecmascript.P2_PropertyDefinition_DOTDOTDOT_AssignmentExpression(
-        context, ["...", "AssignmentExpression"]
+        context, "StrictArg", ["...", "AssignmentExpression"]
     )
     assert pd.name == "PropertyDefinition"
     assert pd.AssignmentExpression == "AssignmentExpression"
@@ -1866,11 +1881,11 @@ def test_parse_PropertyDefinition_01(mocker, context):
     lexer = Lexer([IR_REPLACEMENT])
     mocks = PropertyDefinition_mocks(mocker)
 
-    pd = ecmascript.ecmascript.parse_PropertyDefinition(context, lexer, "YieldArg", "AwaitArg")
+    pd = ecmascript.ecmascript.parse_PropertyDefinition(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert isinstance(pd, ecmascript.ecmascript.P2_PropertyDefinition_IdentifierReference)
     assert pd.IdentifierReference == "IdentifierReference"
     assert lexer.pos == 1
-    mocks["ir"].assert_called_with(context, lexer, "YieldArg", "AwaitArg")
+    mocks["ir"].assert_called_with(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
 
 
 def test_parse_PropertyDefinition_02(mocker, context):
@@ -1878,11 +1893,11 @@ def test_parse_PropertyDefinition_02(mocker, context):
     lexer = Lexer([CIN_REPLACEMENT])
     mocks = PropertyDefinition_mocks(mocker)
 
-    pd = ecmascript.ecmascript.parse_PropertyDefinition(context, lexer, "YieldArg", "AwaitArg")
+    pd = ecmascript.ecmascript.parse_PropertyDefinition(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert isinstance(pd, ecmascript.ecmascript.P2_PropertyDefinition_CoverInitializedName)
     assert pd.CoverInitializedName == "CoverInitializedName"
     assert lexer.pos == 1
-    mocks["cin"].assert_called_with(context, lexer, "YieldArg", "AwaitArg")
+    mocks["cin"].assert_called_with(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
 
 
 def test_parse_PropertyDefinition_03(mocker, context):
@@ -1890,13 +1905,13 @@ def test_parse_PropertyDefinition_03(mocker, context):
     lexer = Lexer([PN_REPLACEMENT, COLON, AE_REPLACEMENT])
     mocks = PropertyDefinition_mocks(mocker)
 
-    pd = ecmascript.ecmascript.parse_PropertyDefinition(context, lexer, "YieldArg", "AwaitArg")
+    pd = ecmascript.ecmascript.parse_PropertyDefinition(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert isinstance(pd, ecmascript.ecmascript.P2_PropertyDefinition_PropertyName_COLON_AssignmentExpression)
     assert pd.PropertyName == "PropertyName"
     assert pd.AssignmentExpression == "AssignmentExpression"
     assert lexer.pos == 3
-    mocks["pn"].assert_called_with(context, lexer, "YieldArg", "AwaitArg")
-    mocks["ae"].assert_called_with(context, lexer, True, "YieldArg", "AwaitArg")
+    mocks["pn"].assert_called_with(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
+    mocks["ae"].assert_called_with(context, lexer, "StrictArg", True, "YieldArg", "AwaitArg")
 
 
 def test_parse_PropertyDefinition_04(mocker, context):
@@ -1904,11 +1919,11 @@ def test_parse_PropertyDefinition_04(mocker, context):
     lexer = Lexer([MD_REPLACEMENT])
     mocks = PropertyDefinition_mocks(mocker)
 
-    pd = ecmascript.ecmascript.parse_PropertyDefinition(context, lexer, "YieldArg", "AwaitArg")
+    pd = ecmascript.ecmascript.parse_PropertyDefinition(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert isinstance(pd, ecmascript.ecmascript.P2_PropertyDefinition_MethodDefinition)
     assert pd.MethodDefinition == "MethodDefinition"
     assert lexer.pos == 1
-    mocks["md"].assert_called_with(context, lexer, "YieldArg", "AwaitArg")
+    mocks["md"].assert_called_with(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
 
 
 def test_parse_PropertyDefinition_05(mocker, context):
@@ -1916,11 +1931,11 @@ def test_parse_PropertyDefinition_05(mocker, context):
     lexer = Lexer([DOTDOTDOT, AE_REPLACEMENT])
     mocks = PropertyDefinition_mocks(mocker)
 
-    pd = ecmascript.ecmascript.parse_PropertyDefinition(context, lexer, "YieldArg", "AwaitArg")
+    pd = ecmascript.ecmascript.parse_PropertyDefinition(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert isinstance(pd, ecmascript.ecmascript.P2_PropertyDefinition_DOTDOTDOT_AssignmentExpression)
     assert pd.AssignmentExpression == "AssignmentExpression"
     assert lexer.pos == 2
-    mocks["ae"].assert_called_with(context, lexer, True, "YieldArg", "AwaitArg")
+    mocks["ae"].assert_called_with(context, lexer, "StrictArg", True, "YieldArg", "AwaitArg")
 
 
 @pytest.mark.parametrize(
@@ -1932,7 +1947,7 @@ def test_parse_PropertyDefinition_06(mocker, context, token_stream):
     lexer = Lexer(token_stream)
     PropertyDefinition_mocks(mocker)
 
-    pd = ecmascript.ecmascript.parse_PropertyDefinition(context, lexer, "YieldArg", "AwaitArg")
+    pd = ecmascript.ecmascript.parse_PropertyDefinition(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert pd is None
     assert lexer.pos == 0
 
@@ -1943,7 +1958,7 @@ def test_parse_PropertyDefinition_06(mocker, context, token_stream):
 @pytest.mark.parametrize("has_super, count", [(False, 0), (True, 1)])
 def test_PropertyDefinition_MethodDefinition_EarlyErrors(context, mocker, has_super, count):
     lexer = lexer2.Lexer("a(){}", SyntaxError)
-    pd = ecmascript.ecmascript.parse_PropertyDefinition(context, lexer, False, False)
+    pd = ecmascript.ecmascript.parse_PropertyDefinition(context, lexer, "StrictArg", False, False)
     pd.MethodDefinition.HasDirectSuper = mocker.Mock(return_value=has_super)
 
     rv = pd.EarlyErrors()
@@ -1957,7 +1972,7 @@ def test_PropertyDefinition_MethodDefinition_EarlyErrors(context, mocker, has_su
 #   * Always throw a Syntax Error if code matches this production.
 def test_PropertyDefinition_CoverInitializedName(context):
     lexer = lexer2.Lexer("a=1", SyntaxError)
-    pd = ecmascript.ecmascript.parse_PropertyDefinition(context, lexer, False, False)
+    pd = ecmascript.ecmascript.parse_PropertyDefinition(context, lexer, "StrictArg", False, False)
 
     rv = pd.EarlyErrors()
     actual = [type(err) for err in rv]
@@ -1972,7 +1987,7 @@ def test_PropertyDefinition_CoverInitializedName(context):
 @pytest.mark.parametrize("symbol, expected", [("MethodDefinition", True), ("OtherSymbol", "cpc")])
 def test_PropertyDefinition_MethodDefinition_Contains(context, mocker, symbol, expected):
     lexer = lexer2.Lexer("a(){}", SyntaxError)
-    pd = ecmascript.ecmascript.parse_PropertyDefinition(context, lexer, False, False)
+    pd = ecmascript.ecmascript.parse_PropertyDefinition(context, lexer, "StrictArg", False, False)
     pd.MethodDefinition.ComputedPropertyContains = mocker.Mock(return_value="cpc")
 
     rv = pd.Contains(symbol)
@@ -1994,7 +2009,7 @@ def test_PropertyDefinition_MethodDefinition_Contains(context, mocker, symbol, e
 )
 def test_PropertyDefinition_PropName(context, src, expected):
     lexer = lexer2.Lexer(src, SyntaxError)
-    pd = ecmascript.ecmascript.parse_PropertyDefinition(context, lexer, False, False)
+    pd = ecmascript.ecmascript.parse_PropertyDefinition(context, lexer, "StrictArg", False, False)
     rv = pd.PropName()
     assert rv == expected
 
@@ -2015,20 +2030,20 @@ def test_PropertyDefinition_PropName(context, src, expected):
 #
 ########################################################################################################################
 def test_P2_PropertyName_init(context):
-    pn = ecmascript.ecmascript.P2_PropertyName(context, ["child"])
+    pn = ecmascript.ecmascript.P2_PropertyName(context, "StrictArg", ["child"])
     assert pn.name == "PropertyName"
     assert pn.context == context
     assert pn.children == ["child"]
 
 
 def test_P2_PropertyName_LiteralPropertyName_init(context):
-    pn = ecmascript.ecmascript.P2_PropertyName_LiteralPropertyName(context, ["LiteralPropertyName"])
+    pn = ecmascript.ecmascript.P2_PropertyName_LiteralPropertyName(context, "StrictArg", ["LiteralPropertyName"])
     assert pn.name == "PropertyName"
     assert pn.LiteralPropertyName == "LiteralPropertyName"
 
 
 def test_P2_PropertyName_ComputedPropertyName_init(context):
-    pn = ecmascript.ecmascript.P2_PropertyName_ComputedPropertyName(context, ["ComputedPropertyName"])
+    pn = ecmascript.ecmascript.P2_PropertyName_ComputedPropertyName(context, "StrictArg", ["ComputedPropertyName"])
     assert pn.name == "PropertyName"
     assert pn.ComputedPropertyName == "ComputedPropertyName"
 
@@ -2045,11 +2060,11 @@ def test_parse_PropertyName_01(mocker, context):
     lexer = Lexer([LPN_REPLACEMENT])
     mocks = PropertyName_mocks(mocker)
 
-    pn = ecmascript.ecmascript.parse_PropertyName(context, lexer, "YieldArg", "AwaitArg")
+    pn = ecmascript.ecmascript.parse_PropertyName(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert isinstance(pn, ecmascript.ecmascript.P2_PropertyName_LiteralPropertyName)
     assert pn.LiteralPropertyName == "LiteralPropertyName"
     assert lexer.pos == 1
-    mocks["lpn"].assert_called_with(context, lexer)
+    mocks["lpn"].assert_called_with(context, lexer, "StrictArg")
 
 
 def test_parse_PropertyName_02(mocker, context):
@@ -2057,11 +2072,11 @@ def test_parse_PropertyName_02(mocker, context):
     lexer = Lexer([CPN_REPLACEMENT])
     mocks = PropertyName_mocks(mocker)
 
-    pn = ecmascript.ecmascript.parse_PropertyName(context, lexer, "YieldArg", "AwaitArg")
+    pn = ecmascript.ecmascript.parse_PropertyName(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert isinstance(pn, ecmascript.ecmascript.P2_PropertyName_ComputedPropertyName)
     assert pn.ComputedPropertyName == "ComputedPropertyName"
     assert lexer.pos == 1
-    mocks["cpn"].assert_called_with(context, lexer, "YieldArg", "AwaitArg")
+    mocks["cpn"].assert_called_with(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
 
 
 def test_parse_PropertyName_03(mocker, context):
@@ -2069,7 +2084,7 @@ def test_parse_PropertyName_03(mocker, context):
     lexer = Lexer([MATCHES_NONE])
     PropertyName_mocks(mocker)
 
-    pn = ecmascript.ecmascript.parse_PropertyName(context, lexer, "YieldArg", "AwaitArg")
+    pn = ecmascript.ecmascript.parse_PropertyName(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert pn is None
     assert lexer.pos == 0
 
@@ -2080,7 +2095,7 @@ def test_parse_PropertyName_03(mocker, context):
 #   1. Return false.
 def test_PropertyName_LiteralPropertyName_ComputedPropertyContains(context):
     lexer = lexer2.Lexer("1", SyntaxError)
-    pn = ecmascript.ecmascript.parse_PropertyName(context, lexer, False, False)
+    pn = ecmascript.ecmascript.parse_PropertyName(context, lexer, "StrictArg", False, False)
     rv = pn.ComputedPropertyContains("Nonsense")
     assert rv == False
 
@@ -2091,7 +2106,7 @@ def test_PropertyName_LiteralPropertyName_ComputedPropertyContains(context):
 #   1. Return the result of ComputedPropertyName Contains symbol.
 def test_PropertyName_ComputedPropertyName_ComputedPropertyContains(context, mocker):
     lexer = lexer2.Lexer("[1]", SyntaxError)
-    pn = ecmascript.ecmascript.parse_PropertyName(context, lexer, False, False)
+    pn = ecmascript.ecmascript.parse_PropertyName(context, lexer, "StrictArg", False, False)
     pn.ComputedPropertyName.Contains = mocker.Mock(return_value="contained")
     rv = pn.ComputedPropertyContains("Nonsense")
     assert rv == "contained"
@@ -2106,7 +2121,7 @@ def test_PropertyName_ComputedPropertyName_ComputedPropertyContains(context, moc
 @pytest.mark.parametrize("src, expected", [("a", False), ("[1]", True)])
 def test_PropertyName_IsComputedPropertyKey(context, src, expected):
     lexer = lexer2.Lexer(src, SyntaxError)
-    pn = ecmascript.ecmascript.parse_PropertyName(context, lexer, False, False)
+    pn = ecmascript.ecmascript.parse_PropertyName(context, lexer, "StrictArg", False, False)
     rv = pn.IsComputedPropertyKey()
     assert rv == expected
 
@@ -2127,26 +2142,26 @@ def test_PropertyName_IsComputedPropertyKey(context, src, expected):
 #
 ##########################################################################################################################################################################
 def test_P2_LiteralPropertyName_init(context):
-    lpn = ecmascript.ecmascript.P2_LiteralPropertyName(context, ["child"])
+    lpn = ecmascript.ecmascript.P2_LiteralPropertyName(context, "StrictArg", ["child"])
     assert lpn.name == "LiteralPropertyName"
     assert lpn.context == context
     assert lpn.children == ["child"]
 
 
 def test_P2_LiteralPropertyName_IdentifierName_init(context):
-    lpn = ecmascript.ecmascript.P2_LiteralPropertyName_IdentifierName(context, ["IdentifierName"])
+    lpn = ecmascript.ecmascript.P2_LiteralPropertyName_IdentifierName(context, "StrictArg", ["IdentifierName"])
     assert lpn.name == "LiteralPropertyName"
     assert lpn.IdentifierName == "IdentifierName"
 
 
 def test_P2_LiteralPropertyName_StringLiteral_init(context):
-    lpn = ecmascript.ecmascript.P2_LiteralPropertyName_StringLiteral(context, ["StringLiteral"])
+    lpn = ecmascript.ecmascript.P2_LiteralPropertyName_StringLiteral(context, "StrictArg", ["StringLiteral"])
     assert lpn.name == "LiteralPropertyName"
     assert lpn.StringLiteral == "StringLiteral"
 
 
 def test_P2_LiteralPropertyName_NumericLiteral_init(context):
-    lpn = ecmascript.ecmascript.P2_LiteralPropertyName_NumericLiteral(context, ["NumericLiteral"])
+    lpn = ecmascript.ecmascript.P2_LiteralPropertyName_NumericLiteral(context, "StrictArg", ["NumericLiteral"])
     assert lpn.name == "LiteralPropertyName"
     assert lpn.NumericLiteral == "NumericLiteral"
 
@@ -2155,7 +2170,7 @@ def test_parse_LiteralPropertyName_01(context):
     # LiteralPropertyName : IdentifierName
     lexer = Lexer([IBOB])
 
-    lpn = ecmascript.ecmascript.parse_LiteralPropertyName(context, lexer)
+    lpn = ecmascript.ecmascript.parse_LiteralPropertyName(context, lexer, "StrictArg")
     assert isinstance(lpn, ecmascript.ecmascript.P2_LiteralPropertyName_IdentifierName)
     assert lpn.IdentifierName == IBOB
     assert lexer.pos == 1
@@ -2165,7 +2180,7 @@ def test_parse_LiteralPropertyName_02(context):
     # LiteralPropertyName : StringLiteral
     lexer = Lexer([SALICE])
 
-    lpn = ecmascript.ecmascript.parse_LiteralPropertyName(context, lexer)
+    lpn = ecmascript.ecmascript.parse_LiteralPropertyName(context, lexer, "StrictArg")
     assert isinstance(lpn, ecmascript.ecmascript.P2_LiteralPropertyName_StringLiteral)
     assert lpn.StringLiteral == SALICE
     assert lexer.pos == 1
@@ -2175,7 +2190,7 @@ def test_parse_LiteralPropertyName_03(context):
     # LiteralPropertyName : NumericLiteral
     lexer = Lexer([THREE])
 
-    lpn = ecmascript.ecmascript.parse_LiteralPropertyName(context, lexer)
+    lpn = ecmascript.ecmascript.parse_LiteralPropertyName(context, lexer, "StrictArg")
     assert isinstance(lpn, ecmascript.ecmascript.P2_LiteralPropertyName_NumericLiteral)
     assert lpn.NumericLiteral == THREE
     assert lexer.pos == 1
@@ -2185,7 +2200,7 @@ def test_parse_LiteralPropertyName_03(context):
 def test_parse_LiteralPropertyName_04(context, token_stream):
     lexer = Lexer(token_stream)
 
-    lpn = ecmascript.ecmascript.parse_LiteralPropertyName(context, lexer)
+    lpn = ecmascript.ecmascript.parse_LiteralPropertyName(context, lexer, "StrictArg")
     assert lpn is None
     assert lexer.pos == 0
 
@@ -2208,7 +2223,7 @@ def test_parse_LiteralPropertyName_04(context, token_stream):
 )
 def test_LiteralPropertyName_IdentifierName_Contains(context, src, symbol, expected):
     lexer = lexer2.Lexer(src, SyntaxError)
-    lpn = ecmascript.ecmascript.parse_LiteralPropertyName(context, lexer)
+    lpn = ecmascript.ecmascript.parse_LiteralPropertyName(context, lexer, "StrictArg")
 
     rv = lpn.Contains(symbol)
     assert rv == expected
@@ -2225,7 +2240,7 @@ def test_LiteralPropertyName_IdentifierName_Contains(context, src, symbol, expec
 @pytest.mark.parametrize("src, expected", [("idn", "idn"), ('"whitetail"', "whitetail"), ("1000", "1000")])
 def test_LiteralPropertyName_PropName(context, src, expected):
     lexer = lexer2.Lexer(src, SyntaxError)
-    lpn = ecmascript.ecmascript.parse_LiteralPropertyName(context, lexer)
+    lpn = ecmascript.ecmascript.parse_LiteralPropertyName(context, lexer, "StrictArg")
     rv = lpn.PropName()
     assert rv == expected
 
@@ -2241,7 +2256,7 @@ def test_LiteralPropertyName_PropName(context, src, expected):
 @pytest.mark.parametrize("src, expected", [("idn", "idn"), ('"whitetail"', "whitetail"), ("1000", "1000")])
 def test_LiteralPropertyName_evaluate(context, src, expected):
     lexer = lexer2.Lexer(src, SyntaxError)
-    lpn = ecmascript.ecmascript.parse_LiteralPropertyName(context, lexer)
+    lpn = ecmascript.ecmascript.parse_LiteralPropertyName(context, lexer, "StrictArg")
     rv = lpn.evaluate()
     assert rv == expected
 
@@ -2262,7 +2277,7 @@ def test_LiteralPropertyName_evaluate(context, src, expected):
 #
 #################################################################################################################################################################################################
 def test_P2_ComputedPropertyName_init(context):
-    cpn = ecmascript.ecmascript.P2_ComputedPropertyName(context, ["child"])
+    cpn = ecmascript.ecmascript.P2_ComputedPropertyName(context, "StrictArg", ["child"])
     assert cpn.name == "ComputedPropertyName"
     assert cpn.context == context
     assert cpn.children == ["child"]
@@ -2270,7 +2285,7 @@ def test_P2_ComputedPropertyName_init(context):
 
 def test_P2_ComputedPropertyName_LBRACKET_AssignmentExpression_RBRACKET_init(context):
     cpn = ecmascript.ecmascript.P2_ComputedPropertyName_LBRACKET_AssignmentExpression_RBRACKET(
-        context, ["[", "AssignmentExpression", "]"]
+        context, "StrictArg", ["[", "AssignmentExpression", "]"]
     )
     assert cpn.name == "ComputedPropertyName"
     assert cpn.AssignmentExpression == "AssignmentExpression"
@@ -2285,11 +2300,11 @@ def test_parse_ComputedPropertyName_01(mocker, context):
     lexer = Lexer([LBRACKET, AE_REPLACEMENT, RBRACKET])
     mocks = ComputedPropertyName_mocks(mocker)
 
-    cpn = ecmascript.ecmascript.parse_ComputedPropertyName(context, lexer, "YieldArg", "AwaitArg")
+    cpn = ecmascript.ecmascript.parse_ComputedPropertyName(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert isinstance(cpn, ecmascript.ecmascript.P2_ComputedPropertyName_LBRACKET_AssignmentExpression_RBRACKET)
     assert cpn.AssignmentExpression == "AssignmentExpression"
     assert lexer.pos == 3
-    mocks["ae"].assert_called_with(context, lexer, True, "YieldArg", "AwaitArg")
+    mocks["ae"].assert_called_with(context, lexer, "StrictArg", True, "YieldArg", "AwaitArg")
 
 
 @pytest.mark.parametrize(
@@ -2300,7 +2315,7 @@ def test_parse_ComputedPropertyName_02(mocker, context, token_stream):
     lexer = Lexer(token_stream)
     ComputedPropertyName_mocks(mocker)
 
-    cpn = ecmascript.ecmascript.parse_ComputedPropertyName(context, lexer, "YieldArg", "AwaitArg")
+    cpn = ecmascript.ecmascript.parse_ComputedPropertyName(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert cpn is None
     assert lexer.pos == 0
 
@@ -2310,7 +2325,7 @@ def test_parse_ComputedPropertyName_02(mocker, context, token_stream):
 #   1. Return empty.
 def test_ComputedPropertyName_PropName(context):
     lexer = lexer2.Lexer("[1]", SyntaxError)
-    cpn = ecmascript.ecmascript.parse_ComputedPropertyName(context, lexer, False, False)
+    cpn = ecmascript.ecmascript.parse_ComputedPropertyName(context, lexer, "StrictArg", False, False)
     assert cpn.PropName() == ecmascript.ecmascript.EMPTY
 
 
@@ -2321,7 +2336,7 @@ def test_ComputedPropertyName_PropName(context):
 #   3. Return ? ToPropertyKey(propName).
 def test_ComputedPropertyName_evaluate(realm, context, mocker):
     lexer = lexer2.Lexer("[1]", SyntaxError)
-    cpn = ecmascript.ecmascript.parse_ComputedPropertyName(context, lexer, False, False)
+    cpn = ecmascript.ecmascript.parse_ComputedPropertyName(context, lexer, "StrictArg", False, False)
     cpn.AssignmentExpression.evaluate = mocker.Mock(return_value="exprValue")
     gv = mocker.patch("ecmascript.ecmascript.GetValue", return_value="propName")
     tpk = mocker.patch("ecmascript.ecmascript.ToPropertyKey", return_value="evaluate")
@@ -2336,7 +2351,7 @@ def test_ComputedPropertyName_evaluate(realm, context, mocker):
 @pytest.mark.parametrize("src, expected", [("[1]", "1"), ("[67*4-12]", "256"), ("[`prop${8*12}z`]", "prop96z")])
 def test_ComputedPropertyName_evaluate_nomocks(realm, context, src, expected):
     lexer = lexer2.Lexer(src, SyntaxError)
-    cpn = ecmascript.ecmascript.parse_ComputedPropertyName(context, lexer, False, False)
+    cpn = ecmascript.ecmascript.parse_ComputedPropertyName(context, lexer, "StrictArg", False, False)
 
     rv = cpn.evaluate()
     assert rv == expected
@@ -2358,7 +2373,7 @@ def test_ComputedPropertyName_evaluate_nomocks(realm, context, src, expected):
 #
 ########################################################################################################################################################################
 def test_P2_CoverInitializedName_init(context):
-    cin = ecmascript.ecmascript.P2_CoverInitializedName(context, ["child"])
+    cin = ecmascript.ecmascript.P2_CoverInitializedName(context, "StrictArg", ["child"])
     assert cin.name == "CoverInitializedName"
     assert cin.context == context
     assert cin.children == ["child"]
@@ -2366,7 +2381,7 @@ def test_P2_CoverInitializedName_init(context):
 
 def test_P2_CoverInitializedName_IdentifierReference_Initializer_init(context):
     cin = ecmascript.ecmascript.P2_CoverInitializedName_IdentifierReference_Initializer(
-        context, ["IdentifierReference", "Initializer"]
+        context, "StrictArg", ["IdentifierReference", "Initializer"]
     )
     assert cin.name == "CoverInitializedName"
     assert cin.IdentifierReference == "IdentifierReference"
@@ -2385,13 +2400,13 @@ def test_parse_CoverInitializedName_01(mocker, context):
     lexer = Lexer([IR_REPLACEMENT, INIT_REPLACEMENT])
     mocks = CoverInitializedName_mocks(mocker)
 
-    cin = ecmascript.ecmascript.parse_CoverInitializedName(context, lexer, "YieldArg", "AwaitArg")
+    cin = ecmascript.ecmascript.parse_CoverInitializedName(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert isinstance(cin, ecmascript.ecmascript.P2_CoverInitializedName_IdentifierReference_Initializer)
     assert cin.IdentifierReference == "IdentifierReference"
     assert cin.Initializer == "Initializer"
     assert lexer.pos == 2
-    mocks["ir"].assert_called_with(context, lexer, "YieldArg", "AwaitArg")
-    mocks["init"].assert_called_with(context, lexer, True, "YieldArg", "AwaitArg")
+    mocks["ir"].assert_called_with(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
+    mocks["init"].assert_called_with(context, lexer, "StrictArg", True, "YieldArg", "AwaitArg")
 
 
 @pytest.mark.parametrize("token_stream", [[], [MATCHES_NONE], [IR_REPLACEMENT, MATCHES_NONE]])
@@ -2400,7 +2415,7 @@ def test_parse_CoverInitializedName_02(mocker, context, token_stream):
     lexer = Lexer(token_stream)
     CoverInitializedName_mocks(mocker)
 
-    cin = ecmascript.ecmascript.parse_CoverInitializedName(context, lexer, "YieldArg", "AwaitArg")
+    cin = ecmascript.ecmascript.parse_CoverInitializedName(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
     assert cin is None
     assert lexer.pos == 0
 
@@ -2421,14 +2436,16 @@ def test_parse_CoverInitializedName_02(mocker, context, token_stream):
 #
 #############################################################################
 def test_P2_Initializer_init(context):
-    init = ecmascript.ecmascript.P2_Initializer(context, ["child"])
+    init = ecmascript.ecmascript.P2_Initializer(context, "StrictArg", ["child"])
     assert init.name == "Initializer"
     assert init.context == context
     assert init.children == ["child"]
 
 
 def test_P2_Initializer_EQUALS_AssignmentExpression_init(context):
-    init = ecmascript.ecmascript.P2_Initializer_EQUALS_AssignmentExpression(context, ["=", "AssignmentExpression"])
+    init = ecmascript.ecmascript.P2_Initializer_EQUALS_AssignmentExpression(
+        context, "StrictArg", ["=", "AssignmentExpression"]
+    )
     assert init.name == "Initializer"
     assert init.AssignmentExpression == "AssignmentExpression"
 
@@ -2442,11 +2459,11 @@ def test_parse_Initializer_01(mocker, context):
     lexer = Lexer([EQ, AE_REPLACEMENT])
     mocks = Initializer_mocks(mocker)
 
-    init = ecmascript.ecmascript.parse_Initializer(context, lexer, "InArg", "YieldArg", "AwaitArg")
+    init = ecmascript.ecmascript.parse_Initializer(context, lexer, "StrictArg", "InArg", "YieldArg", "AwaitArg")
     assert isinstance(init, ecmascript.ecmascript.P2_Initializer_EQUALS_AssignmentExpression)
     assert init.AssignmentExpression == "AssignmentExpression"
     assert lexer.pos == 2
-    mocks["ae"].assert_called_with(context, lexer, "InArg", "YieldArg", "AwaitArg")
+    mocks["ae"].assert_called_with(context, lexer, "StrictArg", "InArg", "YieldArg", "AwaitArg")
 
 
 @pytest.mark.parametrize("token_stream", [[], [MATCHES_NONE], [EQ, MATCHES_NONE]])
@@ -2455,7 +2472,7 @@ def test_parse_Initializer_02(mocker, context, token_stream):
     lexer = Lexer(token_stream)
     Initializer_mocks(mocker)
 
-    init = ecmascript.ecmascript.parse_Initializer(context, lexer, "InArg", "YieldArg", "AwaitArg")
+    init = ecmascript.ecmascript.parse_Initializer(context, lexer, "StrictArg", "InArg", "YieldArg", "AwaitArg")
     assert init is None
     assert lexer.pos == 0
 
@@ -2476,7 +2493,7 @@ def test_parse_Initializer_02(mocker, context, token_stream):
 #
 #############################################################################################################################
 def test_P2_TemplateLiteral_init(context):
-    tl = ecmascript.ecmascript.P2_TemplateLiteral(context, ["child"], "TaggedArg")
+    tl = ecmascript.ecmascript.P2_TemplateLiteral(context, "StrictArg", ["child"], "TaggedArg")
     assert tl.name == "TemplateLiteral"
     assert tl.context == context
     assert tl.children == ["child"]
@@ -2484,13 +2501,13 @@ def test_P2_TemplateLiteral_init(context):
 
 
 def test_P2_TemplateLiteral_NoSubstitutionTemplate_init(context):
-    tl = ecmascript.ecmascript.P2_TemplateLiteral_NoSubstitutionTemplate(context, ["NST"], "T")
+    tl = ecmascript.ecmascript.P2_TemplateLiteral_NoSubstitutionTemplate(context, "StrictArg", ["NST"], "T")
     assert tl.name == "TemplateLiteral"
     assert tl.NoSubstitutionTemplate == "NST"
 
 
 def test_P2_TemplateLiteral_SubstitutionTemplate_init(context):
-    tl = ecmascript.ecmascript.P2_TemplateLiteral_SubstitutionTemplate(context, ["SubTemp"], "T")
+    tl = ecmascript.ecmascript.P2_TemplateLiteral_SubstitutionTemplate(context, "StrictArg", ["SubTemp"], "T")
     assert tl.name == "TemplateLiteral"
     assert tl.SubstitutionTemplate == "SubTemp"
 
@@ -2504,7 +2521,7 @@ def test_parse_TemplateLiteral_01(mocker, context):
     lexer = Lexer([NST])
     TemplateLiteral_mocks(mocker)
 
-    tl = ecmascript.ecmascript.parse_TemplateLiteral(context, lexer, "YieldArg", "AwaitArg", "TaggedArg")
+    tl = ecmascript.ecmascript.parse_TemplateLiteral(context, lexer, "StrictArg", "YieldArg", "AwaitArg", "TaggedArg")
     assert isinstance(tl, ecmascript.ecmascript.P2_TemplateLiteral_NoSubstitutionTemplate)
     assert tl.NoSubstitutionTemplate == NST
     assert lexer.pos == 1
@@ -2515,11 +2532,11 @@ def test_parse_TemplateLiteral_02(mocker, context):
     lexer = Lexer([ST_REPLACEMENT])
     mocks = TemplateLiteral_mocks(mocker)
 
-    tl = ecmascript.ecmascript.parse_TemplateLiteral(context, lexer, "YieldArg", "AwaitArg", "TaggedArg")
+    tl = ecmascript.ecmascript.parse_TemplateLiteral(context, lexer, "StrictArg", "YieldArg", "AwaitArg", "TaggedArg")
     assert isinstance(tl, ecmascript.ecmascript.P2_TemplateLiteral_SubstitutionTemplate)
     assert tl.SubstitutionTemplate == "SubstitutionTemplate"
     assert lexer.pos == 1
-    mocks["st"].assert_called_with(context, lexer, "YieldArg", "AwaitArg", "TaggedArg")
+    mocks["st"].assert_called_with(context, lexer, "StrictArg", "YieldArg", "AwaitArg", "TaggedArg")
 
 
 @pytest.mark.parametrize("token_stream", [[], [MATCHES_NONE]])
@@ -2528,7 +2545,7 @@ def test_parse_TemplateLiteral_03(mocker, context, token_stream):
     lexer = Lexer(token_stream)
     TemplateLiteral_mocks(mocker)
 
-    tl = ecmascript.ecmascript.parse_TemplateLiteral(context, lexer, "YieldArg", "AwaitArg", "TaggedArg")
+    tl = ecmascript.ecmascript.parse_TemplateLiteral(context, lexer, "StrictArg", "YieldArg", "AwaitArg", "TaggedArg")
     assert tl is None
     assert lexer.pos == 0
 
@@ -2549,7 +2566,7 @@ def test_parse_TemplateLiteral_03(mocker, context, token_stream):
 #
 #########################################################################################################################################################################
 def test_P2_SubstitutionTemplate_init(context):
-    st = ecmascript.ecmascript.P2_SubstitutionTemplate(context, ["child"], "TaggedArg")
+    st = ecmascript.ecmascript.P2_SubstitutionTemplate(context, "StrictArg", ["child"], "TaggedArg")
     assert st.name == "SubstitutionTemplate"
     assert st.context == context
     assert st.children == ["child"]
@@ -2558,7 +2575,7 @@ def test_P2_SubstitutionTemplate_init(context):
 
 def test_P2_SubstitutionTemplate_TemplateHead_Expression_TemplateSpans_init(context):
     st = ecmascript.ecmascript.P2_SubstitutionTemplate_TemplateHead_Expression_TemplateSpans(
-        context, ["TemplateHead", "Expression", "TemplateSpans"], "T"
+        context, "StrictArg", ["TemplateHead", "Expression", "TemplateSpans"], "T"
     )
     assert st.name == "SubstitutionTemplate"
     assert st.TemplateHead == "TemplateHead"
@@ -2578,14 +2595,16 @@ def test_parse_SubstitutionTemplate_01(mocker, context):
     lexer = Lexer([TEMPLATEHEAD, EXPRESSION, TS_REPLACEMENT])
     mocks = SubstitutionTemplate_mocks(mocker)
 
-    st = ecmascript.ecmascript.parse_SubstitutionTemplate(context, lexer, "YieldArg", "AwaitArg", "TaggedArg")
+    st = ecmascript.ecmascript.parse_SubstitutionTemplate(
+        context, lexer, "StrictArg", "YieldArg", "AwaitArg", "TaggedArg"
+    )
     assert isinstance(st, ecmascript.ecmascript.P2_SubstitutionTemplate_TemplateHead_Expression_TemplateSpans)
     assert st.TemplateHead == TEMPLATEHEAD
     assert st.Expression == "Expression"
     assert st.TemplateSpans == "TemplateSpans"
     assert lexer.pos == 3
-    mocks["exp"].assert_called_with(context, lexer, True, "YieldArg", "AwaitArg")
-    mocks["ts"].assert_called_with(context, lexer, "YieldArg", "AwaitArg", "TaggedArg")
+    mocks["exp"].assert_called_with(context, lexer, "StrictArg", True, "YieldArg", "AwaitArg")
+    mocks["ts"].assert_called_with(context, lexer, "StrictArg", "YieldArg", "AwaitArg", "TaggedArg")
 
 
 @pytest.mark.parametrize(
@@ -2596,7 +2615,9 @@ def test_parse_SubstitutionTemplate_02(mocker, context, token_stream):
     lexer = Lexer(token_stream)
     SubstitutionTemplate_mocks(mocker)
 
-    st = ecmascript.ecmascript.parse_SubstitutionTemplate(context, lexer, "YieldArg", "AwaitArg", "TaggedArg")
+    st = ecmascript.ecmascript.parse_SubstitutionTemplate(
+        context, lexer, "StrictArg", "YieldArg", "AwaitArg", "TaggedArg"
+    )
     assert st is None
     assert lexer.pos == 0
 
@@ -2617,7 +2638,7 @@ def test_parse_SubstitutionTemplate_02(mocker, context, token_stream):
 #
 ##########################################################################################################################
 def test_P2_TemplateSpans_init(context):
-    ts = ecmascript.ecmascript.P2_TemplateSpans(context, ["child"], "TaggedArg")
+    ts = ecmascript.ecmascript.P2_TemplateSpans(context, "StrictArg", ["child"], "TaggedArg")
     assert ts.name == "TemplateSpans"
     assert ts.context == context
     assert ts.children == ["child"]
@@ -2625,13 +2646,15 @@ def test_P2_TemplateSpans_init(context):
 
 
 def test_P2_TemplateSpans_TemplateTail_init(context):
-    ts = ecmascript.ecmascript.P2_TemplateSpans_TemplateTail(context, ["Tail"], "T")
+    ts = ecmascript.ecmascript.P2_TemplateSpans_TemplateTail(context, "StrictArg", ["Tail"], "T")
     assert ts.name == "TemplateSpans"
     assert ts.TemplateTail == "Tail"
 
 
 def test_P2_TemplateSpans_TemplateMiddleList_TemplateTail_init(context):
-    ts = ecmascript.ecmascript.P2_TemplateSpans_TemplateMiddleList_TemplateTail(context, ["MiddleList", "Tail"], "T")
+    ts = ecmascript.ecmascript.P2_TemplateSpans_TemplateMiddleList_TemplateTail(
+        context, "StrictArg", ["MiddleList", "Tail"], "T"
+    )
     assert ts.name == "TemplateSpans"
     assert ts.TemplateMiddleList == "MiddleList"
     assert ts.TemplateTail == "Tail"
@@ -2646,7 +2669,7 @@ def test_parse_TemplateSpans_01(mocker, context):
     lexer = Lexer([TEMPLATETAIL])
     TemplateSpans_mocks(mocker)
 
-    ts = ecmascript.ecmascript.parse_TemplateSpans(context, lexer, "YieldArg", "AwaitArg", "TaggedArg")
+    ts = ecmascript.ecmascript.parse_TemplateSpans(context, lexer, "StrictArg", "YieldArg", "AwaitArg", "TaggedArg")
     assert isinstance(ts, ecmascript.ecmascript.P2_TemplateSpans_TemplateTail)
     assert ts.TemplateTail == TEMPLATETAIL
     assert lexer.pos == 1
@@ -2657,12 +2680,12 @@ def test_parse_TemplateSpans_02(mocker, context):
     lexer = Lexer([TML_REPLACEMENT, TEMPLATETAIL])
     mocks = TemplateSpans_mocks(mocker)
 
-    ts = ecmascript.ecmascript.parse_TemplateSpans(context, lexer, "YieldArg", "AwaitArg", "TaggedArg")
+    ts = ecmascript.ecmascript.parse_TemplateSpans(context, lexer, "StrictArg", "YieldArg", "AwaitArg", "TaggedArg")
     assert isinstance(ts, ecmascript.ecmascript.P2_TemplateSpans_TemplateMiddleList_TemplateTail)
     assert ts.TemplateMiddleList == "TemplateMiddleList"
     assert ts.TemplateTail == TEMPLATETAIL
     assert lexer.pos == 2
-    mocks["tml"].assert_called_with(context, lexer, "YieldArg", "AwaitArg", "TaggedArg")
+    mocks["tml"].assert_called_with(context, lexer, "StrictArg", "YieldArg", "AwaitArg", "TaggedArg")
 
 
 @pytest.mark.parametrize("token_stream", [[], [MATCHES_NONE], [TML_REPLACEMENT, MATCHES_NONE]])
@@ -2671,7 +2694,7 @@ def test_parse_TemplateSpans_03(mocker, context, token_stream):
     lexer = Lexer(token_stream)
     TemplateSpans_mocks(mocker)
 
-    ts = ecmascript.ecmascript.parse_TemplateSpans(context, lexer, "YieldArg", "AwaitArg", "TaggedArg")
+    ts = ecmascript.ecmascript.parse_TemplateSpans(context, lexer, "StrictArg", "YieldArg", "AwaitArg", "TaggedArg")
     assert ts is None
     assert lexer.pos == 0
 
@@ -2692,7 +2715,7 @@ def test_parse_TemplateSpans_03(mocker, context, token_stream):
 #
 #########################################################################################################################################################
 def test_P2_TemplateMiddleList_init(context):
-    tml = ecmascript.ecmascript.P2_TemplateMiddleList(context, ["child"], "TaggedArg")
+    tml = ecmascript.ecmascript.P2_TemplateMiddleList(context, "StrictArg", ["child"], "TaggedArg")
     assert tml.name == "TemplateMiddleList"
     assert tml.context == context
     assert tml.children == ["child"]
@@ -2701,7 +2724,7 @@ def test_P2_TemplateMiddleList_init(context):
 
 def test_P2_TemplateMiddleList_TemplateMiddle_Expression_init(context):
     tml = ecmascript.ecmascript.P2_TemplateMiddleList_TemplateMiddle_Expression(
-        context, ["TemplateMiddle", "Expression"], "T"
+        context, "StrictArg", ["TemplateMiddle", "Expression"], "T"
     )
     assert tml.name == "TemplateMiddleList"
     assert tml.TemplateMiddle == "TemplateMiddle"
@@ -2710,7 +2733,7 @@ def test_P2_TemplateMiddleList_TemplateMiddle_Expression_init(context):
 
 def test_P2_TemplateMiddleList_TemplateMiddleList_TemplateMiddle_Expression_init(context):
     tml = ecmascript.ecmascript.P2_TemplateMiddleList_TemplateMiddleList_TemplateMiddle_Expression(
-        context, ["TemplateMiddleList", "TemplateMiddle", "Expression"], "T"
+        context, "StrictArg", ["TemplateMiddleList", "TemplateMiddle", "Expression"], "T"
     )
     assert tml.name == "TemplateMiddleList"
     assert tml.TemplateMiddleList == "TemplateMiddleList"
@@ -2727,12 +2750,14 @@ def test_parse_TemplateMiddleList_01(mocker, context):
     lexer = Lexer([TEMPLATEMIDDLE, EXPRESSION])
     mocks = TemplateMiddleList_mocks(mocker)
 
-    tml = ecmascript.ecmascript.parse_TemplateMiddleList(context, lexer, "YieldArg", "AwaitArg", "TaggedArg")
+    tml = ecmascript.ecmascript.parse_TemplateMiddleList(
+        context, lexer, "StrictArg", "YieldArg", "AwaitArg", "TaggedArg"
+    )
     assert isinstance(tml, ecmascript.ecmascript.P2_TemplateMiddleList_TemplateMiddle_Expression)
     assert tml.TemplateMiddle == TEMPLATEMIDDLE
     assert tml.Expression == "Expression"
     assert lexer.pos == 2
-    mocks["exp"].assert_called_with(context, lexer, True, "YieldArg", "AwaitArg")
+    mocks["exp"].assert_called_with(context, lexer, "StrictArg", True, "YieldArg", "AwaitArg")
 
 
 def test_parse_TemplateMiddleList_02(mocker, context):
@@ -2740,13 +2765,15 @@ def test_parse_TemplateMiddleList_02(mocker, context):
     lexer = Lexer([TEMPLATEMIDDLE, EXPRESSION, TEMPLATEMIDDLE, EXPRESSION])
     mocks = TemplateMiddleList_mocks(mocker)
 
-    tml = ecmascript.ecmascript.parse_TemplateMiddleList(context, lexer, "YieldArg", "AwaitArg", "TaggedArg")
+    tml = ecmascript.ecmascript.parse_TemplateMiddleList(
+        context, lexer, "StrictArg", "YieldArg", "AwaitArg", "TaggedArg"
+    )
     assert isinstance(tml, ecmascript.ecmascript.P2_TemplateMiddleList_TemplateMiddleList_TemplateMiddle_Expression)
     assert tml.TemplateMiddle == TEMPLATEMIDDLE
     assert tml.Expression == "Expression"
     tml2 = tml.TemplateMiddleList
     assert isinstance(tml2, ecmascript.ecmascript.P2_TemplateMiddleList_TemplateMiddle_Expression)
-    mocks["exp"].assert_called_with(context, lexer, True, "YieldArg", "AwaitArg")
+    mocks["exp"].assert_called_with(context, lexer, "StrictArg", True, "YieldArg", "AwaitArg")
 
 
 @pytest.mark.parametrize("token_stream", [[], [MATCHES_NONE], [TEMPLATEMIDDLE, MATCHES_NONE]])
@@ -2755,7 +2782,9 @@ def test_parse_TemplateMiddleList_03(mocker, context, token_stream):
     lexer = Lexer(token_stream)
     TemplateMiddleList_mocks(mocker)
 
-    tml = ecmascript.ecmascript.parse_TemplateMiddleList(context, lexer, "YieldArg", "AwaitArg", "TaggedArg")
+    tml = ecmascript.ecmascript.parse_TemplateMiddleList(
+        context, lexer, "StrictArg", "YieldArg", "AwaitArg", "TaggedArg"
+    )
     assert tml is None
     assert lexer.pos == 0
 
@@ -2769,6 +2798,8 @@ def test_parse_TemplateMiddleList_04(mocker, context, token_stream):
     lexer = Lexer(token_stream)
     TemplateMiddleList_mocks(mocker)
 
-    tml = ecmascript.ecmascript.parse_TemplateMiddleList(context, lexer, "YieldArg", "AwaitArg", "TaggedArg")
+    tml = ecmascript.ecmascript.parse_TemplateMiddleList(
+        context, lexer, "StrictArg", "YieldArg", "AwaitArg", "TaggedArg"
+    )
     assert isinstance(tml, ecmascript.ecmascript.P2_TemplateMiddleList_TemplateMiddle_Expression)
     assert lexer.pos == 2
