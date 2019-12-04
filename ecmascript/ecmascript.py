@@ -30969,7 +30969,13 @@ def CreateStringConstructor(realm):
         desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)
         DefinePropertyOrThrow(obj, key, desc)
     BindBuiltinFunctions(
-        realm, obj, [("fromCharCode", String_fromCharCode, 1), ("fromCodePoint", String_fromCodePoint, 1),],
+        realm,
+        obj,
+        [
+            ("fromCharCode", String_fromCharCode, 1),
+            ("fromCodePoint", String_fromCodePoint, 1),
+            ("raw", String_raw, None),
+        ],
     )
     return obj
 
@@ -31065,6 +31071,62 @@ def String_fromCodePoint(this_value, new_target, *codePoints):
 
 String_fromCodePoint.length = 1
 String_fromCodePoint.name = "fromCodePoint"
+
+# 21.1.2.4 String.raw ( template, ...substitutions )
+def String_raw(this_value, new_target, template=None, *substitutions):
+    # The String.raw function may be called with a variable number of arguments. The first argument is template and the
+    # remainder of the arguments form the List substitutions. The following steps are taken:
+    #
+    #   1. Let substitutions be a List consisting of all of the arguments passed to this function, starting with the
+    #      second argument. If fewer than two arguments were passed, the List is empty.
+    #   2. Let numberOfSubstitutions be the number of elements in substitutions.
+    #   3. Let cooked be ? ToObject(template).
+    #   4. Let raw be ? ToObject(? Get(cooked, "raw")).
+    #   5. Let literalSegments be ? ToLength(? Get(raw, "length")).
+    #   6. If literalSegments ≤ 0, return the empty string.
+    #   7. Let stringElements be a new empty List.
+    #   8. Let nextIndex be 0.
+    #   9. Repeat,
+    #       a. Let nextKey be ! ToString(nextIndex).
+    #       b. Let nextSeg be ? ToString(? Get(raw, nextKey)).
+    #       c. Append in order the code unit elements of nextSeg to the end of stringElements.
+    #       d. If nextIndex + 1 = literalSegments, then
+    #           i. Return the String value whose code units are, in order, the elements in the List stringElements. If
+    #              stringElements has no elements, the empty string is returned.
+    #       e. If nextIndex < numberOfSubstitutions, let next be substitutions[nextIndex].
+    #       f. Else, let next be the empty String.
+    #       g. Let nextSub be ? ToString(next).
+    #       h. Append in order the code unit elements of nextSub to the end of stringElements.
+    #       i. Increase nextIndex by 1.
+    # NOTE  | String.raw is intended for use as a tag function of a Tagged Template (12.3.7). When called as such, the
+    #       | first argument will be a well formed template object and the rest parameter will contain the substitution
+    #       | values.
+    numberOfSubstitutions = len(substitutions)
+    cooked = ToObject(template)
+    raw = ToObject(Get(cooked, "raw"))
+    literalSegments = ToLength(Get(raw, "length"))
+    if literalSegments <= 0:
+        return ""
+    stringElements = ""
+    nextIndex = 0
+    while 1:
+        nextKey = ToString(nextIndex)
+        nextSeg = ToString(Get(raw, nextKey))
+        stringElements = stringElements + nextSeg
+        if nextIndex + 1 == literalSegments:
+            return stringElements
+        if nextIndex < numberOfSubstitutions:
+            next = substitutions[nextIndex]
+        else:
+            next = ""
+        nextSub = ToString(next)
+        stringElements = stringElements + nextSub
+        nextIndex += 1
+
+
+String_raw.length = 1
+String_raw.name = "raw"
+
 
 # ------------------------------------ 𝟐𝟏.𝟏.𝟑 𝑷𝒓𝒐𝒑𝒆𝒓𝒕𝒊𝒆𝒔 𝒐𝒇 𝒕𝒉𝒆 𝑺𝒕𝒓𝒊𝒏𝒈 𝑷𝒓𝒐𝒕𝒐𝒕𝒚𝒑𝒆 𝑶𝒃𝒋𝒆𝒄𝒕 ------------------------------------
 # 21.1.3 Properties of the String Prototype Object
