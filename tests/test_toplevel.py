@@ -254,6 +254,12 @@ def cleanup():
             'function fart(literals, ...substitutions) { let result = ""; for (let i=0; i < substitutions.length; i++) { result += literals[i] + "~~"; result += "#" + substitutions[i] + "#"; } result += literals[literals.length-1]; return result; } fart`${100} items are $${100 * 2.50}.` + fart`loopy`;',
             "~~#100# items are $~~#250#.loopy",
         ),
+        (
+            'let name="bob"; String.raw`Hello.\\nIt looks like ${name} is here.\\n`;',
+            "Hello.\\nIt looks like bob is here.\\n",
+        ),
+        ("String.raw({raw: []})", ""),
+        ("String.raw({raw: ['a', 'b', 'c', 'd', 'e']}, 12, 123)", "a12b123cde"),
     ],
 )
 def test_scripts_01(cleanup, script, result):
