@@ -28037,28 +28037,28 @@ def CreateDynamicFunction(constructor, newTarget, kind, args):
         newTarget = constructor
     if kind == "normal":
         goal = "FunctionBody"
-        goal_parse = lambda context, lexer: parse_FunctionBody(context, lexer, strict, False, False)
+        goal_parse = lambda context, lexer: parse_FunctionBody(context, lexer, False, False, False)
         parameterGoal = "FormalParameters"
-        param_parse = lambda context, lexer: parse_FormalParameters(context, lexer, strict, False, False)
+        param_parse = lambda context, lexer: parse_FormalParameters(context, lexer, False, False, False)
         fallbackProto = "%FunctionPrototype%"
     elif kind == "generator":
         goal = "GeneratorBody"
         goal_parse = parse_GeneratorBody
         parameterGoal = "FormalParameters"
-        param_parse = lambda context, lexer: parse_FormalParameters(context, lexer, strict, True, False)
+        param_parse = lambda context, lexer: parse_FormalParameters(context, lexer, False, True, False)
         fallbackProto = "%Generator%"
     elif kind == "async":
         goal = "AsyncFunctionBody"
         goal_parse = parse_AsyncFunctionBody
         parameterGoal = "FormalParameters"
-        param_parse = lambda context, lexer: parse_FormalParameters(context, lexer, strict, False, True)
+        param_parse = lambda context, lexer: parse_FormalParameters(context, lexer, False, False, True)
         fallbackProto = "%AsyncFunctionPrototype%"
     else:
         assert kind == "async generator"
         goal = "AsyncGeneratorBody"
         goal_parse = parse_AsyncGeneratorBody
         parameterGoal = "FormalParameters"
-        param_parse = lambda context, lexer: parse_FormalParameters(context, lexer, strict, True, True)
+        param_parse = lambda context, lexer: parse_FormalParameters(context, lexer, False, True, True)
         fallbackProto = "%AsyncGenerator%"
     argCount = len(args)
     P = ""
