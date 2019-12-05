@@ -413,14 +413,6 @@ class LexerCore:
                 identifier_name_early_errors(id_token, syntax_error_ctor=self.syntax_error_ctor)
                 return id_token
 
-            # Punctuator
-            punct = self.punctuator_match.match(self.src, pos=pos)
-            if punct:
-                span = punct.span()
-                return Token(
-                    type=punct.group(0), value=punct.group(0), src=self.src, span=Span(*span), newlines=newlines
-                )
-
             # NumericLiteral
             intconvert = lambda base: lambda span: int(self.src[span[0] + 2 : span[1]], base)
             for matcher, converter in (
@@ -435,6 +427,14 @@ class LexerCore:
                     return Token(
                         type="NUMERIC", src=self.src, value=converter(span), span=Span(*span), newlines=newlines
                     )
+
+            # Punctuator
+            punct = self.punctuator_match.match(self.src, pos=pos)
+            if punct:
+                span = punct.span()
+                return Token(
+                    type=punct.group(0), value=punct.group(0), src=self.src, span=Span(*span), newlines=newlines
+                )
 
             # StringLiteral
             for matcher in (self.doublestringliteral_match, self.singlestringliteral_match):

@@ -168,6 +168,7 @@ class Test_LexerCore:
                 "InputElementRegExp",
                 lexer2.Token("NUMERIC", "899.31e-5", 0.0089931, lexer2.Span(0, 9), []),
             ),
+            (".25", 0, "InputElementRegExp", lexer2.Token("NUMERIC", ".25", 0.25, lexer2.Span(0, 3), [])),
             ('"string"', 0, "InputElementRegExp", lexer2.Token("STRING", '"string"', "string", lexer2.Span(0, 8), [])),
             ("", 0, "InputElementRegExp", None),
             ("}", 0, "InputElementDiv", lexer2.Token("}", "}", "}", lexer2.Span(0, 1), [])),
