@@ -32609,9 +32609,10 @@ def CreateArrayPrototype(realm):
         realm,
         proto,
         [
-            ("toString", ArrayPrototype_toString, 0),
+            ("forEach", ArrayPrototype_forEach, None),
             ("join", ArrayPrototype_join, 1),
             ("push", ArrayPrototype_push, None),
+            ("toString", ArrayPrototype_toString, 0),
             ("values", ArrayPrototype_values, 0),
         ],
     )
@@ -32619,7 +32620,54 @@ def CreateArrayPrototype(realm):
     return proto
 
 
-# 22.1.3.13 Array.prototype.join ( separator )
+# 22.1.3.12 Array.prototype.forEach ( callbackfn [ , thisArg ] )
+def ArrayPrototype_forEach(this_value, new_target, callbackfn=None, thisArg=None, *_):
+    # NOTE 1    | callbackfn should be a function that accepts three arguments. forEach calls callbackfn once for each
+    #           | element present in the array, in ascending order. callbackfn is called only for elements of the array
+    #           | which actually exist; it is not called for missing elements of the array.
+    #           |
+    #           | If a thisArg parameter is provided, it will be used as the this value for each invocation of
+    #           | callbackfn. If it is not provided, undefined is used instead.
+    #           |
+    #           | callbackfn is called with three arguments: the value of the element, the index of the element, and
+    #           | the object being traversed.
+    #           |
+    #           | forEach does not directly mutate the object on which it is called but the object may be mutated by
+    #           | the calls to callbackfn.
+    #
+    # When the forEach method is called with one or two arguments, the following steps are taken:
+    #   1. Let O be ? ToObject(this value).
+    #   2. Let len be ? ToLength(? Get(O, "length")).
+    #   3. If IsCallable(callbackfn) is false, throw a TypeError exception.
+    #   4. If thisArg is present, let T be thisArg; else let T be undefined.
+    #   5. Let k be 0.
+    #   6. Repeat, while k < len
+    #       a. Let Pk be ! ToString(k).
+    #       b. Let kPresent be ? HasProperty(O, Pk).
+    #       c. If kPresent is true, then
+    #           i. Let kValue be ? Get(O, Pk).
+    #           ii. Perform ? Call(callbackfn, T, « kValue, k, O »).
+    #       d. Increase k by 1.
+    #   7. Return undefined.
+    # This function is the %ArrayProto_forEach% intrinsic object.
+    #
+    # NOTE 2    | The forEach function is intentionally generic; it does not require that its this value be an Array
+    #           | object. Therefore it can be transferred to other kinds of objects for use as a method.
+    O = ToObject(this_value)
+    length = ToLength(Get(O, "length"))
+    if not IsCallable(callbackfn):
+        raise ESTypeError("Array.prototype.forEach called with invalid receiver")
+    for k in range(length):
+        Pk = ToString(k)
+        if HasProperty(O, Pk):
+            Call(callbackfn, thisArg, [Get(O, Pk), k, O])
+    return None
+
+
+ArrayPrototype_forEach.length = 1
+ArrayPrototype_forEach.name = "forEach"
+
+# 22.1.3.15 Array.prototype.join ( separator )
 def ArrayPrototype_join(this_value, new_target, separator=",", *_):
     # NOTE 1
     # The elements of the array are converted to Strings, and these Strings are then concatenated, separated by
@@ -32651,24 +32699,6 @@ def ArrayPrototype_join(this_value, new_target, separator=",", *_):
         ToString(element) if not (isUndefined(element) or isNull(element)) else ""
         for element in (Get(O, ToString(k)) for k in range(length))
     )
-
-
-# 22.1.3.28 Array.prototype.toString ( )
-def ArrayPrototype_toString(this_value, new_target, *_):
-    # When the toString method is called, the following steps are taken:
-    #
-    #   1. Let array be ? ToObject(this value).
-    #   2. Let func be ? Get(array, "join").
-    #   3. If IsCallable(func) is false, let func be the intrinsic function %ObjProto_toString%.
-    #   4. Return ? Call(func, array).
-    # NOTE
-    # The toString function is intentionally generic; it does not require that its this value be an Array object.
-    # Therefore it can be transferred to other kinds of objects for use as a method.
-    array = ToObject(this_value)
-    func = Get(array, "join")
-    if not IsCallable(func):
-        func = surrounding_agent.running_ec.realm.intrinsics["%ObjProto_toString%"]
-    return Call(func, array)
 
 
 # 22.1.3.20 Array.prototype.push ( ...items )
@@ -32707,7 +32737,25 @@ ArrayPrototype_push.length = 1
 ArrayPrototype_push.name = "push"
 
 
-# 22.1.3.30 Array.prototype.values ( )
+# 22.1.3.30 Array.prototype.toString ( )
+def ArrayPrototype_toString(this_value, new_target, *_):
+    # When the toString method is called, the following steps are taken:
+    #
+    #   1. Let array be ? ToObject(this value).
+    #   2. Let func be ? Get(array, "join").
+    #   3. If IsCallable(func) is false, let func be the intrinsic function %ObjProto_toString%.
+    #   4. Return ? Call(func, array).
+    # NOTE
+    # The toString function is intentionally generic; it does not require that its this value be an Array object.
+    # Therefore it can be transferred to other kinds of objects for use as a method.
+    array = ToObject(this_value)
+    func = Get(array, "join")
+    if not IsCallable(func):
+        func = surrounding_agent.running_ec.realm.intrinsics["%ObjProto_toString%"]
+    return Call(func, array)
+
+
+# 22.1.3.32 Array.prototype.values ( )
 def ArrayPrototype_values(this_value, new_target, *_):
     # The following steps are taken:
     #
