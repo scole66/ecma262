@@ -260,6 +260,10 @@ def cleanup():
         ),
         ("String.raw({raw: []})", ""),
         ("String.raw({raw: ['a', 'b', 'c', 'd', 'e']}, 12, 123)", "a12b123cde"),
+        (
+            "a = [1, 2, 3]; a.forEach(function (v, i, o) {o[i] = v+10;}); let res=''; for (idx=0; idx<a.length; idx++) res += a[idx] + ', '; res;",
+            "11, 12, 13, ",
+        ),
     ],
 )
 def test_scripts_01(cleanup, script, result):
