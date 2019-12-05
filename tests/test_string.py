@@ -6,12 +6,12 @@ import ecmascript.ecmascript as e
 def test_StringObjectInit_01(realm):
     proto = realm.intrinsics["%ObjectPrototype%"]
 
-    str = e.StringObject("test value", proto)
+    string = e.StringObject("test value", proto)
 
-    assert e.isObject(str)
-    assert str.IsExtensible()
-    assert str.GetPrototypeOf() == proto
-    assert f"{str!r}" == "String('test value')"
+    assert e.isObject(string)
+    assert string.IsExtensible()
+    assert string.GetPrototypeOf() == proto
+    assert f"{string!r}" == "String('test value')"
 
 
 def test_StringCreate_01(realm):
@@ -103,9 +103,7 @@ def test_CreateStringConstructor_01(realm):
     [
         ("fromCharCode", "String_fromCharCode", 1),
         ("fromCodePoint", "String_fromCodePoint", 1),
-        pytest.param(
-            "raw", "String_raw", 1, marks=pytest.mark.xfail
-        ),  # Not gonna bother with "raw" until templates go in
+        ("raw", "String_raw", 1),
     ],
 )
 def test_CreateStringConstructor_02(realm, fname, fcn, length):
