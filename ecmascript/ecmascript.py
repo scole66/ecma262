@@ -17428,7 +17428,11 @@ class P2_StatementList_StatementList_StatementListItem(P2_StatementList):
         #   3. Let s be the result of evaluating StatementListItem.
         #   4. Return Completion(UpdateEmpty(s, sl)).
         sl = self.StatementList.evaluate()
-        s = self.StatementListItem.evaluate()
+        try:
+            s = self.StatementListItem.evaluate()
+        except ESAbrupt as err:
+            c = err.completion
+            raise type(err)(UpdateEmpty(c.value, sl), c.target)
         return UpdateEmpty(s, sl)
 
     def LeadingStrings(self):
@@ -22377,6 +22381,83 @@ class P2_SwitchStatement_SWITCH_Expression_CaseBlock(P2_SwitchStatement):
     def CaseBlock(self):
         return self.children[4]
 
+    def EarlyErrors(self):
+        # 13.12.1 Static Semantics: Early Errors
+        # SwitchStatement : switch ( Expression ) CaseBlock
+        #   * It is a Syntax Error if the LexicallyDeclaredNames of CaseBlock contains any duplicate entries.
+        #   * It is a Syntax Error if any element of the LexicallyDeclaredNames of CaseBlock also occurs in the
+        #     VarDeclaredNames of CaseBlock.
+        ldn = self.CaseBlock.LexicallyDeclaredNames()
+        vdn = self.CaseBlock.VarDeclaredNames()
+        duplicates = [name for name, count in Counter(ldn).items() if count > 1]
+        clashes = set(vdn) & set(ldn)
+        return [
+            x
+            for x in (
+                len(duplicates) > 0 and self.CreateSyntaxError(f"Duplicated declarations: {', '.join(duplicates)}"),
+                len(clashes) > 0 and self.CreateSyntaxError(f"Duplicated declarations: {', '.join(clashes)}"),
+            )
+            if x
+        ]
+
+    def ContainsDuplicateLabels(self, labelset):
+        # 13.12.2 Static Semantics: ContainsDuplicateLabels
+        #   With parameter labelSet.
+        # SwitchStatement : switch ( Expression ) CaseBlock
+        #   1. Return ContainsDuplicateLabels of CaseBlock with argument labelSet.
+        return self.CaseBlock.ContainsDuplicateLabels(labelset)
+
+    def ContainsUndefinedBreakTarget(self, labelSet):
+        # 13.12.3 Static Semantics: ContainsUndefinedBreakTarget
+        #   With parameter labelSet.
+        # SwitchStatement : switch ( Expression ) CaseBlock
+        #   1. Return ContainsUndefinedBreakTarget of CaseBlock with argument labelSet.
+        return self.CaseBlock.ContainsUndefinedBreakTarget(labelSet)
+
+    def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
+        # 13.12.4 Static Semantics: ContainsUndefinedContinueTarget
+        #   With parameters iterationSet and labelSet.
+        # SwitchStatement : switch ( Expression ) CaseBlock
+        #   1. Return ContainsUndefinedContinueTarget of CaseBlock with arguments iterationSet and « ».
+        return self.CaseBlock.ContainsUndefinedContinueTarget(iterationSet, [])
+
+    def VarDeclaredNames(self):
+        # 13.12.7 Static Semantics: VarDeclaredNames
+        # SwitchStatement : switch ( Expression ) CaseBlock
+        #   1. Return the VarDeclaredNames of CaseBlock.
+        return self.CaseBlock.VarDeclaredNames()
+
+    def VarScopedDeclarations(self):
+        # 13.12.8 Static Semantics: VarScopedDeclarations
+        # SwitchStatement : switch ( Expression ) CaseBlock
+        #   1. Return the VarScopedDeclarations of CaseBlock.
+        return self.CaseBlock.VarScopedDeclarations()
+
+    def evaluate(self):
+        # 13.12.11 Runtime Semantics: Evaluation
+        # SwitchStatement : switch ( Expression ) CaseBlock
+        #   1. Let exprRef be the result of evaluating Expression.
+        #   2. Let switchValue be ? GetValue(exprRef).
+        #   3. Let oldEnv be the running execution context's LexicalEnvironment.
+        #   4. Let blockEnv be NewDeclarativeEnvironment(oldEnv).
+        #   5. Perform BlockDeclarationInstantiation(CaseBlock, blockEnv).
+        #   6. Set the running execution context's LexicalEnvironment to blockEnv.
+        #   7. Let R be the result of performing CaseBlockEvaluation of CaseBlock with argument switchValue.
+        #   8. Set the running execution context's LexicalEnvironment to oldEnv.
+        #   9. Return R.
+        # NOTE  | No matter how control leaves the SwitchStatement the LexicalEnvironment is always restored to its
+        #       | former state.
+        switchValue = GetValue(self.Expression.evaluate())
+        oldEnv = surrounding_agent.running_ec.lexical_environment
+        blockEnv = NewDeclarativeEnvironment(oldEnv)
+        BlockDeclarationInstantiation(self.CaseBlock, blockEnv)
+        surrounding_agent.running_ec.lexical_environment = blockEnv
+        try:
+            R = self.CaseBlock.CaseBlockEvaluation(switchValue)
+        finally:
+            surrounding_agent.running_ec.lexical_environment = oldEnv
+        return R
+
 
 def parse_SwitchStatement(context, lexer, strict, Yield, Await, Return):
     # 13.12 The switch Statement
@@ -22412,17 +22493,268 @@ class P2_CaseBlock(ParseNode2):
     def __init__(self, ctx, strict, children):
         super().__init__(ctx, "CaseBlock", strict, children)
 
-
-class P2_CaseBlock_EMPTY(P2_CaseBlock):
     CaseClausesBefore = None
     DefaultClause = None
     CaseClausesAfter = None
 
 
-class P2_CaseBlock_DefaultClause(P2_CaseBlock):
-    CaseClausesBefore = None
-    CaseClausesAfter = None
+class P2_CaseBlock_EMPTY(P2_CaseBlock):
+    def ContainsDuplicateLabels(self, labelset):
+        # 13.12.2 Static Semantics: ContainsDuplicateLabels
+        #   With parameter labelSet.
+        # CaseBlock : { }
+        #   1. Return false.
+        return False
 
+    def ContainsUndefinedBreakTarget(self, labelSet):
+        # 13.12.3 Static Semantics: ContainsUndefinedBreakTarget
+        #   With parameter labelSet.
+        # CaseBlock : { }
+        #   1. Return false.
+        return False
+
+    def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
+        # 13.12.4 Static Semantics: ContainsUndefinedContinueTarget
+        #   With parameters iterationSet and labelSet.
+        # CaseBlock : { }
+        #   1. Return false.
+        return False
+
+    def LexicallyDeclaredNames(self):
+        # 13.12.5 Static Semantics: LexicallyDeclaredNames
+        # CaseBlock : { }
+        #   1. Return a new empty List.
+        return []
+
+    def LexicallyScopedDeclarations(self):
+        # 13.12.6 Static Semantics: LexicallyScopedDeclarations
+        # CaseBlock : { }
+        #   1. Return a new empty List.
+        return []
+
+    def VarDeclaredNames(self):
+        # 13.12.7 Static Semantics: VarDeclaredNames
+        # CaseBlock : { }
+        #   1. Return a new empty List.
+        return []
+
+    def VarScopedDeclarations(self):
+        # 13.12.8 Static Semantics: VarScopedDeclarations
+        # CaseBlock : { }
+        #   1. Return a new empty List.
+        return []
+
+    def CaseBlockEvaluation(self, input):
+        # 13.12.9Runtime Semantics: CaseBlockEvaluation
+        #   With parameter input.
+        # CaseBlock : { }
+        #   1. Return NormalCompletion(undefined).
+        return None
+
+
+class P2_CaseBlock_HasDefault(P2_CaseBlock):
+    def ContainsDuplicateLabels(self, labelset):
+        # 13.12.2 Static Semantics: ContainsDuplicateLabels
+        #   With parameter labelSet.
+        # CaseBlock : { CaseClauses DefaultClause CaseClauses }
+        #   1. If the first CaseClauses is present, then
+        #       a. Let hasDuplicates be ContainsDuplicateLabels of the first CaseClauses with argument labelSet.
+        #       b. If hasDuplicates is true, return true.
+        #   2. Let hasDuplicates be ContainsDuplicateLabels of DefaultClause with argument labelSet.
+        #   3. If hasDuplicates is true, return true.
+        #   4. If the second CaseClauses is not present, return false.
+        #   5. Return ContainsDuplicateLabels of the second CaseClauses with argument labelSet.
+        return (
+            (self.CaseClausesBefore is not None and self.CaseClausesBefore.ContainsDuplicateLabels(labelset))
+            or (self.DefaultClause.ContainsDuplicateLabels(labelset))
+            or (self.CaseClausesAfter is not None and self.CaseClausesAfter.ContainsDuplicateLabels(labelset))
+        )
+
+    def ContainsUndefinedBreakTarget(self, labelSet):
+        # 13.12.3 Static Semantics: ContainsUndefinedBreakTarget
+        #   With parameter labelSet.
+        # CaseBlock : { CaseClauses DefaultClause CaseClauses }
+        #   1. If the first CaseClauses is present, then
+        #       a. Let hasUndefinedLabels be ContainsUndefinedBreakTarget of the first CaseClauses with argument
+        #          labelSet.
+        #       b. If hasUndefinedLabels is true, return true.
+        #   2. Let hasUndefinedLabels be ContainsUndefinedBreakTarget of DefaultClause with argument labelSet.
+        #   3. If hasUndefinedLabels is true, return true.
+        #   4. If the second CaseClauses is not present, return false.
+        #   5. Return ContainsUndefinedBreakTarget of the second CaseClauses with argument labelSet.
+        return (
+            (self.CaseClausesBefore is not None and self.CaseClausesBefore.ContainsUndefinedBreakTarget(labelSet))
+            or (self.DefaultClause.ContainsUndefinedBreakTarget(labelSet))
+            or (self.CaseClausesAfter is not None and self.CaseClausesAfter.ContainsUndefinedBreakTarget(labelSet))
+        )
+
+    def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
+        # 13.12.4 Static Semantics: ContainsUndefinedContinueTarget
+        #   With parameters iterationSet and labelSet.
+        # CaseBlock : { CaseClauses DefaultClause CaseClauses }
+        #   1. If the first CaseClauses is present, then
+        #       a. Let hasUndefinedLabels be ContainsUndefinedContinueTarget of the first CaseClauses with arguments
+        #          iterationSet and « ».
+        #       b. If hasUndefinedLabels is true, return true.
+        #   2. Let hasUndefinedLabels be ContainsUndefinedContinueTarget of DefaultClause with arguments iterationSet
+        #      and « ».
+        #   3. If hasUndefinedLabels is true, return true.
+        #   4. If the second CaseClauses is not present, return false.
+        #   5. Return ContainsUndefinedContinueTarget of the second CaseClauses with arguments iterationSet and « ».
+        return (
+            (
+                self.CaseClausesBefore is not None
+                and self.CaseClausesBefore.ContainsUndefinedContinueTarget(iterationSet, [])
+            )
+            or (self.DefaultClause.ContainsUndefinedContinueTarget(iterationSet, []))
+            or (
+                self.CaseClausesAfter is not None
+                and self.CaseClausesAfter.ContainsUndefinedContinueTarget(iterationSet, [])
+            )
+        )
+
+    def LexicallyDeclaredNames(self):
+        # 13.12.5 Static Semantics: LexicallyDeclaredNames
+        # CaseBlock : { CaseClauses DefaultClause CaseClauses }
+        #   1. If the first CaseClauses is present, let names be the LexicallyDeclaredNames of the first CaseClauses.
+        #   2. Else, let names be a new empty List.
+        #   3. Append to names the elements of the LexicallyDeclaredNames of the DefaultClause.
+        #   4. If the second CaseClauses is not present, return names.
+        #   5. Return the result of appending to names the elements of the LexicallyDeclaredNames of the second CaseClauses.
+        return (
+            (self.CaseClausesBefore.LexicallyDeclaredNames() if self.CaseClausesBefore else [])
+            + (self.DefaultClause.LexicallyDeclaredNames())
+            + (self.CaseClausesAfter.LexicallyDeclaredNames() if self.CaseClausesAfter else [])
+        )
+
+    def LexicallyScopedDeclarations(self):
+        # 13.12.6 Static Semantics: LexicallyScopedDeclarations
+        # CaseBlock : { CaseClauses DefaultClause CaseClauses }
+        #   1. If the first CaseClauses is present, let declarations be the LexicallyScopedDeclarations of the first
+        #      CaseClauses.
+        #   2. Else, let declarations be a new empty List.
+        #   3. Append to declarations the elements of the LexicallyScopedDeclarations of the DefaultClause.
+        #   4. If the second CaseClauses is not present, return declarations.
+        #   5. Return the result of appending to declarations the elements of the LexicallyScopedDeclarations of the
+        #      second CaseClauses.
+        return (
+            (self.CaseClausesBefore.LexicallyScopedDeclarations() if self.CaseClausesBefore else [])
+            + (self.DefaultClause.LexicallyScopedDeclarations())
+            + (self.CaseClausesAfter.LexicallyScopedDeclarations() if self.CaseClausesAfter else [])
+        )
+
+    def VarDeclaredNames(self):
+        # 13.12.7 Static Semantics: VarDeclaredNames
+        # CaseBlock : { CaseClauses DefaultClause CaseClauses }
+        #   1. If the first CaseClauses is present, let names be the VarDeclaredNames of the first CaseClauses.
+        #   2. Else, let names be a new empty List.
+        #   3. Append to names the elements of the VarDeclaredNames of the DefaultClause.
+        #   4. If the second CaseClauses is not present, return names.
+        #   5. Return the result of appending to names the elements of the VarDeclaredNames of the second CaseClauses.
+        return (
+            (self.CaseClausesBefore.VarDeclaredNames() if self.CaseClausesBefore else [])
+            + (self.DefaultClause.VarDeclaredNames())
+            + (self.CaseClausesAfter.VarDeclaredNames() if self.CaseClausesAfter else [])
+        )
+
+    def VarScopedDeclarations(self):
+        # 13.12.8 Static Semantics: VarScopedDeclarations
+        # CaseBlock : { CaseClauses DefaultClause CaseClauses }
+        #   1. If the first CaseClauses is present, let declarations be the VarScopedDeclarations of the first
+        #      CaseClauses.
+        #   2. Else, let declarations be a new empty List.
+        #   3. Append to declarations the elements of the VarScopedDeclarations of the DefaultClause.
+        #   4. If the second CaseClauses is not present, return declarations.
+        #   5. Return the result of appending to declarations the elements of the VarScopedDeclarations of the second
+        #      CaseClauses.
+        return (
+            (self.CaseClausesBefore.VarScopedDeclarations() if self.CaseClausesBefore else [])
+            + (self.DefaultClause.VarScopedDeclarations())
+            + (self.CaseClausesAfter.VarScopedDeclarations() if self.CaseClausesAfter else [])
+        )
+
+    def CaseBlockEvaluation(self, input):
+        # 13.12.9 Runtime Semantics: CaseBlockEvaluation
+        #   With parameter input.
+        # CaseBlock : { CaseClauses DefaultClause CaseClauses }
+        #   1. Let V be undefined.
+        #   2. If the first CaseClauses is present, then
+        #       a. Let A be the List of CaseClause items in the first CaseClauses, in source text order.
+        #   3. Else,
+        #       a. Let A be « ».
+        #   4. Let found be false.
+        #   5. For each CaseClause C in A, do
+        #       a. If found is false, then
+        #           i. Set found to ? CaseClauseIsSelected(C, input).
+        #       b. If found is true, then
+        #           i. Let R be the result of evaluating C.
+        #           ii. If R.[[Value]] is not empty, set V to R.[[Value]].
+        #           iii. If R is an abrupt completion, return Completion(UpdateEmpty(R, V)).
+        #   6. Let foundInB be false.
+        #   7. If the second CaseClauses is present, then
+        #       a. Let B be the List of CaseClause items in the second CaseClauses, in source text order.
+        #   8. Else,
+        #       a. Let B be « ».
+        #   9. If found is false, then
+        #       a. For each CaseClause C in B, do
+        #           i. If foundInB is false, then
+        #               1. Set foundInB to ? CaseClauseIsSelected(C, input).
+        #           ii. If foundInB is true, then
+        #               1. Let R be the result of evaluating CaseClause C.
+        #               2. If R.[[Value]] is not empty, set V to R.[[Value]].
+        #               3. If R is an abrupt completion, return Completion(UpdateEmpty(R, V)).
+        #   10. If foundInB is true, return NormalCompletion(V).
+        #   11. Let R be the result of evaluating DefaultClause.
+        #   12. If R.[[Value]] is not empty, set V to R.[[Value]].
+        #   13. If R is an abrupt completion, return Completion(UpdateEmpty(R, V)).
+        #   14. For each CaseClause C in B (NOTE: this is another complete iteration of the second CaseClauses), do
+        #       a. Let R be the result of evaluating CaseClause C.
+        #       b. If R.[[Value]] is not empty, set V to R.[[Value]].
+        #       c. If R is an abrupt completion, return Completion(UpdateEmpty(R, V)).
+        #   15. Return NormalCompletion(V).
+        V = None
+        A = self.CaseClausesBefore.flattened() if self.CaseClausesBefore else []
+        found = False
+        for C in A:
+            found = found or C.CaseClauseIsSelected(input)
+            if found:
+                try:
+                    R = C.evaluate()
+                    V = UpdateEmpty(R, V)
+                except ESAbrupt as err:
+                    c = err.completion
+                    raise type(err)(UpdateEmpty(c.value, V), c.target)
+        foundInB = False
+        B = self.CaseClausesAfter.flattened() if self.CaseClausesAfter else []
+        if not found:
+            for C in B:
+                foundInB = foundInB or C.CaseClauseIsSelected(input)
+                if foundInB:
+                    try:
+                        R = C.evaluate()
+                        V = UpdateEmpty(R, V)
+                    except ESAbrupt as err:
+                        c = err.completion
+                        raise type(err)(UpdateEmpty(c.value, V), c.target)
+        if foundInB:
+            return V
+        try:
+            R = self.DefaultClause.evaluate()
+            V = UpdateEmpty(R, V)
+        except ESAbrupt as err:
+            c = err.completion
+            raise type(err)(UpdateEmpty(c.value, V), c.target)
+        for C in B:
+            try:
+                R = C.evaluate()
+                V = UpdateEmpty(R, V)
+            except ESAbrupt as err:
+                c = err.completion
+                raise type(err)(UpdateEmpty(c.value, V), c.target)
+        return V
+
+
+class P2_CaseBlock_DefaultClause(P2_CaseBlock_HasDefault):
     @property
     def DefaultClause(self):
         return self.children[1]
@@ -22433,11 +22765,36 @@ class P2_CaseBlock_CaseClauses(P2_CaseBlock):
     def CaseClausesBefore(self):
         return self.children[1]
 
-    DefaultClause = None
-    CaseClausesAfter = None
+    def CaseBlockEvaluation(self, input):
+        # 13.12.9 Runtime Semantics: CaseBlockEvaluation
+        #   With parameter input.
+        # CaseBlock : { CaseClauses }
+        #   1. Let V be undefined.
+        #   2. Let A be the List of CaseClause items in CaseClauses, in source text order.
+        #   3. Let found be false.
+        #   4. For each CaseClause C in A, do
+        #       a. If found is false, then
+        #           i. Set found to ? CaseClauseIsSelected(C, input).
+        #       b. If found is true, then
+        #           i. Let R be the result of evaluating C.
+        #           ii. If R.[[Value]] is not empty, set V to R.[[Value]].
+        #           iii. If R is an abrupt completion, return Completion(UpdateEmpty(R, V)).
+        #   5. Return NormalCompletion(V).
+        V = None
+        A = self.CaseClausesBefore.flattened()
+        found = False
+        for C in A:
+            found = found or C.CaseClauseIsSelected(input)
+            if found:
+                try:
+                    R = C.evaluate()
+                except ESAbrupt as abrupt:
+                    raise type(abrupt)(UpdateEmpty(abrupt.completion.value, V), abrupt.completion.target)
+                V = UpdateEmpty(R, V)
+        return V
 
 
-class P2_CaseBlock_CaseClauses_DefaultClause(P2_CaseBlock):
+class P2_CaseBlock_CaseClauses_DefaultClause(P2_CaseBlock_HasDefault):
     @property
     def CaseClausesBefore(self):
         return self.children[1]
@@ -22446,10 +22803,8 @@ class P2_CaseBlock_CaseClauses_DefaultClause(P2_CaseBlock):
     def DefaultClause(self):
         return self.children[2]
 
-    CaseClausesAfter = None
 
-
-class P2_CaseBlock_DefaultClause_CaseClauses(P2_CaseBlock):
+class P2_CaseBlock_DefaultClause_CaseClauses(P2_CaseBlock_HasDefault):
     @property
     def DefaultClause(self):
         return self.children[1]
@@ -22458,10 +22813,8 @@ class P2_CaseBlock_DefaultClause_CaseClauses(P2_CaseBlock):
     def CaseClausesAfter(self):
         return self.children[2]
 
-    CaseClausesBefore = None
 
-
-class P2_CaseBlock_CaseClauses_DefaultClause_CaseClauses(P2_CaseBlock):
+class P2_CaseBlock_CaseClauses_DefaultClause_CaseClauses(P2_CaseBlock_HasDefault):
     @property
     def CaseClausesBefore(self):
         return self.children[1]
@@ -22517,11 +22870,17 @@ class P2_CaseClauses(ParseNode2):
     def __init__(self, ctx, strict, children):
         super().__init__(ctx, "CaseClauses", strict, children)
 
+    CaseClause = None
+    CaseClauses = None
+
 
 class P2_CaseClauses_CaseClause(P2_CaseClauses):
     @property
     def CaseClause(self):
         return self.children[0]
+
+    def flattened(self):
+        return chain((self.CaseClause,))
 
 
 class P2_CaseClauses_CaseClauses_CaseClause(P2_CaseClauses):
@@ -22532,6 +22891,71 @@ class P2_CaseClauses_CaseClauses_CaseClause(P2_CaseClauses):
     @property
     def CaseClause(self):
         return self.children[1]
+
+    def flattened(self):
+        return chain(self.CaseClauses.flattened(), (self.CaseClause,))
+
+    def ContainsDuplicateLabels(self, labelset):
+        # 13.12.2 Static Semantics: ContainsDuplicateLabels
+        #   With parameter labelSet.
+        # CaseClauses : CaseClauses CaseClause
+        #   1. Let hasDuplicates be ContainsDuplicateLabels of CaseClauses with argument labelSet.
+        #   2. If hasDuplicates is true, return true.
+        #   3. Return ContainsDuplicateLabels of CaseClause with argument labelSet.
+        return any(item.ContainsDuplicateLabels(labelset) for item in (self.CaseClauses, self.CaseClause))
+
+    def ContainsUndefinedBreakTarget(self, labelSet):
+        # 13.12.3 Static Semantics: ContainsUndefinedBreakTarget
+        #   With parameter labelSet.
+        # CaseClauses : CaseClauses CaseClause
+        #   1. Let hasUndefinedLabels be ContainsUndefinedBreakTarget of CaseClauses with argument labelSet.
+        #   2. If hasUndefinedLabels is true, return true.
+        #   3. Return ContainsUndefinedBreakTarget of CaseClause with argument labelSet.
+        return any(item.ContainsUndefinedBreakTarget(labelSet) for item in (self.CaseClauses, self.CaseClause))
+
+    def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
+        # 13.12.4 Static Semantics: ContainsUndefinedContinueTarget
+        #   With parameters iterationSet and labelSet.
+        # CaseClauses : CaseClauses CaseClause
+        #   1. Let hasUndefinedLabels be ContainsUndefinedContinueTarget of CaseClauses with arguments iterationSet and
+        #      « ».
+        #   2. If hasUndefinedLabels is true, return true.
+        #   3. Return ContainsUndefinedContinueTarget of CaseClause with arguments iterationSet and « ».
+        return any(
+            item.ContainsUndefinedContinueTarget(iterationSet, []) for item in (self.CaseClauses, self.CaseClause)
+        )
+
+    def LexicallyDeclaredNames(self):
+        # 13.12.5 Static Semantics: LexicallyDeclaredNames
+        # CaseClauses : CaseClauses CaseClause
+        #   1. Let names be LexicallyDeclaredNames of CaseClauses.
+        #   2. Append to names the elements of the LexicallyDeclaredNames of CaseClause.
+        #   3. Return names.
+        return self.CaseClauses.LexicallyDeclaredNames() + self.CaseClause.LexicallyDeclaredNames()
+
+    def LexicallyScopedDeclarations(self):
+        # 13.12.6 Static Semantics: LexicallyScopedDeclarations
+        # CaseClauses : CaseClauses CaseClause
+        #   1. Let declarations be LexicallyScopedDeclarations of CaseClauses.
+        #   2. Append to declarations the elements of the LexicallyScopedDeclarations of CaseClause.
+        #   3. Return declarations.
+        return self.CaseClauses.LexicallyScopedDeclarations() + self.CaseClause.LexicallyScopedDeclarations()
+
+    def VarDeclaredNames(self):
+        # 13.12.7 Static Semantics: VarDeclaredNames
+        # CaseClauses : CaseClauses CaseClause
+        #   1. Let names be VarDeclaredNames of CaseClauses.
+        #   2. Append to names the elements of the VarDeclaredNames of CaseClause.
+        #   3. Return names.
+        return self.CaseClauses.VarDeclaredNames() + self.CaseClause.VarDeclaredNames()
+
+    def VarScopedDeclarations(self):
+        # 13.12.8 Static Semantics: VarScopedDeclarations
+        # CaseClauses : CaseClauses CaseClause
+        #   1. Let declarations be VarScopedDeclarations of CaseClauses.
+        #   2. Append to declarations the elements of the VarScopedDeclarations of CaseClause.
+        #   3. Return declarations.
+        return self.CaseClauses.VarScopedDeclarations() + self.CaseClause.VarScopedDeclarations()
 
 
 def parse_CaseClauses(context, lexer, strict, Yield, Await, Return):
@@ -22562,6 +22986,75 @@ class P2_CaseClause(ParseNode2):
     def __init__(self, ctx, strict, children):
         super().__init__(ctx, "CaseClause", strict, children)
 
+    StatementList = None
+    Expression = None
+
+    def ContainsDuplicateLabels(self, labelset):
+        # 13.12.2 Static Semantics: ContainsDuplicateLabels
+        #   With parameter labelSet.
+        # CaseClause : case Expression : StatementList
+        #   1. If the StatementList is present, return ContainsDuplicateLabels of StatementList with argument labelSet.
+        #   2. Return false.
+        return self.StatementList is not None and self.StatementList.ContainsDuplicateLabels(labelset)
+
+    def ContainsUndefinedBreakTarget(self, labelSet):
+        # 13.12.3 Static Semantics: ContainsUndefinedBreakTarget
+        #   With parameter labelSet.
+        # CaseClause : case Expression : StatementList
+        #   1. If the StatementList is present, return ContainsUndefinedBreakTarget of StatementList with argument
+        #      labelSet.
+        #   2. Return false.
+        return self.StatementList is not None and self.StatementList.ContainsUndefinedBreakTarget(labelSet)
+
+    def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
+        # 13.12.4 Static Semantics: ContainsUndefinedContinueTarget
+        #   With parameters iterationSet and labelSet.
+        # CaseClause : case Expression : StatementList
+        #   1. If the StatementList is present, return ContainsUndefinedContinueTarget of StatementList with arguments
+        #      iterationSet and « ».
+        #   2. Return false.
+        return self.StatementList is not None and self.StatementList.ContainsUndefinedContinueTarget(iterationSet, [])
+
+    def LexicallyDeclaredNames(self):
+        # 13.12.5 Static Semantics: LexicallyDeclaredNames
+        # CaseClause : case Expression : StatementList
+        #   1. If the StatementList is present, return the LexicallyDeclaredNames of StatementList.
+        #   2. Return a new empty List.
+        return self.StatementList.LexicallyDeclaredNames() if self.StatementList else []
+
+    def LexicallyScopedDeclarations(self):
+        # 13.12.6 Static Semantics: LexicallyScopedDeclarations
+        # CaseClause : case Expression : StatementList
+        #   1. If the StatementList is present, return the LexicallyScopedDeclarations of StatementList.
+        #   2. Return a new empty List.
+        return self.StatementList.LexicallyScopedDeclarations() if self.StatementList else []
+
+    def VarDeclaredNames(self):
+        # 13.12.7 Static Semantics: VarDeclaredNames
+        # CaseClause : case Expression : StatementList
+        #   1. If the StatementList is present, return the VarDeclaredNames of StatementList.
+        #   2. Return a new empty List.
+        return self.StatementList.VarDeclaredNames() if self.StatementList else []
+
+    def VarScopedDeclarations(self):
+        # 13.12.8 Static Semantics: VarScopedDeclarations
+        # CaseClause : case Expression : StatementList
+        #   1. If the StatementList is present, return the VarScopedDeclarations of StatementList.
+        #   2. Return a new empty List.
+        return self.StatementList.VarScopedDeclarations() if self.StatementList else []
+
+    def CaseClauseIsSelected(self, input):
+        # 13.12.10 Runtime Semantics: CaseClauseIsSelected ( C, input )
+        # The abstract operation CaseClauseIsSelected, given CaseClause C and value input, determines whether C
+        # matches input.
+        #
+        #   1. Assert: C is an instance of the production CaseClause:caseExpression:StatementList .
+        #   2. Let exprRef be the result of evaluating the Expression of C.
+        #   3. Let clauseSelector be ? GetValue(exprRef).
+        #   4. Return the result of performing Strict Equality Comparison input === clauseSelector.
+        clauseSelector = GetValue(self.Expression.evaluate())
+        return StrictEqualityComparison(input, clauseSelector)
+
 
 class P2_CaseClause_CASE_Expression_StatementList(P2_CaseClause):
     @property
@@ -22572,13 +23065,23 @@ class P2_CaseClause_CASE_Expression_StatementList(P2_CaseClause):
     def StatementList(self):
         return self.children[3]
 
+    def evaluate(self):
+        # 13.12.11 Runtime Semantics: Evaluation
+        # CaseClause : case Expression : StatementList
+        #   1. Return the result of evaluating StatementList.
+        return self.StatementList.evaluate()
+
 
 class P2_CaseClause_CASE_Expression(P2_CaseClause):
     @property
     def Expression(self):
         return self.children[1]
 
-    StatementList = None
+    def evaluate(self):
+        # 13.12.11 Runtime Semantics: Evaluation
+        # CaseClause : case Expression :
+        #   1. Return NormalCompletion(empty).
+        return EMPTY
 
 
 def parse_CaseClause(context, lexer, strict, Yield, Await, Return):
@@ -22612,15 +23115,81 @@ class P2_DefaultClause(ParseNode2):
     def __init__(self, ctx, strict, children):
         super().__init__(ctx, "DefaultClause", strict, children)
 
+    StatementList = None
+
+    def ContainsDuplicateLabels(self, labelset):
+        # 13.12.2 Static Semantics: ContainsDuplicateLabels
+        #   With parameter labelSet.
+        # DefaultClause : default : StatementList
+        #   1. If the StatementList is present, return ContainsDuplicateLabels of StatementList with argument labelSet.
+        #   2. Return false.
+        return self.StatementList is not None and self.StatementList.ContainsDuplicateLabels(labelset)
+
+    def ContainsUndefinedBreakTarget(self, labelSet):
+        # 13.12.3 Static Semantics: ContainsUndefinedBreakTarget
+        #   With parameter labelSet.
+        # DefaultClause : default : StatementList
+        #   1. If the StatementList is present, return ContainsUndefinedBreakTarget of StatementList with argument
+        #      labelSet.
+        #   2. Return false.
+        return self.StatementList is not None and self.StatementList.ContainsUndefinedBreakTarget(labelSet)
+
+    def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
+        # 13.12.4 Static Semantics: ContainsUndefinedContinueTarget
+        #   With parameters iterationSet and labelSet.
+        # DefaultClause : default : StatementList
+        #   1. If the StatementList is present, return ContainsUndefinedContinueTarget of StatementList with arguments
+        #      iterationSet and « ».
+        #   2. Return false.
+        return self.StatementList is not None and self.StatementList.ContainsUndefinedContinueTarget(iterationSet, [])
+
+    def LexicallyDeclaredNames(self):
+        # 13.12.5 Static Semantics: LexicallyDeclaredNames
+        # DefaultClause : default : StatementList
+        #   1. If the StatementList is present, return the LexicallyDeclaredNames of StatementList.
+        #   2. Return a new empty List.
+        return self.StatementList.LexicallyDeclaredNames() if self.StatementList else []
+
+    def LexicallyScopedDeclarations(self):
+        # 13.12.6 Static Semantics: LexicallyScopedDeclarations
+        # DefaultClause : default : StatementList
+        #   1. If the StatementList is present, return the LexicallyScopedDeclarations of StatementList.
+        #   2. Return a new empty List.
+        return self.StatementList.LexicallyScopedDeclarations() if self.StatementList else []
+
+    def VarDeclaredNames(self):
+        # 13.12.7 Static Semantics: VarDeclaredNames
+        # DefaultClause : default : StatementList
+        #   1. If the StatementList is present, return the VarDeclaredNames of StatementList.
+        #   2. Return a new empty List.
+        return self.StatementList.VarDeclaredNames() if self.StatementList else []
+
+    def VarScopedDeclarations(self):
+        # 13.12.8 Static Semantics: VarScopedDeclarations
+        # DefaultClause : default : StatementList
+        #   1. If the StatementList is present, return the VarScopedDeclarations of StatementList.
+        #   2. Return a new empty List.
+        return self.StatementList.VarScopedDeclarations() if self.StatementList else []
+
 
 class P2_DefaultClause_DEFAULT(P2_DefaultClause):
-    StatementList = None
+    def evaluate(self):
+        # 13.12.11 Runtime Semantics: Evaluation
+        # DefaultClause : default :
+        #   1. Return NormalCompletion(empty).
+        return EMPTY
 
 
 class P2_DefaultClause_DEFAULT_StatementList(P2_DefaultClause):
     @property
     def StatementList(self):
         return self.children[2]
+
+    def evaluate(self):
+        # 13.12.11 Runtime Semantics: Evaluation
+        # DefaultClause : default : StatementList
+        #   1. Return the result of evaluating StatementList.
+        return self.StatementList.evaluate()
 
 
 def parse_DefaultClause(context, lexer, strict, Yield, Await, Return):
