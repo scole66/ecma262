@@ -20,23 +20,23 @@ class Maybe(Functor[A]):
         return Nothing() if val is None else Just(val)
 
     def map(self, f: Callable[[Optional[A]], B]) -> "Maybe[B]":
-        raise NotImplementedError("map() called on type (rather than value)")
+        raise TypeError("map() called on type (rather than value)")
 
     def chain(self, f: Callable[[Optional[A]], B]) -> "Optional[B]":
         return self.map(f).join()
 
     def ap(self, f: Functor[B]) -> Functor[C]:
-        raise NotImplementedError("ap() called on type (rather than value)")
+        raise TypeError("ap() called on type (rather than value)")
 
     def join(self) -> A:
-        raise NotImplementedError("join() called on type (rather than value)")
+        raise TypeError("join() called on type (rather than value)")
 
     def __bool__(self) -> bool:
         return not self.isNothing
 
     @property
     def isNothing(self) -> bool:
-        raise NotImplementedError("isNothing called for type (rather than value)")
+        raise TypeError("isNothing called for type (rather than value)")
 
 
 class Nothing(Maybe[Any]):
@@ -50,7 +50,7 @@ class Nothing(Maybe[Any]):
 
     @staticmethod
     def of(val: Optional[B]) -> "Maybe[B]":
-        raise NotImplementedError("'of' called on class Nothing (value) instead of Maybe2 (type)")
+        raise TypeError("'of' called on class Nothing (value) instead of Maybe2 (type)")
 
     def map(self, f: Callable[[Optional[A]], B]) -> "Nothing":
         return self
@@ -70,7 +70,7 @@ class Just(Maybe[A]):
 
     @staticmethod
     def of(val: Optional[B]) -> "Maybe[B]":
-        raise NotImplementedError("'of' called on class Just (value) instead of Maybe2 (type)")
+        raise TypeError("'of' called on class Just (value) instead of Maybe2 (type)")
 
     def map(self, f: Callable[[Optional[A]], B]) -> "Maybe[B]":
         return Maybe.of(f(self.value))
