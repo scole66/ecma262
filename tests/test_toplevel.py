@@ -264,6 +264,10 @@ def cleanup():
             "a = [1, 2, 3]; a.forEach(function (v, i, o) {o[i] = v+10;}); let res=''; for (idx=0; idx<a.length; idx++) res += a[idx] + ', '; res;",
             "11, 12, 13, ",
         ),
+        ("isFinite(Infinity)", False),
+        ("isFinite(62)", True),
+        ("isNaN(0/0)", True),
+        ("isNaN(88)", False),
     ],
 )
 def test_scripts_01(cleanup, script, result):
