@@ -4110,7 +4110,9 @@ def CreateIntrinsics(realm_rec):
     intrinsics["%Symbol%"] = CreateSymbolConstructor(realm_rec)
     intrinsics["%SymbolPrototype%"] = CreateSymbolPrototype(realm_rec)
     SymbolFixups(realm_rec)
-    intrinsics["%eval%"] = CreateEvalFunction(realm_rec)
+    intrinsics["%eval%"] = CreateAnnotatedFunctionObject(realm_rec, global_eval)
+    intrinsics["%isFinite%"] = CreateAnnotatedFunctionObject(realm_rec, global_isFinite)
+    intrinsics["%isNaN%"] = CreateAnnotatedFunctionObject(realm_rec, global_isNaN)
 
     # 14. Return intrinsics.
     return intrinsics
@@ -4152,7 +4154,7 @@ def SetDefaultGlobalBindings(realm_rec):
     global_values = [("Infinity", math.inf), ("NaN", math.nan), ("undefined", None)]
     global_intrinsics = [
         "eval",
-        "isFinfite",
+        "isFinite",
         "isNaN",
         "parseFloat",
         "parseInt",
@@ -26839,13 +26841,17 @@ def global_eval(this_value, new_target, x=None, *_):
     return PerformEval(x, calleeRealm, False, False)
 
 
-def CreateEvalFunction(realm: Realm) -> JSObject:
-    func = CreateBuiltinFunction(global_eval, [], realm)
+global_eval.length = 1
+global_eval.name = "eval"
+
+
+def CreateAnnotatedFunctionObject(realm, fn):
+    func = CreateBuiltinFunction(fn, [], realm)
     DefinePropertyOrThrow(
-        func, "length", PropertyDescriptor(value=1, writable=False, enumerable=False, configurable=True)
+        func, "length", PropertyDescriptor(value=fn.length, writable=False, enumerable=False, configurable=True)
     )
     DefinePropertyOrThrow(
-        func, "name", PropertyDescriptor(value="eval", writable=False, enumerable=False, configurable=True)
+        func, "name", PropertyDescriptor(value=fn.name, writable=False, enumerable=False, configurable=True)
     )
     return func
 
@@ -27156,6 +27162,34 @@ def EvalDeclarationInstantiation(body, varEnv, lexEnv, strict):
                 varEnvRec.InitializeBinding(vn, None)
     return EMPTY
 
+
+# 18.2.2 isFinite ( number )
+def global_isFinite(this_value, new_target, number=None, *_):
+    # The isFinite function is the %isFinite% intrinsic object. When the isFinite function is called with one argument
+    # number, the following steps are taken:
+    #   1. Let num be ? ToNumber(number).
+    #   2. If num is NaN, +∞, or -∞, return false.
+    #   3. Otherwise, return true.
+    num = ToNumber(number)
+    return math.isfinite(num)
+
+
+global_isFinite.length = 1
+global_isFinite.name = "isFinite"
+
+# 18.2.3 isNaN ( number )
+def global_isNaN(this_value, new_target, number=None, *_):
+    # The isNaN function is the %isNaN% intrinsic object. When the isNaN function is called with one argument number,
+    # the following steps are taken:
+    #   1. Let num be ? ToNumber(number).
+    #   2. If num is NaN, return true.
+    #   3. Otherwise, return false.
+    num = ToNumber(number)
+    return math.isnan(num)
+
+
+global_isNaN.length = 1
+global_isNaN.name = "isNaN"
 
 """
  d888    .d8888b.       d888        .d88888b.  888         d8b                   888
