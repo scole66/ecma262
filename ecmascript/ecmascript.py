@@ -4113,6 +4113,7 @@ def CreateIntrinsics(realm_rec):
     intrinsics["%eval%"] = CreateAnnotatedFunctionObject(realm_rec, global_eval)
     intrinsics["%isFinite%"] = CreateAnnotatedFunctionObject(realm_rec, global_isFinite)
     intrinsics["%isNaN%"] = CreateAnnotatedFunctionObject(realm_rec, global_isNaN)
+    intrinsics["%parseInt%"] = CreateAnnotatedFunctionObject(realm_rec, global_parseInt)
 
     # 14. Return intrinsics.
     return intrinsics
@@ -27759,6 +27760,94 @@ def global_isNaN(this_value, new_target, number=None, *_):
 
 global_isNaN.length = 1
 global_isNaN.name = "isNaN"
+
+# 18.2.5 parseInt ( string, radix )
+_parseInt_RemoveLeadingWhitespace_pattern = regex.compile(
+    rf"(?:({Lexer.WhiteSpace}|{Lexer.LineTerminator})*)(?P<content>.*)"
+)
+
+
+def global_parseInt(this_value, new_target, string=None, radix=None, *_):
+    # The parseInt function produces an integer value dictated by interpretation of the contents of the string
+    # argument according to the specified radix. Leading white space in string is ignored. If radix is undefined or 0,
+    # it is assumed to be 10 except when the number begins with the code unit pairs 0x or 0X, in which case a radix of
+    # 16 is assumed. If radix is 16, the number may also optionally begin with the code unit pairs 0x or 0X.
+    #
+    # The parseInt function is the %parseInt% intrinsic object. When the parseInt function is called, the following
+    # steps are taken:
+    #   1. Let inputString be ? ToString(string).
+    #   2. Let S be a newly created substring of inputString consisting of the first code unit that is not a
+    #      StrWhiteSpaceChar and all code units following that code unit. (In other words, remove leading white space.)
+    #      If inputString does not contain any such code unit, let S be the empty string.
+    #   3. Let sign be 1.
+    #   4. If S is not empty and the first code unit of S is the code unit 0x002D (HYPHEN-MINUS), set sign to -1.
+    #   5. If S is not empty and the first code unit of S is the code unit 0x002B (PLUS SIGN) or the code unit 0x002D
+    #      (HYPHEN-MINUS), remove the first code unit from S.
+    #   6. Let R be ? ToInt32(radix).
+    #   7. Let stripPrefix be true.
+    #   8. If R ≠ 0, then
+    #       a. If R < 2 or R > 36, return NaN.
+    #       b. If R ≠ 16, set stripPrefix to false.
+    #   9. Else R = 0,
+    #       a. Set R to 10.
+    #   10. If stripPrefix is true, then
+    #       a. If the length of S is at least 2 and the first two code units of S are either "0x" or "0X", then
+    #           i. Remove the first two code units from S.
+    #           ii. Set R to 16.
+    #   11. If S contains a code unit that is not a radix-R digit, let Z be the substring of S consisting of all code
+    #       units before the first such code unit; otherwise, let Z be S.
+    #   12. If Z is empty, return NaN.
+    #   13. Let mathInt be the mathematical integer value that is represented by Z in radix-R notation, using the
+    #       letters A-Z and a-z for digits with values 10 through 35. (However, if R is 10 and Z contains more than 20
+    #       significant digits, every significant digit after the 20th may be replaced by a 0 digit, at the option of
+    #       the implementation; and if R is not 2, 4, 8, 10, 16, or 32, then mathInt may be an implementation-dependent
+    #       approximation to the mathematical integer value that is represented by Z in radix-R notation.)
+    #   14. If mathInt = 0, then
+    #       a. If sign = -1, return -0.
+    #       b. Return +0.
+    #   15. Let number be the Number value for mathInt.
+    #   16. Return sign × number.
+    # NOTE  | parseInt may interpret only a leading portion of string as an integer value; it ignores any code units
+    #       | that cannot be interpreted as part of the notation of an integer, and no indication is given that any
+    #       | such code units were ignored.
+    inputString = ToString(string)
+    m = _parseInt_RemoveLeadingWhitespace_pattern.match(inputString)
+    S = m.group("content") if m else inputString
+    sign = 1
+    if S and S[0] == "-":
+        sign = -1
+    if S and S[0] in "+-":
+        S = S[1:]
+    R = ToInt32(radix)
+    stripPrefix = True
+    if R != 0:
+        if R < 2 or R > 36:
+            return math.nan
+        if R != 16:
+            stripPrefix = False
+    else:
+        R = 10
+    if stripPrefix:
+        if len(S) >= 2 and S[0:2] in ("0x", "0X"):
+            S = S[2:]
+            R = 16
+    valid_digits = "0123456789"[0 : min(R, 10)]
+    valid_digits += "abcdefghijklmnopqrstuvwxyz"[0 : max(0, min(36, R - 10))]
+    valid_digits += "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[0 : max(0, min(36, R - 10))]
+    valid_pattern = regex.compile(rf"(?P<valid>[{valid_digits}]+).*")
+    m = valid_pattern.match(S)
+    if not m:
+        return math.nan
+    Z = m.group("valid")
+    mathInt = int(Z, R)
+    if mathInt == 0 and sign < 0:
+        return -0.0
+    return sign * mathInt
+
+
+global_parseInt.length = 2
+global_parseInt.name = "parseInt"
+
 
 """
  d888    .d8888b.       d888        .d88888b.  888         d8b                   888

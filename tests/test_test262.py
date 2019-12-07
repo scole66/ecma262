@@ -50,7 +50,7 @@ class test262_testcase:
             conf["includes"] = []
         if "flags" not in conf:
             conf["flags"] = []
-        pprint(conf)
+        # pprint(conf)
         return conf
 
     def massaged(self, strict=False):
@@ -61,8 +61,8 @@ class test262_testcase:
             with open(os.path.join(self.root, "harness", file), "r") as f:
                 result += f.read() + "\n"
         result += self.source
-        # with open("test.js", "w") as f:
-        #     print(result, file=f)
+        with open("test.js", "w") as f:
+            print(result, file=f)
         return result
 
     def run_once(self, strict=False):
@@ -106,12 +106,14 @@ lang_tests = (
 )
 
 base_path = base_paths[0]
-test_files = glob.glob(f"{base_path}/test/harness/*.js")
-for suite in lang_tests:
-    test_files.extend(glob.glob(f"{base_path}/test/language/{suite}/**/*.js", recursive=True))
-test_files.extend(glob.glob(f"{base_path}/test/built-ins/String/**/*.js", recursive=True))
-test_files.extend(glob.glob(f"{base_path}/test/built-ins/Boolean/**/*.js", recursive=True))
-test_files.extend(glob.glob(f"{base_path}/test/built-ins/Array/**/*.js", recursive=True))
+test_files = []
+# test_files = glob.glob(f"{base_path}/test/harness/*.js")
+# for suite in lang_tests:
+#     test_files.extend(glob.glob(f"{base_path}/test/language/{suite}/**/*.js", recursive=True))
+# test_files.extend(glob.glob(f"{base_path}/test/built-ins/String/**/*.js", recursive=True))
+# test_files.extend(glob.glob(f"{base_path}/test/built-ins/Boolean/**/*.js", recursive=True))
+# test_files.extend(glob.glob(f"{base_path}/test/built-ins/Array/**/*.js", recursive=True))
+test_files.extend(glob.glob(f"{base_path}/test/built-ins/parseInt/**/*.js", recursive=True))
 test_files = [fn for fn in test_files if not fn.endswith("_FIXTURE.js")]
 
 features_to_avoid = (

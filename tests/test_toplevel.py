@@ -271,6 +271,8 @@ def cleanup():
         ("switch(1) { case 1: 2; break; }", 2),
         ("1; switch(1) { case 1: }", None),
         ("delete eval.length; eval.length;", 0),
+        ("isNaN(parseInt(true))", True),
+        ("parseInt(true, 36)", 1389110),
     ],
 )
 def test_scripts_01(cleanup, script, result):
