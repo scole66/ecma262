@@ -26,7 +26,6 @@ from itertools import chain
 from functools import reduce
 from enum import Enum
 import math
-from .functional import Maybe, curried, Nothing
 from .lexer2 import utf_16_encode, utf_16_decode
 import unicodedata
 import regex  # type: ignore
@@ -1437,12 +1436,6 @@ def parse_HexEscapeSequence(src: str, position: int) -> Optional[HexEscapeSequen
     return None
 
 
-def mparse_HexEscapeSequence(src, position):
-    return Maybe.of(hes_regex.match(src, position)).map(
-        lambda m: HexEscapeSequence(src, Span(*m.span()), (m.group(0),))
-    )
-
-
 class CharacterClass(Production):
     pass
 
@@ -2706,12 +2699,6 @@ class Alternative(Production):
         return evaluate(self.terms)
 
 
-# def mparse_Alternative(src: str, position: int, U: bool, N: bool) -> Maybe[Alternative]:
-#     return Maybe.of(regex.match("Alternative", src, pos=position)).map(
-#         lambda m: Alternative(src, Span(*m.span()), ("Alt",))
-#     )
-
-
 def parse_Alternative(src: str, position: int, U: bool, N: bool) -> Optional[Alternative]:
     # Syntax:
     #   Alternative[U, N] ::
@@ -2798,29 +2785,6 @@ def parse_Disjunction(src: str, position: int, U: bool, N: bool) -> Optional[Dis
                 continue
             return Disjunction(src, Span(position, after), children)
         return None
-
-
-# def mparse_Disjunction(src: str, position: int, U: bool, N: bool) -> Maybe[Disjunction]:
-#     # ... something something tail recursion
-#     @curried
-#     def collect(accumulate: Tuple[Alternative, ...], pos: int) -> Children:
-#         alternative = mparse_Alternative(src, pos, U, N)
-#         choice1 = alternative.map(lambda alt: accumulate + (alt,))
-#
-#         after = alternative.map(lambda alt: alt.span.after)
-#         afterpipe = after.map(lambda aft: aft + 1 if aft < len(src) and src[aft] == "|" else None)
-#         colarg1 = alternative.map(lambda alt: collect(accumulate + (alt,)))
-#         choice2 = colarg1.ap(afterpipe).join()
-#
-#         # Ok, so now we choose the choice that consumed the most characters
-#         choice = max(
-#             filter(None, (choice1, choice2)), key=lambda ch: ch.chain(lambda tpl: tpl[-1].span.after), default=Nothing()
-#         )
-#
-#         return choice
-#
-#     ch = collect((), position)
-#     return ch.map(lambda children: Disjunction(src, Span(position, children[-1].span.after), children))
 
 
 class Pattern(Production):
@@ -2942,16 +2906,6 @@ def parse_Pattern(src: str, position: int, U: bool, N: bool) -> Optional[Pattern
     if disjunction:
         return Pattern(src, disjunction)
     return None
-
-
-# mparse_Pattern :: str -> int -> bool -> bool -> Maybe Pattern
-# def mparse_Pattern(src: str, position: int, U: bool, N: bool) -> Maybe[Pattern]:
-#     # Wrap a Disjunction with a Pattern
-#     # dis_to_pattern: Disjunction -> Pattern
-#     dis_to_pattern = lambda dis: Pattern(dis.src, dis)
-
-#     # Now the work. Transform the input into a Disjunction, and then to a Pattern.
-#     return mparse_Disjunction(src, position, U, N).map(dis_to_pattern)
 
 
 def matcher(pat: Pattern, pattern_chars: str, flags: str) -> Callable[[str, int], MatchResult]:
