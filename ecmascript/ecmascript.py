@@ -28769,6 +28769,12 @@ def FunctionFixups(realm):
 
 
 def AttachFunctionPrototypeProperties(proto, realm):
+    DefinePropertyOrThrow(
+        proto, "length", PropertyDescriptor(value=0, writable=False, enumerable=False, configurable=True)
+    )
+    DefinePropertyOrThrow(
+        proto, "name", PropertyDescriptor(value="", writable=False, enumerable=False, configurable=True)
+    )
     BindBuiltinFunctions(
         realm,
         proto,
