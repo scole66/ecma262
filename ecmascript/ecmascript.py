@@ -1280,6 +1280,8 @@ def string_to_number(arg):
     m = stripper.match(arg)
     assert m, "Failed to remove whitespace (should never happen)"
     digits = m.group("numstr")
+    if digits == "":
+        return 0
     for rx, cvt in digits_to_floats:
         nums = rx.match(digits)
         if nums:

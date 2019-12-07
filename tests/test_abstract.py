@@ -204,6 +204,7 @@ def test_to_boolean(input, expected):
         (True, 1),
         (False, 0),
         (67, 67),
+        ("", 0),
         ("0", 0),
         ("1", 1),
         ("0b101", 5),

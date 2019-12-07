@@ -273,6 +273,7 @@ def cleanup():
         ("delete eval.length; eval.length;", 0),
         ("isNaN(parseInt(true))", True),
         ("parseInt(true, 36)", 1389110),
+        ("''-4", -4),
     ],
 )
 def test_scripts_01(cleanup, script, result):
