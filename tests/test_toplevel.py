@@ -270,6 +270,7 @@ def cleanup():
         ("isNaN(88)", False),
         ("switch(1) { case 1: 2; break; }", 2),
         ("1; switch(1) { case 1: }", None),
+        ("delete eval.length; eval.length;", 0),
     ],
 )
 def test_scripts_01(cleanup, script, result):
