@@ -268,6 +268,8 @@ def cleanup():
         ("isFinite(62)", True),
         ("isNaN(0/0)", True),
         ("isNaN(88)", False),
+        ("switch(1) { case 1: 2; break; }", 2),
+        ("1; switch(1) { case 1: }", None),
     ],
 )
 def test_scripts_01(cleanup, script, result):
