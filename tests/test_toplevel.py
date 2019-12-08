@@ -274,6 +274,7 @@ def cleanup():
         ("isNaN(parseInt(true))", True),
         ("parseInt(true, 36)", 1389110),
         ("''-4", -4),
+        ("this.eval('1')", 1),
     ],
 )
 def test_scripts_01(cleanup, script, result):
