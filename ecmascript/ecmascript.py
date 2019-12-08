@@ -1072,22 +1072,26 @@ class ESError(BaseException):
 
 class ESReferenceError(ESError):
     def __init__(self, msg=""):
-        super().__init__(CreateReferenceError(msg))
+        obj = msg if isinstance(msg, JSObject) else CreateReferenceError(msg)
+        super().__init__(obj)
 
 
 class ESTypeError(ESError):
     def __init__(self, msg=""):
-        super().__init__(CreateTypeError(msg))
+        obj = msg if isinstance(msg, JSObject) else CreateTypeError(msg)
+        super().__init__(obj)
 
 
 class ESSyntaxError(ESError):
     def __init__(self, msg=""):
-        super().__init__(CreateSyntaxError(msg))
+        obj = msg if isinstance(msg, JSObject) else CreateSyntaxError(msg)
+        super().__init__(obj)
 
 
 class ESRangeError(ESError):
     def __init__(self, msg=""):
-        super().__init__(CreateRangeError(msg))
+        obj = msg if isinstance(msg, JSObject) else CreateRangeError(msg)
+        super().__init__(obj)
 
 
 class ESAbrupt(BaseException):
@@ -4026,6 +4030,14 @@ def CreateRealm():
     return realm_rec
 
 
+def CreateFilledRealm(add_host_defined_globals: Callable[[Realm], None] = lambda x: None):
+    realm = CreateRealm()
+    SetRealmGlobalObject(realm, None, None)
+    SetDefaultGlobalBindings(realm)
+    add_host_defined_globals(realm)
+    return realm
+
+
 def internal_throw_type_error(*args, **kwargs):
     raise ESTypeError("type invalid for operation")
 
@@ -4535,7 +4547,7 @@ def EnqueueJob(queue_name, job, arguments):
 
 
 # 8.5 InitializeHostDefinedRealm ( )
-def InitializeHostDefinedRealm():
+def InitializeHostDefinedRealm(add_host_defined_globals: Callable[[Realm], None] = lambda x: None):
     # The abstract operation InitializeHostDefinedRealm performs the following steps:
     #
     # 1. Let realm be CreateRealm().
@@ -4564,15 +4576,16 @@ def InitializeHostDefinedRealm():
     # 10. Let globalObj be ? SetDefaultGlobalBindings(realm).
     SetDefaultGlobalBindings(realm)
     # 11. Create any implementation-defined global object properties on globalObj.
-    pass  # (Assign the prior to a var and edit the object) Gonna want to add things like "console" here...
+    # (Assign the prior to a var and edit the object) Gonna want to add things like "console" here...
+    add_host_defined_globals(realm)
     # 12. Return NormalCompletion(empty).
     return EMPTY
 
 
 # 8.6 RunJobs
-def RunJobs(scripts=[], modules=[]):
+def RunJobs(scripts=[], modules=[], add_host_defined_globals: Callable[[Realm], None] = lambda x: None):
     # 1. Perform ? InitializeHostDefinedRealm().
-    InitializeHostDefinedRealm()
+    InitializeHostDefinedRealm(add_host_defined_globals)
     # 2. In an implementation-dependent manner, obtain the ECMAScript source texts (see clause 10) and any
     #    associated host-defined values for zero or more ECMAScript scripts and/or ECMAScript modules.
     host_defined = None
@@ -6254,7 +6267,7 @@ class BuiltinFunction(JSObject):
         # suspended and retained by an accessible generator object for later resumption.
 
 
-# 9.3.2[[Construct]] ( argumentsList, newTarget )
+# 9.3.2 [[Construct]] ( argumentsList, newTarget )
 def BuiltinFunction_Construct(self, arguments_list, new_target):
     # The [[Construct]] internal method for built-in function object F is called with parameters argumentsList and newTarget.
     # The steps performed are the same as [[Call]] (see 9.3.1) except that step 10 is replaced by:
