@@ -275,6 +275,15 @@ def cleanup():
         ("parseInt(true, 36)", 1389110),
         ("''-4", -4),
         ("this.eval('1')", 1),
+        ("p = Object.getOwnPropertyDescriptor(this, 'NaN'); !p.writable && !p.enumerable && !p.configurable", True),
+        (
+            "p = Object.getOwnPropertyDescriptor(this, 'undefined'); !p.writable && !p.enumerable && !p.configurable",
+            True,
+        ),
+        (
+            "p = Object.getOwnPropertyDescriptor(this, 'Infinity'); !p.writable && !p.enumerable && !p.configurable",
+            True,
+        ),
     ],
 )
 def test_scripts_01(cleanup, script, result):
