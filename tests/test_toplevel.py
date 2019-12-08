@@ -285,6 +285,7 @@ def cleanup():
             True,
         ),
         ("{ function f ( ) { } }", None),
+        ('try { eval("function a(){} function NaN(){}"); } catch (e) { }; this.a;', None),
     ],
 )
 def test_scripts_01(cleanup, script, result):
