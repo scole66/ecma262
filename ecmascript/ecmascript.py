@@ -4231,7 +4231,7 @@ def SetDefaultGlobalBindings(realm_rec):
         #    attributes for the property. For properties listed in 18.2, 18.3, or 18.4 the value of the [[Value]]
         #    attribute is the corresponding intrinsic object from realmRec.
         # c. Perform ? DefinePropertyOrThrow(global, name, desc).
-        desc = PropertyDescriptor(value=value, writable=True, enumerable=False, configurable=True)
+        desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=False)
         DefinePropertyOrThrow(globl, name, desc)
     # 3. Return global.
     return globl
