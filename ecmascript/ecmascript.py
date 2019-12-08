@@ -3754,11 +3754,11 @@ class GlobalEnvironmentRecord:
         if isUndefined(existing_prop):
             return IsExtensible(global_object)
         # 6. If existingProp.[[Configurable]] is true, return true.
-        if existing_prop["configurable"]:
+        if existing_prop.configurable:
             return True
         # 7. If IsDataDescriptor(existingProp) is true and existingProp has attribute values { [[Writable]]: true,
         #    [[Enumerable]]: true }, return true.
-        if IsDataDescriptor(existing_prop) and existing_prop["writable"] and existing_prop["enumerable"]:
+        if IsDataDescriptor(existing_prop) and existing_prop.writable and existing_prop.enumerable:
             return True
         # 8. Return false.
         return False
@@ -3804,7 +3804,7 @@ class GlobalEnvironmentRecord:
         # 4. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
         existing_prop = global_object.GetOwnProperty(name)
         # 5. If existingProp is undefined or existingProp.[[Configurable]] is true, then
-        if existing_prop is None or existing_prop["configurable"]:
+        if existing_prop is None or existing_prop.configurable:
             # a. Let desc be the PropertyDescriptor { [[Value]]: V, [[Writable]]: true, [[Enumerable]]: true,
             #    [[Configurable]]: D }.
             desc = PropertyDescriptor(value=value, writable=True, enumerable=True, configurable=deletable)
@@ -27699,8 +27699,8 @@ def EvalDeclarationInstantiation(body, varEnv, lexEnv, strict):
                 (
                     P2_FunctionDeclaration,
                     P2_GeneratorDeclaration,
-                    P2_AsyncFunctionDeclaration,
-                    P2_AsyncGeneratorDeclaration,
+                    # P2_AsyncFunctionDeclaration,
+                    # P2_AsyncGeneratorDeclaration,
                 ),
             )
             fn = d.BoundNames()[0]
