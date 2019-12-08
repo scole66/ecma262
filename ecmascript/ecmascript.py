@@ -27490,7 +27490,7 @@ def PerformEval(x, evalRealm, strictCaller, direct):
     assert direct or not strictCaller
     if not isString(x):
         return x
-    thisEnvRec = GetThisEnvironment()
+    thisEnvRec = GetThisEnvironment() if surrounding_agent.running_ec.lexical_environment else None
     if isinstance(thisEnvRec, FunctionEnvironmentRecord):
         F = thisEnvRec.function_object
         inFunction = True
