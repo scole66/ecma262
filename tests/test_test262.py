@@ -5,14 +5,28 @@ import yaml
 import glob
 from itertools import chain
 from operator import itemgetter
+import regex
+import gc
 
 from ecmascript.ecmascript import (
-    surrounding_agent,
-    RunJobs,
-    SetHostErrorCallback,
-    ToString,
-    InitializeHostDefinedRealm,
+    CreateAnnotatedFunctionObject,
+    CreateFilledRealm,
+    DefinePropertyOrThrow,
+    DetachArrayBuffer,
+    ESRangeError,
+    ESReferenceError,
+    ESSyntaxError,
+    ESTypeError,
     Get,
+    InitializeHostDefinedRealm,
+    ObjectCreate,
+    ParseScript,
+    PropertyDescriptor,
+    RunJobs,
+    ScriptEvaluation,
+    SetHostErrorCallback,
+    surrounding_agent,
+    ToString,
 )
 
 import snoop
@@ -25,9 +39,108 @@ if len(base_paths) != 1:
     pytest.skip("Skipping Test-262 because we don't know where the tests are", allow_module_level=True)
 
 
+def add_to_global_object(realm):
+    gl = realm.global_object
+
+    def testprint(this_value, new_target, arg1=None, *_):
+        print(ToString(arg1))  # we want something better in the future. But for now...
+
+    testprint.length = 1
+    testprint.name = "print"
+    DefinePropertyOrThrow(
+        gl,
+        "print",
+        PropertyDescriptor(
+            value=CreateAnnotatedFunctionObject(realm, testprint), writable=True, enumerable=False, configurable=True
+        ),
+    )
+
+    dollar262 = ObjectCreate(realm.intrinsics["%ObjectPrototype%"])
+
+    def createRealm(this_value, new_target, *_):
+        r = CreateFilledRealm(add_to_global_object)
+        return Get(r.global_object, "$262")
+
+    createRealm.length = 0
+    createRealm.name = "createRealm"
+    DefinePropertyOrThrow(
+        dollar262,
+        "createRealm",
+        PropertyDescriptor(
+            value=CreateAnnotatedFunctionObject(realm, createRealm), writable=True, enumerable=True, configurable=True
+        ),
+    )
+
+    def detachArrayBuffer(this_value, new_target, arrayBuffer=None, key=None, *_):
+        return DetachArrayBuffer(arrayBuffer, key)
+
+    detachArrayBuffer.length = 1
+    detachArrayBuffer.name = "detachArrayBuffer"
+    DefinePropertyOrThrow(
+        dollar262,
+        "detachArrayBuffer",
+        PropertyDescriptor(
+            value=CreateAnnotatedFunctionObject(realm, detachArrayBuffer),
+            writable=True,
+            enumerable=True,
+            configurable=True,
+        ),
+    )
+
+    def evalScript(this_value, new_target, sourceText=None, *_):
+        st = ToString(sourceText)
+        s = ParseScript(st, surrounding_agent.running_ec.realm, None)
+        if isinstance(s, list):
+            ctors = {
+                "SyntaxError": ESSyntaxError,
+                "TypeError": ESTypeError,
+                "ReferenceError": ESReferenceError,
+                "RangeError": ESRangeError,
+            }
+            err = s[0]
+            ctor = ctors[Get(Get(err, "constructor"), "name")]
+            raise ctor(err)
+        return ScriptEvaluation(s)
+
+    evalScript.length = 1
+    evalScript.name = "evalScript"
+    DefinePropertyOrThrow(
+        dollar262,
+        "evalScript",
+        PropertyDescriptor(
+            value=CreateAnnotatedFunctionObject(realm, evalScript), writable=True, enumerable=True, configurable=True
+        ),
+    )
+
+    def collect_gc(this_value, new_target, *_):
+        gc.collect()
+
+    collect_gc.length = 0
+    collect_gc.name = "gc"
+    DefinePropertyOrThrow(
+        dollar262,
+        "gc",
+        PropertyDescriptor(
+            value=CreateAnnotatedFunctionObject(realm, collect_gc), writable=True, enumerable=True, configurable=True
+        ),
+    )
+
+    DefinePropertyOrThrow(
+        dollar262, "global", PropertyDescriptor(value=gl, writable=True, enumerable=True, configurable=True)
+    )
+
+    DefinePropertyOrThrow(
+        dollar262, "agent", PropertyDescriptor(value=None, writable=True, enumerable=True, configurable=True)
+    )
+
+    DefinePropertyOrThrow(
+        gl, "$262", PropertyDescriptor(value=dollar262, writable=True, enumerable=False, configurable=True)
+    )
+
+
 @pytest.fixture
 def test262realm():
-    InitializeHostDefinedRealm()
+    InitializeHostDefinedRealm(add_to_global_object)
     yield surrounding_agent.running_ec.realm
     surrounding_agent.ec_stack = []
     surrounding_agent.running_ec = None
@@ -67,7 +180,7 @@ class test262_testcase:
 
     def run_once(self, strict=False):
         massaged = self.massaged(strict)
-        rv = RunJobs(scripts=[massaged])
+        rv = RunJobs(scripts=[massaged], add_host_defined_globals=add_to_global_object)
         return rv
 
 
@@ -113,7 +226,11 @@ test_files = []
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/String/**/*.js", recursive=True))
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/Boolean/**/*.js", recursive=True))
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/Array/**/*.js", recursive=True))
-test_files.extend(glob.glob(f"{base_path}/test/built-ins/parseInt/**/*.js", recursive=True))
+# 100% passing! test_files.extend(glob.glob(f"{base_path}/test/built-ins/parseInt/**/*.js", recursive=True))
+# 100% passing! test_files.extend(glob.glob(f"{base_path}/test/built-ins/isNaN/**/*.js", recursive=True))
+# 100% passing! test_files.extend(glob.glob(f"{base_path}/test/built-ins/isFinite/**/*.js", recursive=True))
+# 100% passing! test_files.extend(glob.glob(f"{base_path}/test/language/types/boolean/**/*.js", recursive=True))
+test_files.extend(glob.glob(f"{base_path}/test/language/types/**/*.js", recursive=True))
 test_files = [fn for fn in test_files if not fn.endswith("_FIXTURE.js")]
 
 features_to_avoid = (
@@ -122,6 +239,7 @@ features_to_avoid = (
     # don't support right now
     "async-iteration",
     "async-functions",
+    "tail-call-optimization",
     # proposals not actually part of the spec yet
     "proxy-missing-checks",
     "Promise.allSettled",
@@ -191,6 +309,8 @@ for tf in test_files:
                 )
             )
 
+errtype_pattern = regex.compile(r"(?P<name>[^:]*).*")
+
 
 @pytest.mark.parametrize("tc, strict, testfile", params)
 def test_test262(cleanup, tc, strict, testfile):
@@ -222,9 +342,7 @@ def test_test262(cleanup, tc, strict, testfile):
             + ("completed successfully" if len(execution_errors.errors) == 0 else "got multiple errors")
             + " instead"
         )
-        errobj = execution_errors.errors[0]
-        constructor = Get(errobj, "constructor")
-        name = Get(constructor, "name")
+        name = errtype_pattern.match(execution_errors.errors[0]).group("name")
         assert (
             name == tc.config["negative"]["type"]
         ), f"Expected a {tc.config['negative']['type']} error, got '{execution_errors.errors[0]}' instead"
