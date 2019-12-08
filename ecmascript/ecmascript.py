@@ -7594,6 +7594,9 @@ class ParseNode2:
     def HasInitializer(self, *args, **kwargs):
         return self.defer_target().HasInitializer(*args, **kwargs)
 
+    def DeclarationPart(self, *args, **kwargs):
+        return self.defer_target().DeclarationPart(*args, **kwargs)
+
     def ContainsExpression(self, *args, **kwargs):
         return self.defer_target().ContainsExpression(*args, **kwargs)
 

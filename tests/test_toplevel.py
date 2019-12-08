@@ -284,6 +284,7 @@ def cleanup():
             "p = Object.getOwnPropertyDescriptor(this, 'Infinity'); !p.writable && !p.enumerable && !p.configurable",
             True,
         ),
+        ("{ function f ( ) { } }", None),
     ],
 )
 def test_scripts_01(cleanup, script, result):
