@@ -287,6 +287,7 @@ def cleanup():
             "p = Object.getOwnPropertyDescriptor(this, 'Infinity'); !p.writable && !p.enumerable && !p.configurable",
             True,
         ),
+        ("p=Object.getOwnPropertyDescriptor(this, 'Boolean'); p.writable && !p.enumerable && p.configurable", True),
         ("{ function f ( ) { } }", None),
         ('try { eval("function a(){} function NaN(){}"); } catch (e) { }; this.a;', None),
         (
