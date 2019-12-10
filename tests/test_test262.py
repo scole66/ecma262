@@ -1,5 +1,6 @@
 import pytest
 import os
+import sys
 import re
 import yaml
 import glob
@@ -229,14 +230,18 @@ test_files = []
 # for suite in lang_tests:
 #     test_files.extend(glob.glob(f"{base_path}/test/language/{suite}/**/*.js", recursive=True))
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/String/**/*.js", recursive=True))
-# test_files.extend(glob.glob(f"{base_path}/test/built-ins/Boolean/**/*.js", recursive=True))
+test_files.extend(glob.glob(f"{base_path}/test/built-ins/Boolean/**/*.js", recursive=True))  # 100% passing !
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/Array/**/*.js", recursive=True))
-# 100% passing! test_files.extend(glob.glob(f"{base_path}/test/built-ins/parseInt/**/*.js", recursive=True))
-# 100% passing! test_files.extend(glob.glob(f"{base_path}/test/built-ins/isNaN/**/*.js", recursive=True))
-# 100% passing! test_files.extend(glob.glob(f"{base_path}/test/built-ins/isFinite/**/*.js", recursive=True))
-# 100% passing! test_files.extend(glob.glob(f"{base_path}/test/language/types/boolean/**/*.js", recursive=True))
+test_files.extend(glob.glob(f"{base_path}/test/built-ins/parseInt/**/*.js", recursive=True))  # 100% passing !
+test_files.extend(glob.glob(f"{base_path}/test/built-ins/isNaN/**/*.js", recursive=True))  # 100% passing !
+test_files.extend(glob.glob(f"{base_path}/test/built-ins/isFinite/**/*.js", recursive=True))  # 100% passing !
+test_files.extend(glob.glob(f"{base_path}/test/language/types/boolean/**/*.js", recursive=True))  # 100% passing !
 # test_files.extend(glob.glob(f"{base_path}/test/language/types/**/*.js", recursive=True))
-test_files.extend(glob.glob(f"{base_path}/test/language/eval-code/**/*.js", recursive=True))
+test_files.extend(glob.glob(f"{base_path}/test/language/eval-code/**/*.js", recursive=True))  # 100% passing !
+test_files.extend(glob.glob(f"{base_path}/test/language/statementList/**/*.js", recursive=True))  # 100% passing !
+test_files.extend(
+    glob.glob(f"{base_path}/test/language/statements/labeled/**/*.js", recursive=True)
+)  # 100% passing !
 test_files = [fn for fn in test_files if not fn.endswith("_FIXTURE.js")]
 
 features_to_avoid = (
@@ -295,11 +300,15 @@ features_to_avoid = (
     "String.prototype.replaceAll",
 )
 
+flags_to_avoid = ("module",)
+
 params = []
 for tf in test_files:
     tc = test262_testcase(tf, base_path)
     file_id = tf[len(base_path) :] if tf.startswith(base_path) else tf
-    if not any(feature in tc.config.get("features", []) for feature in features_to_avoid):
+    if not any(feature in tc.config.get("features", []) for feature in features_to_avoid) and not any(
+        flag in tc.config.get("flags", []) for flag in flags_to_avoid
+    ):
         for strict in (
             val
             for val, _ in filter(

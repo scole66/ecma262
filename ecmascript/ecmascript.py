@@ -7644,6 +7644,9 @@ class ParseNode2:
     def EvaluateBody(self, *args, **kwargs):
         return self.defer_target().EvaluateBody(*args, **kwargs)
 
+    def LabelledEvaluation(self, *args, **kwargs):
+        return self.defer_target().LabelledEvaluation(*args, **kwargs)
+
     def evaluate(self, *args, **kwargs):
         # Subclasses need to override this, or we'll throw an AttributeError when we hit a terminal.
         rval = self.defer_target().evaluate(*args, **kwargs)
@@ -22066,8 +22069,6 @@ class P2_BreakStatement(ParseNode2):
     def __init__(self, ctx, strict, children):
         super().__init__(ctx, "BreakStatement", strict, children)
 
-    contains_unenclosed_break = True
-
 
 class P2_BreakStatement_BREAK_LabelIdentifier(P2_BreakStatement):
     @property
@@ -22098,6 +22099,8 @@ class P2_BreakStatement_BREAK(P2_BreakStatement):
         #     function boundaries), within an IterationStatement or a SwitchStatement.
         # @@@@@ Implement me!
         return []
+
+    contains_unenclosed_break = True
 
     def ContainsUndefinedBreakTarget(self, labelSet):
         # 13.9.2 Static Semantics: ContainsUndefinedBreakTarget
@@ -23375,6 +23378,112 @@ class P2_LabelledStatement_LabelIdentifier_LabelledItem(P2_LabelledStatement):
     def LabelledItem(self):
         return self.children[2]
 
+    def ContainsDuplicateLabels(self, labelSet):
+        # 13.13.2 Static Semantics: ContainsDuplicateLabels
+        #   With parameter labelSet.
+        # LabelledStatement : LabelIdentifier : LabelledItem
+        #   1. Let label be the StringValue of LabelIdentifier.
+        #   2. If label is an element of labelSet, return true.
+        #   3. Let newLabelSet be a copy of labelSet with label appended.
+        #   4. Return ContainsDuplicateLabels of LabelledItem with argument newLabelSet.
+        label = self.LabelIdentifier.StringValue
+        return label in labelSet or self.LabelledItem.ContainsDuplicateLabels(labelSet + [label])
+
+    def ContainsUndefinedBreakTarget(self, labelSet):
+        # 13.13.3 Static Semantics: ContainsUndefinedBreakTarget
+        #   With parameter labelSet.
+        # LabelledStatement : LabelIdentifier : LabelledItem
+        #   1. Let label be the StringValue of LabelIdentifier.
+        #   2. Let newLabelSet be a copy of labelSet with label appended.
+        #   3. Return ContainsUndefinedBreakTarget of LabelledItem with argument newLabelSet.
+        return self.LabelledItem.ContainsUndefinedBreakTarget(labelSet + [self.LabelIdentifier.StringValue])
+
+    def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
+        # 13.13.4 Static Semantics: ContainsUndefinedContinueTarget
+        #   With parameters iterationSet and labelSet.
+        # LabelledStatement : LabelIdentifier : LabelledItem
+        #   1. Let label be the StringValue of LabelIdentifier.
+        #   2. Let newLabelSet be a copy of labelSet with label appended.
+        #   3. Return ContainsUndefinedContinueTarget of LabelledItem with arguments iterationSet and newLabelSet.
+        return self.LabelledItem.ContainsUndefinedContinueTarget(
+            iterationSet, labelSet + [self.LabelIdentifier.StringValue]
+        )
+
+    def LexicallyDeclaredNames(self):
+        # 13.13.6 Static Semantics: LexicallyDeclaredNames
+        # LabelledStatement : LabelIdentifier : LabelledItem
+        #   1. Return the LexicallyDeclaredNames of LabelledItem.
+        return self.LabelledItem.LexicallyDeclaredNames()
+
+    def LexicallyScopedDeclarations(self):
+        # 13.13.7 Static Semantics: LexicallyScopedDeclarations
+        # LabelledStatement : LabelIdentifier : LabelledItem
+        #   1. Return the LexicallyScopedDeclarations of LabelledItem.
+        return self.LabelledItem.LexicallyScopedDeclarations()
+
+    def TopLevelLexicallyDeclaredNames(self):
+        # 13.13.8 Static Semantics: TopLevelLexicallyDeclaredNames
+        # LabelledStatement : LabelIdentifier : LabelledItem
+        #   1. Return a new empty List.
+        return []
+
+    def TopLevelLexicallyScopedDeclarations(self):
+        # 13.13.9 Static Semantics: TopLevelLexicallyScopedDeclarations
+        # LabelledStatement : LabelIdentifier : LabelledItem
+        #   1. Return a new empty List.
+        return []
+
+    def TopLevelVarDeclaredNames(self):
+        # 13.13.10 Static Semantics: TopLevelVarDeclaredNames
+        # LabelledStatement : LabelIdentifier : LabelledItem
+        #   1. Return the TopLevelVarDeclaredNames of LabelledItem.
+        return self.LabelledItem.TopLevelVarDeclaredNames()
+
+    def TopLevelVarScopedDeclarations(self):
+        # 13.13.11 Static Semantics: TopLevelVarScopedDeclarations
+        # LabelledStatement : LabelIdentifier : LabelledItem
+        # 1. Return the TopLevelVarScopedDeclarations of LabelledItem.
+        return self.LabelledItem.TopLevelVarScopedDeclarations()
+
+    def VarDeclaredNames(self):
+        # 13.13.12 Static Semantics: VarDeclaredNames
+        # LabelledStatement : LabelIdentifier : LabelledItem
+        #   1. Return the VarDeclaredNames of LabelledItem.
+        return self.LabelledItem.VarDeclaredNames()
+
+    def VarScopedDeclarations(self):
+        # 13.13.13 Static Semantics: VarScopedDeclarations
+        # LabelledStatement : LabelIdentifier : LabelledItem
+        #   1. Return the VarScopedDeclarations of LabelledItem.
+        return self.LabelledItem.VarScopedDeclarations()
+
+    def LabelledEvaluation(self, labelSet):
+        # 13.13.14 Runtime Semantics: LabelledEvaluation
+        #   With parameter labelSet.
+        # LabelledStatement : LabelIdentifier : LabelledItem
+        #   1. Let label be the StringValue of LabelIdentifier.
+        #   2. Append label as an element of labelSet.
+        #   3. Let stmtResult be LabelledEvaluation of LabelledItem with argument labelSet.
+        #   4. If stmtResult.[[Type]] is break and SameValue(stmtResult.[[Target]], label) is true, then
+        #       a. Set stmtResult to NormalCompletion(stmtResult.[[Value]]).
+        #   5. Return Completion(stmtResult).
+        label = self.LabelIdentifier.StringValue
+        labelSet.append(label)
+        try:
+            stmtResult = self.LabelledItem.LabelledEvaluation(labelSet)
+        except ESBreak as err:
+            if not SameValue(err.completion.target, label):
+                raise
+            stmtResult = err.completion.value
+        return stmtResult
+
+    def evaluate(self):
+        # 13.13.15 Runtime Semantics: Evaluation
+        # LabelledStatement : LabelIdentifier : LabelledItem
+        #   1. Let newLabelSet be a new empty List.
+        #   2. Return LabelledEvaluation of this LabelledStatement with argument newLabelSet.
+        return self.LabelledEvaluation([])
+
 
 def parse_LabelledStatement(context, lexer, strict, Yield, Await, Return):
     # 13.13 Labelled Statements
@@ -23410,11 +23519,123 @@ class P2_LabelledItem_Statement(P2_LabelledItem):
     def Statement(self):
         return self.children[0]
 
+    def LexicallyDeclaredNames(self):
+        # 13.13.6 Static Semantics: LexicallyDeclaredNames
+        # LabelledItem : Statement
+        #   1. Return a new empty List.
+        return []
+
+    def LexicallyScopedDeclarations(self):
+        # 13.13.7 Static Semantics: LexicallyScopedDeclarations
+        # LabelledItem : Statement
+        #   1. Return a new empty List.
+        return []
+
+    def TopLevelVarDeclaredNames(self):
+        # 13.13.10 Static Semantics: TopLevelVarDeclaredNames
+        # LabelledItem : Statement
+        #   1. If Statement is Statement:LabelledStatement , return TopLevelVarDeclaredNames of Statement.
+        #   2. Return VarDeclaredNames of Statement.
+        if isinstance(self.Statement, P2_Statement_LabelledStatement):
+            return self.Statement.TopLevelVarDeclaredNames()
+        return self.Statement.VarDeclaredNames()
+
+    def TopLevelVarScopedDeclarations(self):
+        # 13.13.11 Static Semantics: TopLevelVarScopedDeclarations
+        # LabelledItem : Statement
+        #   1. If Statement is Statement:LabelledStatement , return TopLevelVarScopedDeclarations of Statement.
+        #   2. Return VarScopedDeclarations of Statement.
+        if isinstance(self.Statement, P2_Statement_LabelledStatement):
+            return self.Statement.TopLevelVarScopedDeclarations()
+        return self.Statement.VarScopedDeclarations()
+
+    def LabelledEvaluation(self, labelSet):
+        # 13.13.14 Runtime Semantics: LabelledEvaluation
+        #   With parameter labelSet.
+        # LabelledItem : Statement
+        #   1. If Statement is either a LabelledStatement or a BreakableStatement, then
+        #       a. Return LabelledEvaluation of Statement with argument labelSet.
+        #   2. Else,
+        #       a. Return the result of evaluating Statement.
+        if isinstance(self.Statement, (P2_Statement_LabelledStatement, P2_Statement_BreakableStatement)):
+            return self.Statement.LabelledEvaluation(labelSet)
+        return self.Statement.evaluate()
+
 
 class P2_LabelledItem_FunctionDeclaration(P2_LabelledItem):
     @property
     def FunctionDeclaration(self):
         return self.children[0]
+
+    def EarlyErrors(self):
+        # 13.13.1 Static Semantics: Early Errors
+        # LabelledItem : FunctionDeclaration
+        #   * It is a Syntax Error if any source text matches this rule.
+        return [self.CreateSyntaxError("Function declarations should not be labelled")]
+
+    def ContainsDuplicateLabels(self, labelSet):
+        # 13.13.2 Static Semantics: ContainsDuplicateLabels
+        #   With parameter labelSet.
+        # LabelledItem : FunctionDeclaration
+        #   1. Return false.
+        return False
+
+    def ContainsUndefinedBreakTarget(self, labelSet):
+        # 13.13.3 Static Semantics: ContainsUndefinedBreakTarget
+        #   With parameter labelSet.
+        # LabelledItem : FunctionDeclaration
+        #   1. Return false.
+        return False
+
+    def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
+        # 13.13.4 Static Semantics: ContainsUndefinedContinueTarget
+        #   With parameters iterationSet and labelSet.
+        # LabelledItem : FunctionDeclaration
+        #   1. Return false.
+        return False
+
+    def LexicallyDeclaredNames(self):
+        # 13.13.6 Static Semantics: LexicallyDeclaredNames
+        # LabelledItem : FunctionDeclaration
+        #   1. Return BoundNames of FunctionDeclaration.
+        return self.FunctionDeclaration.BoundNames()
+
+    def LexicallyScopedDeclarations(self):
+        # 13.13.7 Static Semantics: LexicallyScopedDeclarations
+        # LabelledItem : FunctionDeclaration
+        #   1. Return a new List containing FunctionDeclaration.
+        return [self.FunctionDeclaration]
+
+    def TopLevelVarDeclaredNames(self):
+        # 13.13.10 Static Semantics: TopLevelVarDeclaredNames
+        # LabelledItem : FunctionDeclaration
+        #   1. Return BoundNames of FunctionDeclaration.
+        return self.FunctionDeclaration.BoundNames()
+
+    def TopLevelVarScopedDeclarations(self):
+        # 13.13.11 Static Semantics: TopLevelVarScopedDeclarations
+        # LabelledItem : FunctionDeclaration
+        #   1. Return a new List containing FunctionDeclaration.
+        return [self.FunctionDeclaration]
+
+    def VarDeclaredNames(self):
+        # 13.13.12 Static Semantics: VarDeclaredNames
+        # LabelledItem : FunctionDeclaration
+        #   1. Return a new empty List.
+        return []
+
+    def VarScopedDeclarations(self):
+        # 13.13.13 Static Semantics: VarScopedDeclarations
+        # LabelledItem : FunctionDeclaration
+        #   1. Return a new empty List.
+        return []
+
+    def LabelledEvaluation(self, labelSet):
+        # 13.13.14 Runtime Semantics: LabelledEvaluation
+        #   With parameter labelSet.
+        # LabelledItem : FunctionDeclaration
+        #   1. Return the result of evaluating FunctionDeclaration.
+        return self.FunctionDeclaration.evaluate()
 
 
 def parse_LabelledItem(context, lexer, strict, Yield, Await, Return):
