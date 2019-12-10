@@ -8559,7 +8559,7 @@ class Test_ContinueStatement:
     @pytest.mark.parametrize(
         "token_stream",
         synerror_streams([(CONTINUE, SEMICOLON), (CONTINUE, LABELIDENTIFIER_NONL, SEMICOLON)])
-        + [pytest.param((CONTINUE, FUNCTION_NONL), id="continue function"),],
+        + [pytest.param((CONTINUE, FUNCTION_NONL), id="continue function")],
     )
     def test_parse_ContinueStatement_02(self, mocker, context, token_stream):
         lexer = Lexer(token_stream)
@@ -8649,7 +8649,7 @@ class Test_BreakStatement:
     @pytest.mark.parametrize(
         "token_stream",
         synerror_streams([(BREAK, SEMICOLON), (BREAK, LABELIDENTIFIER_NONL, SEMICOLON)])
-        + [pytest.param((BREAK, FUNCTION_NONL), id="break function"),],
+        + [pytest.param((BREAK, FUNCTION_NONL), id="break function")],
     )
     def test_parse_BreakStatement_02(self, mocker, context, token_stream):
         lexer = Lexer(token_stream)
@@ -8737,7 +8737,7 @@ class Test_ReturnStatement:
     @pytest.mark.parametrize(
         "token_stream",
         synerror_streams([(RETURN, SEMICOLON), (RETURN, EXPRESSION_NONL, SEMICOLON)])
-        + [pytest.param((RETURN, PLUSPLUS_NONL, SEMICOLON), id="return ++ ;"),],
+        + [pytest.param((RETURN, PLUSPLUS_NONL, SEMICOLON), id="return ++ ;")],
     )
     def test_parse_ReturnStatement_02(self, mocker, context, token_stream):
         lexer = Lexer(token_stream)

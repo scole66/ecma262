@@ -286,6 +286,10 @@ def cleanup():
         ),
         ("{ function f ( ) { } }", None),
         ('try { eval("function a(){} function NaN(){}"); } catch (e) { }; this.a;', None),
+        (
+            "var initial, postAssignment; (function() {eval('initial = f; f = 5; postAssignment = f; function f() { return 33; }');}());String([typeof initial, initial(), postAssignment]);",
+            "function,33,5",
+        ),
     ],
 )
 def test_scripts_01(cleanup, script, result):
@@ -313,6 +317,10 @@ BreakErrorMsg = "SyntaxError: Break statement not enclosed within an iteration s
         ("break", BreakErrorMsg),
         ("a=function () { continue; };", ContinueErrorMsg),
         ("b=function () { break; };", BreakErrorMsg),
+        (
+            "var initial, postAssignment; (function() {eval('initial = f; f = 5; postAssignment = f; function f() { return 33; }');}());f;",
+            "ReferenceError: 'f': unknown",
+        ),
     ),
 )
 def test_script_errors(cleanup, script, expected):
