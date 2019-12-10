@@ -137,7 +137,7 @@ class JSNull(Enum):
 # Implementation: we shall use the python bool type to be a ECMAScript Boolean.
 
 # 6.1.4 The String Type
-# The String type is the set of all ordered sequences of zero or more 16-bit unsigned integer values (�elements�) up
+# The String type is the set of all ordered sequences of zero or more 16-bit unsigned integer values (“elements”) up
 # to a maximum length of 2^53-1 elements. The String type is generally used to represent textual data in a running
 # ECMAScript program, in which case each element in the String is treated as a UTF-16 code unit value. Each element is
 # regarded as occupying a position within the sequence.
@@ -4634,7 +4634,7 @@ def RunJobs(scripts=[], modules=[], add_host_defined_globals: Callable[[Realm], 
         except ESError as err:
             # l. If result is an abrupt completion, perform HostReportErrors(« result.[[Value]] »).
             HostReportErrors([err.ecma_object])
-            result = err.ecma_object
+            result = None
     return result
 
 
@@ -27768,8 +27768,8 @@ def EvalDeclarationInstantiation(body, varEnv, lexEnv, strict):
                     fnDefinable = varEnvRec.CanDeclareGlobalFunction(fn)
                     if not fnDefinable:
                         raise ESTypeError(f"Cannot define function {fn}.")
-                    declaredFunctionNames.append(fn)
-                    functionsToInitialize.appendleft(d)
+                declaredFunctionNames.append(fn)
+                functionsToInitialize.appendleft(d)
     declaredVarNames = []
     for d in varDeclarations:
         if isinstance(d, (P2_VariableDeclaration, P2_ForBinding, P2_BindingIdentifier)):
