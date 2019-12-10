@@ -135,14 +135,20 @@ class Test_LexerCore:
                 0,
                 "InputElementRegExp",
                 lexer2.Token(
-                    "IDENTIFIER", "  \n\r\n  bob   ", "bob", lexer2.Span(7, 10), [lexer2.Span(2, 3), lexer2.Span(3, 5)]
+                    "IDENTIFIER",
+                    "  \n\r\n  bob   ",
+                    "bob",
+                    lexer2.Span(7, 10),
+                    [lexer2.Span(2, 3), lexer2.Span(3, 5)],
                 ),
             ),
             (
                 "// Happy?\n    bob   ",
                 0,
                 "InputElementRegExp",
-                lexer2.Token("IDENTIFIER", "// Happy?\n    bob   ", "bob", lexer2.Span(14, 17), [lexer2.Span(9, 10)]),
+                lexer2.Token(
+                    "IDENTIFIER", "// Happy?\n    bob   ", "bob", lexer2.Span(14, 17), [lexer2.Span(9, 10)]
+                ),
             ),
             (
                 "/* Happy?*/    bob   ",
@@ -169,7 +175,12 @@ class Test_LexerCore:
                 lexer2.Token("NUMERIC", "899.31e-5", 0.0089931, lexer2.Span(0, 9), []),
             ),
             (".25", 0, "InputElementRegExp", lexer2.Token("NUMERIC", ".25", 0.25, lexer2.Span(0, 3), [])),
-            ('"string"', 0, "InputElementRegExp", lexer2.Token("STRING", '"string"', "string", lexer2.Span(0, 8), [])),
+            (
+                '"string"',
+                0,
+                "InputElementRegExp",
+                lexer2.Token("STRING", '"string"', "string", lexer2.Span(0, 8), []),
+            ),
             ("", 0, "InputElementRegExp", None),
             ("}", 0, "InputElementDiv", lexer2.Token("}", "}", "}", lexer2.Span(0, 1), [])),
             ("/=", 0, "InputElementDiv", lexer2.Token("/=", "/=", "/=", lexer2.Span(0, 2), [])),

@@ -104,4 +104,6 @@ def test_ESContinue_01(realm):
 
 def test_ESReturn_01(realm):
     completion = ecmascript.ESReturn(value=88)
-    assert completion.completion == ecmascript.Completion(ecmascript.CompletionType.RETURN, 88, ecmascript.Empty.EMPTY)
+    assert completion.completion == ecmascript.Completion(
+        ecmascript.CompletionType.RETURN, 88, ecmascript.Empty.EMPTY
+    )

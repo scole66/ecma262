@@ -2769,7 +2769,8 @@ def CreateListIteratorRecord(lst):
     #   6. Return Record { [[Iterator]]: iterator, [[NextMethod]]: next, [[Done]]: false }.
     # NOTE The list iterator object is never directly accessible to ECMAScript code.
     iterator = ObjectCreate(
-        surrounding_agent.running_ec.realm.intrinsics["%IteratorPrototype%"], ["IteratedList", "ListIteratorNextIndex"]
+        surrounding_agent.running_ec.realm.intrinsics["%IteratorPrototype%"],
+        ["IteratedList", "ListIteratorNextIndex"],
     )
     iterator.IteratedList = lst
     iterator.ListIteratorNextIndex = 0
@@ -5530,7 +5531,9 @@ def OrdinaryCallBindThis(F, calleeContext, thisArgument):
     else:  # 6. Else,
         if thisArgument is None or isNull(thisArgument):  #    a. If thisArgument is undefined or null, then
             globalEnv = calleeRealm.global_env  #       i. Let globalEnv be calleeRealm.[[GlobalEnv]].
-            globalEnvRec = globalEnv.environment_record  #      ii. Let globalEnvRec be globalEnv's EnvironmentRecord.
+            globalEnvRec = (
+                globalEnv.environment_record
+            )  #      ii. Let globalEnvRec be globalEnv's EnvironmentRecord.
             assert isinstance(
                 globalEnvRec, GlobalEnvironmentRecord
             )  #  iii. Assert: globalEnvRec is a global Environment Record.
@@ -6827,7 +6830,11 @@ class StringObject(JSObject):
         # 8. Return keys.
         g1 = (ToString(i) for i in range(len(self.StringData)))
         g2 = sorted(
-            (key for key in self.properties.keys() if isIntegerIndex(key) and ToInteger(key) >= len(self.StringData)),
+            (
+                key
+                for key in self.properties.keys()
+                if isIntegerIndex(key) and ToInteger(key) >= len(self.StringData)
+            ),
             key=lambda x: ToInteger(x),
         )
         g3 = (key for key in self.properties.keys() if isString(key) and not isIntegerIndex(key))
@@ -7489,13 +7496,19 @@ class ParseNode2:
 
     @cached_property
     def early_errors_eval_outside_methods(self):
-        return tuple(chain(*(c.early_errors_eval_outside_methods for c in self.children if isinstance(c, ParseNode2))))
+        return tuple(
+            chain(*(c.early_errors_eval_outside_methods for c in self.children if isinstance(c, ParseNode2)))
+        )
 
     @cached_property
     def early_errors_eval_outside_constructor_methods(self):
         return tuple(
             chain(
-                *(c.early_errors_eval_outside_constructor_methods for c in self.children if isinstance(c, ParseNode2))
+                *(
+                    c.early_errors_eval_outside_constructor_methods
+                    for c in self.children
+                    if isinstance(c, ParseNode2)
+                )
             )
         )
 
@@ -7760,7 +7773,9 @@ class _P2_Common_Identifier_Identifier(ParseNode2):
         # pylint: disable=no-member
         if self.Yield and self.Identifier.StringValue == "yield":
             return [
-                self.CreateSyntaxError("'yield' not allowed as an identifier when 'yield' can be used as a statement")
+                self.CreateSyntaxError(
+                    "'yield' not allowed as an identifier when 'yield' can be used as a statement"
+                )
             ]
         if self.Await and self.Identifier.StringValue == "await":
             return [
@@ -8020,7 +8035,9 @@ class P2_BindingIdentifier_YIELD(_P2_Common_Identifier_YIELD, P2_BindingIdentifi
         #   * It is a Syntax Error if this production has a [Yield] parameter.
         if self.Yield:
             return [
-                self.CreateSyntaxError("'yield' not allowed as an identifier when 'yield' can be used as a statement")
+                self.CreateSyntaxError(
+                    "'yield' not allowed as an identifier when 'yield' can be used as a statement"
+                )
             ]
         return super().EarlyErrors()
 
@@ -9400,7 +9417,9 @@ def parse_ElementList(ctx, lexer, strict, Yield, Await):
                 return lambda: parse(P2_ElementList_SpreadElement(ctx, strict, [se]))
             if elision is not None:
                 return lambda: parse(
-                    P2_ElementList_ElementList_COMMA_Elision_SpreadElement(ctx, strict, [previous, comma, elision, se])
+                    P2_ElementList_ElementList_COMMA_Elision_SpreadElement(
+                        ctx, strict, [previous, comma, elision, se]
+                    )
                 )
             return lambda: parse(P2_ElementList_ElementList_COMMA_SpreadElement(ctx, strict, [previous, comma, se]))
         lexer.reset_position(bookmark)
@@ -10416,7 +10435,9 @@ def parse_SubstitutionTemplate(ctx, lexer, strict, Yield, Await, Tagged):
         if exp:
             ts = parse_TemplateSpans(ctx, lexer, strict, Yield, Await, Tagged)
             if ts:
-                return P2_SubstitutionTemplate_TemplateHead_Expression_TemplateSpans(ctx, strict, [th, exp, ts], Tagged)
+                return P2_SubstitutionTemplate_TemplateHead_Expression_TemplateSpans(
+                    ctx, strict, [th, exp, ts], Tagged
+                )
     lexer.reset_position(bookmark)
     return None
 
@@ -11108,12 +11129,16 @@ def parse_MemberExpression(ctx, lexer, strict, Yield, Await):
                 ident = lexer.next_token_if("IDENTIFIER")
                 if ident:
                     return lambda: parse(
-                        P2_MemberExpression_MemberExpression_PERIOD_IdentifierName(ctx, strict, [previous, dot, ident])
+                        P2_MemberExpression_MemberExpression_PERIOD_IdentifierName(
+                            ctx, strict, [previous, dot, ident]
+                        )
                     )
                 lexer.reset_position(bookmark)
             tl = parse_TemplateLiteral(ctx, lexer, strict, Yield, Await, True)
             if tl:
-                return lambda: parse(P2_MemberExpression_MemberExpression_TemplateLiteral(ctx, strict, [previous, tl]))
+                return lambda: parse(
+                    P2_MemberExpression_MemberExpression_TemplateLiteral(ctx, strict, [previous, tl])
+                )
         lexer.reset_position(bookmark)
         return previous
 
@@ -12742,7 +12767,8 @@ def parse_UnaryExpression(ctx, lexer, strict, Yield, Await):
             return P2_UnaryExpression_AwaitExpression(ctx, strict, [ae])
     tok = lexer.next_token()
     if tok and (
-        (tok.type == "IDENTIFIER" and tok.value in ("delete", "void", "typeof")) or (tok.type in ("+", "-", "~", "!"))
+        (tok.type == "IDENTIFIER" and tok.value in ("delete", "void", "typeof"))
+        or (tok.type in ("+", "-", "~", "!"))
     ):
         une = parse_UnaryExpression(ctx, lexer, strict, Yield, Await)
         une_class = {
@@ -15012,7 +15038,9 @@ class P2_AssignmentExpression_LeftHandSideExpression_EQ_AssignmentExpression(P2_
         return rval
 
 
-class P2_AssignmentExpression_LeftHandSideExpression_AssignmentOperator_AssignmentExpression(P2_AssignmentExpression):
+class P2_AssignmentExpression_LeftHandSideExpression_AssignmentOperator_AssignmentExpression(
+    P2_AssignmentExpression
+):
     def __init__(self, ctx, strict, children):
         super().__init__(ctx, strict, children)
 
@@ -15571,7 +15599,9 @@ class P2_AssignmentRestProperty_DestructuringAssignmentTarget(P2_AssignmentRestP
             filter(
                 None,
                 [
-                    any(self.DestructuringAssignmentTarget.Is(symbol) for symbol in ("ArrayLiteral", "ObjectLiteral"))
+                    any(
+                        self.DestructuringAssignmentTarget.Is(symbol) for symbol in ("ArrayLiteral", "ObjectLiteral")
+                    )
                     and self.CreateSyntaxError("Invalid destructuring assignment target")
                 ],
             )
@@ -17363,9 +17393,9 @@ class P2_StatementList_StatementList_StatementListItem(P2_StatementList):
         #    1. Let hasDuplicates be ContainsDuplicateLabels of StatementList with argument labelSet.
         #    2. If hasDuplicates is true, return true.
         #    3. Return ContainsDuplicateLabels of StatementListItem with argument labelSet.
-        return self.StatementList.ContainsDuplicateLabels(labelSet) or self.StatementListItem.ContainsDuplicateLabels(
+        return self.StatementList.ContainsDuplicateLabels(
             labelSet
-        )
+        ) or self.StatementListItem.ContainsDuplicateLabels(labelSet)
 
     def ContainsUndefinedBreakTarget(self, labelSet):
         # 13.2.3 StatementList : StatementList StatementListItem
@@ -17397,7 +17427,9 @@ class P2_StatementList_StatementList_StatementListItem(P2_StatementList):
         #    1. Let declarations be LexicallyScopedDeclarations of StatementList.
         #    2. Append to declarations the elements of the LexicallyScopedDeclarations of StatementListItem.
         #    3. Return declarations.
-        return self.StatementList.LexicallyScopedDeclarations() + self.StatementListItem.LexicallyScopedDeclarations()
+        return (
+            self.StatementList.LexicallyScopedDeclarations() + self.StatementListItem.LexicallyScopedDeclarations()
+        )
 
     def TopLevelLexicallyDeclaredNames(self):
         # 13.2.7 Static Semantics: TopLevelLexicallyDeclaredNames
@@ -20840,7 +20872,9 @@ class P2_IterationStatement_FOR_in_of_ForDeclaration(P2_IterationStatement_FOR_i
         return errs
 
 
-class P2_IterationStatement_FOR_ForDeclaration_IN_Expression_Statement(P2_IterationStatement_FOR_in_of_ForDeclaration):
+class P2_IterationStatement_FOR_ForDeclaration_IN_Expression_Statement(
+    P2_IterationStatement_FOR_in_of_ForDeclaration
+):
     @property
     def ForDeclaration(self):
         return self.children[2]
@@ -20993,7 +21027,9 @@ class P2_IterationStatement_FOR_ForDeclaration_OF_AssignmentExpression_Statement
         #   1. Let keyResult be the result of performing ? ForIn/OfHeadEvaluation(BoundNames of ForDeclaration, AssignmentExpression, iterate).
         #   2. Return ? ForIn/OfBodyEvaluation(ForDeclaration, Statement, keyResult, iterate, lexicalBinding, labelSet).
         keyResult = ForInOfHeadEvaluation(self.ForDeclaration.BoundNames(), self.AssignmentExpression, ITERATE)
-        return ForInOfBodyEvaluation(self.ForDeclaration, self.Statement, keyResult, ITERATE, LEXICALBINDING, labelSet)
+        return ForInOfBodyEvaluation(
+            self.ForDeclaration, self.Statement, keyResult, ITERATE, LEXICALBINDING, labelSet
+        )
 
 
 class P2_IterationStatement_FOR_AWAIT_LeftHandSideExpression_OF_AssignmentExpression_Statement(
@@ -21012,7 +21048,9 @@ class P2_IterationStatement_FOR_AWAIT_LeftHandSideExpression_OF_AssignmentExpres
         return self.children[7]
 
 
-class P2_IterationStatement_FOR_AWAIT_VAR_ForBinding_OF_AssignmentExpression_Statement(P2_IterationStatement_FOR_in_of):
+class P2_IterationStatement_FOR_AWAIT_VAR_ForBinding_OF_AssignmentExpression_Statement(
+    P2_IterationStatement_FOR_in_of
+):
     @property
     def ForBinding(self):
         return self.children[4]
@@ -21120,7 +21158,9 @@ def parse_IterationStatement(context, lexer, strict, Yield, Await, Return):
                         stmt3 = parse_Statement(context, lexer, strict, Yield, Await, Return)
                         if stmt3:
                             return P2_IterationStatement_FOR_ExpressionInit_ExpressionTest_ExpressionInc_Statement(
-                                context, strict, [for_token, lp3, exp_init, semi2, exp_test, semi3, exp_inc, rp3, stmt3]
+                                context,
+                                strict,
+                                [for_token, lp3, exp_init, semi2, exp_test, semi3, exp_inc, rp3, stmt3],
                             )
             lexer.reset_position(after_open)
 
@@ -21142,7 +21182,18 @@ def parse_IterationStatement(context, lexer, strict, Yield, Await, Return):
                                     return P2_IterationStatement_FOR_VAR_VariableDeclarationList_ExpressionTest_ExpressionInc_Statement(
                                         context,
                                         strict,
-                                        [for_token, lp3, var_token, vdl, semi4, exp_test2, semi5, exp_inc2, rp4, stmt4],
+                                        [
+                                            for_token,
+                                            lp3,
+                                            var_token,
+                                            vdl,
+                                            semi4,
+                                            exp_test2,
+                                            semi5,
+                                            exp_inc2,
+                                            rp4,
+                                            stmt4,
+                                        ],
                                     )
             lexer.reset_position(after_open)
 
@@ -21158,7 +21209,9 @@ def parse_IterationStatement(context, lexer, strict, Yield, Await, Return):
                         stmt_ld = parse_Statement(context, lexer, strict, Yield, Await, Return)
                         if stmt_ld:
                             return P2_IterationStatement_FOR_LexicalDeclaration_ExpressionTest_ExpressionInc_Statement(
-                                context, strict, [for_token, lp3, ld, exp_test_ld, semi_ld, exp_inc_ld, rp_ld, stmt_ld]
+                                context,
+                                strict,
+                                [for_token, lp3, ld, exp_test_ld, semi_ld, exp_inc_ld, rp_ld, stmt_ld],
                             )
             lexer.reset_position(after_open)
 
@@ -21673,7 +21726,9 @@ def EnumerateObjectProperties(O):
                 if propkey not in visited:
                     yield propkey
 
-    iterator_obj = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics["%IteratorPrototype%"], ["python_iter"])
+    iterator_obj = ObjectCreate(
+        surrounding_agent.running_ec.realm.intrinsics["%IteratorPrototype%"], ["python_iter"]
+    )
     iterator_obj.python_iter = py_enum_props(O)
 
     def enum_next(this_value, new_target, *_):
@@ -21953,7 +22008,9 @@ def parse_ContinueStatement(context, lexer, strict, Yield, Await):
             if li:
                 semi_li = lexer.next_token_asi()
                 if semi_li:
-                    return P2_ContinueStatement_CONTINUE_LabelIdentifier(context, strict, [continue_token, li, semi_li])
+                    return P2_ContinueStatement_CONTINUE_LabelIdentifier(
+                        context, strict, [continue_token, li, semi_li]
+                    )
                 lexer.reset_position(after_continue)
         semi_plain = lexer.next_token_asi()
         if semi_plain:
@@ -22249,7 +22306,9 @@ class P2_WithStatement_WITH_Expression_Statement(P2_WithStatement):
         #   * It is a Syntax Error if IsLabelledFunction(Statement) is true.
         # NOTE: It is only necessary to apply the second rule if the extension specified in B.3.2 is implemented.
         return list(
-            filter(None, [self.strict and self.CreateSyntaxError("Strict mode code may not include a with statement")])
+            filter(
+                None, [self.strict and self.CreateSyntaxError("Strict mode code may not include a with statement")]
+            )
         )
 
     def ContainsDuplicateLabels(self, labelSet):
@@ -23046,7 +23105,9 @@ class P2_CaseClause(ParseNode2):
         #   1. If the StatementList is present, return ContainsUndefinedContinueTarget of StatementList with arguments
         #      iterationSet and « ».
         #   2. Return false.
-        return self.StatementList is not None and self.StatementList.ContainsUndefinedContinueTarget(iterationSet, [])
+        return self.StatementList is not None and self.StatementList.ContainsUndefinedContinueTarget(
+            iterationSet, []
+        )
 
     def LexicallyDeclaredNames(self):
         # 13.12.5 Static Semantics: LexicallyDeclaredNames
@@ -23174,7 +23235,9 @@ class P2_DefaultClause(ParseNode2):
         #   1. If the StatementList is present, return ContainsUndefinedContinueTarget of StatementList with arguments
         #      iterationSet and « ».
         #   2. Return false.
-        return self.StatementList is not None and self.StatementList.ContainsUndefinedContinueTarget(iterationSet, [])
+        return self.StatementList is not None and self.StatementList.ContainsUndefinedContinueTarget(
+            iterationSet, []
+        )
 
     def LexicallyDeclaredNames(self):
         # 13.12.5 Static Semantics: LexicallyDeclaredNames
@@ -24051,7 +24114,9 @@ def FunctionDecl_EarlyErrors(pn):
         errs.extend(UniqueFormalParameters_EarlyErrors(pn.FormalParameters))
         if pn.BindingIdentifier and pn.BindingIdentifier.StringValue in ["eval", "arguments"]:
             errs.append(
-                pn.CreateSyntaxError(f"Redefining '{pn.BindingIdentifier.StringValue}' is not allowed in strict mode")
+                pn.CreateSyntaxError(
+                    f"Redefining '{pn.BindingIdentifier.StringValue}' is not allowed in strict mode"
+                )
             )
     if pn.FunctionBody.ContainsUseStrict() and not pn.FormalParameters.IsSimpleParameterList():
         errs.append(pn.CreateSyntaxError("Parameters must be simple for strict mode functions"))
@@ -24590,7 +24655,9 @@ class P2_FormalParameters_FormalParameterList(P2_FormalParameters):
         # Multiple occurrences of the same BindingIdentifier in a FormalParameterList is only allowed for functions
         # which have simple parameter lists and which are not defined in strict mode code.
         if not self.FormalParameterList.IsSimpleParameterList():
-            duplicates = [name for name, count in Counter(self.FormalParameterList.BoundNames()).items() if count > 1]
+            duplicates = [
+                name for name, count in Counter(self.FormalParameterList.BoundNames()).items() if count > 1
+            ]
             if duplicates:
                 return [CreateSyntaxError(f"Multiple definitions in parameter list: {', '.join(duplicates)}")]
         return []
@@ -24666,7 +24733,9 @@ def parse_FormalParameters(context, lexer, strict, Yield, Await):
         if comma:
             frp = parse_FunctionRestParameter(context, lexer, strict, Yield, Await)
             if frp:
-                return P2_FormalParameters_FormalParameterList_FunctionRestParameter(context, strict, [fpl, comma, frp])
+                return P2_FormalParameters_FormalParameterList_FunctionRestParameter(
+                    context, strict, [fpl, comma, frp]
+                )
             return P2_FormalParameters_FormalParameterList(context, strict, [fpl, comma])
         return P2_FormalParameters_FormalParameterList(context, strict, [fpl])
     frp2 = parse_FunctionRestParameter(context, lexer, strict, Yield, Await)
@@ -24947,7 +25016,9 @@ class P2_FunctionBody_FunctionStatementList(P2_FunctionBody):
         ldn_duplicates = [name for name, count in Counter(ldn).items() if count > 1]
         if ldn_duplicates:
             errs.append(
-                self.CreateSyntaxError(f'Identifiers with multiple lexical declarations: {", ".join(ldn_duplicates)}')
+                self.CreateSyntaxError(
+                    f'Identifiers with multiple lexical declarations: {", ".join(ldn_duplicates)}'
+                )
             )
         vdn = fsl.VarDeclaredNames()
         in_common_names = set(vdn).intersection(set(ldn))
@@ -25944,7 +26015,9 @@ def parse_MethodDefinition(context, lexer, strict, Yield, Await):
                                 rc_set = lexer.next_token_if("}")
                                 if rc_set:
                                     return P2_MethodDefinition_SET_PropertyName_PropertySetParameterList_FunctionBody(
-                                        context, strict, [set_tok, pn_set, lp_set, pspl, rp_set, lc_set, fb_set, rc_set]
+                                        context,
+                                        strict,
+                                        [set_tok, pn_set, lp_set, pspl, rp_set, lc_set, fb_set, rc_set],
                                     )
         lexer.reset_position(bookmark)
     return None
@@ -26142,7 +26215,9 @@ class P2_GeneratorMethod_PropertyName_UniqueFormalParameters_GeneratorBody(P2_Ge
         #   11. Return ? DefinePropertyOrThrow(object, propKey, desc).
         propKey = self.PropertyName.evaluate()
         scope = surrounding_agent.running_ec.lexical_environment
-        closure = GeneratorFunctionCreate(METHOD, self.UniqueFormalParameters, self.GeneratorBody, scope, self.strict)
+        closure = GeneratorFunctionCreate(
+            METHOD, self.UniqueFormalParameters, self.GeneratorBody, scope, self.strict
+        )
         MakeMethod(closure, object)
         prototype = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics["%GeneratorPrototype%"])
         DefinePropertyOrThrow(
@@ -28076,7 +28151,9 @@ def CreateObjectConstructor(realm):
     DefinePropertyOrThrow(
         obj,
         "prototype",
-        PropertyDescriptor(value=intrinsics["%ObjectPrototype%"], writable=False, enumerable=False, configurable=False),
+        PropertyDescriptor(
+            value=intrinsics["%ObjectPrototype%"], writable=False, enumerable=False, configurable=False
+        ),
     )
     BindBuiltinFunctions(
         realm,
@@ -29212,7 +29289,9 @@ def CreateBooleanPrototype(realm):
     boolean_prototype = ObjectCreate(realm.intrinsics["%ObjectPrototype%"], ["BooleanData"])
     boolean_prototype.BooleanData = False
     BindBuiltinFunctions(
-        realm, boolean_prototype, [("toString", BooleanPrototype_toString, 0), ("valueOf", BooleanPrototype_valueOf, 0)]
+        realm,
+        boolean_prototype,
+        [("toString", BooleanPrototype_toString, 0), ("valueOf", BooleanPrototype_valueOf, 0)],
     )
     return boolean_prototype
 
@@ -30310,7 +30389,9 @@ def DaysInYear(y):
 
 
 def DayFromYear(y):
-    return 365 * (y - 1970) + math.floor((y - 1969) / 4) - math.floor((y - 1901) / 100) + math.floor((y - 1601) / 400)
+    return (
+        365 * (y - 1970) + math.floor((y - 1969) / 4) - math.floor((y - 1901) / 100) + math.floor((y - 1601) / 400)
+    )
 
 
 def TimeFromYear(y):
@@ -30785,9 +30866,7 @@ def DateString(tv):
     # | 11     | "Dec" |
     # +--------+-------+
     assert isNumber(tv) and not math.isnan(tv)
-    return (
-        f"{weekday_names[WeekDay(tv)]} {month_names[MonthFromTime(tv)]} {DateFromTime(tv):02d} {YearFromTime(tv):04d}"
-    )
+    return f"{weekday_names[WeekDay(tv)]} {month_names[MonthFromTime(tv)]} {DateFromTime(tv):02d} {YearFromTime(tv):04d}"
 
 
 # 20.3.4.41.1 Runtime Semantics: TimeString ( tv )
@@ -32221,7 +32300,9 @@ def RegExpFixups(realm: Realm) -> None:
     DefinePropertyOrThrow(regexp_constructor, "prototype", proto_desc)
     # 21.2.5.1 RegExp.prototype.constructor
     # The initial value of RegExp.prototype.constructor is the intrinsic object %RegExp%.
-    constructor_desc = PropertyDescriptor(value=regexp_constructor, writable=True, enumerable=False, Configurable=True)
+    constructor_desc = PropertyDescriptor(
+        value=regexp_constructor, writable=True, enumerable=False, Configurable=True
+    )
     DefinePropertyOrThrow(regexp_prototype, "constructor", constructor_desc)
 
 
@@ -34006,7 +34087,9 @@ def CreateArrayBufferPrototype(realm):
         "name",
         PropertyDescriptor(value="get byteLength", writable=False, enumerable=False, configurable=True),
     )
-    DefinePropertyOrThrow(proto, "byteLength", PropertyDescriptor(Get=byteLength, enumerable=False, configurable=True))
+    DefinePropertyOrThrow(
+        proto, "byteLength", PropertyDescriptor(Get=byteLength, enumerable=False, configurable=True)
+    )
     DefinePropertyOrThrow(
         proto,
         wks_to_string_tag,

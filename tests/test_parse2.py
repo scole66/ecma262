@@ -959,7 +959,9 @@ def test_P2_SuperProperty_init(context):
 
 
 def test_P2_SuperProperty_SUPER_LBRACKET_Expression_RBRACKET_init(context):
-    sp = e.P2_SuperProperty_SUPER_LBRACKET_Expression_RBRACKET(context, "StrictArg", ["super", "[", "Expression", "]"])
+    sp = e.P2_SuperProperty_SUPER_LBRACKET_Expression_RBRACKET(
+        context, "StrictArg", ["super", "[", "Expression", "]"]
+    )
     assert sp.name == "SuperProperty"
     assert sp.Expression == "Expression"
 
@@ -1292,7 +1294,9 @@ def test_P2_CallExpression_CallExpression_PERIOD_IdentifierName_init(context):
 
 
 def test_P2_CallExpression_CallExpression_TemplateLiteral_init(context):
-    ce = e.P2_CallExpression_CallExpression_TemplateLiteral(context, "StrictArg", ["CallExpression", "TemplateLiteral"])
+    ce = e.P2_CallExpression_CallExpression_TemplateLiteral(
+        context, "StrictArg", ["CallExpression", "TemplateLiteral"]
+    )
     assert ce.name == "CallExpression"
     assert ce.CallExpression == "CallExpression"
     assert ce.TemplateLiteral == "TemplateLiteral"
@@ -1769,7 +1773,9 @@ def test_P2_LeftHandSideExpression_NewExpression_init(context):
 
 
 def test_P2_LeftHandSideExpression_CallExpression_init(context):
-    lhs = e.P2_LeftHandSideExpression_CallExpression(context, "StrictArg", ["CallExpression"], "YieldArg", "AwaitArg")
+    lhs = e.P2_LeftHandSideExpression_CallExpression(
+        context, "StrictArg", ["CallExpression"], "YieldArg", "AwaitArg"
+    )
     assert lhs.name == "LeftHandSideExpression"
     assert lhs.CallExpression == "CallExpression"
 
@@ -1838,7 +1844,9 @@ def test_P2_CallMemberExpression_init(context):
 
 
 def test_P2_CallMemberExpression_MemberExpression_Arguments_init(context):
-    cme = e.P2_CallMemberExpression_MemberExpression_Arguments(context, "StrictArg", ["MemberExpression", "Arguments"])
+    cme = e.P2_CallMemberExpression_MemberExpression_Arguments(
+        context, "StrictArg", ["MemberExpression", "Arguments"]
+    )
     assert cme.name == "CallMemberExpression"
     assert cme.MemberExpression == "MemberExpression"
     assert cme.Arguments == "Arguments"
@@ -2478,7 +2486,9 @@ def test_P2_AdditiveExpression_AdditiveExpression_MINUS_MultiplicativeExpression
 
 
 def AdditiveExpression_mocks(mocker):
-    return {"mult": mocker.patch("ecmascript.ecmascript.parse_MultiplicativeExpression", side_effect=mult_sideeffect)}
+    return {
+        "mult": mocker.patch("ecmascript.ecmascript.parse_MultiplicativeExpression", side_effect=mult_sideeffect)
+    }
 
 
 def test_parse_AdditiveExpression_01(mocker, context):
@@ -2566,14 +2576,18 @@ def test_P2_ShiftExpression_AdditiveExpression_init(context):
 
 
 def test_P2_ShiftExpression_ShiftExpression_LTLT_AdditiveExpression_init(context):
-    se = e.P2_ShiftExpression_ShiftExpression_LTLT_AdditiveExpression(context, "StrictArg", ["ShiExp", "<<", "AddExp"])
+    se = e.P2_ShiftExpression_ShiftExpression_LTLT_AdditiveExpression(
+        context, "StrictArg", ["ShiExp", "<<", "AddExp"]
+    )
     assert se.name == "ShiftExpression"
     assert se.ShiftExpression == "ShiExp"
     assert se.AdditiveExpression == "AddExp"
 
 
 def test_P2_ShiftExpression_ShiftExpression_GTGT_AdditiveExpression_init(context):
-    se = e.P2_ShiftExpression_ShiftExpression_GTGT_AdditiveExpression(context, "StrictArg", ["ShiExp", ">>", "AddExp"])
+    se = e.P2_ShiftExpression_ShiftExpression_GTGT_AdditiveExpression(
+        context, "StrictArg", ["ShiExp", ">>", "AddExp"]
+    )
     assert se.name == "ShiftExpression"
     assert se.ShiftExpression == "ShiExp"
     assert se.AdditiveExpression == "AddExp"
@@ -2690,7 +2704,9 @@ def test_P2_RelationalExpression_ShiftExpression(context):
 
 
 def test_P2_RelationalExpression_RelationalExpression_OP_ShiftExpression(context):
-    re = e.P2_RelationalExpression_RelationalExpression_OP_ShiftExpression(context, "StrictArg", ["left", "<", "right"])
+    re = e.P2_RelationalExpression_RelationalExpression_OP_ShiftExpression(
+        context, "StrictArg", ["left", "<", "right"]
+    )
     assert re.name == "RelationalExpression"
     assert re.RelationalExpression == "left"
     assert re.ShiftExpression == "right"
@@ -3423,7 +3439,9 @@ def test_parse_LogicalORExpression_03(mocker, context, token_stream):
     assert lexer.pos == 0
 
 
-@pytest.mark.parametrize("token_stream", [[LAE_REPLACEMENT, MATCHES_NONE], [LAE_REPLACEMENT, PIPEPIPE, MATCHES_NONE]])
+@pytest.mark.parametrize(
+    "token_stream", [[LAE_REPLACEMENT, MATCHES_NONE], [LAE_REPLACEMENT, PIPEPIPE, MATCHES_NONE]]
+)
 def test_parse_LogicalORExpression_04(mocker, context, token_stream):
     # recursive syntax errors
     lexer = Lexer(token_stream)
@@ -3908,7 +3926,9 @@ def test_parse_ObjectAssignmentPattern_arp(mocker, context):
     mocks["AssignmentRestProperty"].assert_called_with(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
 
 
-@pytest.mark.parametrize("token_stream", [[LCURLY, APL_REPLACEMENT, RCURLY], [LCURLY, APL_REPLACEMENT, COMMA, RCURLY]])
+@pytest.mark.parametrize(
+    "token_stream", [[LCURLY, APL_REPLACEMENT, RCURLY], [LCURLY, APL_REPLACEMENT, COMMA, RCURLY]]
+)
 def test_parse_ObjectAssignmentPattern_apl(mocker, context, token_stream):
     # ObjectAssignmentPattern : { AssignmentPropertyList }
     # ObjectAssignmentPattern : { AssignmentPropertyList , }
@@ -4008,7 +4028,9 @@ def test_P2_ArrayAssignmentPattern_Elision_init(context):
 
 
 def test_P2_ArrayAssignmentPattern_Elision_AssignmentRestElement_init(context):
-    aap = e.P2_ArrayAssignmentPattern_Elision_AssignmentRestElement(context, "StrictArg", ["[", "ELISION", "ARE", "]"])
+    aap = e.P2_ArrayAssignmentPattern_Elision_AssignmentRestElement(
+        context, "StrictArg", ["[", "ELISION", "ARE", "]"]
+    )
     assert aap.name == "ArrayAssignmentPattern"
     assert aap.Elision == "ELISION"
     assert aap.AssignmentRestElement == "ARE"
@@ -4070,7 +4092,13 @@ def ArrayAssignmentPattern_mocks(mocker):
     [
         ([LBRACKET, RBRACKET], e.P2_ArrayAssignmentPattern_Empty, False, False, False),
         ([LBRACKET, ELISION_REPLACEMENT, RBRACKET], e.P2_ArrayAssignmentPattern_Elision, True, False, False),
-        ([LBRACKET, ARE_REPLACEMENT, RBRACKET], e.P2_ArrayAssignmentPattern_AssignmentRestElement, False, True, False),
+        (
+            [LBRACKET, ARE_REPLACEMENT, RBRACKET],
+            e.P2_ArrayAssignmentPattern_AssignmentRestElement,
+            False,
+            True,
+            False,
+        ),
         (
             [LBRACKET, ELISION_REPLACEMENT, ARE_REPLACEMENT, RBRACKET],
             e.P2_ArrayAssignmentPattern_Elision_AssignmentRestElement,
@@ -4078,7 +4106,13 @@ def ArrayAssignmentPattern_mocks(mocker):
             True,
             False,
         ),
-        ([LBRACKET, AEL_REPLACEMENT, RBRACKET], e.P2_ArrayAssignmentPattern_AssignmentElementList, False, False, True),
+        (
+            [LBRACKET, AEL_REPLACEMENT, RBRACKET],
+            e.P2_ArrayAssignmentPattern_AssignmentElementList,
+            False,
+            False,
+            True,
+        ),
         (
             [LBRACKET, AEL_REPLACEMENT, COMMA, RBRACKET],
             e.P2_ArrayAssignmentPattern_AssignmentElementList,
@@ -4109,7 +4143,9 @@ def ArrayAssignmentPattern_mocks(mocker):
         ),
     ],
 )
-def test_parse_ArrayAssignmentPattern_01(mocker, context, token_stream, expected_class, has_elision, has_are, has_ael):
+def test_parse_ArrayAssignmentPattern_01(
+    mocker, context, token_stream, expected_class, has_elision, has_are, has_ael
+):
     # ArrayAssignmentPattern : [ ]
     # ArrayAssignmentPattern : [ Elision ]
     # ArrayAssignmentPattern : [ AssignmentRestElement ]
@@ -4275,7 +4311,9 @@ def test_P2_AssignmentPropertyList_AssignmentPropertyList_AssignmentProperty_ini
 
 def AssignmentPropertyList_mocks(mocker):
     return {
-        "AssignmentProperty": mocker.patch("ecmascript.ecmascript.parse_AssignmentProperty", side_effect=ap_sideeffect)
+        "AssignmentProperty": mocker.patch(
+            "ecmascript.ecmascript.parse_AssignmentProperty", side_effect=ap_sideeffect
+        )
     }
 
 
@@ -5037,7 +5075,9 @@ def Statement_mocks(mocker):
         "ThrowStatement": mocker.patch(
             "ecmascript.ecmascript.parse_ThrowStatement", side_effect=throw_statement_sideeffect
         ),
-        "TryStatement": mocker.patch("ecmascript.ecmascript.parse_TryStatement", side_effect=try_statement_sideeffect),
+        "TryStatement": mocker.patch(
+            "ecmascript.ecmascript.parse_TryStatement", side_effect=try_statement_sideeffect
+        ),
         "DebuggerStatement": mocker.patch(
             "ecmascript.ecmascript.parse_DebuggerStatement", side_effect=debugger_statement_sideeffect
         ),
@@ -5293,7 +5333,9 @@ def Declaration_mocks(mocker):
             "ecmascript.ecmascript.parse_HoistableDeclaration", side_effect=hd_sideeffect
         ),
         "ClassDeclaration": mocker.patch("ecmascript.ecmascript.parse_ClassDeclaration", side_effect=cd_sideeffect),
-        "LexicalDeclaration": mocker.patch("ecmascript.ecmascript.parse_LexicalDeclaration", side_effect=ld_sideeffect),
+        "LexicalDeclaration": mocker.patch(
+            "ecmascript.ecmascript.parse_LexicalDeclaration", side_effect=ld_sideeffect
+        ),
     }
 
 
@@ -5477,7 +5519,9 @@ def test_P2_BreakableStatement_SwitchStatement_init(context):
 
 def BreakableStatement_mocks(mocker):
     return {
-        "IterationStatement": mocker.patch("ecmascript.ecmascript.parse_IterationStatement", side_effect=is_sideeffect),
+        "IterationStatement": mocker.patch(
+            "ecmascript.ecmascript.parse_IterationStatement", side_effect=is_sideeffect
+        ),
         "SwitchStatement": mocker.patch("ecmascript.ecmascript.parse_SwitchStatement", side_effect=ss_sideeffect),
     }
 
@@ -5598,7 +5642,9 @@ def test_P2_Block_StatementList_init(context):
 
 def Block_mocks(mocker):
     return {
-        "StatementList": mocker.patch("ecmascript.ecmascript.parse_StatementList", side_effect=statementlist_sideeffect)
+        "StatementList": mocker.patch(
+            "ecmascript.ecmascript.parse_StatementList", side_effect=statementlist_sideeffect
+        )
     }
 
 
@@ -6917,7 +6963,9 @@ def test_P2_BindingElementList_BindingElement_init(context):
 
 
 def test_P2_BindingElementList_BindingElementList_BindingElisionElement_init(context):
-    bel = e.P2_BindingElementList_BindingElementList_BindingElisionElement(context, "StrictArg", ["list", ",", "child"])
+    bel = e.P2_BindingElementList_BindingElementList_BindingElisionElement(
+        context, "StrictArg", ["list", ",", "child"]
+    )
     assert bel.name == "BindingElementList"
     assert bel.BindingElementList == "list"
     assert bel.BindingElisionElement == "child"
@@ -7763,7 +7811,9 @@ class Test_IterationStatement:
 
     def test_P2_IterationStatement_FOR_LeftHandSideExpression_OF_AssignmentExpression_Statement_init(self, context):
         istmt = e.P2_IterationStatement_FOR_LeftHandSideExpression_OF_AssignmentExpression_Statement(
-            context, "StrictArg", ["for", "(", "LeftHandSideExpression", "of", "AssignmentExpression", ")", "Statement"]
+            context,
+            "StrictArg",
+            ["for", "(", "LeftHandSideExpression", "of", "AssignmentExpression", ")", "Statement"],
         )
         assert istmt.name == "IterationStatement"
         assert istmt.LeftHandSideExpression == "LeftHandSideExpression"
@@ -8293,7 +8343,9 @@ class Test_IterationStatement:
         )
         + [
             pytest.param((FOR, LPAREN, LET, IBOB, EQ, THREE, MATCHES_NONE), id="for ( let bob = 3 nope"),
-            pytest.param((FOR, AWAIT, LPAREN, LET, IBOB, EQ, THREE, MATCHES_NONE), id="for await ( let bob = 3 nope"),
+            pytest.param(
+                (FOR, AWAIT, LPAREN, LET, IBOB, EQ, THREE, MATCHES_NONE), id="for await ( let bob = 3 nope"
+            ),
         ],
     )
     @pytest.mark.parametrize("Await", [True, False])
@@ -8306,9 +8358,9 @@ class Test_IterationStatement:
             # mocker check for Expression; In can be either true or false
             calls = mocks["Expression"].call_args_list
             for call in calls:
-                assert call == mocker.call(context, lexer, "StrictArg", True, "YieldArg", Await) or call == mocker.call(
-                    context, lexer, "StrictArg", False, "YieldArg", Await
-                )
+                assert call == mocker.call(
+                    context, lexer, "StrictArg", True, "YieldArg", Await
+                ) or call == mocker.call(context, lexer, "StrictArg", False, "YieldArg", Await)
 
         call_checks = (
             mock_check("Statement", False, "StrictArg", "YieldArg", Await, "ReturnArg"),
@@ -8615,7 +8667,9 @@ class Test_BreakStatement:
     @pytest.mark.parametrize(
         "token_stream, expected_class, token_checks, production_checks",
         [
-            pytest.param([BREAK, SEMICOLON], e.P2_BreakStatement_BREAK, ((0, BREAK), (1, SEMICOLON)), (), id="break ;"),
+            pytest.param(
+                [BREAK, SEMICOLON], e.P2_BreakStatement_BREAK, ((0, BREAK), (1, SEMICOLON)), (), id="break ;"
+            ),
             pytest.param(
                 [BREAK, LABELIDENTIFIER_NONL, SEMICOLON],
                 e.P2_BreakStatement_BREAK_LabelIdentifier,
@@ -8696,7 +8750,9 @@ class Test_ReturnStatement:
 
     @staticmethod
     def setup_mocks(mocker):
-        return {"Expression": mocker.patch("ecmascript.ecmascript.parse_Expression", side_effect=expression_sideeffect)}
+        return {
+            "Expression": mocker.patch("ecmascript.ecmascript.parse_Expression", side_effect=expression_sideeffect)
+        }
 
     @pytest.mark.parametrize(
         "token_stream, expected_class, token_checks, production_checks",
@@ -8992,7 +9048,9 @@ class Test_CaseBlock:
     @staticmethod
     def setup_mocks(mocker):
         return {
-            "CaseClauses": mocker.patch("ecmascript.ecmascript.parse_CaseClauses", side_effect=caseclauses_sideeffect),
+            "CaseClauses": mocker.patch(
+                "ecmascript.ecmascript.parse_CaseClauses", side_effect=caseclauses_sideeffect
+            ),
             "DefaultClause": mocker.patch(
                 "ecmascript.ecmascript.parse_DefaultClause", side_effect=defaultclause_sideeffect
             ),
@@ -9049,7 +9107,9 @@ class Test_CaseBlock:
             ),
         ],
     )
-    def test_parse_CaseBlock_01(self, mocker, context, token_stream, expected_class, token_checks, production_checks):
+    def test_parse_CaseBlock_01(
+        self, mocker, context, token_stream, expected_class, token_checks, production_checks
+    ):
         lexer = Lexer(token_stream)
         mocks = self.setup_mocks(mocker)
         mock_check = gen_mock_check(mocker, mocks, context, lexer)
@@ -9133,7 +9193,9 @@ class Test_CaseClauses:
 
     @staticmethod
     def setup_mocks(mocker):
-        return {"CaseClause": mocker.patch("ecmascript.ecmascript.parse_CaseClause", side_effect=caseclause_sideeffect)}
+        return {
+            "CaseClause": mocker.patch("ecmascript.ecmascript.parse_CaseClause", side_effect=caseclause_sideeffect)
+        }
 
     @pytest.mark.parametrize(
         "token_stream, expected_class, token_checks, production_checks",
@@ -9150,7 +9212,9 @@ class Test_CaseClauses:
             ),
         ],
     )
-    def test_parse_CaseClauses_01(self, mocker, context, token_stream, expected_class, token_checks, production_checks):
+    def test_parse_CaseClauses_01(
+        self, mocker, context, token_stream, expected_class, token_checks, production_checks
+    ):
         lexer = Lexer(token_stream)
         mocks = self.setup_mocks(mocker)
         mock_check = gen_mock_check(mocker, mocks, context, lexer)
@@ -9259,7 +9323,9 @@ class Test_CaseClause:
             ),
         ],
     )
-    def test_parse_CaseClause_01(self, mocker, context, token_stream, expected_class, token_checks, production_checks):
+    def test_parse_CaseClause_01(
+        self, mocker, context, token_stream, expected_class, token_checks, production_checks
+    ):
         lexer = Lexer(token_stream)
         mocks = self.setup_mocks(mocker)
         mock_check = gen_mock_check(mocker, mocks, context, lexer)
@@ -9348,7 +9414,9 @@ class Test_DefaultClause:
                 ("StatementList",),
                 id="default : StatementList",
             ),
-            pytest.param([DEFAULT, COLON], e.P2_DefaultClause_DEFAULT, ((0, DEFAULT), (1, COLON)), (), id="default :"),
+            pytest.param(
+                [DEFAULT, COLON], e.P2_DefaultClause_DEFAULT, ((0, DEFAULT), (1, COLON)), (), id="default :"
+            ),
         ],
     )
     def test_parse_DefaultClause_01(
@@ -9602,7 +9670,9 @@ class Test_ThrowStatement:
 
     @staticmethod
     def setup_mocks(mocker):
-        return {"Expression": mocker.patch("ecmascript.ecmascript.parse_Expression", side_effect=expression_sideeffect)}
+        return {
+            "Expression": mocker.patch("ecmascript.ecmascript.parse_Expression", side_effect=expression_sideeffect)
+        }
 
     @pytest.mark.parametrize(
         "token_stream, expected_class, token_checks, production_checks",
@@ -9905,7 +9975,11 @@ class Test_Finally:
 
     @pytest.mark.parametrize(
         "token_stream, expected_class, token_checks, production_checks",
-        [pytest.param([FINALLY, BLOCK], e.P2_Finally_FINALLY_Block, ((0, FINALLY),), ("Block",), id="finally Block")],
+        [
+            pytest.param(
+                [FINALLY, BLOCK], e.P2_Finally_FINALLY_Block, ((0, FINALLY),), ("Block",), id="finally Block"
+            )
+        ],
     )
     def test_parse_Finally_01(self, mocker, context, token_stream, expected_class, token_checks, production_checks):
         lexer = Lexer(token_stream)
@@ -10558,7 +10632,9 @@ class Test_FormalParameters:
         is_present = lambda tok: tok in token_stream
         call_checks = (
             mock_check("FormalParameterList", is_present(FORMALPARAMETERLIST), "StrictArg", "YieldArg", "AwaitArg"),
-            mock_check("FunctionRestParameter", is_present(FUNCTIONRESTPARAMETER), "StrictArg", "YieldArg", "AwaitArg"),
+            mock_check(
+                "FunctionRestParameter", is_present(FUNCTIONRESTPARAMETER), "StrictArg", "YieldArg", "AwaitArg"
+            ),
         )
 
         fpl = e.parse_FormalParameters(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
@@ -10644,7 +10720,9 @@ class Test_FormalParameterList:
         mocks = self.setup_mocks(mocker)
         mock_check = gen_mock_check(mocker, mocks, context, lexer)
         is_present = lambda tok: tok in token_stream
-        call_checks = (mock_check("FormalParameter", is_present(FORMALPARAMETER), "StrictArg", "YieldArg", "AwaitArg"),)
+        call_checks = (
+            mock_check("FormalParameter", is_present(FORMALPARAMETER), "StrictArg", "YieldArg", "AwaitArg"),
+        )
 
         fpl = e.parse_FormalParameterList(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
         assert isinstance(fpl, expected_class)
@@ -10809,7 +10887,9 @@ class Test_FormalParameter:
         mocks = self.setup_mocks(mocker)
         mock_check = gen_mock_check(mocker, mocks, context, lexer)
         is_present = lambda tok: tok in token_stream
-        call_checks = (mock_check("BindingElement", is_present(BINDINGELEMENT), "StrictArg", "YieldArg", "AwaitArg"),)
+        call_checks = (
+            mock_check("BindingElement", is_present(BINDINGELEMENT), "StrictArg", "YieldArg", "AwaitArg"),
+        )
 
         fp = e.parse_FormalParameter(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
         assert isinstance(fp, expected_class)
@@ -10890,7 +10970,9 @@ class Test_FunctionBody:
         mock_check = gen_mock_check(mocker, mocks, context, lexer)
         is_present = lambda tok: tok in token_stream
         call_checks = (
-            mock_check("FunctionStatementList", is_present(FUNCTIONSTATEMENTLIST), "StrictArg", "YieldArg", "AwaitArg"),
+            mock_check(
+                "FunctionStatementList", is_present(FUNCTIONSTATEMENTLIST), "StrictArg", "YieldArg", "AwaitArg"
+            ),
         )
 
         fb = e.parse_FunctionBody(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
@@ -11024,7 +11106,9 @@ class Test_ArrowFunction:
             "ArrowParameters": mocker.patch(
                 "ecmascript.ecmascript.parse_ArrowParameters", side_effect=arrowparameters_sideeffect
             ),
-            "ConciseBody": mocker.patch("ecmascript.ecmascript.parse_ConciseBody", side_effect=concisebody_sideeffect),
+            "ConciseBody": mocker.patch(
+                "ecmascript.ecmascript.parse_ConciseBody", side_effect=concisebody_sideeffect
+            ),
         }
 
     @pytest.mark.parametrize(
@@ -11177,7 +11261,8 @@ class Test_ArrowParameters:
             check()
 
     @pytest.mark.parametrize(
-        "token_stream", synerror_streams([(BINDINGIDENTIFIER,), (COVERPARENTHESIZEDEXPRESSIONANDARROWPARAMETERLIST,)])
+        "token_stream",
+        synerror_streams([(BINDINGIDENTIFIER,), (COVERPARENTHESIZEDEXPRESSIONANDARROWPARAMETERLIST,)]),
     )
     def test_parse_ArrowParameters_02(self, mocker, context, token_stream):
         lexer = Lexer(token_stream)
@@ -11185,7 +11270,9 @@ class Test_ArrowParameters:
         mock_check = gen_mock_check(mocker, mocks, context, lexer)
         call_checks = (
             mock_check("BindingIdentifier", False, "StrictArg", "YieldArg", "AwaitArg"),
-            mock_check("CoverParenthesizedExpressionAndArrowParameterList", False, "StrictArg", "YieldArg", "AwaitArg"),
+            mock_check(
+                "CoverParenthesizedExpressionAndArrowParameterList", False, "StrictArg", "YieldArg", "AwaitArg"
+            ),
         )
 
         ap = e.parse_ArrowParameters(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
@@ -11295,7 +11382,9 @@ def test_P2_ScriptBody_StatementList_init(context):
 
 def ScriptBody_mocks(mocker):
     return {
-        "StatementList": mocker.patch("ecmascript.ecmascript.parse_StatementList", side_effect=statementlist_sideeffect)
+        "StatementList": mocker.patch(
+            "ecmascript.ecmascript.parse_StatementList", side_effect=statementlist_sideeffect
+        )
     }
 
 

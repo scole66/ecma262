@@ -34,7 +34,9 @@ from pprint import pprint
 
 if any(n.startswith("CIRCLE") for n in os.environ):
     pytest.skip("Skipping Test-262 on Circle.CI", allow_module_level=True)
-base_paths = tuple(p for p in ("/Users/scole/fun/test262", "/mnt/c/Users/scole/Documents/test262") if os.path.exists(p))
+base_paths = tuple(
+    p for p in ("/Users/scole/fun/test262", "/mnt/c/Users/scole/Documents/test262") if os.path.exists(p)
+)
 if len(base_paths) != 1:
     pytest.skip("Skipping Test-262 because we don't know where the tests are", allow_module_level=True)
 
@@ -67,7 +69,10 @@ def add_to_global_object(realm):
         dollar262,
         "createRealm",
         PropertyDescriptor(
-            value=CreateAnnotatedFunctionObject(realm, createRealm), writable=True, enumerable=True, configurable=True
+            value=CreateAnnotatedFunctionObject(realm, createRealm),
+            writable=True,
+            enumerable=True,
+            configurable=True,
         ),
     )
 

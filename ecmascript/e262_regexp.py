@@ -114,7 +114,9 @@ class CharSet:
             self.ranges = ranges
 
     def __contains__(self, item: str) -> bool:
-        return isinstance(item, str) and len(item) == 1 and any(r.start <= ord(item[0]) < r.after for r in self.ranges)
+        return (
+            isinstance(item, str) and len(item) == 1 and any(r.start <= ord(item[0]) < r.after for r in self.ranges)
+        )
 
     def __len__(self) -> int:
         return sum(r.after - r.start for r in self.ranges)
@@ -223,7 +225,9 @@ class Production:
         data: List[Tuple[Dict[int, str], int]]
         data = [(ch.capture_map, ch.NcapturingParens) for ch in self.children if isinstance(ch, Production)]
 
-        def reductor(acc: Tuple[Dict[int, str], int], item: Tuple[Dict[int, str], int]) -> Tuple[Dict[int, str], int]:
+        def reductor(
+            acc: Tuple[Dict[int, str], int], item: Tuple[Dict[int, str], int]
+        ) -> Tuple[Dict[int, str], int]:
             d, offset = acc
             new_d, offset_delta = item
             for key, value in new_d.items():
@@ -708,7 +712,9 @@ class NonemptyClassRanges_nodash(NonemptyClassRanges):
 
 
 class NonemptyClassRanges_withdash(NonemptyClassRanges):
-    def __init__(self, src: str, class_atom_left: ClassAtom, class_atom_right: ClassAtom, class_ranges: "ClassRanges"):
+    def __init__(
+        self, src: str, class_atom_left: ClassAtom, class_atom_right: ClassAtom, class_ranges: "ClassRanges"
+    ):
         self.src = src
         self.span = Span(class_atom_left.span.start, class_ranges.span.after)
         self.children = (class_atom_left, "-", class_atom_right, class_ranges)
@@ -2013,7 +2019,9 @@ def parse_RegExpUnicodeEscapeSequence(src: str, position: int, U: bool) -> Optio
     if U:
         codepoint_match = _REUES_CodePoint_pattern.match(src, pos=position)
         if codepoint_match and int(codepoint_match.group("CodePoint"), 16) <= 0x10FFFF:
-            return RegExpUnicodeEscapeSequence_curlies(src, Span(*codepoint_match.span()), (codepoint_match.group(0),))
+            return RegExpUnicodeEscapeSequence_curlies(
+                src, Span(*codepoint_match.span()), (codepoint_match.group(0),)
+            )
         four_digits_match = _REUES_Hex4Digits_pattern.match(src, pos=position)
         if four_digits_match:
             value = int(four_digits_match.group("digits"), 16)
@@ -2149,7 +2157,9 @@ def CharacterSetMatcher(context: Context, A: CharSet, invert: bool, direction: i
         ch = context.Input[index]
         cc = Canonicalize(context, ch)
         aa = Uncanonicalize(context, cc)  # all the chars a where Canonicalize(a) is cc
-        in_set = any(ch in A for ch in aa)  # True if there exists a member a of set A such that Canonicalize(a) is cc
+        in_set = any(
+            ch in A for ch in aa
+        )  # True if there exists a member a of set A such that Canonicalize(a) is cc
         if (not invert and not in_set) or (invert and in_set):
             return FAILURE
         cap = x.captures

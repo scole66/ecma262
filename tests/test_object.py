@@ -170,7 +170,9 @@ def test_ValidateAndApplyPropertyDescriptor_04(realm):
     obj = ObjectCreate(realm.intrinsics["%ObjectPrototype%"])
 
     # If current == None, and the descriptor is partial, the rest gets filled with defaults.
-    cr = ValidateAndApplyPropertyDescriptor(obj, "testkey", True, PropertyDescriptor(Get=None, enumerable=True), None)
+    cr = ValidateAndApplyPropertyDescriptor(
+        obj, "testkey", True, PropertyDescriptor(Get=None, enumerable=True), None
+    )
     assert cr == True
     pdesc = obj.GetOwnProperty("testkey")
     assert not pdesc.is_data_descriptor() and pdesc.is_accessor_descriptor()
@@ -775,7 +777,9 @@ def setprops(child):
 
     get_fcn = CreateBuiltinFunction(settest_get, [], realm=surrounding_agent.running_ec.realm)
     set_fcn = CreateBuiltinFunction(settest_set, [], realm=surrounding_agent.running_ec.realm)
-    child.DefineOwnProperty("codish", PropertyDescriptor(Get=get_fcn, Set=set_fcn, enumerable=True, configurable=True))
+    child.DefineOwnProperty(
+        "codish", PropertyDescriptor(Get=get_fcn, Set=set_fcn, enumerable=True, configurable=True)
+    )
     return child
 
 
@@ -904,7 +908,9 @@ def test_OrdinarySetWithOwnDescriptor_13(setprops):
 @pytest.fixture()
 def deletable(obj):
     obj.DefineOwnProperty("normal", PropertyDescriptor(value=10, writable=True, enumerable=True, configurable=True))
-    obj.DefineOwnProperty("permanent", PropertyDescriptor(value=9, writable=True, enumerable=True, configurable=False))
+    obj.DefineOwnProperty(
+        "permanent", PropertyDescriptor(value=9, writable=True, enumerable=True, configurable=False)
+    )
     return obj
 
 
