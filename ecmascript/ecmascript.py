@@ -4219,10 +4219,10 @@ def SetDefaultGlobalBindings(realm_rec):
     ]
     # @@@ Note: The "if" clause, below, should not be there. It's just to allow this fcn to work even if I haven't
     # implemented everything yet.
-    for name, value in chain(
-        global_values,
+    for name, value, writable, enumerable, configurable in chain(
+        ((*v, False, False, False) for v in global_values),
         (
-            (name, realm_rec.intrinsics["%" + name + "%"])
+            (name, realm_rec.intrinsics["%" + name + "%"], True, False, True)
             for name in global_intrinsics
             if "%" + name + "%" in realm_rec.intrinsics
         ),
@@ -4232,7 +4232,7 @@ def SetDefaultGlobalBindings(realm_rec):
         #    attributes for the property. For properties listed in 18.2, 18.3, or 18.4 the value of the [[Value]]
         #    attribute is the corresponding intrinsic object from realmRec.
         # c. Perform ? DefinePropertyOrThrow(global, name, desc).
-        desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=False)
+        desc = PropertyDescriptor(value=value, writable=writable, enumerable=enumerable, configurable=configurable)
         DefinePropertyOrThrow(globl, name, desc)
     # 3. Return global.
     return globl
