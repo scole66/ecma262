@@ -331,7 +331,7 @@ class JSObject:
                 "Property("
                 + ", ".join(
                     f"{name}={getattr(self,name)!r}"
-                    for name in ["Get", "Set", "value", "writable", "enumerable", "configurable",]
+                    for name in ["Get", "Set", "value", "writable", "enumerable", "configurable"]
                     if hasattr(self, name)
                 )
                 + ")"
@@ -737,7 +737,7 @@ class PropertyDescriptor(Record):
             "Descriptor("
             + ", ".join(
                 f"{name}={getattr(self,name)!r}"
-                for name in ["Get", "Set", "value", "writable", "enumerable", "configurable",]
+                for name in ["Get", "Set", "value", "writable", "enumerable", "configurable"]
                 if hasattr(self, name)
             )
             + ")"
@@ -2769,7 +2769,7 @@ def CreateListIteratorRecord(lst):
     #   6. Return Record { [[Iterator]]: iterator, [[NextMethod]]: next, [[Done]]: false }.
     # NOTE The list iterator object is never directly accessible to ECMAScript code.
     iterator = ObjectCreate(
-        surrounding_agent.running_ec.realm.intrinsics["%IteratorPrototype%"], ["IteratedList", "ListIteratorNextIndex"],
+        surrounding_agent.running_ec.realm.intrinsics["%IteratorPrototype%"], ["IteratedList", "ListIteratorNextIndex"]
     )
     iterator.IteratedList = lst
     iterator.ListIteratorNextIndex = 0
@@ -4536,7 +4536,7 @@ def EnqueueJob(queue_name, job, arguments):
     # 7. Let pending be PendingJob { [[Job]]: job, [[Arguments]]: arguments, [[Realm]]: callerRealm,
     #    [[ScriptOrModule]]: callerScriptOrModule, [[HostDefined]]: undefined }.
     pending = Record(
-        job=job, arguments=arguments, realm=caller_realm, script_or_module=caller_script_or_module, host_defined=None,
+        job=job, arguments=arguments, realm=caller_realm, script_or_module=caller_script_or_module, host_defined=None
     )
     # 8. Perform any implementation or host environment defined processing of pending. This may include modifying the
     #    [[HostDefined]] field or any other field of pending.
@@ -5619,13 +5619,7 @@ def FunctionAllocate(functionPrototype, strict, functionKind):
     # 1. Assert: Type(functionPrototype) is Object.
     assert isObject(functionPrototype)
     # 2. Assert: functionKind is either "normal", "non-constructor", "generator", "async", or "async generator".
-    assert functionKind in [
-        "normal",
-        "non-constructor",
-        "generator",
-        "async",
-        "async generator",
-    ]
+    assert functionKind in ["normal", "non-constructor", "generator", "async", "async generator"]
     # 3. If functionKind is "normal", let needsConstruct be true.
     # 4. Else, let needsConstruct be false.
     needsConstruct = functionKind == "normal"
@@ -5778,12 +5772,12 @@ def AddRestrictedFunctionProperties(func, realm):
     # 3. Perform ! DefinePropertyOrThrow(F, "caller", PropertyDescriptor { [[Get]]: thrower, [[Set]]: thrower,
     #    [[Enumerable]]: false, [[Configurable]]: true }).
     DefinePropertyOrThrow(
-        func, "caller", PropertyDescriptor(Get=thrower, Set=thrower, enumerable=False, configurable=True),
+        func, "caller", PropertyDescriptor(Get=thrower, Set=thrower, enumerable=False, configurable=True)
     )
     # 4. Return ! DefinePropertyOrThrow(F, "arguments", PropertyDescriptor { [[Get]]: thrower, [[Set]]: thrower,
     #    [[Enumerable]]: false, [[Configurable]]: true }).
     return DefinePropertyOrThrow(
-        func, "arguments", PropertyDescriptor(Get=thrower, Set=thrower, enumerable=False, configurable=True),
+        func, "arguments", PropertyDescriptor(Get=thrower, Set=thrower, enumerable=False, configurable=True)
     )
 
 
@@ -5808,13 +5802,13 @@ def MakeConstructor(F, writeablePrototype=True, prototype=MISSING):
         DefinePropertyOrThrow(
             prototype,
             "constructor",
-            PropertyDescriptor(value=F, writable=writeablePrototype, enumerable=False, configurable=True,),
+            PropertyDescriptor(value=F, writable=writeablePrototype, enumerable=False, configurable=True),
         )
     # 6. Perform ! DefinePropertyOrThrow(F, "prototype", PropertyDescriptor { [[Value]]: prototype, [[Writable]]: writablePrototype, [[Enumerable]]: false, [[Configurable]]: false }).
     DefinePropertyOrThrow(
         F,
         "prototype",
-        PropertyDescriptor(value=prototype, writable=writeablePrototype, enumerable=False, configurable=False,),
+        PropertyDescriptor(value=prototype, writable=writeablePrototype, enumerable=False, configurable=False),
     )
     # 7. Return undefined
     return None
@@ -5876,7 +5870,7 @@ def SetFunctionName(F, name, prefix=MISSING):
         name = f"{prefix} {name}"
     # 6. Return ! DefinePropertyOrThrow(F, "name", PropertyDescriptor { [[Value]]: name, [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true }).
     return DefinePropertyOrThrow(
-        F, "name", PropertyDescriptor(value=name, writable=False, enumerable=False, configurable=True),
+        F, "name", PropertyDescriptor(value=name, writable=False, enumerable=False, configurable=True)
     )
 
 
@@ -6612,7 +6606,7 @@ def ArrayCreate(length, proto=None):
     # 10. Perform ! OrdinaryDefineOwnProperty(A, "length",
     #           PropertyDescriptor { [[Value]]: length, [[Writable]]: true, [[Enumerable]]: false, [[Configurable]]: false }).
     OrdinaryDefineOwnProperty(
-        A, "length", PropertyDescriptor(value=length, writable=True, enumerable=False, configurable=False),
+        A, "length", PropertyDescriptor(value=length, writable=True, enumerable=False, configurable=False)
     )
     # 11. Return A.
     return A
@@ -6896,7 +6890,7 @@ def StringGetOwnProperty(S, P):
         return None
     if index < 0 or len(S.StringData) <= index:
         return None
-    return PropertyDescriptor(value=S.StringData[int(index)], writable=False, enumerable=True, configurable=False,)
+    return PropertyDescriptor(value=S.StringData[int(index)], writable=False, enumerable=True, configurable=False)
 
 
 # ------------------------------------ 𝟗.𝟒.𝟒 𝑨𝒓𝒈𝒖𝒎𝒆𝒏𝒕𝒔 𝑬𝒙𝒐𝒕𝒊𝒄 𝑶𝒃𝒋𝒆𝒄𝒕𝒔 ------------------------------------
@@ -7100,7 +7094,7 @@ def CreateUnmappedArgumentsObject(argumentsList):
     #      [[Set]]: %ThrowTypeError%, [[Enumerable]]: false, [[Configurable]]: false }).
     #   9. Return obj.
     length = len(argumentsList)
-    obj = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics["%ObjectPrototype%"], ["ParameterMap"],)
+    obj = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics["%ObjectPrototype%"], ["ParameterMap"])
     obj.ParameterMap = None
     desc = PropertyDescriptor(value=length, writable=True, enumerable=False, configurable=True)
     DefinePropertyOrThrow(obj, "length", desc)
@@ -7171,7 +7165,7 @@ def CreateMappedArgumentsObject(func, formals, argumentsList, env):
     for index, val in enumerate(argumentsList):
         CreateDataProperty(obj, ToString(index), val)
     DefinePropertyOrThrow(
-        obj, "length", PropertyDescriptor(value=length, writable=True, enumerable=False, configurable=True),
+        obj, "length", PropertyDescriptor(value=length, writable=True, enumerable=False, configurable=True)
     )
     mappedNames = []
     for index in range(numberOfParameters - 1, -1, -1):
@@ -7182,7 +7176,7 @@ def CreateMappedArgumentsObject(func, formals, argumentsList, env):
                 g = MakeArgGetter(name, env)
                 p = MakeArgSetter(name, env)
                 map.DefineOwnProperty(  # pylint: disable=no-member
-                    ToString(index), PropertyDescriptor(Set=p, Get=g, enumerable=False, configurable=True),
+                    ToString(index), PropertyDescriptor(Set=p, Get=g, enumerable=False, configurable=True)
                 )
     DefinePropertyOrThrow(
         obj,
@@ -7195,7 +7189,7 @@ def CreateMappedArgumentsObject(func, formals, argumentsList, env):
         ),
     )
     DefinePropertyOrThrow(
-        obj, "callee", PropertyDescriptor(value=func, writable=True, enumerable=False, configurable=True),
+        obj, "callee", PropertyDescriptor(value=func, writable=True, enumerable=False, configurable=True)
     )
     return obj
 
@@ -7642,14 +7636,40 @@ class ParseNode2:
         rval = self.defer_target().evaluate(*args, **kwargs)
         return rval
 
+    @cached_property
+    def contains_unenclosed_continue(self):
+        # This is True for continue statements up to their enclosing iteration statement. (unless a function boundary
+        # intervenes)
+        return any(item.contains_unenclosed_continue for item in self.children if isinstance(item, ParseNode2))
+
+    @cached_property
+    def contains_encapsulated_unenclosed_continue(self):
+        # This is True when a continue statement cannot be made whole by an iteration statement.
+        # E.g.: "for (i=0; i<N; i++) { a = function () { continue; }; }"
+        return any(
+            item.contains_encapsulated_unenclosed_continue for item in self.children if isinstance(item, ParseNode2)
+        )
+
+    @cached_property
+    def contains_unenclosed_break(self):
+        # This is true for break statements up to their enclosing iteration or switch statements, unless a function
+        # boundary intervenes).
+        return any(item.contains_unenclosed_break for item in self.children if isinstance(item, ParseNode2))
+
+    @cached_property
+    def contains_encapsulated_unenclosed_break(self):
+        # This is true for unenclosed break statements inside functions. I.e.: it's true for the production formed by:
+        # a = function () { break; }
+        return any(
+            item.contains_encapsulated_unenclosed_break for item in self.children if isinstance(item, ParseNode2)
+        )
+
     IsStringLiteral = False
     HasUseStrict = False
 
 
 class Parse2Context:
-    def __init__(
-        self, direct_eval=False, syntax_error_ctor=SyntaxError, goal="Script", lexer=Lexer, *args,
-    ):
+    def __init__(self, direct_eval=False, syntax_error_ctor=SyntaxError, goal="Script", lexer=Lexer, *args):
         self.direct_eval = direct_eval
         self.CreateSyntaxError = syntax_error_ctor
         self.goal = goal
@@ -10719,15 +10739,15 @@ def GetTemplateObject(templateLiteral):
         prop = ToString(index)
         cookedValue = cookedStrings[index]
         template.DefineOwnProperty(
-            prop, PropertyDescriptor(value=cookedValue, writable=False, enumerable=True, configurable=False),
+            prop, PropertyDescriptor(value=cookedValue, writable=False, enumerable=True, configurable=False)
         )
         rawValue = rawStrings[index]
         rawObj.DefineOwnProperty(
-            prop, PropertyDescriptor(value=rawValue, writable=False, enumerable=True, configurable=False),
+            prop, PropertyDescriptor(value=rawValue, writable=False, enumerable=True, configurable=False)
         )
     SetIntegrityLevel(rawObj, "frozen")
     template.DefineOwnProperty(
-        "raw", PropertyDescriptor(value=rawObj, writable=False, enumerable=False, configurable=False),
+        "raw", PropertyDescriptor(value=rawObj, writable=False, enumerable=False, configurable=False)
     )
     SetIntegrityLevel(template, "frozen")
     templateRegistry.append((templateLiteral, template))
@@ -15088,7 +15108,7 @@ def parse_AssignmentExpression(context, lexer, strict, In, Yield, Await):
     if lhs:
         # AssignmentOperator: one of  *= /= %= += -= <<= >>= >>>= &= ^= |= **=
         op = lexer.next_token(goal=lexer.InputElementDiv)
-        if op and op.type in ("=", "*=", "/=", "%=", "+=", "-=", "<<=", ">>=", ">>>=", "&=", "^=", "|=", "**=",):
+        if op and op.type in ("=", "*=", "/=", "%=", "+=", "-=", "<<=", ">>=", ">>>=", "&=", "^=", "|=", "**="):
             ae = parse_AssignmentExpression(context, lexer, strict, In, Yield, Await)
             if ae:
                 ctor = (
@@ -15499,7 +15519,7 @@ def parse_ArrayAssignmentPattern(context, lexer, strict, Yield, Await):
         are = parse_AssignmentRestElement(context, lexer, strict, Yield, Await)
         rbracket = lexer.next_token_if("]")
         if rbracket:
-            children = list(filter(lambda x: x is not None, [lbracket, ael, comma, elision, are, rbracket],))
+            children = list(filter(lambda x: x is not None, [lbracket, ael, comma, elision, are, rbracket]))
             # "ael", "elision", and "are" are the potential bits here. They can exist or not in 2^3 = 8 different ways.
             # So the following table is all the functions that might be.
             index = int(ael is not None) * 4 + int(elision is not None) * 2 + int(are is not None)
@@ -20148,7 +20168,7 @@ def parse_IfStatement(context, lexer, strict, Yield, Await, Return):
                             stmt_else = parse_Statement(context, lexer, strict, Yield, Await, Return)
                             if stmt_else:
                                 return P2_IfStatement_Expression_Statement_Statement(
-                                    context, strict, [if_token, lp, exp, rp, stmt, else_token, stmt_else,],
+                                    context, strict, [if_token, lp, exp, rp, stmt, else_token, stmt_else]
                                 )
                             lexer.reset_position(book2)
                         return P2_IfStatement_Expression_Statement(context, strict, [if_token, lp, exp, rp, stmt])
@@ -20264,6 +20284,9 @@ def parse_IfStatement(context, lexer, strict, Yield, Await, Return):
 class P2_IterationStatement(ParseNode2):
     def __init__(self, ctx, strict, children):
         super().__init__(ctx, "IterationStatement", strict, children)
+
+    contains_unenclosed_continue = False
+    contains_unenclosed_break = False
 
 
 class P2_IterationStatement_DO_Statement_WHILE_Expression(P2_IterationStatement):
@@ -20627,7 +20650,7 @@ class P2_IterationStatement_FOR_LexicalDeclaration_ExpressionTest_ExpressionInc_
             else:
                 perIterationLets = []
             return ForBodyEvaluation(
-                self.ExpressionTest, self.ExpressionInc, self.Statement, perIterationLets, labelSet,
+                self.ExpressionTest, self.ExpressionInc, self.Statement, perIterationLets, labelSet
             )
         finally:
             surrounding_agent.running_ec.lexical_environment = oldEnv
@@ -20747,7 +20770,7 @@ class P2_IterationStatement_FOR_LeftHandSideExpression_IN_Expression_Statement(P
         #   2. Return ? ForIn/OfBodyEvaluation(LeftHandSideExpression, Statement, keyResult, enumerate, assignment, labelSet).
         keyResult = ForInOfHeadEvaluation([], self.Expression, ENUMERATE)
         return ForInOfBodyEvaluation(
-            self.LeftHandSideExpression, self.Statement, keyResult, ENUMERATE, ASSIGNMENT, labelSet,
+            self.LeftHandSideExpression, self.Statement, keyResult, ENUMERATE, ASSIGNMENT, labelSet
         )
 
 
@@ -20850,7 +20873,7 @@ class P2_IterationStatement_FOR_ForDeclaration_IN_Expression_Statement(P2_Iterat
         #   2. Return ? ForIn/OfBodyEvaluation(ForDeclaration, Statement, keyResult, enumerate, lexicalBinding, labelSet).
         keyResult = ForInOfHeadEvaluation(self.ForDeclaration.BoundNames(), self.Expression, ENUMERATE)
         return ForInOfBodyEvaluation(
-            self.ForDeclaration, self.Statement, keyResult, ENUMERATE, LEXICALBINDING, labelSet,
+            self.ForDeclaration, self.Statement, keyResult, ENUMERATE, LEXICALBINDING, labelSet
         )
 
 
@@ -20889,7 +20912,7 @@ class P2_IterationStatement_FOR_LeftHandSideExpression_OF_AssignmentExpression_S
         #   2. Return ? ForIn/OfBodyEvaluation(LeftHandSideExpression, Statement, keyResult, iterate, assignment, labelSet).
         keyResult = ForInOfHeadEvaluation([], self.AssignmentExpression, ITERATE)
         return ForInOfBodyEvaluation(
-            self.LeftHandSideExpression, self.Statement, keyResult, ITERATE, ASSIGNMENT, labelSet,
+            self.LeftHandSideExpression, self.Statement, keyResult, ITERATE, ASSIGNMENT, labelSet
         )
 
 
@@ -20970,7 +20993,7 @@ class P2_IterationStatement_FOR_ForDeclaration_OF_AssignmentExpression_Statement
         #   1. Let keyResult be the result of performing ? ForIn/OfHeadEvaluation(BoundNames of ForDeclaration, AssignmentExpression, iterate).
         #   2. Return ? ForIn/OfBodyEvaluation(ForDeclaration, Statement, keyResult, iterate, lexicalBinding, labelSet).
         keyResult = ForInOfHeadEvaluation(self.ForDeclaration.BoundNames(), self.AssignmentExpression, ITERATE)
-        return ForInOfBodyEvaluation(self.ForDeclaration, self.Statement, keyResult, ITERATE, LEXICALBINDING, labelSet,)
+        return ForInOfBodyEvaluation(self.ForDeclaration, self.Statement, keyResult, ITERATE, LEXICALBINDING, labelSet)
 
 
 class P2_IterationStatement_FOR_AWAIT_LeftHandSideExpression_OF_AssignmentExpression_Statement(
@@ -21054,7 +21077,7 @@ def parse_IterationStatement(context, lexer, strict, Yield, Await, Return):
                             semi = lexer.next_token_asi(do_while=True)
                             if semi:
                                 return P2_IterationStatement_DO_Statement_WHILE_Expression(
-                                    context, strict, [do_token, stmt1, while_token1, lp1, exp1, rp1, semi,],
+                                    context, strict, [do_token, stmt1, while_token1, lp1, exp1, rp1, semi]
                                 )
         lexer.reset_position(bookmark)
     while_token2 = lexer.next_id_if("while")
@@ -21097,9 +21120,7 @@ def parse_IterationStatement(context, lexer, strict, Yield, Await, Return):
                         stmt3 = parse_Statement(context, lexer, strict, Yield, Await, Return)
                         if stmt3:
                             return P2_IterationStatement_FOR_ExpressionInit_ExpressionTest_ExpressionInc_Statement(
-                                context,
-                                strict,
-                                [for_token, lp3, exp_init, semi2, exp_test, semi3, exp_inc, rp3, stmt3,],
+                                context, strict, [for_token, lp3, exp_init, semi2, exp_test, semi3, exp_inc, rp3, stmt3]
                             )
             lexer.reset_position(after_open)
 
@@ -21121,18 +21142,7 @@ def parse_IterationStatement(context, lexer, strict, Yield, Await, Return):
                                     return P2_IterationStatement_FOR_VAR_VariableDeclarationList_ExpressionTest_ExpressionInc_Statement(
                                         context,
                                         strict,
-                                        [
-                                            for_token,
-                                            lp3,
-                                            var_token,
-                                            vdl,
-                                            semi4,
-                                            exp_test2,
-                                            semi5,
-                                            exp_inc2,
-                                            rp4,
-                                            stmt4,
-                                        ],
+                                        [for_token, lp3, var_token, vdl, semi4, exp_test2, semi5, exp_inc2, rp4, stmt4],
                                     )
             lexer.reset_position(after_open)
 
@@ -21148,9 +21158,7 @@ def parse_IterationStatement(context, lexer, strict, Yield, Await, Return):
                         stmt_ld = parse_Statement(context, lexer, strict, Yield, Await, Return)
                         if stmt_ld:
                             return P2_IterationStatement_FOR_LexicalDeclaration_ExpressionTest_ExpressionInc_Statement(
-                                context,
-                                strict,
-                                [for_token, lp3, ld, exp_test_ld, semi_ld, exp_inc_ld, rp_ld, stmt_ld,],
+                                context, strict, [for_token, lp3, ld, exp_test_ld, semi_ld, exp_inc_ld, rp_ld, stmt_ld]
                             )
             lexer.reset_position(after_open)
 
@@ -21173,7 +21181,7 @@ def parse_IterationStatement(context, lexer, strict, Yield, Await, Return):
                                     return P2_IterationStatement_FOR_LeftHandSideExpression_IN_Expression_Statement(
                                         context,
                                         strict,
-                                        [for_token, lp3, lhs, in_token, exp_lhs_in, rp_lhs_in, stmt_lhs_in,],
+                                        [for_token, lp3, lhs, in_token, exp_lhs_in, rp_lhs_in, stmt_lhs_in],
                                     )
             lexer.reset_position(after_open)
 
@@ -21191,7 +21199,7 @@ def parse_IterationStatement(context, lexer, strict, Yield, Await, Return):
                                 stmt_fb = parse_Statement(context, lexer, strict, Yield, Await, Return)
                                 if stmt_fb:
                                     return P2_IterationStatement_FOR_VAR_ForBinding_IN_Expression_Statement(
-                                        context, strict, [for_token, lp3, var_fb, fb, in_fb, exp_fb, rp_fb, stmt_fb,],
+                                        context, strict, [for_token, lp3, var_fb, fb, in_fb, exp_fb, rp_fb, stmt_fb]
                                     )
             lexer.reset_position(after_open)
 
@@ -21207,7 +21215,7 @@ def parse_IterationStatement(context, lexer, strict, Yield, Await, Return):
                             stmt_fd = parse_Statement(context, lexer, strict, Yield, Await, Return)
                             if stmt_fd:
                                 return P2_IterationStatement_FOR_ForDeclaration_IN_Expression_Statement(
-                                    context, strict, [for_token, lp3, fd, in_fd, exp_fd, rp_fd, stmt_fd],
+                                    context, strict, [for_token, lp3, fd, in_fd, exp_fd, rp_fd, stmt_fd]
                                 )
             lexer.reset_position(after_open)
 
@@ -21227,7 +21235,7 @@ def parse_IterationStatement(context, lexer, strict, Yield, Await, Return):
                                     return P2_IterationStatement_FOR_LeftHandSideExpression_OF_AssignmentExpression_Statement(
                                         context,
                                         strict,
-                                        [for_token, lp3, lhs_of, of_lhs, ae_lhs, rp_lhs_of, stmt_lhs_of,],
+                                        [for_token, lp3, lhs_of, of_lhs, ae_lhs, rp_lhs_of, stmt_lhs_of],
                                     )
             lexer.reset_position(after_open)
 
@@ -21247,7 +21255,7 @@ def parse_IterationStatement(context, lexer, strict, Yield, Await, Return):
                                     return P2_IterationStatement_FOR_VAR_ForBinding_OF_AssignmentExpression_Statement(
                                         context,
                                         strict,
-                                        [for_token, lp3, var_fb_of, fb_of, of_fb, ae_fb_of, rp_fb_of, stmt_fb_of,],
+                                        [for_token, lp3, var_fb_of, fb_of, of_fb, ae_fb_of, rp_fb_of, stmt_fb_of],
                                     )
             lexer.reset_position(after_open)
 
@@ -21263,7 +21271,7 @@ def parse_IterationStatement(context, lexer, strict, Yield, Await, Return):
                             stmt_fd = parse_Statement(context, lexer, strict, Yield, Await, Return)
                             if stmt_fd:
                                 return P2_IterationStatement_FOR_ForDeclaration_OF_AssignmentExpression_Statement(
-                                    context, strict, [for_token, lp3, fd_of, of_fd, ae_fd, rp_fd, stmt_fd,],
+                                    context, strict, [for_token, lp3, fd_of, of_fd, ae_fd, rp_fd, stmt_fd]
                                 )
         if Await:
             lexer.reset_position(after_for)
@@ -21665,7 +21673,7 @@ def EnumerateObjectProperties(O):
                 if propkey not in visited:
                     yield propkey
 
-    iterator_obj = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics["%IteratorPrototype%"], ["python_iter"],)
+    iterator_obj = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics["%IteratorPrototype%"], ["python_iter"])
     iterator_obj.python_iter = py_enum_props(O)
 
     def enum_next(this_value, new_target, *_):
@@ -21889,6 +21897,8 @@ class P2_ContinueStatement(ParseNode2):
         # of IterationStatement that scans children for continues, and doesn't enter functions.
         return []
 
+    contains_unenclosed_continue = True
+
 
 class P2_ContinueStatement_CONTINUE(P2_ContinueStatement):
     def ContainsUndefinedContinueTarget(self, iterationSet, labelSet):
@@ -21998,6 +22008,8 @@ def parse_ContinueStatement(context, lexer, strict, Yield, Await):
 class P2_BreakStatement(ParseNode2):
     def __init__(self, ctx, strict, children):
         super().__init__(ctx, "BreakStatement", strict, children)
+
+    contains_unenclosed_break = True
 
 
 class P2_BreakStatement_BREAK_LabelIdentifier(P2_BreakStatement):
@@ -22237,7 +22249,7 @@ class P2_WithStatement_WITH_Expression_Statement(P2_WithStatement):
         #   * It is a Syntax Error if IsLabelledFunction(Statement) is true.
         # NOTE: It is only necessary to apply the second rule if the extension specified in B.3.2 is implemented.
         return list(
-            filter(None, [self.strict and self.CreateSyntaxError("Strict mode code may not include a with statement")],)
+            filter(None, [self.strict and self.CreateSyntaxError("Strict mode code may not include a with statement")])
         )
 
     def ContainsDuplicateLabels(self, labelSet):
@@ -22389,6 +22401,8 @@ def parse_WithStatement(context, lexer, strict, Yield, Await, Return):
 class P2_SwitchStatement(ParseNode2):
     def __init__(self, ctx, strict, children):
         super().__init__(ctx, "SwitchStatement", strict, children)
+
+    contains_unenclosed_break = False
 
 
 class P2_SwitchStatement_SWITCH_Expression_CaseBlock(P2_SwitchStatement):
@@ -24008,6 +24022,9 @@ class P2_FunctionDeclaration(ParseNode2):
     def __init__(self, ctx, strict, children):
         super().__init__(ctx, "FunctionDeclaration", strict, children)
 
+    contains_unenclosed_continue = False
+    contains_unenclosed_break = False
+
 
 def FunctionDecl_EarlyErrors(pn):
     # 14.1.2 Static Semantics: Early Errors
@@ -24032,10 +24049,7 @@ def FunctionDecl_EarlyErrors(pn):
     errs = []
     if pn.strict:
         errs.extend(UniqueFormalParameters_EarlyErrors(pn.FormalParameters))
-        if pn.BindingIdentifier and pn.BindingIdentifier.StringValue in [
-            "eval",
-            "arguments",
-        ]:
+        if pn.BindingIdentifier and pn.BindingIdentifier.StringValue in ["eval", "arguments"]:
             errs.append(
                 pn.CreateSyntaxError(f"Redefining '{pn.BindingIdentifier.StringValue}' is not allowed in strict mode")
             )
@@ -24069,6 +24083,14 @@ class P2_FunctionDeclaration_FUNCTION_BindingIdentifier_FormalParameters_Functio
     @property
     def FunctionBody(self):
         return self.children[6]
+
+    @cached_property
+    def contains_encapsulated_unenclosed_break(self):
+        return self.FunctionBody.contains_unenclosed_break or super().contains_encapsulated_unenclosed_break
+
+    @cached_property
+    def contains_encapsulated_unenclosed_continue(self):
+        return self.FunctionBody.contains_unenclosed_continue or super().contains_encapsulated_unenclosed_continue
 
     def EarlyErrors(self):
         return FunctionDecl_EarlyErrors(self)
@@ -24170,6 +24192,14 @@ class P2_FunctionDeclaration_FUNCTION_FormalParameters_FunctionBody(P2_FunctionD
         #   1. Return false.
         return False
 
+    @cached_property
+    def contains_encapsulated_unenclosed_break(self):
+        return self.FunctionBody.contains_unenclosed_break or super().contains_encapsulated_unenclosed_break
+
+    @cached_property
+    def contains_encapsulated_unenclosed_continue(self):
+        return self.FunctionBody.contains_unenclosed_continue or super().contains_encapsulated_unenclosed_continue
+
     def InstantiateFunctionObject(self, scope):
         # 14.1.20 Runtime Semantics: InstantiateFunctionObject
         #   With parameter scope.
@@ -24219,7 +24249,7 @@ def parse_FunctionDeclaration(context, lexer, strict, Yield, Await, Default):
                                 if rc:
                                     if bi:
                                         return P2_FunctionDeclaration_FUNCTION_BindingIdentifier_FormalParameters_FunctionBody(
-                                            context, strict, [function, bi, lp, fp, rp, lc, body, rc],
+                                            context, strict, [function, bi, lp, fp, rp, lc, body, rc]
                                         )
                                     return P2_FunctionDeclaration_FUNCTION_FormalParameters_FunctionBody(
                                         context, strict, [function, lp, fp, rp, lc, body, rc]
@@ -24246,6 +24276,9 @@ class P2_FunctionExpression(ParseNode2):
     def AssignStrictitude(self):
         if self.FunctionBody.ContainsUseStrict():
             self.set_strict_in_subtree()
+
+    contains_unenclosed_break = False
+    contains_unenclosed_continue = False
 
 
 class P2_FunctionExpression_FUNCTION_BindingIdentifier_FormalParameters_FunctionBody(P2_FunctionExpression):
@@ -24284,6 +24317,14 @@ class P2_FunctionExpression_FUNCTION_BindingIdentifier_FormalParameters_Function
         # FunctionExpression : function BindingIdentifier ( FormalParameters ) { FunctionBody }
         #   1. Return true.
         return True
+
+    @cached_property
+    def contains_encapsulated_unenclosed_break(self):
+        return self.FunctionBody.contains_unenclosed_break or super().contains_encapsulated_unenclosed_break
+
+    @cached_property
+    def contains_encapsulated_unenclosed_continue(self):
+        return self.FunctionBody.contains_unenclosed_continue or super().contains_encapsulated_unenclosed_continue
 
     def evaluate(self):
         # 14.1.22 Runtime Semantics: Evaluation
@@ -24360,6 +24401,14 @@ class P2_FunctionExpression_FUNCTION_FormalParameters_FunctionBody(P2_FunctionEx
         #   1. Return true.
         return True
 
+    @cached_property
+    def contains_encapsulated_unenclosed_break(self):
+        return self.FunctionBody.contains_unenclosed_break or super().contains_encapsulated_unenclosed_break
+
+    @cached_property
+    def contains_encapsulated_unenclosed_continue(self):
+        return self.FunctionBody.contains_unenclosed_continue or super().contains_encapsulated_unenclosed_continue
+
     def NamedEvaluation(self, name):
         # 14.1.21 Runtime Semantics: NamedEvaluation
         #   With parameter name.
@@ -24412,7 +24461,7 @@ def parse_FunctionExpression(context, lexer, strict):
                             if rc:
                                 if bi:
                                     return P2_FunctionExpression_FUNCTION_BindingIdentifier_FormalParameters_FunctionBody(
-                                        context, strict, [function, bi, lp, fp, rp, lc, body, rc],
+                                        context, strict, [function, bi, lp, fp, rp, lc, body, rc]
                                     )
                                 return P2_FunctionExpression_FUNCTION_FormalParameters_FunctionBody(
                                     context, strict, [function, lp, fp, rp, lc, body, rc]
@@ -25127,6 +25176,9 @@ class P2_ArrowFunction(ParseNode2):
     def __init__(self, ctx, strict, children):
         super().__init__(ctx, "ArrowFunction", strict, children)
 
+    contains_unenclosed_break = False
+    contains_unenclosed_continue = False
+
 
 class P2_ArrowFunction_ArrowParameters_ConciseBody(P2_ArrowFunction):
     @property
@@ -25136,6 +25188,14 @@ class P2_ArrowFunction_ArrowParameters_ConciseBody(P2_ArrowFunction):
     @property
     def ConciseBody(self):
         return self.children[2]
+
+    @cached_property
+    def contains_encapsulated_unenclosed_break(self):
+        return self.ConciseBody.contains_unenclosed_break or super().contains_encapsulated_unenclosed_break
+
+    @cached_property
+    def contains_encapsulated_unenclosed_continue(self):
+        return self.ConciseBody.contains_unenclosed_continue or super().contains_encapsulated_unenclosed_continue
 
     def EarlyErrors(self):
         # 14.2.1 Static Semantics: Early Errors
@@ -25171,7 +25231,7 @@ class P2_ArrowFunction_ArrowParameters_ConciseBody(P2_ArrowFunction):
         #   1. If symbol is not one of NewTarget, SuperProperty, SuperCall, super or this, return false.
         #   2. If ArrowParameters Contains symbol is true, return true.
         #   3. Return ConciseBody Contains symbol.
-        return symbol in ("NewTarget", "SuperProperty", "SuperCall", "super", "this",) and (
+        return symbol in ("NewTarget", "SuperProperty", "SuperCall", "super", "this") and (
             self.ArrowParameters.Contains(symbol) or self.ConciseBody.Contains(symbol)
         )
 
@@ -25646,7 +25706,7 @@ class P2_MethodDefinition_PropertyName_UniqueFormalParameters_FunctionBody(P2_Me
         else:
             kind = METHOD
             prototype = surrounding_agent.running_ec.realm.intrinsics["%FunctionPrototype%"]
-        closure = FunctionCreate(kind, self.UniqueFormalParameters, self.FunctionBody, scope, self.strict, prototype,)
+        closure = FunctionCreate(kind, self.UniqueFormalParameters, self.FunctionBody, scope, self.strict, prototype)
         MakeMethod(closure, object)
         closure.SourceText = self.matched_source()
         return MethodDefinitionRecord(Key=propKey, Closure=closure)
@@ -25661,7 +25721,7 @@ class P2_MethodDefinition_PropertyName_UniqueFormalParameters_FunctionBody(P2_Me
         #   5. Return ? DefinePropertyOrThrow(object, methodDef.[[Key]], desc).
         methodDef = self.DefineMethod(object)
         SetFunctionName(methodDef.Closure, methodDef.Key)
-        desc = PropertyDescriptor(value=methodDef.Closure, writable=True, enumerable=enumerable, configurable=True,)
+        desc = PropertyDescriptor(value=methodDef.Closure, writable=True, enumerable=enumerable, configurable=True)
         return DefinePropertyOrThrow(object, methodDef.Key, desc)
 
 
@@ -25864,7 +25924,7 @@ def parse_MethodDefinition(context, lexer, strict, Yield, Await):
                             rc_get = lexer.next_token_if("}")
                             if rc_get:
                                 return P2_MethodDefinition_GET_PropertyName_FunctionBody(
-                                    context, strict, [get, pn_get, lp_get, rp_get, lc_get, fb_get, rc_get,],
+                                    context, strict, [get, pn_get, lp_get, rp_get, lc_get, fb_get, rc_get]
                                 )
         lexer.reset_position(bookmark)
     set_tok = lexer.next_id_if("set")
@@ -25884,9 +25944,7 @@ def parse_MethodDefinition(context, lexer, strict, Yield, Await):
                                 rc_set = lexer.next_token_if("}")
                                 if rc_set:
                                     return P2_MethodDefinition_SET_PropertyName_PropertySetParameterList_FunctionBody(
-                                        context,
-                                        strict,
-                                        [set_tok, pn_set, lp_set, pspl, rp_set, lc_set, fb_set, rc_set,],
+                                        context, strict, [set_tok, pn_set, lp_set, pspl, rp_set, lc_set, fb_set, rc_set]
                                     )
         lexer.reset_position(bookmark)
     return None
@@ -26168,10 +26226,7 @@ class GeneratorCommon(ParseNode2):
         errs = []
         if self.strict:
             errs.extend(UniqueFormalParameters_EarlyErrors(self.FormalParameters))
-            if self.BindingIdentifier and self.BindingIdentifier.StringValue in [
-                "eval",
-                "arguments",
-            ]:
+            if self.BindingIdentifier and self.BindingIdentifier.StringValue in ["eval", "arguments"]:
                 errs.append(
                     ESSyntaxError('Strict mode disallows "eval" and "arguments" as identifier names in this context')
                 )
@@ -26247,7 +26302,7 @@ class P2_GeneratorDeclaration_FUNCTION_BindingIdentifier_FormalParameters_Genera
         F = GeneratorFunctionCreate(NORMAL, self.FormalParameters, self.GeneratorBody, scope, self.strict)
         prototype = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics["%GeneratorPrototype%"])
         DefinePropertyOrThrow(
-            F, "prototype", PropertyDescriptor(value=prototype, writable=True, enumerable=False, configurable=False),
+            F, "prototype", PropertyDescriptor(value=prototype, writable=True, enumerable=False, configurable=False)
         )
         SetFunctionName(F, name)
         return F
@@ -26288,7 +26343,7 @@ class P2_GeneratorDeclaration_FUNCTION_FormalParameters_GeneratorBody(P2_Generat
         F = GeneratorFunctionCreate(NORMAL, self.FormalParameters, self.GeneratorBody, scope, True)
         prototype = ObjectCreate(surrounding_agent.running_ec.realm["%GeneratorPrototype%"])
         DefinePropertyOrThrow(
-            F, "prototype", PropertyDescriptor(value=prototype, writable=True, enumerable=False, configurable=False),
+            F, "prototype", PropertyDescriptor(value=prototype, writable=True, enumerable=False, configurable=False)
         )
         SetFunctionName(F, "default")
         F.SourceText = self.matched_source()
@@ -26324,7 +26379,7 @@ def parse_GeneratorDeclaration(context, lexer, strict, Yield, Await, Default):
                                             if bi
                                             else P2_GeneratorDeclaration_FUNCTION_FormalParameters_GeneratorBody
                                         )
-                                        children = list(filter(None, [fun, star, bi, lp, fp, rp, lc, gb, rc],))
+                                        children = list(filter(None, [fun, star, bi, lp, fp, rp, lc, gb, rc]))
                                         return ctor(context, strict, children)
     return None
 
@@ -26466,7 +26521,7 @@ def parse_GeneratorExpression(context, lexer, strict):
                                         if bi
                                         else P2_GeneratorExpression_FUNCTION_FormalParameters_GeneratorBody
                                     )
-                                    children = list(filter(None, [fun, star, bi, lp, fp, rp, lc, gb, rc],))
+                                    children = list(filter(None, [fun, star, bi, lp, fp, rp, lc, gb, rc]))
                                     return ctor(context, strict, children)
     return None
 
@@ -26497,7 +26552,7 @@ class P2_GeneratorBody_FunctionBody(P2_GeneratorBody):
         #   4. Return Completion { [[Type]]: return, [[Value]]: G, [[Target]]: empty }.
         FunctionDeclarationInstantiation(functionObject, argumentsList)
         G = OrdinaryCreateFromConstructor(
-            functionObject, "%GeneratorPrototype%", ["GeneratorState", "GeneratorContext"],
+            functionObject, "%GeneratorPrototype%", ["GeneratorState", "GeneratorContext"]
         )
         GeneratorStart(G, self.FunctionBody)
         raise ESReturn(value=G)
@@ -26948,6 +27003,10 @@ class P2_Script_ScriptBody(P2_Script):
             errs.append("Duplicate Lexical Declarations")
         if not lexnameset.isdisjoint(set(self.ScriptBody.VarDeclaredNames())):
             errs.append("Var declaration mirrors lexical declaration")
+        if self.contains_unenclosed_continue or self.contains_encapsulated_unenclosed_continue:
+            errs.append("Continue statement not enclosed within an iteration statement")
+        if self.contains_unenclosed_break or self.contains_encapsulated_unenclosed_break:
+            errs.append("Break statement not enclosed within an iteration statement nor a switch statement")
         return [self.CreateSyntaxError(msg) for msg in errs]
 
 
@@ -27069,7 +27128,7 @@ class P2_ScriptBody_StatementList(P2_ScriptBody):
         # 15.1.2 Static Semantics: IsStrict
         # ScriptBody : StatementList
         #    1. If the Directive Prologue of StatementList contains a Use Strict Directive, return true; otherwise, return false.
-        (_, dp,) = self.StatementList.LeadingStrings()  # This is a list of strings, subsets of the source text
+        (_, dp) = self.StatementList.LeadingStrings()  # This is a list of strings, subsets of the source text
         return "'use strict'" in dp or '"use strict"' in dp
 
     def LexicallyDeclaredNames(self):
@@ -27946,7 +28005,7 @@ def BindBuiltinFunctions(realm, obj, details):
             length = getattr(fcn, "length", len(argspec.args) - 2)
         assert getattr(fcn, "length", len(argspec.args) - 2) == length
         DefinePropertyOrThrow(
-            func_obj, "length", PropertyDescriptor(value=length, writable=False, enumerable=False, configurable=True),
+            func_obj, "length", PropertyDescriptor(value=length, writable=False, enumerable=False, configurable=True)
         )
 
         # The 'name' property:
@@ -27965,7 +28024,7 @@ def BindBuiltinFunctions(realm, obj, details):
         # function definition. A get-with-default is here to ease the pain.
         name = getattr(fcn, "name", key)
         DefinePropertyOrThrow(
-            func_obj, "name", PropertyDescriptor(value=name, writable=False, enumerable=False, configurable=True),
+            func_obj, "name", PropertyDescriptor(value=name, writable=False, enumerable=False, configurable=True)
         )
         CreateMethodPropertyOrThrow(obj, key, func_obj)
 
@@ -28012,14 +28071,12 @@ def CreateObjectConstructor(realm):
     obj = CreateBuiltinFunction(ObjectFunction, ["Construct"], realm=realm)
     for key, value in [("length", 1), ("name", "Object")]:
         DefinePropertyOrThrow(
-            obj, key, PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True),
+            obj, key, PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)
         )
     DefinePropertyOrThrow(
         obj,
         "prototype",
-        PropertyDescriptor(
-            value=intrinsics["%ObjectPrototype%"], writable=False, enumerable=False, configurable=False,
-        ),
+        PropertyDescriptor(value=intrinsics["%ObjectPrototype%"], writable=False, enumerable=False, configurable=False),
     )
     BindBuiltinFunctions(
         realm,
@@ -28427,7 +28484,7 @@ def AddObjectPrototypeProps(realm_rec):
     DefinePropertyOrThrow(
         obj,
         "constructor",
-        PropertyDescriptor(value=intrinsics["%Object%"], writable=False, enumerable=False, configurable=False,),
+        PropertyDescriptor(value=intrinsics["%Object%"], writable=False, enumerable=False, configurable=False),
     )
     BindBuiltinFunctions(
         realm_rec,
@@ -28832,12 +28889,12 @@ def CreateDynamicFunction(constructor, newTarget, kind, args):
     if kind == "generator":
         prototype = ObjectCreate(surrounding_agent.running_ec.realm["%GeneratorPrototype%"])
         DefinePropertyOrThrow(
-            F, "prototype", PropertyDescriptor(value=prototype, writable=True, enumerable=False, configurable=False),
+            F, "prototype", PropertyDescriptor(value=prototype, writable=True, enumerable=False, configurable=False)
         )
     elif kind == "async generator":
         prototype = ObjectCreate(surrounding_agent.running_ec.realm["%AsyncGeneratorPrototype%"])
         DefinePropertyOrThrow(
-            F, "prototype", PropertyDescriptor(value=prototype, writable=True, enumerable=False, configurable=False),
+            F, "prototype", PropertyDescriptor(value=prototype, writable=True, enumerable=False, configurable=False)
         )
     elif kind == "normal":
         MakeConstructor(F)
@@ -28894,12 +28951,12 @@ def AttachFunctionPrototypeProperties(proto, realm):
     )
     func = CreateBuiltinFunction(FunctionPrototype_hasInstance, [], realm)
     DefinePropertyOrThrow(
-        func, "length", PropertyDescriptor(value=1, writable=False, enumerable=False, configurable=True),
+        func, "length", PropertyDescriptor(value=1, writable=False, enumerable=False, configurable=True)
     )
     DefinePropertyOrThrow(
         func,
         "name",
-        PropertyDescriptor(value="[Symbol.hasInstance]", writable=False, enumerable=False, configurable=False,),
+        PropertyDescriptor(value="[Symbol.hasInstance]", writable=False, enumerable=False, configurable=False),
     )
     CreateMethodPropertyOrThrow(proto, wks_has_instance, func)
 
@@ -29137,7 +29194,7 @@ def BooleanFixups(realm):
     DefinePropertyOrThrow(
         boolean_constructor,
         "prototype",
-        PropertyDescriptor(value=boolean_prototype, writable=False, enumerable=False, configurable=False,),
+        PropertyDescriptor(value=boolean_prototype, writable=False, enumerable=False, configurable=False),
     )
     DefinePropertyOrThrow(boolean_prototype, "constructor", PropertyDescriptor(value=boolean_constructor))
     return None
@@ -29155,9 +29212,7 @@ def CreateBooleanPrototype(realm):
     boolean_prototype = ObjectCreate(realm.intrinsics["%ObjectPrototype%"], ["BooleanData"])
     boolean_prototype.BooleanData = False
     BindBuiltinFunctions(
-        realm,
-        boolean_prototype,
-        [("toString", BooleanPrototype_toString, 0), ("valueOf", BooleanPrototype_valueOf, 0),],
+        realm, boolean_prototype, [("toString", BooleanPrototype_toString, 0), ("valueOf", BooleanPrototype_valueOf, 0)]
     )
     return boolean_prototype
 
@@ -29234,7 +29289,7 @@ def CreateSymbolConstructor(realm: Realm) -> JSObject:
     ):
         desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=configurable)
         DefinePropertyOrThrow(obj, key, desc)
-    BindBuiltinFunctions(realm, obj, (("for", SymbolFor, None), ("keyFor", SymbolKeyFor, None),))
+    BindBuiltinFunctions(realm, obj, (("for", SymbolFor, None), ("keyFor", SymbolKeyFor, None)))
     return obj
 
 
@@ -29688,7 +29743,7 @@ def CreateNumberConstructor(realm):
         # In the IEEE 754-2008 double precision binary representation, the smallest possible value is a denormalized
         # number. If an implementation does not support denormalized values, the value of Number.MIN_VALUE must be the
         # smallest non-zero positive value that can actually be represented by the implementation.
-        ("MIN_VALUE", 5e-324,),  # sys.float_info.min is the smalled normalized float, in python.
+        ("MIN_VALUE", 5e-324),  # sys.float_info.min is the smalled normalized float, in python.
         # 20.1.2.10 Number.NaN
         # The value of Number.NaN is NaN.
         ("NaN", math.nan),
@@ -29803,7 +29858,7 @@ def CreateNumberPrototype(realm):
     number_prototype = ObjectCreate(realm.intrinsics["%ObjectPrototype%"], ["NumberData"])
     number_prototype.NumberData = 0
     BindBuiltinFunctions(
-        realm, number_prototype, [("toString", NumberPrototype_toString, 1), ("valueOf", NumberPrototype_valueOf, 0),],
+        realm, number_prototype, [("toString", NumberPrototype_toString, 1), ("valueOf", NumberPrototype_valueOf, 0)]
     )
     return number_prototype
 
@@ -29898,10 +29953,10 @@ def CreateMathObject(realm):
         ("SQRT2", math.sqrt(2)),
     ):
         DefinePropertyOrThrow(
-            obj, name, PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=False),
+            obj, name, PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=False)
         )
     DefinePropertyOrThrow(
-        obj, wks_to_string_tag, PropertyDescriptor(vlaue="Math", writable=False, enumerable=False, configurable=True),
+        obj, wks_to_string_tag, PropertyDescriptor(vlaue="Math", writable=False, enumerable=False, configurable=True)
     )
     BindBuiltinFunctions(
         realm,
@@ -30479,20 +30534,7 @@ def MakeDay(year, month, date):
     mn = round(m % 12)
     t = TimeFromYear(y)
     days_to_start_of_month = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]
-    days_to_start_of_month_leap = [
-        0,
-        31,
-        60,
-        91,
-        121,
-        152,
-        182,
-        213,
-        244,
-        274,
-        305,
-        335,
-    ]
+    days_to_start_of_month_leap = [0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335]
     t += msPerDay * (days_to_start_of_month_leap if InLeapYear(t) else days_to_start_of_month)[mn]
     assert YearFromTime(t) == ym and MonthFromTime(t) == mn and DateFromTime(t) == 1
     return Day(t) + dt - 1
@@ -30572,7 +30614,7 @@ def CreateDateConstructor(realm):
 #       k. Set O.[[DateValue]] to TimeClip(UTC(finalDate)).
 #       l. Return O.
 def Date_Function_2plus(
-    this_value, new_target, year, month, date=EMPTY, hours=EMPTY, minutes=EMPTY, seconds=EMPTY, ms=EMPTY, *_,
+    this_value, new_target, year, month, date=EMPTY, hours=EMPTY, minutes=EMPTY, seconds=EMPTY, ms=EMPTY, *_
 ):
     assert new_target is not None
     y = ToNumber(year)
@@ -30696,20 +30738,7 @@ def ToDateString(tv):
 
 
 weekday_names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-month_names = [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
-]
+month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 # 20.3.4.41.2 Runtime Semantics: DateString ( tv )
 def DateString(tv):
@@ -30864,12 +30893,12 @@ def CreateDatePrototype(realm):
     )
     func_obj = CreateBuiltinFunction(DatePrototype_toPrimitive, [], realm)
     DefinePropertyOrThrow(
-        func_obj, "length", PropertyDescriptor(value=1, writable=False, enumerable=False, configurable=True),
+        func_obj, "length", PropertyDescriptor(value=1, writable=False, enumerable=False, configurable=True)
     )
     DefinePropertyOrThrow(
         func_obj,
         "name",
-        PropertyDescriptor(value="[Symbol.toPrimitive]", writable=False, enumerable=False, configurable=False,),
+        PropertyDescriptor(value="[Symbol.toPrimitive]", writable=False, enumerable=False, configurable=False),
     )
     CreateMethodPropertyOrThrow(date_prototype, wks_to_primitive, func_obj)
     return date_prototype
@@ -31474,7 +31503,7 @@ def locale_date(localtime):
 def locale_time(localtime):
     time = TimeWithinDay(localtime)
     hour = HourFromTime(time)
-    display_hour = (12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,)[hour]
+    display_hour = (12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)[hour]
     ampm = ("AM", "PM")[hour >= 12]
     return f"{display_hour}:{MinFromTime(time):02d}:{SecFromTime(time):02d} {ampm}"
 
@@ -31861,7 +31890,7 @@ String_raw.name = "raw"
 def CreateStringPrototype(realm):
     string_prototype = StringCreate("", realm.intrinsics["%ObjectPrototype%"])
     BindBuiltinFunctions(
-        realm, string_prototype, [("toString", StringPrototype_toString, 0), ("valueOf", StringPrototype_valueOf, 0),],
+        realm, string_prototype, [("toString", StringPrototype_toString, 0), ("valueOf", StringPrototype_valueOf, 0)]
     )
     return string_prototype
 
@@ -32082,11 +32111,9 @@ def RegExpAlloc(newTarget):
     #      [[Enumerable]]: false, [[Configurable]]: false }).
     #   3. Return obj.
     obj = OrdinaryCreateFromConstructor(
-        newTarget, "%RegExpPrototype%", ["RegExpMatcher", "OriginalSource", "OriginalFlags"],
+        newTarget, "%RegExpPrototype%", ["RegExpMatcher", "OriginalSource", "OriginalFlags"]
     )
-    DefinePropertyOrThrow(
-        obj, "lastIndex", PropertyDescriptor(writable=True, enumerable=False, configurable=False),
-    )
+    DefinePropertyOrThrow(obj, "lastIndex", PropertyDescriptor(writable=True, enumerable=False, configurable=False))
     return obj
 
 
@@ -33133,16 +33160,14 @@ def CreateArrayConstructor(realm):
 
     fcn_obj = CreateBuiltinFunction(get_species, [], realm)
     DefinePropertyOrThrow(
-        fcn_obj, "length", PropertyDescriptor(value=0, writable=False, enumerable=False, configurable=True),
+        fcn_obj, "length", PropertyDescriptor(value=0, writable=False, enumerable=False, configurable=True)
     )
     DefinePropertyOrThrow(
         fcn_obj,
         "name",
-        PropertyDescriptor(value="get [Symbol.species]", writable=False, enumerable=False, configurable=True,),
+        PropertyDescriptor(value="get [Symbol.species]", writable=False, enumerable=False, configurable=True),
     )
-    DefinePropertyOrThrow(
-        obj, wks_species, PropertyDescriptor(Get=fcn_obj, enumerable=False, configurable=True),
-    )
+    DefinePropertyOrThrow(obj, wks_species, PropertyDescriptor(Get=fcn_obj, enumerable=False, configurable=True))
 
     return obj
 
@@ -33634,7 +33659,7 @@ def AllocateArrayBuffer(constructor, byteLength):
     #   5. Set obj.[[ArrayBufferByteLength]] to byteLength.
     #   6. Return obj.
     obj = OrdinaryCreateFromConstructor(
-        constructor, "%ArrayBufferPrototype%", ["ArrayBufferData", "ArrayBufferByteLength", "ArrayBufferDetachKey"],
+        constructor, "%ArrayBufferPrototype%", ["ArrayBufferData", "ArrayBufferByteLength", "ArrayBufferDetachKey"]
     )
     assert IsInteger(byteLength) and byteLength >= 0
     block = CreateByteDataBlock(byteLength)
@@ -33927,16 +33952,14 @@ def CreateArrayBufferConstructor(realm):
 
     fcn_obj = CreateBuiltinFunction(get_species, [], realm)
     DefinePropertyOrThrow(
-        fcn_obj, "length", PropertyDescriptor(value=0, writable=False, enumerable=False, configurable=True),
+        fcn_obj, "length", PropertyDescriptor(value=0, writable=False, enumerable=False, configurable=True)
     )
     DefinePropertyOrThrow(
         fcn_obj,
         "name",
-        PropertyDescriptor(value="get [Symbol.species]", writable=False, enumerable=False, configurable=True,),
+        PropertyDescriptor(value="get [Symbol.species]", writable=False, enumerable=False, configurable=True),
     )
-    DefinePropertyOrThrow(
-        obj, wks_species, PropertyDescriptor(Get=fcn_obj, enumerable=False, configurable=True),
-    )
+    DefinePropertyOrThrow(obj, wks_species, PropertyDescriptor(Get=fcn_obj, enumerable=False, configurable=True))
     return obj
 
 
@@ -33976,16 +33999,14 @@ def CreateArrayBufferPrototype(realm):
     BindBuiltinFunctions(realm, proto, [("slice", ArrayBufferPrototype_slice, 2)])
     byteLength = CreateBuiltinFunction(get_ArrayBufferPrototype_byteLength, [], realm)
     DefinePropertyOrThrow(
-        byteLength, "length", PropertyDescriptor(value=0, writable=False, enumerable=False, configurable=True),
+        byteLength, "length", PropertyDescriptor(value=0, writable=False, enumerable=False, configurable=True)
     )
     DefinePropertyOrThrow(
         byteLength,
         "name",
         PropertyDescriptor(value="get byteLength", writable=False, enumerable=False, configurable=True),
     )
-    DefinePropertyOrThrow(
-        proto, "byteLength", PropertyDescriptor(Get=byteLength, enumerable=False, configurable=True),
-    )
+    DefinePropertyOrThrow(proto, "byteLength", PropertyDescriptor(Get=byteLength, enumerable=False, configurable=True))
     DefinePropertyOrThrow(
         proto,
         wks_to_string_tag,
@@ -34315,12 +34336,12 @@ def CreateIteratorPrototype(realm):
     proto = ObjectCreate(realm.intrinsics["%ObjectPrototype%"])
     func_obj = CreateBuiltinFunction(IteratorPrototype_iterator, [], realm)
     DefinePropertyOrThrow(
-        func_obj, "length", PropertyDescriptor(value=0, writable=False, enumerable=False, configurable=True),
+        func_obj, "length", PropertyDescriptor(value=0, writable=False, enumerable=False, configurable=True)
     )
     DefinePropertyOrThrow(
         func_obj,
         "name",
-        PropertyDescriptor(value="[Symbol.iterator]", writable=False, enumerable=False, configurable=False,),
+        PropertyDescriptor(value="[Symbol.iterator]", writable=False, enumerable=False, configurable=False),
     )
     CreateMethodPropertyOrThrow(proto, wks_iterator, func_obj)
     return proto
@@ -34419,7 +34440,7 @@ def CreateGeneratorFunctionPrototype(realm):
     DefinePropertyOrThrow(
         obj,
         wks_to_string_tag,
-        PropertyDescriptor(value="GeneratorFunction", writable=False, enumerable=False, configurable=True,),
+        PropertyDescriptor(value="GeneratorFunction", writable=False, enumerable=False, configurable=True),
     )
     return obj
 
@@ -34519,12 +34540,12 @@ def GeneratorFixups(realm):
     DefinePropertyOrThrow(
         generator,
         "prototype",
-        PropertyDescriptor(value=generator_prototype, writable=False, enumerable=False, configurable=True,),
+        PropertyDescriptor(value=generator_prototype, writable=False, enumerable=False, configurable=True),
     )
     DefinePropertyOrThrow(
         generator,
         "constructor",
-        PropertyDescriptor(value=generator_function, writable=False, enumerable=False, configurable=True,),
+        PropertyDescriptor(value=generator_function, writable=False, enumerable=False, configurable=True),
     )
     DefinePropertyOrThrow(
         generator_function,

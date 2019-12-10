@@ -300,3 +300,30 @@ def test_scripts_02(cleanup, script):
     # Check for those expressions that return NaN.
     rv = RunJobs(scripts=[script])
     assert math.isnan(rv)
+
+
+ContinueErrorMsg = "SyntaxError: Continue statement not enclosed within an iteration statement"
+BreakErrorMsg = "SyntaxError: Break statement not enclosed within an iteration statement nor a switch statement"
+
+
+@pytest.mark.parametrize(
+    "script, expected",
+    (
+        ("continue", ContinueErrorMsg),
+        ("break", BreakErrorMsg),
+        ("a=function () { continue; };", ContinueErrorMsg),
+        ("b=function () { break; };", BreakErrorMsg),
+    ),
+)
+def test_script_errors(cleanup, script, expected):
+    err_strings = []
+
+    def err_cb(errlist):
+        err_strings.extend(ToString(err) for err in errlist)
+
+    SetHostErrorCallback(err_cb)
+
+    rv = RunJobs(scripts=[script])
+    assert rv is None
+    assert len(err_strings) == 1
+    assert err_strings[0] == expected

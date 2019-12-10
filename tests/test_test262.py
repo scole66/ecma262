@@ -230,7 +230,8 @@ test_files = []
 # 100% passing! test_files.extend(glob.glob(f"{base_path}/test/built-ins/isNaN/**/*.js", recursive=True))
 # 100% passing! test_files.extend(glob.glob(f"{base_path}/test/built-ins/isFinite/**/*.js", recursive=True))
 # 100% passing! test_files.extend(glob.glob(f"{base_path}/test/language/types/boolean/**/*.js", recursive=True))
-test_files.extend(glob.glob(f"{base_path}/test/language/types/**/*.js", recursive=True))
+# test_files.extend(glob.glob(f"{base_path}/test/language/types/**/*.js", recursive=True))
+test_files.extend(glob.glob(f"{base_path}/test/language/eval-code/**/*.js", recursive=True))
 test_files = [fn for fn in test_files if not fn.endswith("_FIXTURE.js")]
 
 features_to_avoid = (
@@ -240,6 +241,7 @@ features_to_avoid = (
     "async-iteration",
     "async-functions",
     "tail-call-optimization",
+    "class",
     # proposals not actually part of the spec yet
     "proxy-missing-checks",
     "Promise.allSettled",
