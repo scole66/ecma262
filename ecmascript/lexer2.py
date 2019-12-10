@@ -259,7 +259,9 @@ class LexerCore:
     )
     _RegularExpressionChars = "(" + _RegularExpressionChar + "*)"
     _RegularExpressionBody = "(" + _RegularExpressionFirstChar + _RegularExpressionChars + ")"
-    _RegularExpressionLiteral = "(/(?P<body>" + _RegularExpressionBody + ")/(?P<flags>" + _RegularExpressionFlags + "))"
+    _RegularExpressionLiteral = (
+        "(/(?P<body>" + _RegularExpressionBody + ")/(?P<flags>" + _RegularExpressionFlags + "))"
+    )
     regularexpressionliteral_match = regex.compile(_RegularExpressionLiteral)
 
     _UnicodeEscapeSequence = r"(u([0-9a-fA-F]{4}|\{[0-9a-fA-F]{1,6}\}))"
@@ -454,7 +456,9 @@ class LexerCore:
                 dp = self.divpunctuator_match.match(self.src, pos=pos)
                 if dp:
                     span = dp.span()
-                    return Token(type=dp.group(0), value=dp.group(0), src=self.src, span=Span(*span), newlines=newlines)
+                    return Token(
+                        type=dp.group(0), value=dp.group(0), src=self.src, span=Span(*span), newlines=newlines
+                    )
 
             # RightBracePunctuator is available for InputElementDiv or InputElementRegExp
             if goal in (self.InputElementDiv, self.InputElementRegExp):

@@ -257,8 +257,18 @@ def test_parse_PrimaryExpression_01(context, token_stream, expected):
         ("FunctionExpression", False, False, ecmascript.ecmascript.P2_PrimaryExpression_FunctionExpression),
         ("ClassExpression", True, False, ecmascript.ecmascript.P2_PrimaryExpression_ClassExpression),
         ("GeneratorExpression", False, False, ecmascript.ecmascript.P2_PrimaryExpression_GeneratorExpression),
-        ("AsyncFunctionExpression", False, False, ecmascript.ecmascript.P2_PrimaryExpression_AsyncFunctionExpression),
-        ("AsyncGeneratorExpression", False, False, ecmascript.ecmascript.P2_PrimaryExpression_AsyncGeneratorExpression),
+        (
+            "AsyncFunctionExpression",
+            False,
+            False,
+            ecmascript.ecmascript.P2_PrimaryExpression_AsyncFunctionExpression,
+        ),
+        (
+            "AsyncGeneratorExpression",
+            False,
+            False,
+            ecmascript.ecmascript.P2_PrimaryExpression_AsyncGeneratorExpression,
+        ),
         ("TemplateLiteral", True, True, ecmascript.ecmascript.P2_PrimaryExpression_TemplateLiteral),
         (
             "CoverParenthesizedExpressionAndArrowParameterList",
@@ -296,7 +306,9 @@ def PrimaryExpression_mocks(mocker):
             "ecmascript.ecmascript.parse_IdentifierReference", side_effect=ir_sideeffect
         ),
         "Literal": mocker.patch("ecmascript.ecmascript.parse_Literal", side_effect=literal_sideeffect),
-        "ArrayLiteral": mocker.patch("ecmascript.ecmascript.parse_ArrayLiteral", side_effect=arrayliteral_sideeffect),
+        "ArrayLiteral": mocker.patch(
+            "ecmascript.ecmascript.parse_ArrayLiteral", side_effect=arrayliteral_sideeffect
+        ),
         "ObjectLiteral": mocker.patch(
             "ecmascript.ecmascript.parse_ObjectLiteral", side_effect=objectliteral_sideeffect
         ),
@@ -361,7 +373,9 @@ def test_PrimaryExpression_HasName_01(context, mocker, fundef, hasname, expected
     expr.HasName = mocker.Mock(return_value=hasname)
     cpeaapl = mocker.Mock()
     cpeaapl.CoveredParenthesizedExpression = expr
-    mocker.patch("ecmascript.ecmascript.parse_CoverParenthesizedExpressionAndArrowParameterList", return_value=cpeaapl)
+    mocker.patch(
+        "ecmascript.ecmascript.parse_CoverParenthesizedExpressionAndArrowParameterList", return_value=cpeaapl
+    )
     pe = ecmascript.ecmascript.parse_PrimaryExpression(context, lexer, False, False, False)
 
     rv = pe.HasName()
@@ -407,7 +421,9 @@ def test_PrimaryExpression_IsFunctionDefinition_02(context, mocker):
     expr.IsFunctionDefinition = mocker.Mock(return_value="IsFunDef")
     cpeaapl = mocker.Mock()
     cpeaapl.CoveredParenthesizedExpression = expr
-    mocker.patch("ecmascript.ecmascript.parse_CoverParenthesizedExpressionAndArrowParameterList", return_value=cpeaapl)
+    mocker.patch(
+        "ecmascript.ecmascript.parse_CoverParenthesizedExpressionAndArrowParameterList", return_value=cpeaapl
+    )
     pe = ecmascript.ecmascript.parse_PrimaryExpression(context, lexer, "StrictArg", False, False)
 
     rv = pe.IsFunctionDefinition()
@@ -508,7 +524,9 @@ def test_PrimaryExpression_AssignmentTargetType_CPEAAPL(context, mocker):
     expr.AssignmentTargetType = "ATT"
     cpeaapl = mocker.Mock()
     cpeaapl.CoveredParenthesizedExpression = expr
-    mocker.patch("ecmascript.ecmascript.parse_CoverParenthesizedExpressionAndArrowParameterList", return_value=cpeaapl)
+    mocker.patch(
+        "ecmascript.ecmascript.parse_CoverParenthesizedExpressionAndArrowParameterList", return_value=cpeaapl
+    )
     pe = ecmascript.ecmascript.parse_PrimaryExpression(context, lexer, "StrictArg", False, False)
 
     rv = pe.AssignmentTargetType
@@ -605,7 +623,9 @@ def test_P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_RPAREN_init
     assert cpeaapl.name == "CoverParenthesizedExpressionAndArrowParameterList"
 
 
-def test_P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_DOTDOTDOT_BindingIdentifier_RPAREN_init(context):
+def test_P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_DOTDOTDOT_BindingIdentifier_RPAREN_init(
+    context,
+):
     cpeaapl = ecmascript.ecmascript.P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_DOTDOTDOT_BindingIdentifier_RPAREN(
         context, "StrictArg", ["(", "...", "BindingIdentifier", ")"], "Y", "A"
     )
@@ -646,7 +666,9 @@ def test_P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_
 def CoverParenthesizedExpressionAndArrowParameterList_mocks(mocker):
     return {
         "exp": mocker.patch("ecmascript.ecmascript.parse_Expression", side_effect=expression_sideeffect),
-        "bi": mocker.patch("ecmascript.ecmascript.parse_BindingIdentifier", side_effect=bindingidentifier_sideeffect),
+        "bi": mocker.patch(
+            "ecmascript.ecmascript.parse_BindingIdentifier", side_effect=bindingidentifier_sideeffect
+        ),
         "bp": mocker.patch("ecmascript.ecmascript.parse_BindingPattern", side_effect=bindingpattern_sideeffect),
     }
 
@@ -687,7 +709,9 @@ def test_parse_CoverParenthesizedExpressionAndArrowParameterList_02(mocker, cont
     cpeaapl = ecmascript.ecmascript.parse_CoverParenthesizedExpressionAndArrowParameterList(
         context, lexer, "StrictArg", "YieldArg", "AwaitArg"
     )
-    assert isinstance(cpeaapl, ecmascript.ecmascript.P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_RPAREN)
+    assert isinstance(
+        cpeaapl, ecmascript.ecmascript.P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_RPAREN
+    )
     assert lexer.pos == 2
 
 
@@ -1189,7 +1213,9 @@ def test_P2_ElementList_SpreadElement_init(context):
 
 
 def test_P2_ElementList_Elision_SpreadElement_init(context):
-    el = ecmascript.ecmascript.P2_ElementList_Elision_SpreadElement(context, "StrictArg", ["Elision", "SpreadElement"])
+    el = ecmascript.ecmascript.P2_ElementList_Elision_SpreadElement(
+        context, "StrictArg", ["Elision", "SpreadElement"]
+    )
     assert el.name == "ElementList"
     assert el.Elision == "Elision"
     assert el.SpreadElement == "SpreadElement"
@@ -1365,7 +1391,8 @@ def test_parse_ElementList_09(mocker, context, token_stream):
 
 
 @pytest.mark.parametrize(
-    "token_stream", [[AE_REPLACEMENT, COMMA, MATCHES_NONE], [AE_REPLACEMENT, COMMA, ELISION_REPLACEMENT, MATCHES_NONE]]
+    "token_stream",
+    [[AE_REPLACEMENT, COMMA, MATCHES_NONE], [AE_REPLACEMENT, COMMA, ELISION_REPLACEMENT, MATCHES_NONE]],
 )
 def test_parse_ElementList_10(mocker, context, token_stream):
     # Recursive syntax errors
@@ -1830,7 +1857,9 @@ def test_P2_PropertyDefinition_init(context):
 
 
 def test_P2_PropertyDefinition_IdentifierReference_init(context):
-    pd = ecmascript.ecmascript.P2_PropertyDefinition_IdentifierReference(context, "StrictArg", ["IdentifierReference"])
+    pd = ecmascript.ecmascript.P2_PropertyDefinition_IdentifierReference(
+        context, "StrictArg", ["IdentifierReference"]
+    )
     assert pd.name == "PropertyDefinition"
     assert pd.IdentifierReference == "IdentifierReference"
 
@@ -1940,7 +1969,12 @@ def test_parse_PropertyDefinition_05(mocker, context):
 
 @pytest.mark.parametrize(
     "token_stream",
-    [[MATCHES_NONE], [PN_REPLACEMENT, MATCHES_NONE], [PN_REPLACEMENT, COLON, MATCHES_NONE], [DOTDOTDOT, MATCHES_NONE]],
+    [
+        [MATCHES_NONE],
+        [PN_REPLACEMENT, MATCHES_NONE],
+        [PN_REPLACEMENT, COLON, MATCHES_NONE],
+        [DOTDOTDOT, MATCHES_NONE],
+    ],
 )
 def test_parse_PropertyDefinition_06(mocker, context, token_stream):
     # Syntax Errors
@@ -2005,7 +2039,11 @@ def test_PropertyDefinition_MethodDefinition_Contains(context, mocker, symbol, e
 #   1. Return PropName of PropertyName.
 @pytest.mark.parametrize(
     "src, expected",
-    [("identifier_ref", "identifier_ref"), ("... 67", ecmascript.ecmascript.EMPTY), ('bluegill: "5 lbs."', "bluegill")],
+    [
+        ("identifier_ref", "identifier_ref"),
+        ("... 67", ecmascript.ecmascript.EMPTY),
+        ('bluegill: "5 lbs."', "bluegill"),
+    ],
 )
 def test_PropertyDefinition_PropName(context, src, expected):
     lexer = lexer2.Lexer(src, SyntaxError)
@@ -2521,7 +2559,9 @@ def test_parse_TemplateLiteral_01(mocker, context):
     lexer = Lexer([NST])
     TemplateLiteral_mocks(mocker)
 
-    tl = ecmascript.ecmascript.parse_TemplateLiteral(context, lexer, "StrictArg", "YieldArg", "AwaitArg", "TaggedArg")
+    tl = ecmascript.ecmascript.parse_TemplateLiteral(
+        context, lexer, "StrictArg", "YieldArg", "AwaitArg", "TaggedArg"
+    )
     assert isinstance(tl, ecmascript.ecmascript.P2_TemplateLiteral_NoSubstitutionTemplate)
     assert tl.NoSubstitutionTemplate == NST
     assert lexer.pos == 1
@@ -2532,7 +2572,9 @@ def test_parse_TemplateLiteral_02(mocker, context):
     lexer = Lexer([ST_REPLACEMENT])
     mocks = TemplateLiteral_mocks(mocker)
 
-    tl = ecmascript.ecmascript.parse_TemplateLiteral(context, lexer, "StrictArg", "YieldArg", "AwaitArg", "TaggedArg")
+    tl = ecmascript.ecmascript.parse_TemplateLiteral(
+        context, lexer, "StrictArg", "YieldArg", "AwaitArg", "TaggedArg"
+    )
     assert isinstance(tl, ecmascript.ecmascript.P2_TemplateLiteral_SubstitutionTemplate)
     assert tl.SubstitutionTemplate == "SubstitutionTemplate"
     assert lexer.pos == 1
@@ -2545,7 +2587,9 @@ def test_parse_TemplateLiteral_03(mocker, context, token_stream):
     lexer = Lexer(token_stream)
     TemplateLiteral_mocks(mocker)
 
-    tl = ecmascript.ecmascript.parse_TemplateLiteral(context, lexer, "StrictArg", "YieldArg", "AwaitArg", "TaggedArg")
+    tl = ecmascript.ecmascript.parse_TemplateLiteral(
+        context, lexer, "StrictArg", "YieldArg", "AwaitArg", "TaggedArg"
+    )
     assert tl is None
     assert lexer.pos == 0
 

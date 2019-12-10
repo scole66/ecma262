@@ -110,7 +110,9 @@ def test_IdentifierReference_AWAIT_AssignmentTargetType(context):
 @pytest.mark.parametrize(
     "strict, name, expected",
     [
-        pytest.param(strict, name, ecmascript.STRICT if strict and name in ("eval", "arguments") else ecmascript.SIMPLE)
+        pytest.param(
+            strict, name, ecmascript.STRICT if strict and name in ("eval", "arguments") else ecmascript.SIMPLE
+        )
         for strict in (False, True)
         for name in ("normal", "eval", "arguments")
     ],
@@ -264,7 +266,17 @@ def test_P2_Identifier_IdentifierName_StringValue(context):
     "strict, value, goal, expected",
     [
         pytest.param(True, value, "Script", 1, id=f"Strict: {value}")
-        for value in ("implements", "interface", "let", "package", "private", "protected", "public", "static", "yield")
+        for value in (
+            "implements",
+            "interface",
+            "let",
+            "package",
+            "private",
+            "protected",
+            "public",
+            "static",
+            "yield",
+        )
     ]
     + [pytest.param(True, "await", "Module", 1, id="Module: await")]
     + [
