@@ -21991,7 +21991,7 @@ class P2_ContinueStatement_CONTINUE_LabelIdentifier(P2_ContinueStatement):
         #           ContinueStatement : continue LabelIdentifier ;
         # 1. Let label be the StringValue of LabelIdentifier.
         # 2. Return Completion { [[Type]]: continue, [[Value]]: empty, [[Target]]: label }.
-        return ESContinue(target=self.LabelIdentifier.StringValue)
+        raise ESContinue(target=self.LabelIdentifier.StringValue)
 
 
 def parse_ContinueStatement(context, lexer, strict, Yield, Await):
