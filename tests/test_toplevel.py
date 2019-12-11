@@ -326,6 +326,7 @@ BreakErrorMsg = "SyntaxError: Break statement not enclosed within an iteration s
             "var initial, postAssignment; (function() {eval('initial = f; f = 5; postAssignment = f; function f() { return 33; }');}());f;",
             "ReferenceError: 'f': unknown",
         ),
+        ("(function(){break L;})();", "SyntaxError: Undefined break target detected in function body"),
     ),
 )
 def test_script_errors(cleanup, script, expected):

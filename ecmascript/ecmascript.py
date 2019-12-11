@@ -8619,7 +8619,7 @@ class P2_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(P2_
         #     CoveredParenthesizedExpression of CoverParenthesizedExpressionAndArrowParameterList.
         expr = self.CoverParenthesizedExpressionAndArrowParameterList.CoveredParenthesizedExpression
         if expr:
-            return expr.EarlyErrorsScan()
+            return []
         return [self.CreateSyntaxError("Bad grouping syntax")]
 
     def NamedEvaluation(self, name):
