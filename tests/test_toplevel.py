@@ -295,6 +295,7 @@ def cleanup():
             "function,33,5",
         ),
         ("var xx=0;function f(){L:do{xx++;if(xx===5)return;break L;}while(0);}f();xx;", 1),
+        ("var c=0;l:for(let x=0;x<10;){while(c<20){x++;c++;continue l;}}c;", 10),
     ],
 )
 def test_scripts_01(cleanup, script, result):
