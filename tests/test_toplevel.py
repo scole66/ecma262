@@ -294,6 +294,7 @@ def cleanup():
             "var initial, postAssignment; (function() {eval('initial = f; f = 5; postAssignment = f; function f() { return 33; }');}());String([typeof initial, initial(), postAssignment]);",
             "function,33,5",
         ),
+        ("var xx=0;function f(){L:do{xx++;if(xx===5)return;break L;}while(0);}f();xx;", 1),
     ],
 )
 def test_scripts_01(cleanup, script, result):

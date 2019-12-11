@@ -20384,7 +20384,7 @@ class P2_IterationStatement_DO_Statement_WHILE_Expression(P2_IterationStatement)
                 stmtResult = self.Statement.evaluate()
             except ESAbrupt as abrupt:
                 c = abrupt.completion
-                if not LoopContinues(c.value, labelSet):
+                if not LoopContinues(c, labelSet):
                     raise type(abrupt)(value=UpdateEmpty(c.value, V), target=c.target)
                 stmtResult = c.value
             if stmtResult != EMPTY:
