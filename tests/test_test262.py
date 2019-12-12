@@ -226,22 +226,25 @@ lang_tests = (
 
 base_path = base_paths[0]
 test_files = []
-# test_files = glob.glob(f"{base_path}/test/harness/*.js")
+test_files = glob.glob(f"{base_path}/test/harness/*.js")
 # for suite in lang_tests:
 #     test_files.extend(glob.glob(f"{base_path}/test/language/{suite}/**/*.js", recursive=True))
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/String/**/*.js", recursive=True))
-test_files.extend(glob.glob(f"{base_path}/test/built-ins/Boolean/**/*.js", recursive=True))  # 100% passing !
+# test_files.extend(glob.glob(f"{base_path}/test/built-ins/Boolean/**/*.js", recursive=True))  # 100% passing !
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/Array/**/*.js", recursive=True))
-test_files.extend(glob.glob(f"{base_path}/test/built-ins/parseInt/**/*.js", recursive=True))  # 100% passing !
-test_files.extend(glob.glob(f"{base_path}/test/built-ins/isNaN/**/*.js", recursive=True))  # 100% passing !
-test_files.extend(glob.glob(f"{base_path}/test/built-ins/isFinite/**/*.js", recursive=True))  # 100% passing !
-test_files.extend(glob.glob(f"{base_path}/test/language/types/boolean/**/*.js", recursive=True))  # 100% passing !
+# test_files.extend(glob.glob(f"{base_path}/test/built-ins/parseInt/**/*.js", recursive=True))  # 100% passing !
+# test_files.extend(glob.glob(f"{base_path}/test/built-ins/isNaN/**/*.js", recursive=True))  # 100% passing !
+# test_files.extend(glob.glob(f"{base_path}/test/built-ins/isFinite/**/*.js", recursive=True))  # 100% passing !
+# test_files.extend(glob.glob(f"{base_path}/test/language/types/boolean/**/*.js", recursive=True))  # 100% passing !
 # test_files.extend(glob.glob(f"{base_path}/test/language/types/**/*.js", recursive=True))
-test_files.extend(glob.glob(f"{base_path}/test/language/eval-code/**/*.js", recursive=True))  # 100% passing !
-test_files.extend(glob.glob(f"{base_path}/test/language/statementList/**/*.js", recursive=True))  # 100% passing !
-test_files.extend(
-    glob.glob(f"{base_path}/test/language/statements/labeled/**/*.js", recursive=True)
-)  # 100% passing !
+# test_files.extend(glob.glob(f"{base_path}/test/language/eval-code/**/*.js", recursive=True))  # 100% passing !
+# test_files.extend(glob.glob(f"{base_path}/test/language/statementList/**/*.js", recursive=True))  # 100% passing !
+# test_files.extend(glob.glob(f"{base_path}/test/language/statements/labeled/**/*.js", recursive=True))  # 100% passing !
+# test_files.extend(glob.glob(f"{base_path}/test/language/identifiers/**/*.js", recursive=True))  # 100% passing!
+# test_files.extend(glob.glob(f"{base_path}/test/language/identifier-resolution/**/*.js", recursive=True))  # 100% passing!
+# test_files.extend(glob.glob(f"{base_path}/test/language/line-terminators/**/*.js", recursive=True))  # 100% passing!
+# test_files.extend(glob.glob(f"{base_path}/test/language/statements/break/**/*.js", recursive=True))  # 100% passing!
+# test_files.extend(glob.glob(f"{base_path}/test/language/statements/continue/**/*.js", recursive=True))  # 100% passing!
 test_files = [fn for fn in test_files if not fn.endswith("_FIXTURE.js")]
 
 features_to_avoid = (
@@ -353,14 +356,12 @@ def test_test262(cleanup, tc, strict, testfile):
     print("=========================================================================")
     tc.run_once(strict=strict)
     if "negative" in tc.config:
-        assert len(execution_errors.errors) == 1, (
-            f"Expected a {tc.config['negative']['type']} error, "
-            + ("completed successfully" if len(execution_errors.errors) == 0 else "got multiple errors")
-            + " instead"
-        )
-        name = errtype_pattern.match(execution_errors.errors[0]).group("name")
         assert (
-            name == tc.config["negative"]["type"]
-        ), f"Expected a {tc.config['negative']['type']} error, got '{execution_errors.errors[0]}' instead"
+            len(execution_errors.errors) != 0
+        ), f"Expected a {tc.config['negative']['type']} error, completed successfully instead"
+        names = tuple(errtype_pattern.match(err).group("name") for err in execution_errors.errors)
+        assert (
+            tc.config["negative"]["type"] in names
+        ), f"Expected a {tc.config['negative']['type']} error, got '{', '.join(names)}' instead"
     else:
         assert len(execution_errors.errors) == 0, "\n".join(execution_errors.errors)
