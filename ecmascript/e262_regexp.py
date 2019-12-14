@@ -1773,10 +1773,11 @@ class CharacterClassEscape_D(CharacterClassEscape):
         return CharSet("0123456789", inverted=True)
 
 
-_schars = (
-    "".join(chr(x) for x in range(0x110000) if unicodedata.category(chr(x)) == "Zs")
-    + "\t\v\f \N{NBSP}\N{ZWNBSP}\n\r\N{LINE SEPARATOR}\N{PARAGRAPH SEPARATOR}"
-)
+_schars = "\t\n\x0b\x0c\r \xa0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
+# _schars = (
+#     "".join(chr(x) for x in range(0x110000) if unicodedata.category(chr(x)) == "Zs")
+#     + "\t\v\f \N{NBSP}\N{ZWNBSP}\n\r\N{LINE SEPARATOR}\N{PARAGRAPH SEPARATOR}"
+# )
 
 
 class CharacterClassEscape_s(CharacterClassEscape):
