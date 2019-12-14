@@ -4804,19 +4804,7 @@ def connect_JSObject_methods(cls):
     def HasProperty(self, propkey):
         """Return a Boolean value indicating whether this object already has either an own or inherited property whose key is
            propertyKey."""
-        # 1. Assert: IsPropertyKey(P) is true.
-        assert IsPropertyKey(propkey)
-        # 2. Let hasOwn be ? O.[[GetOwnProperty]](P).
-        has_own = self.GetOwnProperty(propkey)
-        # 3. If hasOwn is not undefined, return true.
-        if has_own is not None:
-            return True
-        # 4. Let parent be ? O.[[GetPrototypeOf]]().
-        parent = self.GetPrototypeOf()
-        # 5. If parent is not null, then
-        #    a. Return ? parent.[[HasProperty]](P).
-        # 6. Return false.
-        return not isNull(parent) and parent.HasProperty(propkey)
+        return OrdinaryHasProperty(self, propkey)
 
     cls.HasProperty = HasProperty
 
@@ -5041,6 +5029,23 @@ def ValidateAndApplyPropertyDescriptor(obj, propkey, extensible, desc, current):
             setattr(obj.properties[propkey], fieldname, getattr(desc, fieldname))
     # 10. Return true.
     return True
+
+
+# 9.1.7.1 OrdinaryHasProperty ( O, P )
+def OrdinaryHasProperty(O, propkey):
+    # 1. Assert: IsPropertyKey(P) is true.
+    assert IsPropertyKey(propkey)
+    # 2. Let hasOwn be ? O.[[GetOwnProperty]](P).
+    has_own = O.GetOwnProperty(propkey)
+    # 3. If hasOwn is not undefined, return true.
+    if has_own is not None:
+        return True
+    # 4. Let parent be ? O.[[GetPrototypeOf]]().
+    parent = O.GetPrototypeOf()
+    # 5. If parent is not null, then
+    #    a. Return ? parent.[[HasProperty]](P).
+    # 6. Return false.
+    return not isNull(parent) and parent.HasProperty(propkey)
 
 
 # 9.1.8.1 OrdinaryGet ( O, P, Receiver )
@@ -7260,6 +7265,295 @@ def MakeArgSetter(name, env):
     setter.Name = name
     setter.Env = env
     return setter
+
+
+# 9.4.5 Integer-Indexed Exotic Objects
+# An Integer-Indexed exotic object is an exotic object that performs special handling of integer index property
+# keys.
+#
+# Integer-Indexed exotic objects have the same internal slots as ordinary objects and additionally
+# [[ViewedArrayBuffer]], [[ArrayLength]], [[ByteOffset]], and [[TypedArrayName]] internal slots.
+#
+# Integer-Indexed exotic objects provide alternative definitions for the following internal methods. All of the
+# other Integer-Indexed exotic object essential internal methods that are not defined below are as specified in 9.1.
+class IntegerIndexedObject(JSObject):
+    def __init__(self):
+        self.ViewedArrayBuffer = None
+        self.ArrayLength = None
+        self.ByteOffset = None
+        self.TypedArrayName = None
+        super().__init__()
+
+    # 9.4.5.1 [[GetOwnProperty]] ( P )
+    def GetOwnProperty(self, P):
+        # When the [[GetOwnProperty]] internal method of an Integer-Indexed exotic object O is called with property
+        # key P, the following steps are taken:
+        #   1. Assert: IsPropertyKey(P) is true.
+        #   2. Assert: O is an Object that has a [[ViewedArrayBuffer]] internal slot.
+        #   3. If Type(P) is String, then
+        #       a. Let numericIndex be ! CanonicalNumericIndexString(P).
+        #       b. If numericIndex is not undefined, then
+        #           i. Let value be ? IntegerIndexedElementGet(O, numericIndex).
+        #           ii. If value is undefined, return undefined.
+        #           iii. Return a PropertyDescriptor { [[Value]]: value, [[Writable]]: true, [[Enumerable]]: true,
+        #                [[Configurable]]: false }.
+        #   4. Return OrdinaryGetOwnProperty(O, P).
+        assert IsPropertyKey(P)
+        if isString(P):
+            numericIndex = CanonicalNumericIndexString(P)
+            if numericIndex is not None:
+                value = IntegerIndexedElementGet(self, numericIndex)
+                if value is None:
+                    return None
+                return PropertyDescriptor(value=value, writable=True, enumerable=True, configurable=False)
+        return OrdinaryGetOwnProperty(self, P)
+
+    # 9.4.5.2 [[HasProperty]] ( P )
+    def HasProperty(self, P):
+        # When the [[HasProperty]] internal method of an Integer-Indexed exotic object O is called with property key
+        # P, the following steps are taken:
+        #   1. Assert: IsPropertyKey(P) is true.
+        #   2. Assert: O is an Object that has a [[ViewedArrayBuffer]] internal slot.
+        #   3. If Type(P) is String, then
+        #       a. Let numericIndex be ! CanonicalNumericIndexString(P).
+        #       b. If numericIndex is not undefined, then
+        #           i. Let buffer be O.[[ViewedArrayBuffer]].
+        #           ii. If IsDetachedBuffer(buffer) is true, throw a TypeError exception.
+        #           iii. If IsInteger(numericIndex) is false, return false.
+        #           iv. If numericIndex = -0, return false.
+        #           v. If numericIndex < 0, return false.
+        #           vi. If numericIndex ≥ O.[[ArrayLength]], return false.
+        #           vii. Return true.
+        #   4. Return ? OrdinaryHasProperty(O, P).
+        assert IsPropertyKey(P)
+        if isString(P):
+            numericIndex = CanonicalNumericIndexString(P)
+            if numericIndex is not None:
+                buffer = self.ViewedArrayBuffer
+                if IsDetachedBuffer(buffer):
+                    raise ESTypeError("[[HasProperty]] called with detached buffer")
+                return not (
+                    (not IsInteger(numericIndex))
+                    or (numericIndex == 0 and math.copysign(1, numericIndex) == -1)
+                    or numericIndex < 0
+                    or numericIndex >= self.ArrayLength
+                )
+        return OrdinaryHasProperty(self, P)
+
+    # 9.4.5.3 [[DefineOwnProperty]] ( P, Desc )
+    def DefineOwnProperty(self, P, Desc):
+        # When the [[DefineOwnProperty]] internal method of an Integer-Indexed exotic object O is called with
+        # property key P, and Property Descriptor Desc, the following steps are taken:
+        #   1. Assert: IsPropertyKey(P) is true.
+        #   2. Assert: O is an Object that has a [[ViewedArrayBuffer]] internal slot.
+        #   3. If Type(P) is String, then
+        #       a. Let numericIndex be ! CanonicalNumericIndexString(P).
+        #       b. If numericIndex is not undefined, then
+        #           i. If IsInteger(numericIndex) is false, return false.
+        #           ii. If numericIndex = -0, return false.
+        #           iii. If numericIndex < 0, return false.
+        #           iv. Let length be O.[[ArrayLength]].
+        #           v. If numericIndex ≥ length, return false.
+        #           vi. If IsAccessorDescriptor(Desc) is true, return false.
+        #           vii. If Desc has a [[Configurable]] field and if Desc.[[Configurable]] is true, return false.
+        #           viii. If Desc has an [[Enumerable]] field and if Desc.[[Enumerable]] is false, return false.
+        #           ix. If Desc has a [[Writable]] field and if Desc.[[Writable]] is false, return false.
+        #           x. If Desc has a [[Value]] field, then
+        #               1. Let value be Desc.[[Value]].
+        #               2. Return ? IntegerIndexedElementSet(O, numericIndex, value).
+        #           xi. Return true.
+        #   4. Return ! OrdinaryDefineOwnProperty(O, P, Desc).
+        assert IsPropertyKey(P)
+        if isString(P):
+            numericIndex = CanonicalNumericIndexString(P)
+            if numericIndex is not None:
+                if (
+                    not IsInteger(numericIndex)
+                    or (numericIndex == 0 and math.copysign(1, numericIndex) == -1)
+                    or numericIndex < 0
+                    or numericIndex >= self.ArrayLength
+                    or IsAccessorDescriptor(Desc)
+                    or getattr(Desc, "configurable", False)
+                    or not getattr(Desc, "enumerable", True)
+                    or not getattr(Desc, "writable", True)
+                ):
+                    return False
+                if hasattr(Desc, "value"):
+                    value = Desc.value
+                    return IntegerIndexedElementSet(self, numericIndex, value)
+                return True
+        return OrdinaryDefineOwnProperty(self, P, Desc)
+
+    # 9.4.5.4 [[Get]] ( P, Receiver )
+    def Get(self, P, Receiver):
+        # When the [[Get]] internal method of an Integer-Indexed exotic object O is called with property key P and
+        # ECMAScript language value Receiver, the following steps are taken:
+        #   1. Assert: IsPropertyKey(P) is true.
+        #   2. If Type(P) is String, then
+        #       a. Let numericIndex be ! CanonicalNumericIndexString(P).
+        #       b. If numericIndex is not undefined, then
+        #           i. Return ? IntegerIndexedElementGet(O, numericIndex).
+        #   3. Return ? OrdinaryGet(O, P, Receiver).
+        assert IsPropertyKey(P)
+        if isString(P):
+            numericIndex = CanonicalNumericIndexString(P)
+            if numericIndex is not None:
+                return IntegerIndexedElementGet(self, numericIndex)
+        return OrdinaryGet(self, P, Receiver)
+
+    # 9.4.5.5 [[Set]] ( P, V, Receiver )
+    def Set(self, P, V, Receiver):
+        # When the [[Set]] internal method of an Integer-Indexed exotic object O is called with property key P,
+        # value V, and ECMAScript language value Receiver, the following steps are taken:
+        #   1. Assert: IsPropertyKey(P) is true.
+        #   2. If Type(P) is String, then
+        #       a. Let numericIndex be ! CanonicalNumericIndexString(P).
+        #       b. If numericIndex is not undefined, then
+        #           i. Return ? IntegerIndexedElementSet(O, numericIndex, V).
+        #   3. Return ? OrdinarySet(O, P, V, Receiver).
+        assert IsPropertyKey(P)
+        if isString(P):
+            numericIndex = CanonicalNumericIndexString(P)
+            if numericIndex is not None:
+                return IntegerIndexedElementSet(self, numericIndex, V)
+        return OrdinarySet(self, P, V, Receiver)
+
+    # 9.4.5.6 [[OwnPropertyKeys]] ( )
+    def OwnPropertyKeys(self):
+        # When the [[OwnPropertyKeys]] internal method of an Integer-Indexed exotic object O is called, the
+        # following steps are taken:
+        #   1. Let keys be a new empty List.
+        #   2. Assert: O is an Object that has [[ViewedArrayBuffer]], [[ArrayLength]], [[ByteOffset]], and
+        #      [[TypedArrayName]] internal slots.
+        #   3. Let len be O.[[ArrayLength]].
+        #   4. For each integer i starting with 0 such that i < len, in ascending order, do
+        #       a. Add ! ToString(i) as the last element of keys.
+        #   5. For each own property key P of O such that Type(P) is String and P is not an integer index, in
+        #      ascending chronological order of property creation, do
+        #       a. Add P as the last element of keys.
+        #   6. For each own property key P of O such that Type(P) is Symbol, in ascending chronological order of
+        #      property creation, do
+        #       a. Add P as the last element of keys.
+        #   7. Return keys.
+        return list(
+            chain(
+                (ToString(i) for i in range(self.ArrayLength)),
+                (key for key in self.properties.keys() if isString(key) and not isIntegerIndex(key)),
+                (key for key in self.properties.keys() if isSymbol(key)),
+            )
+        )
+
+
+# 9.4.5.7 IntegerIndexedObjectCreate ( prototype, internalSlotsList )
+def IntegerIndexedObjectCreate(prototype, internalSlotsList):
+    # The abstract operation IntegerIndexedObjectCreate with arguments prototype and internalSlotsList is used to
+    # specify the creation of new Integer-Indexed exotic objects. The argument internalSlotsList is a List of the
+    # names of additional internal slots that must be defined as part of the object. IntegerIndexedObjectCreate
+    # performs the following steps:
+    #   1. Assert: internalSlotsList contains the names [[ViewedArrayBuffer]], [[ArrayLength]], [[ByteOffset]], and
+    #      [[TypedArrayName]].
+    #   2. Let A be a newly created object with an internal slot for each name in internalSlotsList.
+    #   3. Set A's essential internal methods to the default ordinary object definitions specified in 9.1.
+    #   4. Set A.[[GetOwnProperty]] as specified in 9.4.5.1.
+    #   5. Set A.[[HasProperty]] as specified in 9.4.5.2.
+    #   6. Set A.[[DefineOwnProperty]] as specified in 9.4.5.3.
+    #   7. Set A.[[Get]] as specified in 9.4.5.4.
+    #   8. Set A.[[Set]] as specified in 9.4.5.5.
+    #   9. Set A.[[OwnPropertyKeys]] as specified in 9.4.5.6.
+    #   10. Set A.[[Prototype]] to prototype.
+    #   11. Set A.[[Extensible]] to true.
+    #   12. Return A.
+    required_slots = ("ViewedArrayBuffer", "ArrayLength", "ByteOffset", "TypedArrayName")
+    assert all(slot in internalSlotsList for slot in required_slots)
+    A = IntegerIndexedObject()
+    for slot in (slot for slot in internalSlotsList if slot not in required_slots):
+        setattr(A, slot, None)
+    A.Prototype = prototype
+    A.Extensible = True
+    return A
+
+
+# 9.4.5.8 IntegerIndexedElementGet ( O, index )
+def IntegerIndexedElementGet(O, index):
+    # The abstract operation IntegerIndexedElementGet with arguments O and index performs the following steps:
+    #   1. Assert: Type(index) is Number.
+    #   2. Assert: O is an Object that has [[ViewedArrayBuffer]], [[ArrayLength]], [[ByteOffset]], and
+    #      [[TypedArrayName]] internal slots.
+    #   3. Let buffer be O.[[ViewedArrayBuffer]].
+    #   4. If IsDetachedBuffer(buffer) is true, throw a TypeError exception.
+    #   5. If IsInteger(index) is false, return undefined.
+    #   6. If index = -0, return undefined.
+    #   7. Let length be O.[[ArrayLength]].
+    #   8. If index < 0 or index ≥ length, return undefined.
+    #   9. Let offset be O.[[ByteOffset]].
+    #   10. Let arrayTypeName be the String value of O.[[TypedArrayName]].
+    #   11. Let elementSize be the Number value of the Element Size value specified in Table 59 for arrayTypeName.
+    #   12. Let indexedPosition be (index × elementSize) + offset.
+    #   13. Let elementType be the String value of the Element Type value in Table 59 for arrayTypeName.
+    #   14. Return GetValueFromBuffer(buffer, indexedPosition, elementType, true, "Unordered").
+    assert isNumber(index)
+    assert isObject(O) and all(
+        hasattr(O, name) for name in ("ViewedArrayBuffer", "ArrayLength", "ByteOffset", "TypedArrayName")
+    )
+    buffer = O.ViewedArrayBuffer
+    if IsDetachedBuffer(buffer):
+        raise ESTypeError("Can't get from a detached buffer")
+    if not IsInteger(index):
+        return None
+    if index == 0 and math.copysign(1, index) == -1:
+        return None
+    if index < 0 or index >= self.ArrayLength:
+        return None
+    offset = self.ByteOffset
+    arrayTypeName = self.TypedArrayName
+    elementSize = TA_ElementSize[arrayTypeName]
+    indexedPosition = index * elementSize + offset
+    elementType = TA_ElementType[arrayTypeName]
+    return GetValueFromBuffer(buffer, indexedPosition, elementType, True, "Unordered")
+
+
+# 9.4.5.9 IntegerIndexedElementSet ( O, index, value )
+def IntegerIndexedElementSet(O, index, value):
+    # The abstract operation IntegerIndexedElementSet with arguments O, index, and value performs the following
+    # steps:
+    #   1. Assert: Type(index) is Number.
+    #   2. Assert: O is an Object that has [[ViewedArrayBuffer]], [[ArrayLength]], [[ByteOffset]], and
+    #      [[TypedArrayName]] internal slots.
+    #   3. Let numValue be ? ToNumber(value).
+    #   4. Let buffer be O.[[ViewedArrayBuffer]].
+    #   5. If IsDetachedBuffer(buffer) is true, throw a TypeError exception.
+    #   6. If IsInteger(index) is false, return false.
+    #   7. If index = -0, return false.
+    #   8. Let length be O.[[ArrayLength]].
+    #   9. If index < 0 or index ≥ length, return false.
+    #   10. Let offset be O.[[ByteOffset]].
+    #   11. Let arrayTypeName be the String value of O.[[TypedArrayName]].
+    #   12. Let elementSize be the Number value of the Element Size value specified in Table 59 for arrayTypeName.
+    #   13. Let indexedPosition be (index × elementSize) + offset.
+    #   14. Let elementType be the String value of the Element Type value in Table 59 for arrayTypeName.
+    #   15. Perform SetValueInBuffer(buffer, indexedPosition, elementType, numValue, true, "Unordered").
+    #   16. Return true.
+    assert isNumber(index)
+    assert isObject(O) and all(
+        hasattr(O, name) for name in ("ViewedArrayBuffer", "ArrayLength", "ByteOffset", "TypedArrayName")
+    )
+    numValue = ToNumber(value)
+    buffer = O.ViewedArrayBuffer
+    if IsDetachedBuffer(buffer):
+        raise ESTypeError("Can't Set to a detached buffer")
+    if not IsInteger(index):
+        return False
+    if index == 0 and math.copysign(1, index) == -1:
+        return False
+    if index < 0 or index >= self.ArrayLength:
+        return False
+    offset = O.byteOffset
+    arrayTypeName = O.TypedArrayName
+    elementSize = TA_ElementSize[arrayTypeName]
+    indexedPosition = index * elementSize + offset
+    elementTYpe = TA_ElementType[arrayTypeName]
+    SetValueInBuffer(buffer, indexedPosition, elementType, numValue, True, "Unordered")
+    return True
 
 
 # ------------------------------------ 𝟗.𝟒.𝟕 𝑰𝒎𝒎𝒖𝒕𝒂𝒃𝒍𝒆 𝑷𝒓𝒐𝒕𝒐𝒕𝒚𝒑𝒆 𝑬𝒙𝒐𝒕𝒊𝒄 𝑶𝒃𝒋𝒆𝒄𝒕𝒔 ------------------------------------
