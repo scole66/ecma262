@@ -32484,7 +32484,13 @@ String_raw.name = "raw"
 def CreateStringPrototype(realm):
     string_prototype = StringCreate("", realm.intrinsics["%ObjectPrototype%"])
     BindBuiltinFunctions(
-        realm, string_prototype, [("toString", StringPrototype_toString, 0), ("valueOf", StringPrototype_valueOf, 0)]
+        realm,
+        string_prototype,
+        (
+            ("toString", StringPrototype_toString, None),
+            ("valueOf", StringPrototype_valueOf, None),
+            ("slice", StringPrototype_slice, None),
+        ),
     )
     return string_prototype
 
@@ -32505,6 +32511,40 @@ def thisStringValue(value):
     raise ESTypeError("Not a string value")
 
 
+# 21.1.3.18 String.prototype.slice ( start, end )
+def StringPrototype_slice(this_value, new_target, start=None, end=None, *_):
+    # The slice method takes two arguments, start and end, and returns a substring of the result of converting this
+    # object to a String, starting from index start and running to, but not including, index end (or through the end
+    # of the String if end is undefined). If start is negative, it is treated as sourceLength + start where
+    # sourceLength is the length of the String. If end is negative, it is treated as sourceLength + end where
+    # sourceLength is the length of the String. The result is a String value, not a String object. The following
+    # steps are taken:
+    #   1. Let O be ? RequireObjectCoercible(this value).
+    #   2. Let S be ? ToString(O).
+    #   3. Let len be the length of S.
+    #   4. Let intStart be ? ToInteger(start).
+    #   5. If end is undefined, let intEnd be len; else let intEnd be ? ToInteger(end).
+    #   6. If intStart < 0, let from be max(len + intStart, 0); otherwise let from be min(intStart, len).
+    #   7. If intEnd < 0, let to be max(len + intEnd, 0); otherwise let to be min(intEnd, len).
+    #   8. Let span be max(to - from, 0).
+    #   9. Return the String value containing span consecutive code units from S beginning with the code unit at
+    #      index from.
+    # NOTE  | The slice function is intentionally generic; it does not require that its this value be a String
+    #       | object. Therefore it can be transferred to other kinds of objects for use as a method.
+    O = RequireObjectCoercible(this_value)
+    S = ToString(O)
+    length = len(S)
+    intStart = ToInteger(start)
+    intEnd = length if end is None else ToInteger(end)
+    from_ = int(max(length + intStart, 0) if intStart < 0 else min(intStart, length))
+    to = int(max(length + intEnd, 0) if intEnd < 0 else min(intEnd, length))
+    span = max(to - from_, 0)
+    return S[from_ : from_ + span]
+
+
+StringPrototype_slice.length = 2
+StringPrototype_slice.name = "slice"
+
 # ------------------------------------ 𝟐𝟏.𝟏.𝟑.𝟐𝟓 𝑺𝒕𝒓𝒊𝒏𝒈.𝒑𝒓𝒐𝒕𝒐𝒕𝒚𝒑𝒆.𝒕𝒐𝑺𝒕𝒓𝒊𝒏𝒈 ( ) ------------------------------------
 # 21.1.3.25 String.prototype.toString ( )
 def StringPrototype_toString(this_value, new_target, *_):
@@ -32516,6 +32556,9 @@ def StringPrototype_toString(this_value, new_target, *_):
     return thisStringValue(this_value)
 
 
+StringPrototype_toString.length = 0
+StringPrototype_toString.name = "toString"
+
 # ------------------------------------ 𝟐𝟏.𝟏.𝟑.𝟐𝟖 𝑺𝒕𝒓𝒊𝒏𝒈.𝒑𝒓𝒐𝒕𝒐𝒕𝒚𝒑𝒆.𝒗𝒂𝒍𝒖𝒆𝑶𝒇 ( ) ------------------------------------
 # 21.1.3.28 String.prototype.valueOf ( )
 def StringPrototype_valueOf(this_value, new_target, *_):
@@ -32523,6 +32566,10 @@ def StringPrototype_valueOf(this_value, new_target, *_):
     #
     # 1. Return ? thisStringValue(this value).
     return thisStringValue(this_value)
+
+
+StringPrototype_valueOf.length = 0
+StringPrototype_valueOf.name = "valueOf"
 
 
 def StringFixups(realm):
