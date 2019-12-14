@@ -11882,9 +11882,9 @@ def EvaluateCall(func, ref, arguments, tailPosition):
         thisValue = None
     argList = arguments.ArgumentListEvaluation()
     if not isObject(func):
-        raise ESTypeError(f"Not a function: {ToString(func)}")
+        raise ESTypeError(f"Not a function: {ref.name}")
     if not IsCallable(func):
-        raise ESTypeError(f"Not a function: {ToString(func)}")
+        raise ESTypeError(f"Not a function: {ref.name}")
     if tailPosition:
         PrepareForTailCall()
     result = Call(func, thisValue, argList)
@@ -32327,7 +32327,7 @@ def CreateStringConstructor(realm):
 
 
 # ------------------------------------ 𝟐𝟏.𝟏.𝟏.𝟏 𝑺𝒕𝒓𝒊𝒏𝒈 ( 𝒗𝒂𝒍𝒖𝒆 ) ------------------------------------
-def StringFunction(this_value, new_target, value=MISSING):
+def StringFunction(this_value, new_target, value=MISSING, *_):
     # When String is called with argument value, the following steps are taken:
     #
     # 1. If no arguments were passed to this function invocation, let s be "".
@@ -34001,7 +34001,8 @@ def CreateArrayPrototype(realm):
         proto,
         [
             ("forEach", ArrayPrototype_forEach, None),
-            ("join", ArrayPrototype_join, 1),
+            ("join", ArrayPrototype_join, None),
+            ("map", ArrayPrototype_map, None),
             ("push", ArrayPrototype_push, None),
             ("slice", ArrayPrototype_slice, None),
             ("toString", ArrayPrototype_toString, 0),
@@ -34092,6 +34093,65 @@ def ArrayPrototype_join(this_value, new_target, separator=",", *_):
         for element in (Get(O, ToString(k)) for k in range(length))
     )
 
+
+ArrayPrototype_join.length = 1
+ArrayPrototype_join.name = "join"
+
+# 22.1.3.18 Array.prototype.map ( callbackfn [ , thisArg ] )
+def ArrayPrototype_map(this_value, new_target, callbackfn=None, T=None, *_):
+    # NOTE 1    | callbackfn should be a function that accepts three arguments. map calls callbackfn once for each
+    #           | element in the array, in ascending order, and constructs a new Array from the results. callbackfn
+    #           | is called only for elements of the array which actually exist; it is not called for missing
+    #           | elements of the array.
+    #           |
+    #           | If a thisArg parameter is provided, it will be used as the this value for each invocation of
+    #           | callbackfn. If it is not provided, undefined is used instead.
+    #           |
+    #           | callbackfn is called with three arguments: the value of the element, the index of the element, and
+    #           | the object being traversed.
+    #           |
+    #           | map does not directly mutate the object on which it is called but the object may be mutated by the
+    #           | calls to callbackfn.
+    #           |
+    #           | The range of elements processed by map is set before the first call to callbackfn. Elements which
+    #           | are appended to the array after the call to map begins will not be visited by callbackfn. If
+    #           | existing elements of the array are changed, their value as passed to callbackfn will be the value
+    #           | at the time map visits them; elements that are deleted after the call to map begins and before
+    #           | being visited are not visited.
+    #
+    # When the map method is called with one or two arguments, the following steps are taken:
+    #   1. Let O be ? ToObject(this value).
+    #   2. Let len be ? ToLength(? Get(O, "length")).
+    #   3. If IsCallable(callbackfn) is false, throw a TypeError exception.
+    #   4. If thisArg is present, let T be thisArg; else let T be undefined.
+    #   5. Let A be ? ArraySpeciesCreate(O, len).
+    #   6. Let k be 0.
+    #   7. Repeat, while k < len
+    #       a. Let Pk be ! ToString(k).
+    #       b. Let kPresent be ? HasProperty(O, Pk).
+    #       c. If kPresent is true, then
+    #           i. Let kValue be ? Get(O, Pk).
+    #           ii. Let mappedValue be ? Call(callbackfn, T, « kValue, k, O »).
+    #           iii. Perform ? CreateDataPropertyOrThrow(A, Pk, mappedValue).
+    #       d. Increase k by 1.
+    #   8. Return A.
+    # NOTE 2    | The map function is intentionally generic; it does not require that its this value be an Array
+    #           | object. Therefore it can be transferred to other kinds of objects for use as a method.
+    O = ToObject(this_value)
+    length = ToLength(Get(O, "length"))
+    if not IsCallable(callbackfn):
+        raise ESTypeError("In Array.prototype.map, callback must be a function")
+    A = ArraySpeciesCreate(O, length)
+    for k in range(length):
+        Pk = ToString(k)
+        if HasProperty(O, Pk):
+            mappedValue = Call(callbackfn, T, [Get(O, Pk), k, O])
+            CreateDataPropertyOrThrow(A, Pk, mappedValue)
+    return A
+
+
+ArrayPrototype_map.length = 1
+ArrayPrototype_map.name = "map"
 
 # 22.1.3.20 Array.prototype.push ( ...items )
 def ArrayPrototype_push(this_value, new_target, *items):
