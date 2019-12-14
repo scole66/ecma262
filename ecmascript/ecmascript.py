@@ -32494,9 +32494,10 @@ def CreateStringPrototype(realm):
         realm,
         string_prototype,
         (
+            ("indexOf", StringPrototype_indexOf, None),
+            ("slice", StringPrototype_slice, None),
             ("toString", StringPrototype_toString, None),
             ("valueOf", StringPrototype_valueOf, None),
-            ("slice", StringPrototype_slice, None),
         ),
     )
     return string_prototype
@@ -32517,6 +32518,41 @@ def thisStringValue(value):
         return value.StringData
     raise ESTypeError("Not a string value")
 
+
+# 21.1.3.8 String.prototype.indexOf ( searchString [ , position ] )
+def StringPrototype_indexOf(this_value, new_target, searchString=None, position=None, *_):
+    # NOTE 1    | If searchString appears as a substring of the result of converting this object to a String, at one
+    #           | or more indices that are greater than or equal to position, then the smallest such index is
+    #           | returned; otherwise, -1 is returned. If position is undefined, 0 is assumed, so as to search all
+    #           | of the String.
+    #
+    # The indexOf method takes two arguments, searchString and position, and performs the following steps:
+    #   1. Let O be ? RequireObjectCoercible(this value).
+    #   2. Let S be ? ToString(O).
+    #   3. Let searchStr be ? ToString(searchString).
+    #   4. Let pos be ? ToInteger(position).
+    #   5. Assert: If position is undefined, then pos is 0.
+    #   6. Let len be the length of S.
+    #   7. Let start be min(max(pos, 0), len).
+    #   8. Let searchLen be the length of searchStr.
+    #   9. Return the smallest possible integer k not smaller than start such that k + searchLen is not greater than
+    #      len, and for all nonnegative integers j less than searchLen, the code unit at index k + j within S is the
+    #      same as the code unit at index j within searchStr; but if there is no such integer k, return the value
+    #      -1.
+    # NOTE 2    | The indexOf function is intentionally generic; it does not require that its this value be a String
+    #           | object. Therefore, it can be transferred to other kinds of objects for use as a method.
+    S = ToString(RequireObjectCoercible(this_value))
+    searchStr = ToString(searchString)
+    pos = ToInteger(position)
+    start = min(max(pos, 0), len(S))
+    try:
+        return S.index(searchStr, start)
+    except ValueError:
+        return -1
+
+
+StringPrototype_indexOf.length = 1
+StringPrototype_indexOf.name = "indexOf"
 
 # 21.1.3.18 String.prototype.slice ( start, end )
 def StringPrototype_slice(this_value, new_target, start=None, end=None, *_):
