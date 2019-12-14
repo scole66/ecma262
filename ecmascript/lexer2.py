@@ -3,6 +3,7 @@ from enum import Enum, unique, auto
 from collections import namedtuple
 import regex  # type: ignore
 from typing import Generator
+from functools import lru_cache
 
 Span = namedtuple("Span", ["start", "after"])
 
@@ -135,7 +136,6 @@ class LexerCore:
         Make a new Lexer. The only info that needs providing is the source text. It should be encoded in utf-16.
         """
         self.src = source_text
-        self.cache = {}
         self.syntax_error_ctor = syntax_error_ctor
 
     def _string_value(self, chars):
@@ -348,6 +348,7 @@ class LexerCore:
             done = True
         return self.skippable(after=pos, newlines=newlines)
 
+    @lru_cache
     def token(self, pos, goal):
         """
         Given a position within the source text, and the lexical goal, this returns the next token.
@@ -389,14 +390,6 @@ class LexerCore:
         newline here]", which is important for things like "return 'my multiline string'" because newlines are not
         allowed between return keywords the returned expression.
         """
-        cached = self.cache.get((pos, goal), None)
-        if cached:
-            return cached
-        val = self._token(pos, goal)
-        self.cache[(pos, goal)] = val
-        return val
-
-    def _token(self, pos, goal):
         newlines = []
         while 1:
             pos, nls = self.process_skippable(pos)
@@ -667,6 +660,9 @@ class Lexer(LexerCore):
         self.pos = where
 
     def peek_token(self, count=1, goal=LexerCore.InputElementRegExp):
+        if count == 1:
+            return self.token(self.pos, goal)
+
         def pt(count, pos):
             while count > 0:
                 t = self.token(pos, goal)
@@ -675,8 +671,6 @@ class Lexer(LexerCore):
                 yield t
                 count -= 1
 
-        if count == 1:
-            return next(pt(1, self.pos))
         return list(pt(count, self.pos))
 
     def next_token(self, goal=LexerCore.InputElementRegExp):
