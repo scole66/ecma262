@@ -33949,6 +33949,7 @@ def CreateArrayPrototype(realm):
             ("forEach", ArrayPrototype_forEach, None),
             ("join", ArrayPrototype_join, 1),
             ("push", ArrayPrototype_push, None),
+            ("slice", ArrayPrototype_slice, None),
             ("toString", ArrayPrototype_toString, 0),
             ("values", ArrayPrototype_values, 0),
         ],
@@ -34073,6 +34074,73 @@ def ArrayPrototype_push(this_value, new_target, *items):
 ArrayPrototype_push.length = 1
 ArrayPrototype_push.name = "push"
 
+# 22.1.3.25 Array.prototype.slice ( start, end )
+def ArrayPrototype_slice(this_value, new_target, start=None, end=None, *_):
+    # NOTE 1    | The slice method takes two arguments, start and end, and returns an array containing the elements
+    #           | of the array from element start up to, but not including, element end (or through the end of the
+    #           | array if end is undefined). If start is negative, it is treated as length + start where length is
+    #           | the length of the array. If end is negative, it is treated as length + end where length is the
+    #           | length of the array.
+    #
+    # The following steps are taken:
+    #   1. Let O be ? ToObject(this value).
+    #   2. Let len be ? ToLength(? Get(O, "length")).
+    #   3. Let relativeStart be ? ToInteger(start).
+    #   4. If relativeStart < 0, let k be max((len + relativeStart), 0); else let k be min(relativeStart, len).
+    #   5. If end is undefined, let relativeEnd be len; else let relativeEnd be ? ToInteger(end).
+    #   6. If relativeEnd < 0, let final be max((len + relativeEnd), 0); else let final be min(relativeEnd, len).
+    #   7. Let count be max(final - k, 0).
+    #   8. Let A be ? ArraySpeciesCreate(O, count).
+    #   9. Let n be 0.
+    #   10. Repeat, while k < final
+    #       a. Let Pk be ! ToString(k).
+    #       b. Let kPresent be ? HasProperty(O, Pk).
+    #       c. If kPresent is true, then
+    #           i. Let kValue be ? Get(O, Pk).
+    #           ii. Perform ? CreateDataPropertyOrThrow(A, ! ToString(n), kValue).
+    #       d. Increase k by 1.
+    #       e. Increase n by 1.
+    #   11. Perform ? Set(A, "length", n, true).
+    #   12. Return A.
+    # NOTE 2    | The explicit setting of the "length" property of the result Array in step 11 was necessary in
+    #           | previous editions of ECMAScript to ensure that its length was correct in situations where the
+    #           | trailing elements of the result Array were not present. Setting "length" became unnecessary
+    #           | starting in ES2015 when the result Array was initialized to its proper length rather than an empty
+    #           | Array but is carried forward to preserve backward compatibility.
+    # NOTE 3    | The slice function is intentionally generic; it does not require that its this value be an Array
+    #           | object. Therefore it can be transferred to other kinds of objects for use as a method.
+    O = ToObject(this_value)
+    length = ToLength(Get(O, "length"))
+    relativeStart = ToInteger(start)
+    if relativeStart < 0:
+        k = max(length + relativeStart, 0)
+    else:
+        k = min(relativeStart, length)
+    if end is None:
+        relativeEnd = length
+    else:
+        relativeEnd = ToInteger(end)
+    if relativeEnd < 0:
+        final = max(length + relativeEnd, 0)
+    else:
+        final = min(relativeEnd, length)
+    count = max(final - k, 0)
+    A = ArraySpeciesCreate(O, count)
+    n = 0
+    while k < final:
+        Pk = ToString(k)
+        kPresent = HasProperty(O, Pk)
+        if kPresent:
+            kValue = Get(O, Pk)
+            CreateDataPropertyOrThrow(A, ToString(n), kValue)
+        k += 1
+        n += 1
+    Set(A, "length", n, True)
+    return A
+
+
+ArrayPrototype_slice.length = 2
+ArrayPrototype_slice.name = "slice"
 
 # 22.1.3.30 Array.prototype.toString ( )
 def ArrayPrototype_toString(this_value, new_target, *_):
