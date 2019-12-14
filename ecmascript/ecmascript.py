@@ -4129,6 +4129,13 @@ def CreateIntrinsics(realm_rec):
     intrinsics["%isFinite%"] = CreateAnnotatedFunctionObject(realm_rec, global_isFinite)
     intrinsics["%isNaN%"] = CreateAnnotatedFunctionObject(realm_rec, global_isNaN)
     intrinsics["%parseInt%"] = CreateAnnotatedFunctionObject(realm_rec, global_parseInt)
+    intrinsics["%TypedArray%"] = CreateTypedArrayIntrinsicObject(realm_rec)
+    intrinsics["%TypedArrayPrototype%"] = CreateTypedArrayPrototype(realm_rec)
+    TypedArrayFixups(realm_rec)
+    for name in TA_ElementSize:
+        intrinsics[f"%{name}%"] = CreateSpecificTypedArrayConstructor(realm_rec, name)
+        intrinsics[f"%{name}Prototype%"] = CreateSpecificTypedArrayPrototype(realm_rec, name)
+        SpecificTypedArrayFixups(realm_rec, name)
 
     # 14. Return intrinsics.
     return intrinsics
@@ -7502,13 +7509,13 @@ def IntegerIndexedElementGet(O, index):
         return None
     if index == 0 and math.copysign(1, index) == -1:
         return None
-    if index < 0 or index >= self.ArrayLength:
+    if index < 0 or index >= O.ArrayLength:
         return None
-    offset = self.ByteOffset
-    arrayTypeName = self.TypedArrayName
+    offset = O.ByteOffset
+    arrayTypeName = O.TypedArrayName
     elementSize = TA_ElementSize[arrayTypeName]
     indexedPosition = index * elementSize + offset
-    elementType = TA_ElementType[arrayTypeName]
+    elementType = TA_ElementTypeName[arrayTypeName]
     return GetValueFromBuffer(buffer, indexedPosition, elementType, True, "Unordered")
 
 
@@ -7545,13 +7552,13 @@ def IntegerIndexedElementSet(O, index, value):
         return False
     if index == 0 and math.copysign(1, index) == -1:
         return False
-    if index < 0 or index >= self.ArrayLength:
+    if index < 0 or index >= O.ArrayLength:
         return False
-    offset = O.byteOffset
+    offset = O.ByteOffset
     arrayTypeName = O.TypedArrayName
     elementSize = TA_ElementSize[arrayTypeName]
     indexedPosition = index * elementSize + offset
-    elementTYpe = TA_ElementType[arrayTypeName]
+    elementType = TA_ElementTypeName[arrayTypeName]
     SetValueInBuffer(buffer, indexedPosition, elementType, numValue, True, "Unordered")
     return True
 
@@ -28082,8 +28089,8 @@ global_eval.length = 1
 global_eval.name = "eval"
 
 
-def CreateAnnotatedFunctionObject(realm, fn):
-    func = CreateBuiltinFunction(fn, [], realm)
+def CreateAnnotatedFunctionObject(realm, fn, slots=[]):
+    func = CreateBuiltinFunction(fn, slots, realm)
     DefinePropertyOrThrow(
         func, "length", PropertyDescriptor(value=fn.length, writable=False, enumerable=False, configurable=True)
     )
@@ -34334,6 +34341,1203 @@ def ArrayIteratorPrototype_next(this_value, new_target, *_):
     return CreateIterResultObject(result, False)
 
 
+#### 22.2 TypedArray Objects #######################################################################################
+#
+#  .d8888b.   .d8888b.       .d8888b.
+# d88P  Y88b d88P  Y88b     d88P  Y88b
+#        888        888            888
+#      .d88P      .d88P          .d88P
+#  .od888P"   .od888P"       .od888P"
+# d88P"      d88P"          d88P"
+# 888"       888"       d8b 888"
+# 888888888  888888888  Y8P 888888888
+#
+#
+#
+#  88888888888                                 888        d8888
+#      888                                     888       d88888
+#      888                                     888      d88P888
+#      888     888  888 88888b.   .d88b.   .d88888     d88P 888 888d888 888d888  8888b.  888  888
+#      888     888  888 888 "88b d8P  Y8b d88" 888    d88P  888 888P"   888P"       "88b 888  888
+#      888     888  888 888  888 88888888 888  888   d88P   888 888     888     .d888888 888  888
+#      888     Y88b 888 888 d88P Y8b.     Y88b 888  d8888888888 888     888     888  888 Y88b 888
+#      888      "Y88888 88888P"   "Y8888   "Y88888 d88P     888 888     888     "Y888888  "Y88888
+#                   888 888                                                                   888
+#              Y8b d88P 888                                                              Y8b d88P
+#               "Y88P"  888                                                               "Y88P"
+#
+#  .d88888b.  888         d8b                   888
+# d88P" "Y88b 888         Y8P                   888
+# 888     888 888                               888
+# 888     888 88888b.    8888  .d88b.   .d8888b 888888 .d8888b
+# 888     888 888 "88b   "888 d8P  Y8b d88P"    888    88K
+# 888     888 888  888    888 88888888 888      888    "Y8888b.
+# Y88b. .d88P 888 d88P    888 Y8b.     Y88b.    Y88b.       X88
+#  "Y88888P"  88888P"     888  "Y8888   "Y8888P  "Y888  88888P'
+#                         888
+#                        d88P
+#                      888P"
+#
+####################################################################################################################
+# 22.2 TypedArray Objects
+# 22.2.1 The %TypedArray% Intrinsic Object
+# 22.2.1.1 %TypedArray% ( )
+# 22.2.2 Properties of the %TypedArray% Intrinsic Object
+# 22.2.2.1 %TypedArray%.from ( source [ , mapfn [ , thisArg ] ] )
+# 22.2.2.1.1 RS: IterableToList ( items, method )
+# 22.2.2.2 %TypedArray%.of ( ...items )
+# 22.2.2.3 %TypedArray%.prototype
+# 22.2.2.4 get %TypedArray% [ @@species ]
+# 22.2.3 Properties of the %TypedArrayPrototype% Object
+# 22.2.3.1 get %TypedArray%.prototype.buffer
+# 22.2.3.2 get %TypedArray%.prototype.byteLength
+# 22.2.3.3 get %TypedArray%.prototype.byteOffset
+# 22.2.3.4 %TypedArray%.prototype.constructor
+# 22.2.3.5 %TypedArray%.prototype.copyWithin ( target, start [ , end ] )
+# 22.2.3.5.1 RS: ValidateTypedArray ( O )
+# 22.2.3.6 %TypedArray%.prototype.entries ( )
+# 22.2.3.7 %TypedArray%.prototype.every ( callbackfn [ , thisArg ] )
+# 22.2.3.8 %TypedArray%.prototype.fill ( value [ , start [ , end ] ] )
+# 22.2.3.9 %TypedArray%.prototype.filter ( callbackfn [ , thisArg ] )
+# 22.2.3.10 %TypedArray%.prototype.find ( predicate [ , thisArg ] )
+# 22.2.3.11 %TypedArray%.prototype.findIndex ( predicate [ , thisArg ] )
+# 22.2.3.12 %TypedArray%.prototype.forEach ( callbackfn [ , thisArg ] )
+# 22.2.3.13 %TypedArray%.prototype.includes ( searchElement [ , fromIndex ] )
+# 22.2.3.14 %TypedArray%.prototype.indexOf ( searchElement [ , fromIndex ] )
+# 22.2.3.15 %TypedArray%.prototype.join ( separator )
+# 22.2.3.16 %TypedArray%.prototype.keys ( )
+# 22.2.3.17 %TypedArray%.prototype.lastIndexOf ( searchElement [ , fromIndex ] )
+# 22.2.3.18 get %TypedArray%.prototype.length
+# 22.2.3.19 %TypedArray%.prototype.map ( callbackfn [ , thisArg ] )
+# 22.2.3.20 %TypedArray%.prototype.reduce ( callbackfn [ , initialValue ] )
+# 22.2.3.21 %TypedArray%.prototype.reduceRight ( callbackfn [ , initialValue ] )
+# 22.2.3.22 %TypedArray%.prototype.reverse ( )
+# 22.2.3.23 %TypedArray%.prototype.set ( overloaded [ , offset ] )
+# 22.2.3.23.1 %TypedArray%.prototype.set ( array [ , offset ] )
+# 22.2.3.23.2 %TypedArray%.prototype.set ( typedArray [ , offset ] )
+# 22.2.3.24 %TypedArray%.prototype.slice ( start, end )
+# 22.2.3.25 %TypedArray%.prototype.some ( callbackfn [ , thisArg ] )
+# 22.2.3.26 %TypedArray%.prototype.sort ( comparefn )
+# 22.2.3.27 %TypedArray%.prototype.subarray ( begin, end )
+# 22.2.3.28 %TypedArray%.prototype.toLocaleString ( [ reserved1 [ , reserved2 ] ] )
+# 22.2.3.29 %TypedArray%.prototype.toString ( )
+# 22.2.3.30 %TypedArray%.prototype.values ( )
+# 22.2.3.31 %TypedArray%.prototype [ @@iterator ] ( )
+# 22.2.3.32 get %TypedArray%.prototype [ @@toStringTag ]
+# 22.2.4 The TypedArray Constructors
+# 22.2.4.1 TypedArray ( )
+# 22.2.4.2 TypedArray ( length )
+# 22.2.4.2.1 RS: AllocateTypedArray ( constructorName, newTarget, defaultProto [ , length ] )
+# 22.2.4.2.2 RS: AllocateTypedArrayBuffer ( O, length )
+# 22.2.4.3 TypedArray ( typedArray )
+# 22.2.4.4 TypedArray ( object )
+# 22.2.4.5 TypedArray ( buffer [ , byteOffset [ , length ] ] )
+# 22.2.4.6 TypedArrayCreate ( constructor, argumentList )
+# 22.2.4.7 TypedArraySpeciesCreate ( exemplar, argumentList )
+# 22.2.5 Properties of the TypedArray Constructors
+# 22.2.5.1 TypedArray.BYTES_PER_ELEMENT
+# 22.2.5.2 TypedArray.prototype
+# 22.2.6 Properties of the TypedArray Prototype Objects
+# 22.2.6.1 TypedArray.prototype.BYTES_PER_ELEMENT
+# 22.2.6.2 TypedArray.prototype.constructor
+# 22.2.7 Properties of TypedArray Instances
+####################################################################################################################
+
+# TypedArray objects present an array-like view of an underlying binary data buffer (24.1). Each element of a
+# TypedArray instance has the same underlying binary scalar data type. There is a distinct TypedArray constructor,
+# listed in Table 56, for each of the nine supported element types. Each constructor in Table 56 has a corresponding
+# distinct prototype object.
+
+# Table 59: The TypedArray Constructors
+# +---------------------+--------------+---------+--------------+------------------------+--------------------------
+# | Constructor Name    | Element Type | Element | Conversion   | Description            | Equivalent C Type
+# |   and Intrinsic     |              | Size    | Operation    |
+# +---------------------+--------------+---------+--------------+------------------------+--------------------------
+# | Int8Array           | Int8         | 1       | ToInt8       | 8-bit 2's complement   | signed char
+# | %Int8Array%         |              |         |              | signed integer
+# +---------------------+--------------+---------+--------------+------------------------+--------------------------
+# | Uint8Array          | Uint8        | 1       | ToUint8      | 8-bit unsigned integer | unsigned char
+# | %Uint8Array%        |              |         |              |                        |
+# +---------------------+--------------+---------+--------------+------------------------+--------------------------
+# | Uint8ClampedArray   | Uint8C       | 1       | ToUint8Clamp | 8-bit unsigned integer | unsigned char
+# | %Uint8ClampedArray% |              |         |              | (clamped conversion)   |
+# +---------------------+--------------+---------+--------------+------------------------+--------------------------
+# | Int16Array          | Int16        | 2       | ToInt16      | 16-bit 2's complement  | short
+# | %Int16Array%        |              |         |              | signed integer         |
+# +---------------------+--------------+---------+--------------+------------------------+--------------------------
+# | Uint16Array         | Uint16       | 2       | ToUint16     | 16-bit unsigned        | unsigned short
+# | %Uint16Array%       |              |         |              | integer                |
+# +---------------------+--------------+---------+--------------+------------------------+--------------------------
+# | Int32Array          | Int32        | 4       | ToInt32      | 32-bit 2's complement  | int
+# | %Int32Array%        |              |         |              | signed integer         |
+# +---------------------+--------------+---------+--------------+------------------------+--------------------------
+# | Uint32Array         | Uint32       | 4       | ToUint32     | 32-bit unsigned        | unsigned int
+# | %Uint32Array%       |              |         |              | integer                |
+# +---------------------+--------------+---------+--------------+------------------------+--------------------------
+# | Float32Array        | Float32      | 4       |              | 32-bit IEEE floating   | float
+# | %Float32Array%      |              |         |              | point                  |
+# +---------------------+--------------+---------+--------------+------------------------+--------------------------
+# | Float64Array        | Float64      | 8       |              | 64-bit IEEE floating   | double
+# | %Float64Array%      |              |         |              | point                  |
+# +---------------------+--------------+---------+--------------+------------------------+--------------------------
+TA_ElementSize = {
+    "Int8Array": 1,
+    "Uint8Array": 1,
+    "Uint8ClampedArray": 1,
+    "Int16Array": 2,
+    "Uint16Array": 2,
+    "Int32Array": 4,
+    "Uint32Array": 4,
+    "Float32Array": 4,
+    "Float64Array": 8,
+}
+TA_ElementTypeName = {
+    "Int8Array": "Int8",
+    "Uint8Array": "Uint8",
+    "Uint8ClampedArray": "Uint8C",
+    "Int16Array": "Int16",
+    "Uint16Array": "Uint16",
+    "Int32Array": "Int32",
+    "Uint32Array": "Uint32",
+    "Float32Array": "Float32",
+    "Float64Array": "Float64",
+}
+
+# In the definitions below, references to 𝑇𝑦𝑝𝑒𝑑𝐴𝑟𝑟𝑎𝑦 should be replaced with the appropriate constructor name from
+# the above table. The phrase “the element size in bytes” refers to the value in the Element Size column of the
+# table in the row corresponding to the constructor. The phrase “element Type” refers to the value in the Element
+# Type column for that row.
+
+# 22.2.1 The %TypedArray% Intrinsic Object
+# The %TypedArray% intrinsic object:
+#
+#   * is a constructor function object that all of the 𝑇𝑦𝑝𝑒𝑑𝐴𝑟𝑟𝑎𝑦 constructor objects inherit from.
+#   * along with its corresponding prototype object, provides common properties that are inherited by all 𝑇𝑦𝑝𝑒𝑑𝐴𝑟𝑟𝑎𝑦
+#     constructors and their instances.
+#   * does not have a global name or appear as a property of the global object.
+#   * acts as the abstract superclass of the various 𝑇𝑦𝑝𝑒𝑑𝐴𝑟𝑟𝑎𝑦 constructors.
+#   * will throw an error when invoked, because it is an abstract class constructor. The 𝑇𝑦𝑝𝑒𝑑𝐴𝑟𝑟𝑎𝑦 constructors do
+#     not perform a super call to it.
+
+
+def CreateTypedArrayIntrinsicObject(realm: Realm):
+    obj = CreateAnnotatedFunctionObject(realm, TypedArrayFunction, ["Construct"])
+    BindBuiltinFunctions(realm, obj, (("from", TypedArray_from, None), ("of", TypedArray_of, None),))
+    BindBuiltinAccessors(realm, obj, ((wks_species, TypedArray_getSpecies, None),))
+    return obj
+
+
+# 22.2.1.1 %TypedArray% ( )
+# The %TypedArray% constructor performs the following steps:
+#   1. Throw a TypeError exception.
+# The "length" property of the %TypedArray% constructor function is 0.
+def TypedArrayFunction(this_value, new_target, *_):
+    raise ESTypeError("Abstract class TypedArray not directly constructable")
+
+
+TypedArrayFunction.name = "TypedArray"
+TypedArrayFunction.length = 0
+
+# 22.2.2 Properties of the %TypedArray% Intrinsic Object
+# The %TypedArray% intrinsic object:
+#   * has a [[Prototype]] internal slot whose value is the intrinsic object %FunctionPrototype%.
+#   * has a name property whose value is "TypedArray".
+#   * has the following properties:
+
+# 22.2.2.1 %TypedArray%.from ( source [ , mapfn [ , thisArg ] ] )
+def TypedArray_from(this_value, new_target, source=None, mapfn=None, thisArg=None, *_):
+    # When the from method is called with argument source, and optional arguments mapfn and thisArg, the following
+    # steps are taken:
+    #   1. Let C be the this value.
+    #   2. If IsConstructor(C) is false, throw a TypeError exception.
+    #   3. If mapfn is present and mapfn is not undefined, then
+    #       a. If IsCallable(mapfn) is false, throw a TypeError exception.
+    #       b. Let mapping be true.
+    #   4. Else, let mapping be false.
+    #   5. If thisArg is present, let T be thisArg; else let T be undefined.
+    #   6. Let usingIterator be ? GetMethod(source, @@iterator).
+    #   7. If usingIterator is not undefined, then
+    #       a. Let values be ? IterableToList(source, usingIterator).
+    #       b. Let len be the number of elements in values.
+    #       c. Let targetObj be ? TypedArrayCreate(C, « len »).
+    #       d. Let k be 0.
+    #       e. Repeat, while k < len
+    #           i. Let Pk be ! ToString(k).
+    #           ii. Let kValue be the first element of values and remove that element from values.
+    #           iii. If mapping is true, then
+    #               1. Let mappedValue be ? Call(mapfn, T, « kValue, k »).
+    #           iv. Else, let mappedValue be kValue.
+    #           v. Perform ? Set(targetObj, Pk, mappedValue, true).
+    #           vi. Increase k by 1.
+    #       f. Assert: values is now an empty List.
+    #       g. Return targetObj.
+    #   8. NOTE: source is not an Iterable so assume it is already an array-like object.
+    #   9. Let arrayLike be ! ToObject(source).
+    #   10. Let len be ? ToLength(? Get(arrayLike, "length")).
+    #   11. Let targetObj be ? TypedArrayCreate(C, « len »).
+    #   12. Let k be 0.
+    #   13. Repeat, while k < len
+    #       a. Let Pk be ! ToString(k).
+    #       b. Let kValue be ? Get(arrayLike, Pk).
+    #       c. If mapping is true, then
+    #           i. Let mappedValue be ? Call(mapfn, T, « kValue, k »).
+    #       d. Else, let mappedValue be kValue.
+    #       e. Perform ? Set(targetObj, Pk, mappedValue, true).
+    #       f. Increase k by 1.
+    #   14. Return targetObj.
+    C = this_value
+    if not IsConstructor(C):
+        raise ESTypeError(f"%TypedArray%.from called with incompatible receiver {ToString(C)}")
+    if mapfn is not None:
+        if not IsCallable(mapfn):
+            raise ESTypeError(f"%TypedArray%.from called with bad mapping function {ToString(mapfn)}")
+        mapping = True
+    else:
+        mapping = False
+    T = thisArg
+    usingIterator = GetMethod(source, wks_iterator)
+    if usingIterator is not None:
+        values = IterableToList(source, usingIterator)
+        targetObj = TypedArrayCreate(C, [len(values)])
+        for k, kValue in enumerate(values):
+            Pk = ToString(k)
+            if mapping:
+                mappedValue = Call(mapfn, T, [kValue, k])
+            else:
+                mappedValue = kValue
+            Set(targetObj, Pk, mappedValue, True)
+        return targetObj
+    arrayLike = ToObject(source)
+    len_ = ToLength(Get(arrayLike, "length"))
+    targetObj = TypedArrayCreate(C, [len_])
+    for k in range(len_):
+        Pk = ToString(k)
+        kValue = Get(arrayLike, Pk)
+        if mapping:
+            mappedValue = Call(mapfn, T, [kValue, k])
+        else:
+            mappedValue = kValue
+        Set(targetObj, Pk, mappedValue, True)
+    return targetObj
+
+
+TypedArray_from.name = "from"
+TypedArray_from.length = 1
+
+# 22.2.2.1.1 Runtime Semantics: IterableToList ( items, method )
+def IterableToList(items, method):
+    # The abstract operation IterableToList performs the following steps:
+    #   1. Let iteratorRecord be ? GetIterator(items, sync, method).
+    #   2. Let values be a new empty List.
+    #   3. Let next be true.
+    #   4. Repeat, while next is not false
+    #       a. Set next to ? IteratorStep(iteratorRecord).
+    #       b. If next is not false, then
+    #           i. Let nextValue be ? IteratorValue(next).
+    #           ii. Append nextValue to the end of the List values.
+    #   5. Return values.
+    iteratorRecord = GetIterator(items, SYNC, method)
+    values = []
+    next_ = True
+    while next_:
+        next_ = IteratorStep(iteratorRecord)
+        if next_:
+            nextValue = IteratorValue(next_)
+            values.append(nextValue)
+    return values
+
+
+# 22.2.2.2 %TypedArray%.of ( ...items )
+def TypedArray_of(this_value, new_target, *items):
+    # When the of method is called with any number of arguments, the following steps are taken:
+    #   1. Let len be the actual number of arguments passed to this function.
+    #   2. Let items be the List of arguments passed to this function.
+    #   3. Let C be the this value.
+    #   4. If IsConstructor(C) is false, throw a TypeError exception.
+    #   5. Let newObj be ? TypedArrayCreate(C, « len »).
+    #   6. Let k be 0.
+    #   7. Repeat, while k < len
+    #       a. Let kValue be items[k].
+    #       b. Let Pk be ! ToString(k).
+    #       c. Perform ? Set(newObj, Pk, kValue, true).
+    #       d. Increase k by 1.
+    #   8. Return newObj.
+    # NOTE  | The items argument is assumed to be a well-formed rest argument value.
+    len_ = len(items)
+    C = this_value
+    if not IsConstructor(C):
+        raise ESTypeError(f"%TypeError%.of called with invalid receiver {ToString(C)}")
+    newObj = TypedArrayCreate(C, [len_])
+    for k, kValue in enumerate(items):
+        Set(newObj, ToString(k), kValue, True)
+    return newObj
+
+
+TypedArray_of.name = "of"
+TypedArray_of.length = 0
+
+# 22.2.2.3 %TypedArray%.prototype
+# The initial value of %TypedArray%.prototype is the %TypedArrayPrototype% intrinsic object.
+# This property has the attributes { [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: false }.
+
+# 22.2.3.4 %TypedArray%.prototype.constructor
+# The initial value of %TypedArray%.prototype.constructor is the %TypedArray% intrinsic object.
+def TypedArrayFixups(realm: Realm) -> None:
+    proto = realm.intrinsics["%TypedArrayPrototype%"]
+    cstr = realm.intrinsics["%TypedArray%"]
+    DefinePropertyOrThrow(
+        proto, "constructor", PropertyDescriptor(value=proto, writable=True, enumerable=False, configurable=True)
+    )
+    DefinePropertyOrThrow(
+        cstr, "prototype", PropertyDescriptor(value=cstr, writable=False, enumerable=False, configurable=False)
+    )
+
+
+# 22.2.2.4 get %TypedArray% [ @@species ]
+def TypedArray_getSpecies(this_value, new_target, *_):
+    # %TypedArray%[@@species] is an accessor property whose set accessor function is undefined. Its get accessor
+    # function performs the following steps:
+    #   1. Return the this value.
+    # The value of the name property of this function is "get [Symbol.species]".
+    # NOTE  | %TypedArrayPrototype% methods normally use their this object's constructor to create a derived object.
+    #       | However, a subclass constructor may over-ride that default behaviour by redefining its @@species
+    #       | property.
+    return this_value
+
+
+TypedArray_getSpecies.name = "get [Symbol.species]"
+TypedArray_getSpecies.length = 0
+
+# 22.2.3 Properties of the %TypedArrayPrototype% Object
+# The %TypedArrayPrototype% object:
+#   * has a [[Prototype]] internal slot whose value is the intrinsic object %ObjectPrototype%.
+#   * is an ordinary object.
+#   * does not have a [[ViewedArrayBuffer]] or any other of the internal slots that are specific to TypedArray
+#     instance objects.
+
+
+def CreateTypedArrayPrototype(realm: Realm) -> JSObject:
+    obj = ObjectCreate(realm.intrinsics["%ObjectPrototype%"])
+    BindBuiltinAccessors(
+        realm,
+        obj,
+        (
+            ("buffer", TypedArrayPrototype_getBuffer, None),
+            ("byteLength", TypedArrayPrototype_getByteLength, None),
+            ("byteOffset", TypedArrayPrototype_getByteOffset, None),
+        ),
+    )
+    BindBuiltinFunctions(
+        realm,
+        obj,
+        (
+            ("copyWithin", TypedArrayPrototype_copyWithin, None),
+            ("entries", TypedArrayPrototype_entries, None),
+            ("every", TypedArrayPrototype_every, None),
+            ("fill", TypedArrayPrototype_fill, None),
+            ("filter", TypedArrayPrototype_filter, None),
+            ("find", TypedArrayPrototype_find, None),
+            ("slice", TypedArrayPrototype_slice, None),
+        ),
+    )
+    return obj
+
+
+# 22.2.3.1 get %TypedArray%.prototype.buffer
+def TypedArrayPrototype_getBuffer(this_value, new_target, *_):
+    # %TypedArray%.prototype.buffer is an accessor property whose set accessor function is undefined. Its get
+    # accessor function performs the following steps:
+    #   1. Let O be the this value.
+    #   2. If Type(O) is not Object, throw a TypeError exception.
+    #   3. If O does not have a [[TypedArrayName]] internal slot, throw a TypeError exception.
+    #   4. Assert: O has a [[ViewedArrayBuffer]] internal slot.
+    #   5. Let buffer be O.[[ViewedArrayBuffer]].
+    #   6. Return buffer.
+    O = this_value
+    if not isObject(O) or not hasattr(O, "TypedArrayName"):
+        raise ESTypeError(f"get %TypedArray%.prototype.buffer called with invalid receiver {ToString(O)}")
+    assert hasattr(O, "ViewedArrayBuffer")
+    return O.ViewedArrayBuffer
+
+
+TypedArrayPrototype_getBuffer.length = 0
+TypedArrayPrototype_getBuffer.name = "get buffer"
+
+# 22.2.3.2 get %TypedArray%.prototype.byteLength
+def TypedArrayPrototype_getByteLength(this_value, new_target, *_):
+    # %TypedArray%.prototype.byteLength is an accessor property whose set accessor function is undefined. Its get
+    # accessor function performs the following steps:
+    #   1. Let O be the this value.
+    #   2. If Type(O) is not Object, throw a TypeError exception.
+    #   3. If O does not have a [[TypedArrayName]] internal slot, throw a TypeError exception.
+    #   4. Assert: O has a [[ViewedArrayBuffer]] internal slot.
+    #   5. Let buffer be O.[[ViewedArrayBuffer]].
+    #   6. If IsDetachedBuffer(buffer) is true, return 0.
+    #   7. Let size be O.[[ByteLength]].
+    #   8. Return size.
+    O = this_value
+    if not isObject(O) or not hasattr(O, "TypedArrayName"):
+        raise ESTypeError(f"get %TypedArray%.prototype.byteLength called with invalid receiver {ToString(O)}")
+    assert hasattr(O, "ViewedArrayBuffer")
+    buffer = O.ViewedArrayBuffer
+    if IsDetachedBuffer(buffer):
+        return 0
+    return O.ByteLength
+
+
+TypedArrayPrototype_getByteLength.length = 0
+TypedArrayPrototype_getByteLength.name = "get byteLength"
+
+# 22.2.3.3 get %TypedArray%.prototype.byteOffset
+def TypedArrayPrototype_getByteOffset(this_value, new_target, *_):
+    # %TypedArray%.prototype.byteOffset is an accessor property whose set accessor function is undefined. Its get
+    # accessor function performs the following steps:
+    #   1. Let O be the this value.
+    #   2. If Type(O) is not Object, throw a TypeError exception.
+    #   3. If O does not have a [[TypedArrayName]] internal slot, throw a TypeError exception.
+    #   4. Assert: O has a [[ViewedArrayBuffer]] internal slot.
+    #   5. Let buffer be O.[[ViewedArrayBuffer]].
+    #   6. If IsDetachedBuffer(buffer) is true, return 0.
+    #   7. Let offset be O.[[ByteOffset]].
+    #   8. Return offset.
+    O = this_value
+    if not isObject(O) or not hasattr(O, "TypedArrayName"):
+        raise ESTypeError(f"get %TypedArray%.prototype.byteOffset called with invalid receiver {ToString(O)}")
+    assert hasattr(O, "ViewedArrayBuffer")
+    buffer = O.ViewedArrayBuffer
+    return O.ByteOffset if not IsDetachedBuffer(buffer) else 0
+
+
+TypedArrayPrototype_getByteOffset.length = 0
+TypedArrayPrototype_getByteOffset.name = "get byteOffset"
+
+# 22.2.3.5 %TypedArray%.prototype.copyWithin ( target, start [ , end ] )
+def TypedArrayPrototype_copyWithin(this_value, new_target, target=None, start=None, end=None, *_):
+    # The interpretation and use of the arguments of %TypedArray%.prototype.copyWithin are the same as for
+    # Array.prototype.copyWithin as defined in 22.1.3.3.
+    #
+    # The following steps are taken:
+    #   1. Let O be this value.
+    #   2. Perform ? ValidateTypedArray(O).
+    #   3. Let len be O.[[ArrayLength]].
+    #   4. Let relativeTarget be ? ToInteger(target).
+    #   5. If relativeTarget < 0, let to be max((len + relativeTarget), 0); else let to be min(relativeTarget, len).
+    #   6. Let relativeStart be ? ToInteger(start).
+    #   7. If relativeStart < 0, let from be max((len + relativeStart), 0); else let from be
+    #      min(relativeStart, len).
+    #   8. If end is undefined, let relativeEnd be len; else let relativeEnd be ? ToInteger(end).
+    #   9. If relativeEnd < 0, let final be max((len + relativeEnd), 0); else let final be min(relativeEnd, len).
+    #   10. Let count be min(final - from, len - to).
+    #   11. If count > 0, then
+    #       a. NOTE: The copying must be performed in a manner that preserves the bit-level encoding of the source
+    #          data.
+    #       b. Let buffer be O.[[ViewedArrayBuffer]].
+    #       c. If IsDetachedBuffer(buffer) is true, throw a TypeError exception.
+    #       d. Let typedArrayName be the String value of O.[[TypedArrayName]].
+    #       e. Let elementSize be the Number value of the Element Size value specified in Table 59 for
+    #          typedArrayName.
+    #       f. Let byteOffset be O.[[ByteOffset]].
+    #       g. Let toByteIndex be to × elementSize + byteOffset.
+    #       h. Let fromByteIndex be from × elementSize + byteOffset.
+    #       i. Let countBytes be count × elementSize.
+    #       j. If fromByteIndex < toByteIndex and toByteIndex < fromByteIndex + countBytes, then
+    #           i. Let direction be -1.
+    #           ii. Set fromByteIndex to fromByteIndex + countBytes - 1.
+    #           iii. Set toByteIndex to toByteIndex + countBytes - 1.
+    #       k. Else,
+    #           i. Let direction be 1.
+    #       l. Repeat, while countBytes > 0
+    #           i. Let value be GetValueFromBuffer(buffer, fromByteIndex, "Uint8", true, "Unordered").
+    #           ii. Perform SetValueInBuffer(buffer, toByteIndex, "Uint8", value, true, "Unordered").
+    #           iii. Set fromByteIndex to fromByteIndex + direction.
+    #           iv. Set toByteIndex to toByteIndex + direction.
+    #           v. Decrease countBytes by 1.
+    #   12. Return O.
+    O = this_value
+    ValidateTypedArray(O, "%TypedArray%.prototype.copyWithin")
+    len_ = O.ArrayLength
+    relativeTarget = ToInteger(target)
+    if relativeTarget < 0:
+        to = max(len_ + relativeTarget, 0)
+    else:
+        to = min(relativeTarget, len_)
+    relativeStart = ToInteger(start)
+    if relativeStart < 0:
+        from_ = max(len_ + relativeStart, 0)
+    else:
+        from_ = min(relativeStart, len_)
+    relativeEnd = ToInteger(end) if end is not None else len_
+    if relativeEnd < 0:
+        final = max(len_ + relativeEnd, 0)
+    else:
+        final = min(relativeEnd, len_)
+    count = min(final - from_, len_ - to)
+    if count > 0:
+        buffer = O.ViewedArrayBuffer
+        if IsDetachedBuffer(buffer):
+            raise ESTypeError("Buffer detached; cannot copyWithin")
+        typedArrayName = O.TypedArrayName
+        elementSize = TA_ElementSize[typedArrayName]
+        byteOffset = O.ByteOffset
+        toByteIndex = to * elementSize + byteOffset
+        fromByteIndex = from_ * elementSize + byteOffset
+        countBytes = count * elementSize
+        if fromByteIndex < toByteIndex and toByteIndex < fromByteIndex + countBytes:
+            direction = -1
+            fromByteIndex = fromByteIndex + countBytes - 1
+            toByteIndex = toByteIndex + countBytes - 1
+        else:
+            direction = 1
+        while countBytes > 0:
+            value = GetValueFromBuffer(buffer, fromByteIndex, "Uint8", True, "Unordered")
+            SetValueInBuffer(buffer, toByteIndex, "Uint8", value, True, "Unordered")
+            fromByteIndex += direction
+            toByteIndex += direction
+            countBytes -= 1
+        return O
+
+
+TypedArrayPrototype_copyWithin.length = 2
+TypedArrayPrototype_copyWithin.name = "copyWithin"
+
+# 22.2.3.5.1 Runtime Semantics: ValidateTypedArray ( O )
+def ValidateTypedArray(O: JSValue, whoami: str):
+    # When called with argument O, the following steps are taken:
+    #   1. If Type(O) is not Object, throw a TypeError exception.
+    #   2. If O does not have a [[TypedArrayName]] internal slot, throw a TypeError exception.
+    #   3. Assert: O has a [[ViewedArrayBuffer]] internal slot.
+    #   4. Let buffer be O.[[ViewedArrayBuffer]].
+    #   5. If IsDetachedBuffer(buffer) is true, throw a TypeError exception.
+    #   6. Return buffer.
+    if not isObject(O) or not hasattr(O, "TypedArrayName"):
+        raise ESTypeError(f"{whoami} called with invalid receiver {ToString(O)}")
+    assert hasattr(O, "ViewedArrayBuffer")
+    buffer = O.ViewedArrayBuffer
+    if IsDetachedBuffer(buffer):
+        raise ESTypeError(f"{whoami} called with unattached buffer")
+    return buffer
+
+
+# 22.2.3.6 %TypedArray%.prototype.entries ( )
+def TypedArrayPrototype_entries(this_value, new_target, *_):
+    # The following steps are taken:
+    #
+    #   1. Let O be the this value.
+    #   2. Perform ? ValidateTypedArray(O).
+    #   3. Return CreateArrayIterator(O, "key+value").
+    O = this_value
+    ValidateTypedArray(O, "%TypedArray%.prototype.entries")
+    return CreateArrayIterator(O, "key+value")
+
+
+TypedArrayPrototype_entries.length = 0
+TypedArrayPrototype_entries.name = "entries"
+
+# 22.2.3.7 %TypedArray%.prototype.every ( callbackfn [ , thisArg ] )
+def TypedArrayPrototype_every(this_value, new_target, callbackfn=None, thisArg=None, *_):
+    # %TypedArray%.prototype.every is a distinct function that implements the same algorithm as
+    # Array.prototype.every as defined in 22.1.3.5 except that the this object's [[ArrayLength]] internal slot is
+    # accessed in place of performing a [[Get]] of "length". The implementation of the algorithm may be optimized
+    # with the knowledge that the this value is an object that has a fixed length and whose integer-indexed
+    # properties are not sparse. However, such optimization must not introduce any observable changes in the
+    # specified behaviour of the algorithm and must take into account the possibility that calls to callbackfn may
+    # cause the this value to become detached.
+    #
+    # This function is not generic. ValidateTypedArray is applied to the this value prior to evaluating the
+    # algorithm. If its result is an abrupt completion that exception is thrown instead of evaluating the algorithm.
+    ValidateTypedArray(this_value, "%TypedArray%.prototype.every")
+    len_ = this_value.ArrayLength
+    if not IsCallable(callbackfn):
+        raise ESTypeError(f"%TypedArray%.prototype.every called with non-function {ToString(callbackfn)}")
+    for value, index in ((Get(this_value, ToString(k)), k) for k in range(len_)):
+        testResult = Call(callbackfn, thisArg, [value, index, this_value])
+        if not testResult:
+            return False
+    return True
+
+
+TypedArrayPrototype_every.length = 1
+TypedArrayPrototype_every.name = "every"
+
+# 22.2.3.8 %TypedArray%.prototype.fill ( value [ , start [ , end ] ] )
+def TypedArrayPrototype_fill(this_value, new_target, value=None, start=None, end=None, *_):
+    # The interpretation and use of the arguments of %TypedArray%.prototype.fill are the same as for
+    # Array.prototype.fill as defined in 22.1.3.6.
+    #
+    # The following steps are taken:
+    #   1. Let O be the this value.
+    #   2. Perform ? ValidateTypedArray(O).
+    #   3. Let len be O.[[ArrayLength]].
+    #   4. Set value to ? ToNumber(value).
+    #   5. Let relativeStart be ? ToInteger(start).
+    #   6. If relativeStart < 0, let k be max((len + relativeStart), 0); else let k be min(relativeStart, len).
+    #   7. If end is undefined, let relativeEnd be len; else let relativeEnd be ? ToInteger(end).
+    #   8. If relativeEnd < 0, let final be max((len + relativeEnd), 0); else let final be min(relativeEnd, len).
+    #   9. If IsDetachedBuffer(O.[[ViewedArrayBuffer]]) is true, throw a TypeError exception.
+    #   10. Repeat, while k < final
+    #       a. Let Pk be ! ToString(k).
+    #       b. Perform ! Set(O, Pk, value, true).
+    #       c. Increase k by 1.
+    #   11. Return O.
+    O = this_value
+    ValidateTypedArray(O, "%TypedArray%.prototype.fill")
+    len_ = O.ArrayLength
+    value = ToNumber(value)
+    relativeStart = ToInteger(start)
+    if relativeStart < 0:
+        k = max(len_ + relativeStart, 0)
+    else:
+        k = min(relativeStart, len_)
+    if end is None:
+        relativeEnd = len_
+    else:
+        relativeEnd = ToInteger(end)
+    if relativeEnd < 0:
+        final = max(len_ + relativeEnd, 0)
+    else:
+        final = min(relativeEnd, len_)
+    if IsDetachedBuffer(O.ViewedArrayBuffer):
+        raise ESTypeError("%TypedArray%.prototype.fill called with detached buffer")
+    while k < final:
+        Set(O, ToString(k), value, True)
+        k += 1
+    return O
+
+
+TypedArrayPrototype_fill.length = 1
+TypedArrayPrototype_fill.name = "fill"
+
+# 22.2.3.9% TypedArray%.prototype.filter ( callbackfn [ , thisArg ] )
+def TypedArrayPrototype_filter(O, new_target, callbackfn=None, T=None, *_):
+    # The interpretation and use of the arguments of %TypedArray%.prototype.filter are the same as for
+    # Array.prototype.filter as defined in 22.1.3.7.
+    #
+    # When the filter method is called with one or two arguments, the following steps are taken:
+    #   1. Let O be the this value.
+    #   2. Perform ? ValidateTypedArray(O).
+    #   3. Let len be O.[[ArrayLength]].
+    #   4. If IsCallable(callbackfn) is false, throw a TypeError exception.
+    #   5. If thisArg is present, let T be thisArg; else let T be undefined.
+    #   6. Let kept be a new empty List.
+    #   7. Let k be 0.
+    #   8. Let captured be 0.
+    #   9. Repeat, while k < len
+    #       a. Let Pk be ! ToString(k).
+    #       b. Let kValue be ? Get(O, Pk).
+    #       c. Let selected be ToBoolean(? Call(callbackfn, T, « kValue, k, O »)).
+    #       d. If selected is true, then
+    #           i. Append kValue to the end of kept.
+    #           ii. Increase captured by 1.
+    #       e. Increase k by 1.
+    #   10. Let A be ? TypedArraySpeciesCreate(O, « captured »).
+    #   11. Let n be 0.
+    #   12. For each element e of kept, do
+    #       a. Perform ! Set(A, ! ToString(n), e, true).
+    #       b. Increment n by 1.
+    #   13. Return A.
+    # This function is not generic. The this value must be an object with a [[TypedArrayName]] internal slot.
+    ValidateTypedArray(O, "%TypedArray%.prototype.filter")
+    if not IsCallable(callbackfn):
+        raise ESTypeError(f"%TypedArray%.prototype.filter callback must be callable")
+    kept = [val for k in range(O.ArrayLength) if ToBoolean(Call(callbackfn, T, [val := Get(O, ToString(k)), k, O]))]
+    A = TypedArraySpeciesCreate(O, [len(kept)])
+    for n, e in enumerate(kept):
+        Set(A, ToString(n), e, True)
+    return A
+
+
+TypedArrayPrototype_filter.length = 1
+TypedArrayPrototype_filter.name = "filter"
+
+# 22.2.3.10 %TypedArray%.prototype.find ( predicate [ , thisArg ] )
+def TypedArrayPrototype_find(O, new_target, predicate=None, T=None, *_):
+    # %TypedArray%.prototype.find is a distinct function that implements the same algorithm as Array.prototype.find
+    # as defined in 22.1.3.8 except that the this object's [[ArrayLength]] internal slot is accessed in place of
+    # performing a [[Get]] of "length". The implementation of the algorithm may be optimized with the knowledge that
+    # the this value is an object that has a fixed length and whose integer-indexed properties are not sparse.
+    # However, such optimization must not introduce any observable changes in the specified behaviour of the
+    # algorithm and must take into account the possibility that calls to predicate may cause the this value to
+    # become detached.
+    #
+    # This function is not generic. ValidateTypedArray is applied to the this value prior to evaluating the
+    # algorithm. If its result is an abrupt completion that exception is thrown instead of evaluating the algorithm.
+    ValidateTypedArray(O, "%TypedArray%.prototype.find")
+    if not IsCallable(predicate):
+        raise ESTypeError("%TypedArray%.prototype.find needs a callable predicate")
+    for k in range(O.ArrayLength):
+        kValue = Get(O, ToString(k))
+        if ToBoolean(Call(predicate, T, [kValue, k, O])):
+            return kValue
+    return None
+
+
+TypedArrayPrototype_find.length = 1
+TypedArrayPrototype_find.name = "find"
+
+# 22.2.3.24 %TypedArray%.prototype.slice ( start, end )
+def TypedArrayPrototype_slice(this_value, new_target, start=None, end=None, *_):
+    # The interpretation and use of the arguments of %TypedArray%.prototype.slice are the same as for
+    # Array.prototype.slice as defined in 22.1.3.25. The following steps are taken:
+    #   1. Let O be the this value.
+    #   2. Perform ? ValidateTypedArray(O).
+    #   3. Let len be O.[[ArrayLength]].
+    #   4. Let relativeStart be ? ToInteger(start).
+    #   5. If relativeStart < 0, let k be max((len + relativeStart), 0); else let k be min(relativeStart, len).
+    #   6. If end is undefined, let relativeEnd be len; else let relativeEnd be ? ToInteger(end).
+    #   7. If relativeEnd < 0, let final be max((len + relativeEnd), 0); else let final be min(relativeEnd, len).
+    #   8. Let count be max(final - k, 0).
+    #   9. Let A be ? TypedArraySpeciesCreate(O, « count »).
+    #   10. Let srcName be the String value of O.[[TypedArrayName]].
+    #   11. Let srcType be the String value of the Element Type value in Table 59 for srcName.
+    #   12. Let targetName be the String value of A.[[TypedArrayName]].
+    #   13. Let targetType be the String value of the Element Type value in Table 59 for targetName.
+    #   14. If SameValue(srcType, targetType) is false, then
+    #       a. Let n be 0.
+    #       b. Repeat, while k < final
+    #           i. Let Pk be ! ToString(k).
+    #           ii. Let kValue be ? Get(O, Pk).
+    #           iii. Perform ! Set(A, ! ToString(n), kValue, true).
+    #           iv. Increase k by 1.
+    #           v. Increase n by 1.
+    #   15. Else if count > 0, then
+    #       a. Let srcBuffer be O.[[ViewedArrayBuffer]].
+    #       b. If IsDetachedBuffer(srcBuffer) is true, throw a TypeError exception.
+    #       c. Let targetBuffer be A.[[ViewedArrayBuffer]].
+    #       d. Let elementSize be the Number value of the Element Size value specified in Table 59 for srcType.
+    #       e. NOTE: If srcType and targetType are the same, the transfer must be performed in a manner that preserves the bit-level encoding of the source data.
+    #       f. Let srcByteOffet be O.[[ByteOffset]].
+    #       g. Let targetByteIndex be A.[[ByteOffset]].
+    #       h. Let srcByteIndex be (k × elementSize) + srcByteOffet.
+    #       i. Let limit be targetByteIndex + count × elementSize.
+    #       j. Repeat, while targetByteIndex < limit
+    #           i. Let value be GetValueFromBuffer(srcBuffer, srcByteIndex, "Uint8", true, "Unordered").
+    #           ii. Perform SetValueInBuffer(targetBuffer, targetByteIndex, "Uint8", value, true, "Unordered").
+    #           iii. Increase srcByteIndex by 1.
+    #           iv. Increase targetByteIndex by 1.
+    #   16. Return A.
+    # This function is not generic. The this value must be an object with a [[TypedArrayName]] internal slot.
+    O = this_value
+    ValidateTypedArray(O, "%TypedArray%.prototype.slice")
+    length = O.ArrayLength
+    relativeStart = ToInteger(start)
+    k = max(length + relativeStart, 0) if relativeStart < 0 else min(relativeStart, length)
+    relativeEnd = length if end is None else ToInteger(end)
+    final = max(length + relativeEnd, 0) if relativeEnd < 0 else min(relativeEnd, length)
+    count = max(final - k, 0)
+    A = TypedArraySpeciesCreate(O, [count])
+    srcName = O.TypedArrayName
+    srcType = TA_ElementTypeName[srcName]
+    targetName = A.TypedArrayName
+    targetType = TA_ElementTypeName[targetName]
+    if not SameValue(srcType, targetType):
+        n = 0
+        while k < final:
+            Pk = ToString(k)
+            kValue = Get(O, Pk)
+            Set(A, ToString(n), kValue, True)
+            k += 1
+            n += 1
+    elif count > 0:
+        srcBuffer = O.ViewedArrayBuffer
+        if IsDetachedBuffer(srcBuffer):
+            raise ESTypeError("slice on detached buffer")
+        targetBuffer = A.ViewedArrayBuffer
+        elementSize = TA_ElementSize[srcName]
+        srcByteOffset = O.ByteOffset
+        targetByteIndex = A.ByteOffset
+        srcByteIndex = k * elementSize + srcByteOffset
+        limit = targetByteIndex + count * elementSize
+        while targetByteIndex < limit:
+            value = GetValueFromBuffer(srcBuffer, srcByteIndex, "Uint8", True, "Unordered")
+            SetValueInBuffer(targetBuffer, targetByteIndex, "Uint8", value, True, "Unordered")
+            srcByteIndex += 1
+            targetByteIndex += 1
+    return A
+
+
+TypedArrayPrototype_slice.length = 2
+TypedArrayPrototype_slice.name = "slice"
+
+# 22.2.4 The 𝑇𝑦𝑝𝑒𝑑𝐴𝑟𝑟𝑎𝑦 Constructors
+# Each 𝑇𝑦𝑝𝑒𝑑𝐴𝑟𝑟𝑎𝑦 constructor:
+#
+#   * is an intrinsic object that has the structure described below, differing only in the name used as the
+#     constructor name instead of 𝑇𝑦𝑝𝑒𝑑𝐴𝑟𝑟𝑎𝑦, in Table 59.
+#   * is a single function whose behaviour is overloaded based upon the number and types of its arguments. The
+#     actual behaviour of a call of 𝑇𝑦𝑝𝑒𝑑𝐴𝑟𝑟𝑎𝑦 depends upon the number and kind of arguments that are passed to it.
+#   * is not intended to be called as a function and will throw an exception when called in that manner.
+#   * is designed to be subclassable. It may be used as the value of an extends clause of a class definition.
+#     Subclass constructors that intend to inherit the specified 𝑇𝑦𝑝𝑒𝑑𝐴𝑟𝑟𝑎𝑦 behaviour must include a super call to
+#     the 𝑇𝑦𝑝𝑒𝑑𝐴𝑟𝑟𝑎𝑦 constructor to create and initialize the subclass instance with the internal state necessary to
+#     support the %TypedArray%.prototype built-in methods.
+#   * has a "length" property whose value is 3.
+
+
+def CreateSpecificTypedArrayConstructor(realm: Realm, name: str) -> JSObject:
+    obj = CreateAnnotatedFunctionObject(realm, CreateSpecificTypedArrayFunction(name), ["Construct"])
+    # BindBuiltinFunctions(realm, obj, (("from", TypedArray_from, None), ("of", TypedArray_of, None),))
+    # BindBuiltinAccessors(realm, obj, ((wks_species, TypedArray_getSpecies, None),))
+    DefinePropertyOrThrow(
+        obj,
+        "BYTES_PER_ELEMENT",
+        PropertyDescriptor(value=TA_ElementSize[name], writable=False, enumerable=False, configurable=False),
+    )
+    return obj
+
+
+def CreateSpecificTypedArrayFunction(name: str):
+    def SpecificTypedArray(this_value, new_target, arg1=..., byteOffset=None, length=None, *_):
+        if arg1 is Ellipsis:
+            # 22.2.4.1 𝑇𝑦𝑝𝑒𝑑𝐴𝑟𝑟𝑎𝑦 ( )
+            # This description applies only if the 𝑇𝑦𝑝𝑒𝑑𝐴𝑟𝑟𝑎𝑦 function is called with no arguments.
+            #   1. If NewTarget is undefined, throw a TypeError exception.
+            #   2. Let constructorName be the String value of the Constructor Name value specified in Table 59 for
+            #      this 𝑇𝑦𝑝𝑒𝑑𝐴𝑟𝑟𝑎𝑦 constructor.
+            #   3. Return ? AllocateTypedArray(constructorName, NewTarget, "%𝑇𝑦𝑝𝑒𝑑𝐴𝑟𝑟𝑎𝑦Prototype%", 0).
+            if new_target is None:
+                raise ESTypeError(f"{name}() must be used with the 'new' operator")
+            return AllocateTypedArray(name, new_target, f"%{name}Prototype%", 0)
+        if not isObject(arg1):
+            # 22.2.4.2 𝑇𝑦𝑝𝑒𝑑𝐴𝑟𝑟𝑎𝑦 ( length )
+            # This description applies only if the 𝑇𝑦𝑝𝑒𝑑𝐴𝑟𝑟𝑎𝑦 function is called with at least one argument and the
+            # Type of the first argument is not Object.
+            #
+            # 𝑇𝑦𝑝𝑒𝑑𝐴𝑟𝑟𝑎𝑦 called with argument length performs the following steps:
+            #   1. Assert: Type(length) is not Object.
+            #   2. If NewTarget is undefined, throw a TypeError exception.
+            #   3. Let elementLength be ? ToIndex(length).
+            #   4. Let constructorName be the String value of the Constructor Name value specified in Table 59 for
+            #      this 𝑇𝑦𝑝𝑒𝑑𝐴𝑟𝑟𝑎𝑦 constructor.
+            #   5. Return ? AllocateTypedArray(constructorName, NewTarget, "%𝑇𝑦𝑝𝑒𝑑𝐴𝑟𝑟𝑎𝑦Prototype%", elementLength).
+            if new_target is None:
+                raise ESTypeError(f"{name}() must be used with the 'new' operator")
+            return AllocateTypedArray(name, new_target, f"%{name}Prototype%", ToIndex(arg1))
+        if hasattr(arg1, "TypedArrayName"):
+            # 22.2.4.3 TypedArray ( typedArray )
+            # This description applies only if the TypedArray function is called with at least one argument and the
+            # Type of the first argument is Object and that object has a [[TypedArrayName]] internal slot.
+            #
+            # TypedArray called with argument typedArray performs the following steps:
+            #   1. Assert: Type(typedArray) is Object and typedArray has a [[TypedArrayName]] internal slot.
+            #   2. If NewTarget is undefined, throw a TypeError exception.
+            #   3. Let constructorName be the String value of the Constructor Name value specified in Table 59 for
+            #      this TypedArray constructor.
+            #   4. Let O be ? AllocateTypedArray(constructorName, NewTarget, "%TypedArrayPrototype%").
+            #   5. Let srcArray be typedArray.
+            #   6. Let srcData be srcArray.[[ViewedArrayBuffer]].
+            #   7. If IsDetachedBuffer(srcData) is true, throw a TypeError exception.
+            #   8. Let elementType be the String value of the Element Type value in Table 59 for constructorName.
+            #   9. Let elementLength be srcArray.[[ArrayLength]].
+            #   10. Let srcName be the String value of srcArray.[[TypedArrayName]].
+            #   11. Let srcType be the String value of the Element Type value in Table 59 for srcName.
+            #   12. Let srcElementSize be the Element Size value in Table 59 for srcName.
+            #   13. Let srcByteOffset be srcArray.[[ByteOffset]].
+            #   14. Let elementSize be the Element Size value in Table 59 for constructorName.
+            #   15. Let byteLength be elementSize × elementLength.
+            #   16. If IsSharedArrayBuffer(srcData) is false, then
+            #       a. Let bufferConstructor be ? SpeciesConstructor(srcData, %ArrayBuffer%).
+            #   17. Else,
+            #       a. Let bufferConstructor be %ArrayBuffer%.
+            #   18. If SameValue(elementType, srcType) is true, then
+            #       a. Let data be ? CloneArrayBuffer(srcData, srcByteOffset, byteLength, bufferConstructor).
+            #   19. Else,
+            #       a. Let data be ? AllocateArrayBuffer(bufferConstructor, byteLength).
+            #       b. If IsDetachedBuffer(srcData) is true, throw a TypeError exception.
+            #       c. Let srcByteIndex be srcByteOffset.
+            #       d. Let targetByteIndex be 0.
+            #       e. Let count be elementLength.
+            #       f. Repeat, while count > 0
+            #           i. Let value be GetValueFromBuffer(srcData, srcByteIndex, srcType, true, "Unordered").
+            #           ii. Perform SetValueInBuffer(data, targetByteIndex, elementType, value, true, "Unordered").
+            #           iii. Set srcByteIndex to srcByteIndex + srcElementSize.
+            #           iv. Set targetByteIndex to targetByteIndex + elementSize.
+            #           v. Decrement count by 1.
+            #   20. Set O.[[ViewedArrayBuffer]] to data.
+            #   21. Set O.[[ByteLength]] to byteLength.
+            #   22. Set O.[[ByteOffset]] to 0.
+            #   23. Set O.[[ArrayLength]] to elementLength.
+            #   24. Return O.
+            if new_target is None:
+                raise ESTypeError(f"{name}() must be used with the 'new' operator")
+            O = AllocateTypedArray(name, new_target, f"%{name}Prototype%")
+            srcArray = arg1
+            srcData = srcArray.ViewedArrayBuffer
+            if IsDetachedBuffer(srcData):
+                raise ESTypeError(f"source data buffer is detached in {name} initialization")
+            elementType = TA_ElementTypeName[name]
+            elementLength = srcArray.ArrayLength
+            srcName = srcArray.TypedArrayName
+            srcType = TA_ElementTypeName[srcName]
+            srcElementSize = TA_ElementSize[srcName]
+            srcByteOffset = srcArray.ByteOffset
+            elementSize = TA_ElementSize[name]
+            byteLength = elementSize * elementLength
+            if not IsSharedArrayBuffer(srcData):
+                bufferConstructor = SpeciesConstructor(
+                    srcData, surrounding_agent.running_ec.realm.intrinsics["%ArrayBuffer%"]
+                )
+            else:
+                bufferConstructor = surrounding_agent.running_ec.realm.intrinsics["%ArrayBuffer%"]
+            if SameValue(elementType, srcType):
+                data = CloneArrayBuffer(srcData, srcByteOffset, byteLength, bufferConstructor)
+            else:
+                data = AllocateArrayBuffer(bufferConstructor, byteLength)
+                if IsDetachedBuffer(srcData):
+                    raise ESTypeError(f"source data buffer is detached in {name} initialization")
+                srcByteIndex = srcByteOffset
+                targetByteIndex = 0
+                count = elementLength
+                while count > 0:
+                    value = GetValueFromBuffer(srcData, srcByteIndex, srcType, True, "Unordered")
+                    SetValueInBuffer(data, targetByteIndex, elementType, value, True, "Unordered")
+                    srcByteIndex += srcElementSize
+                    targetByteIndex += elementSize
+                    count -= 1
+            O.ViewedArrayBuffer = data
+            O.ByteLength = byteLength
+            O.ByteOffset = 0
+            O.ArrayLength = elementLength
+            return O
+        if not hasattr(arg1, "ArrayBufferData"):
+            # 22.2.4.4 TypedArray ( object )
+            # This description applies only if the TypedArray function is called with at least one argument and the
+            # Type of the first argument is Object and that object does not have either a [[TypedArrayName]] or an
+            # [[ArrayBufferData]] internal slot.
+            #
+            # TypedArray called with argument object performs the following steps:
+            #   1. Assert: Type(object) is Object and object does not have either a [[TypedArrayName]] or an
+            #      [[ArrayBufferData]] internal slot.
+            #   2. If NewTarget is undefined, throw a TypeError exception.
+            #   3. Let constructorName be the String value of the Constructor Name value specified in Table 59 for
+            #      this TypedArray constructor.
+            #   4. Let O be ? AllocateTypedArray(constructorName, NewTarget, "%TypedArrayPrototype%").
+            #   5. Let usingIterator be ? GetMethod(object, @@iterator).
+            #   6. If usingIterator is not undefined, then
+            #       a. Let values be ? IterableToList(object, usingIterator).
+            #       b. Let len be the number of elements in values.
+            #       c. Perform ? AllocateTypedArrayBuffer(O, len).
+            #       d. Let k be 0.
+            #       e. Repeat, while k < len
+            #           i. Let Pk be ! ToString(k).
+            #           ii. Let kValue be the first element of values and remove that element from values.
+            #           iii. Perform ? Set(O, Pk, kValue, true).
+            #           iv. Increase k by 1.
+            #       f. Assert: values is now an empty List.
+            #       g. Return O.
+            #   7. NOTE: object is not an Iterable so assume it is already an array-like object.
+            #   8. Let arrayLike be object.
+            #   9. Let len be ? ToLength(? Get(arrayLike, "length")).
+            #   10. Perform ? AllocateTypedArrayBuffer(O, len).
+            #   11. Let k be 0.
+            #   12. Repeat, while k < len
+            #       a. Let Pk be ! ToString(k).
+            #       b. Let kValue be ? Get(arrayLike, Pk).
+            #       c. Perform ? Set(O, Pk, kValue, true).
+            #       d. Increase k by 1.
+            #   13. Return O.
+            assert isObject(arg1) and not hasattr(arg1, "ArrayBufferData") and not hasattr(arg1, "TypedArrayName")
+            if new_target is None:
+                raise ESTypeError(f"{name}() must be used with the 'new' operator")
+            constructorName = name
+            O = AllocateTypedArray(constructorName, new_target, f"%{name}prototype%")
+            usingIterator = GetMethod(arg1, wks_iterator)
+            if usingIterator is not None:
+                values = IterableToList(arg1, usingIterator)
+                AllocateTypedArrayBuffer(O, len(values))
+                for k, kValue in enumerate(values):
+                    Set(O, ToString(k), kValue, True)
+                return O
+            arrayLike = arg1
+            len_ = ToLength(Get(arrayLike, "length"))
+            AllocateTypedArrayBuffer(O, len_)
+            for Pk in (ToString(k) for k in range(len_)):
+                kValue = Get(arrayLike, Pk)
+                Set(O, Pk, kValue, True)
+            return O
+
+        # 22.2.4.5 TypedArray ( buffer [ , byteOffset [ , length ] ] )
+        # This description applies only if the TypedArray function is called with at least one argument and the Type
+        # of the first argument is Object and that object has an [[ArrayBufferData]] internal slot.
+        #
+        # TypedArray called with at least one argument buffer performs the following steps:
+        #   1. Assert: Type(buffer) is Object and buffer has an [[ArrayBufferData]] internal slot.
+        #   2. If NewTarget is undefined, throw a TypeError exception.
+        #   3. Let constructorName be the String value of the Constructor Name value specified in Table 59 for this
+        #      TypedArray constructor.
+        #   4. Let O be ? AllocateTypedArray(constructorName, NewTarget, "%TypedArrayPrototype%").
+        #   5. Let elementSize be the Number value of the Element Size value in Table 59 for constructorName.
+        #   6. Let offset be ? ToIndex(byteOffset).
+        #   7. If offset modulo elementSize ≠ 0, throw a RangeError exception.
+        #   8. If length is present and length is not undefined, then
+        #       a. Let newLength be ? ToIndex(length).
+        #   9. If IsDetachedBuffer(buffer) is true, throw a TypeError exception.
+        #   10. Let bufferByteLength be buffer.[[ArrayBufferByteLength]].
+        #   11. If length is either not present or undefined, then
+        #       a. If bufferByteLength modulo elementSize ≠ 0, throw a RangeError exception.
+        #       b. Let newByteLength be bufferByteLength - offset.
+        #       c. If newByteLength < 0, throw a RangeError exception.
+        #   12. Else,
+        #       a. Let newByteLength be newLength × elementSize.
+        #       b. If offset + newByteLength > bufferByteLength, throw a RangeError exception.
+        #   13. Set O.[[ViewedArrayBuffer]] to buffer.
+        #   14. Set O.[[ByteLength]] to newByteLength.
+        #   15. Set O.[[ByteOffset]] to offset.
+        #   16. Set O.[[ArrayLength]] to newByteLength / elementSize.
+        #   17. Return O.
+        assert isObject(arg1) and hasattr(arg1, "ArrayBufferData")
+        if new_target is None:
+            raise ESTypeError(f"{name}() must be used with the 'new' operator")
+        O = AllocateTypedArray(name, new_target, f"%{name}Prototype%")
+        elementSize = TA_ElementSize[name]
+        offset = ToIndex(byteOffset)
+        if offset % elementSize != 0:
+            raise ESRangeError(f"Bad offset in {name} constructor: {offset} not a modulo of {elementSize}")
+        if length is not None:
+            newLength = ToIndex(length)
+        if IsDetachedBuffer(arg1):
+            raise ESTypeError(f"Can't make a new {name} with a detached buffer")
+        bufferByteLength = arg1.ArrayBufferByteLength
+        if length is None:
+            if bufferByteLength % elementSize != 0:
+                raise ESRangeError(
+                    f"Can't make a new {name}: buffer byte length ({bufferByteLength}) isn't a multiple of the element size ({elementSize})"
+                )
+            newByteLength = bufferByteLength - offset
+            if newByteLength < 0:
+                raise ESRangeError(
+                    f"Can't make a new {name}: offset ({offset}) greater than source size ({bufferByteLength})"
+                )
+        else:
+            newByteLength = newLength * elementSize
+            if offset + newByteLength > bufferByteLength:
+                raise ESRangeError(f"Can't make a new {name}: off the end")
+        O.ViewedArrayBuffer = arg1
+        O.ByteLength = newByteLength
+        O.ByteOffset = offset
+        O.ArrayLength = newByteLength / elementSize
+        return O
+
+    SpecificTypedArray.length = 3
+    SpecificTypedArray.name = name
+    return SpecificTypedArray
+
+
+# 22.2.4.2.1 Runtime Semantics: AllocateTypedArray ( constructorName, newTarget, defaultProto [ , length ] )
+def AllocateTypedArray(constructorName, newTarget, defaultProto, length=...):
+    # The abstract operation AllocateTypedArray with arguments constructorName, newTarget, defaultProto and optional
+    # argument length is used to validate and create an instance of a TypedArray constructor. constructorName is
+    # required to be the name of a TypedArray constructor in Table 59. If the length argument is passed, an
+    # ArrayBuffer of that length is also allocated and associated with the new TypedArray instance.
+    # AllocateTypedArray provides common semantics that is used by all of the TypedArray overloads.
+    # AllocateTypedArray performs the following steps:
+    #   1. Let proto be ? GetPrototypeFromConstructor(newTarget, defaultProto).
+    #   2. Let obj be IntegerIndexedObjectCreate(proto, « [[ViewedArrayBuffer]], [[TypedArrayName]], [[ByteLength]],
+    #      [[ByteOffset]], [[ArrayLength]] »).
+    #   3. Assert: obj.[[ViewedArrayBuffer]] is undefined.
+    #   4. Set obj.[[TypedArrayName]] to constructorName.
+    #   5. If length is not present, then
+    #       a. Set obj.[[ByteLength]] to 0.
+    #       b. Set obj.[[ByteOffset]] to 0.
+    #       c. Set obj.[[ArrayLength]] to 0.
+    #   6. Else,
+    #       a. Perform ? AllocateTypedArrayBuffer(obj, length).
+    #   7. Return obj.
+    proto = GetPrototypeFromConstructor(newTarget, defaultProto)
+    obj = IntegerIndexedObjectCreate(
+        proto, ["ViewedArrayBuffer", "TypedArrayName", "ByteLength", "ByteOffset", "ArrayLength"]
+    )
+    assert obj.ViewedArrayBuffer is None
+    obj.TypedArrayName = constructorName
+    if length is Ellipsis:
+        obj.ByteLength = 0
+        obj.ByteOffset = 0
+        obj.ArrayLength = 0
+    else:
+        AllocateTypedArrayBuffer(obj, length)
+    return obj
+
+
+# 22.2.4.2.2 Runtime Semantics: AllocateTypedArrayBuffer ( O, length )
+def AllocateTypedArrayBuffer(O, length):
+    # The abstract operation AllocateTypedArrayBuffer with arguments O and length allocates and associates an
+    # ArrayBuffer with the TypedArray instance O. It performs the following steps:
+    #   1. Assert: O is an Object that has a [[ViewedArrayBuffer]] internal slot.
+    #   2. Assert: O.[[ViewedArrayBuffer]] is undefined.
+    #   3. Assert: length ≥ 0.
+    #   4. Let constructorName be the String value of O.[[TypedArrayName]].
+    #   5. Let elementSize be the Element Size value in Table 59 for constructorName.
+    #   6. Let byteLength be elementSize × length.
+    #   7. Let data be ? AllocateArrayBuffer(%ArrayBuffer%, byteLength).
+    #   8. Set O.[[ViewedArrayBuffer]] to data.
+    #   9. Set O.[[ByteLength]] to byteLength.
+    #   10. Set O.[[ByteOffset]] to 0.
+    #   11. Set O.[[ArrayLength]] to length.
+    #   12. Return O.
+    assert isObject(O) and hasattr(O, "ViewedArrayBuffer")
+    assert O.ViewedArrayBuffer is None
+    assert length >= 0
+    constructorName = O.TypedArrayName
+    elementSize = TA_ElementSize[constructorName]
+    byteLength = elementSize * length
+    data = AllocateArrayBuffer(surrounding_agent.running_ec.realm.intrinsics["%ArrayBuffer%"], byteLength)
+    O.ViewedArrayBuffer = data
+    O.ByteLength = byteLength
+    O.ByteOffset = 0
+    O.ArrayLength = length
+    return O
+
+
+# 22.2.4.6 TypedArrayCreate ( constructor, argumentList )
+def TypedArrayCreate(constructor, argumentList):
+    # The abstract operation TypedArrayCreate with arguments constructor and argumentList is used to specify the
+    # creation of a new TypedArray object using a constructor function. It performs the following steps:
+    #   1. Let newTypedArray be ? Construct(constructor, argumentList).
+    #   2. Perform ? ValidateTypedArray(newTypedArray).
+    #   3. If argumentList is a List of a single Number, then
+    #       a. If newTypedArray.[[ArrayLength]] < argumentList[0], throw a TypeError exception.
+    #   4. Return newTypedArray.
+    newTypedArray = Construct(constructor, argumentList)
+    ValidateTypedArray(newTypedArray, "TypedArrayCreate")
+    if len(argumentList) == 1 and isNumber(argumentList[0]) and newTypedArray.ArrayLength < argumentList[0]:
+        raise ESTypeError("Bad size in TypedArrayCreate")
+    return newTypedArray
+
+
+# 22.2.4.7 TypedArraySpeciesCreate ( exemplar, argumentList )
+def TypedArraySpeciesCreate(exemplar, argumentList):
+    # The abstract operation TypedArraySpeciesCreate with arguments exemplar and argumentList is used to specify
+    # the creation of a new TypedArray object using a constructor function that is derived from exemplar. It
+    # performs the following steps:
+    #   1. Assert: exemplar is an Object that has a [[TypedArrayName]] internal slot.
+    #   2. Let defaultConstructor be the intrinsic object listed in column one of Table 59 for
+    #      exemplar.[[TypedArrayName]].
+    #   3. Let constructor be ? SpeciesConstructor(exemplar, defaultConstructor).
+    #   4. Return ? TypedArrayCreate(constructor, argumentList).
+    assert isObject(exemplar) and hasattr(exemplar, "TypedArrayName")
+    defaultConstructor = surrounding_agent.running_ec.realm.intrinsics[f"%{exemplar.TypedArrayName}%"]
+    constructor = SpeciesConstructor(exemplar, defaultConstructor)
+    return TypedArrayCreate(constructor, argumentList)
+
+
+def CreateSpecificTypedArrayPrototype(realm: Realm, name: str):
+    proto = ObjectCreate(realm.intrinsics["%TypedArrayPrototype%"])
+    DefinePropertyOrThrow(
+        proto,
+        "BYTES_PER_ELEMENT",
+        PropertyDescriptor(value=TA_ElementSize[name], writable=False, enumerable=False, configurable=False),
+    )
+    return proto
+
+
+def SpecificTypedArrayFixups(realm: Realm, name: str):
+    proto = realm.intrinsics[f"%{name}Prototype%"]
+    cstr = realm.intrinsics[f"%{name}%"]
+    DefinePropertyOrThrow(proto, "constructor", PropertyDescriptor(value=cstr))
+    DefinePropertyOrThrow(
+        cstr, "prototype", PropertyDescriptor(value=proto, writable=False, enumerable=False, configurable=False)
+    )
+
+
 ######################################################################################################################
 # 24 Structured Data
 ######################################################################################################################
@@ -34497,7 +35701,7 @@ def RawBytesToNumber(type, rawBytes, isLittleEndian):
             int(isLittleEndian) + 2 * (type.startswith("I")) + 2 * (elementSize & 6)
         ]
     value = struct.unpack(fmt, bytearray(rawBytes))
-    return value
+    return value[0]
 
 
 # 24.1.1.6 GetValueFromBuffer ( arrayBuffer, byteIndex, type, isTypedArray, order [ , isLittleEndian ] )
@@ -34533,6 +35737,7 @@ def GetValueFromBuffer(arrayBuffer, byteIndex, type, isTypedArray, order, isLitt
     #   9. Return RawBytesToNumber(type, rawValue, isLittleEndian).
     assert not IsDetachedBuffer(arrayBuffer)
     assert IsInteger(byteIndex) and byteIndex >= 0
+    byteIndex = int(byteIndex)
     elementSize = type_sizes.get(type, 1)
     block = arrayBuffer.ArrayBufferData
     assert byteIndex + elementSize <= block.nbytes
@@ -34615,6 +35820,7 @@ def SetValueInBuffer(arrayBuffer, byteIndex, type, value, isTypedArray, order, i
     #   11. Return NormalCompletion(undefined).
     assert not IsDetachedBuffer(arrayBuffer)
     assert IsInteger(byteIndex) and byteIndex >= 0
+    byteIndex = int(byteIndex)
     elementSize = type_sizes[type]
     block = arrayBuffer.ArrayBufferData
     assert byteIndex + elementSize <= block.nbytes

@@ -255,6 +255,7 @@ features_to_avoid = (
     "async-functions",
     "tail-call-optimization",
     "class",
+    "generators",
     # proposals not actually part of the spec yet
     "proxy-missing-checks",
     "Promise.allSettled",
