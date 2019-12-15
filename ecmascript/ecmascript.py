@@ -30235,7 +30235,9 @@ def CreateErrorPrototype(realm):
     # 19.5.3.3 Error.prototype.name
     # The initial value of Error.prototype.name is "Error".
     for key, value in [("message", ""), ("name", "Error")]:
-        Set(error_prototype, key, value, True)
+        DefinePropertyOrThrow(
+            error_prototype, key, PropertyDescriptor(value=value, writable=True, enumerable=False, configurable=True)
+        )
     BindBuiltinFunctions(realm, error_prototype, [("toString", ErrorPrototype_toString, 0)])
     return error_prototype
 
