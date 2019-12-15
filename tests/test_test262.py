@@ -226,13 +226,14 @@ lang_tests = (
 
 base_path = base_paths[0]
 test_files = []
-test_files = glob.glob(f"{base_path}/test/harness/*.js")
+test_files.extend(glob.glob(f"{base_path}/test/harness/*.js"))
 # for suite in lang_tests:
 #     test_files.extend(glob.glob(f"{base_path}/test/language/{suite}/**/*.js", recursive=True))
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/String/**/*.js", recursive=True))
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/Boolean/**/*.js", recursive=True))  # 100% passing !
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/Array/**/*.js", recursive=True))
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/parseInt/**/*.js", recursive=True))  # 100% passing !
+# test_files.extend(glob.glob(f"{base_path}/test/built-ins/parseFloat/**/*.js", recursive=True))  # 100% passing !
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/isNaN/**/*.js", recursive=True))  # 100% passing !
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/isFinite/**/*.js", recursive=True))  # 100% passing !
 # test_files.extend(glob.glob(f"{base_path}/test/language/types/boolean/**/*.js", recursive=True))  # 100% passing !

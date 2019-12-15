@@ -4129,6 +4129,7 @@ def CreateIntrinsics(realm_rec):
     intrinsics["%isFinite%"] = CreateAnnotatedFunctionObject(realm_rec, global_isFinite)
     intrinsics["%isNaN%"] = CreateAnnotatedFunctionObject(realm_rec, global_isNaN)
     intrinsics["%parseInt%"] = CreateAnnotatedFunctionObject(realm_rec, global_parseInt)
+    intrinsics["%parseFloat%"] = CreateAnnotatedFunctionObject(realm_rec, global_parseFloat)
     intrinsics["%TypedArray%"] = CreateTypedArrayIntrinsicObject(realm_rec)
     intrinsics["%TypedArrayPrototype%"] = CreateTypedArrayPrototype(realm_rec)
     TypedArrayFixups(realm_rec)
@@ -28435,12 +28436,53 @@ def global_isNaN(this_value, new_target, number=None, *_):
 global_isNaN.length = 1
 global_isNaN.name = "isNaN"
 
-# 18.2.5 parseInt ( string, radix )
-_parseInt_RemoveLeadingWhitespace_pattern = regex.compile(
+_parseNum_RemoveLeadingWhitespace_pattern = regex.compile(
     rf"(?:({Lexer.WhiteSpace}|{Lexer.LineTerminator})*)(?P<content>.*)"
 )
 
+_ExponentPart = r"([eE][-+]?[0-9]+)"
+_StrUnsignedDecimalLiteral = (
+    rf"(Infinity|([0-9]+\.[0-9]*{_ExponentPart}?)|(\.[0-9]+{_ExponentPart}?)|([0-9]+{_ExponentPart}?))"
+)
+_StrDecimalLiteral = rf"([-+]?{_StrUnsignedDecimalLiteral})"
 
+_parseFloat_pattern = regex.compile(_StrDecimalLiteral)
+# 18.2.4 parseFloat ( string )
+def global_parseFloat(this_value, new_target, string=None, *_):
+    # The parseFloat function produces a Number value dictated by interpretation of the contents of the string
+    # argument as a decimal literal.
+    #
+    # The parseFloat function is the %parseFloat% intrinsic object. When the parseFloat function is called with one
+    # argument string, the following steps are taken:
+    #   1. Let inputString be ? ToString(string).
+    #   2. Let trimmedString be a substring of inputString consisting of the leftmost code unit that is not a
+    #      StrWhiteSpaceChar and all code units to the right of that code unit. (In other words, remove leading
+    #      white space.) If inputString does not contain any such code units, let trimmedString be the empty string.
+    #   3. If neither trimmedString nor any prefix of trimmedString satisfies the syntax of a StrDecimalLiteral
+    #      (see 7.1.3.1), return NaN.
+    #   4. Let numberString be the longest prefix of trimmedString, which might be trimmedString itself, that
+    #      satisfies the syntax of a StrDecimalLiteral.
+    #   5. Let mathFloat be MV of numberString.
+    #   6. If mathFloat = 0, then
+    #       a. If the first code unit of trimmedString is the code unit 0x002D (HYPHEN-MINUS), return -0.
+    #       b. Return +0.
+    #   7. Return the Number value for mathFloat.
+    # NOTE  | parseFloat may interpret only a leading portion of string as a Number value; it ignores any code units
+    #       | that cannot be interpreted as part of the notation of a decimal literal, and no indication is given
+    #       | that any such code units were ignored.
+    inputString = ToString(string)
+    m = _parseNum_RemoveLeadingWhitespace_pattern.match(inputString)
+    assert m is not None  # That regex can't fail
+    num = _parseFloat_pattern.match(m.group("content"))
+    if not num:
+        return math.nan
+    return float(num.group(0))
+
+
+global_parseFloat.length = 1
+global_parseFloat.name = "parseFloat"
+
+# 18.2.5 parseInt ( string, radix )
 def global_parseInt(this_value, new_target, string=None, radix=None, *_):
     # The parseInt function produces an integer value dictated by interpretation of the contents of the string
     # argument according to the specified radix. Leading white space in string is ignored. If radix is undefined or 0,
@@ -28485,8 +28527,9 @@ def global_parseInt(this_value, new_target, string=None, radix=None, *_):
     #       | that cannot be interpreted as part of the notation of an integer, and no indication is given that any
     #       | such code units were ignored.
     inputString = ToString(string)
-    m = _parseInt_RemoveLeadingWhitespace_pattern.match(inputString)
-    S = m.group("content") if m else inputString
+    m = _parseNum_RemoveLeadingWhitespace_pattern.match(inputString)
+    assert m is not None  # That regex can't fail
+    S = m.group("content")
     sign = 1
     if S and S[0] == "-":
         sign = -1
