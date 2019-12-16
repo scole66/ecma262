@@ -226,12 +226,14 @@ lang_tests = (
 
 base_path = base_paths[0]
 test_files = []
-test_files.extend(glob.glob(f"{base_path}/test/harness/*.js"))
+# test_files.extend(glob.glob(f"{base_path}/test/harness/*.js"))
 # for suite in lang_tests:
 #     test_files.extend(glob.glob(f"{base_path}/test/language/{suite}/**/*.js", recursive=True))
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/String/**/*.js", recursive=True))
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/Boolean/**/*.js", recursive=True))  # 100% passing !
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/Array/**/*.js", recursive=True))
+# test_files.extend(glob.glob(f"{base_path}/test/built-ins/Object/**/*.js", recursive=True))
+# test_files.extend(glob.glob(f"{base_path}/test/built-ins/Error/**/*.js", recursive=True)) # 100% passing !
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/parseInt/**/*.js", recursive=True))  # 100% passing !
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/parseFloat/**/*.js", recursive=True))  # 100% passing !
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/isNaN/**/*.js", recursive=True))  # 100% passing !
@@ -246,6 +248,8 @@ test_files.extend(glob.glob(f"{base_path}/test/harness/*.js"))
 # test_files.extend(glob.glob(f"{base_path}/test/language/line-terminators/**/*.js", recursive=True))  # 100% passing!
 # test_files.extend(glob.glob(f"{base_path}/test/language/statements/break/**/*.js", recursive=True))  # 100% passing!
 # test_files.extend(glob.glob(f"{base_path}/test/language/statements/continue/**/*.js", recursive=True))  # 100% passing!
+# test_files.extend(glob.glob(f"{base_path}/test/language/statements/debugger/**/*.js", recursive=True))  # 100% passing!
+test_files.extend(glob.glob(f"{base_path}/test/language/statements/const/**/*.js", recursive=True))
 test_files = [fn for fn in test_files if not fn.endswith("_FIXTURE.js")]
 
 features_to_avoid = (
@@ -257,6 +261,7 @@ features_to_avoid = (
     "tail-call-optimization",
     "class",
     "generators",
+    "Proxy",
     # proposals not actually part of the spec yet
     "proxy-missing-checks",
     "Promise.allSettled",
