@@ -18890,6 +18890,12 @@ class P2_ObjectBindingPattern_BindingPropertyList_BindingRestProperty(P2_ObjectB
         excludedNames = self.BindingPropertyList.PropertyBindingInitialization(value, environment)
         return self.BindingRestProperty.RestBindingInitialization(value, environment, excludedNames)
 
+    def BoundNames(self):
+        return self.BindingPropertyList.BoundNames() + self.BindingRestProperty.BoundNames()
+
+    def ContainsExpression(self):
+        return self.BindingPropertyList.ContainsExpression() or self.BindingRestProperty.ContainsExpression()
+
 
 def parse_ObjectBindingPattern(context, lexer, strict, Yield, Await):
     # 13.3.3 Destructuring Binding Patterns
