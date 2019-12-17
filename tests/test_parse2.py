@@ -11418,12 +11418,10 @@ def test_parse_ScriptBody_errs(mocker, context, token_stream):
 @pytest.mark.parametrize(
     "stub",
     [
-        e.parse_ClassExpression,
         e.parse_AsyncFunctionExpression,
         e.parse_AsyncGeneratorExpression,
         e.parse_AwaitExpression,
         e.parse_AsyncArrowFunction,
-        e.parse_ClassDeclaration,
         e.parse_AsyncFunctionDeclaration,
         e.parse_AsyncGeneratorDeclaration,
     ],
