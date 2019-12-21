@@ -246,10 +246,12 @@ test_files = []
 # test_files.extend(glob.glob(f"{base_path}/test/language/identifiers/**/*.js", recursive=True))  # 100% passing!
 # test_files.extend(glob.glob(f"{base_path}/test/language/identifier-resolution/**/*.js", recursive=True))  # 100% passing!
 # test_files.extend(glob.glob(f"{base_path}/test/language/line-terminators/**/*.js", recursive=True))  # 100% passing!
+# test_files.extend(glob.glob(f"{base_path}/test/language/statements/block/**/*.js", recursive=True)) # 100% passing!
 # test_files.extend(glob.glob(f"{base_path}/test/language/statements/break/**/*.js", recursive=True))  # 100% passing!
+test_files.extend(glob.glob(f"{base_path}/test/language/statements/class/**/*.js", recursive=True))
 # test_files.extend(glob.glob(f"{base_path}/test/language/statements/continue/**/*.js", recursive=True))  # 100% passing!
 # test_files.extend(glob.glob(f"{base_path}/test/language/statements/debugger/**/*.js", recursive=True))  # 100% passing!
-test_files.extend(glob.glob(f"{base_path}/test/language/statements/const/**/*.js", recursive=True))  # 100% passing!
+# test_files.extend(glob.glob(f"{base_path}/test/language/statements/const/**/*.js", recursive=True))  # 100% passing!
 test_files = [fn for fn in test_files if not fn.endswith("_FIXTURE.js")]
 
 features_to_avoid = (

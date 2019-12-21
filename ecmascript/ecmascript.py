@@ -25178,6 +25178,9 @@ class P2_FormalParameters_FunctionRestParameter(P2_FormalParameters):
     def ExpectedArgumentCount(self):
         return 0
 
+    def IsSimpleParameterList(self):
+        return False
+
 
 class P2_FormalParameters_FormalParameterList(P2_FormalParameters):
     @property
