@@ -12298,7 +12298,7 @@ class P2_ArgumentList_ArgumentList_COMMA_DOTDOTDOT_AssignmentExpression(P2_Argum
         #    b. If next is false, return precedingArgs.
         #    c. Let nextArg be ? IteratorValue(next).
         #    d. Append nextArg as the last element of precedingArgs.
-        precedingArgs = self.ArgumentList.ArgumentListEvaluation
+        precedingArgs = self.ArgumentList.ArgumentListEvaluation()
         iteratorRecord = GetIterator(GetValue(self.AssignmentExpression.evaluate()))
         while 1:
             nxt = IteratorStep(iteratorRecord)
