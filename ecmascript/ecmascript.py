@@ -7940,6 +7940,9 @@ class ParseNode2:
     def HasName(self, *args, **kwargs):
         return self.defer_target().HasName(*args, **kwargs)
 
+    def KeyedBindingInitialization(self, *args, **kwargs):
+        return self.defer_target().KeyedBindingInitialization(*args, **kwargs)
+
     def NamedEvaluation(self, *args, **kwargs):
         return self.defer_target().NamedEvaluation(*args, **kwargs)
 
