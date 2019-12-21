@@ -34721,27 +34721,16 @@ def CreateArrayConstructor(realm):
         desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)
         DefinePropertyOrThrow(obj, key, desc)
     BindBuiltinFunctions(
-        realm,
-        obj,
-        [
-            ("from", Array_from, 1),
-            # ('isArray', Array_isArray, 1),
-            # ('of', Array_of, 0),
-        ],
+        realm, obj, [("from", Array_from, None), ("isArray", Array_isArray, None), ("of", Array_of, None),],
     )
 
     def get_species(this_value, new_target, *_):
         return this_value
 
-    fcn_obj = CreateBuiltinFunction(get_species, [], realm)
-    DefinePropertyOrThrow(
-        fcn_obj, "length", PropertyDescriptor(value=0, writable=False, enumerable=False, configurable=True)
-    )
-    DefinePropertyOrThrow(
-        fcn_obj,
-        "name",
-        PropertyDescriptor(value="get [Symbol.species]", writable=False, enumerable=False, configurable=True),
-    )
+    get_species.length = 0
+    get_species.name = "get [Symbol.species]"
+
+    fcn_obj = CreateAnnotatedFunctionObject(realm, get_species, [])
     DefinePropertyOrThrow(obj, wks_species, PropertyDescriptor(Get=fcn_obj, enumerable=False, configurable=True))
 
     return obj
@@ -34905,6 +34894,53 @@ def Array_from(this_value, new_target, items=None, mapfn=None, thisArg=None, *_)
 
 Array_from.length = 1
 Array_from.name = "from"
+
+# 22.1.2.2 Array.isArray ( arg )
+def Array_isArray(this_value, new_target, arg=None, *_):
+    # The isArray function takes one argument arg, and performs the following steps:
+    #   1. Return ? IsArray(arg).
+    return IsArray(arg)
+
+
+Array_isArray.length = 1
+Array_isArray.name = "isArray"
+
+# 22.1.2.3 Array.of ( ...items )
+def Array_of(this_value, new_target, *items):
+    # When the of method is called with any number of arguments, the following steps are taken:
+    #   1. Let len be the actual number of arguments passed to this function.
+    #   2. Let items be the List of arguments passed to this function.
+    #   3. Let C be the this value.
+    #   4. If IsConstructor(C) is true, then
+    #       a. Let A be ? Construct(C, « len »).
+    #   5. Else,
+    #       a. Let A be ? ArrayCreate(len).
+    #   6. Let k be 0.
+    #   7. Repeat, while k < len
+    #       a. Let kValue be items[k].
+    #       b. Let Pk be ! ToString(k).
+    #       c. Perform ? CreateDataPropertyOrThrow(A, Pk, kValue).
+    #       d. Increase k by 1.
+    #   8. Perform ? Set(A, "length", len, true).
+    #   9. Return A.
+    # NOTE 1    | The items argument is assumed to be a well-formed rest argument value.
+    # NOTE 2    | The of function is an intentionally generic factory method; it does not require that its this
+    #           | value be the Array constructor. Therefore it can be transferred to or inherited by other
+    #           | constructors that may be called with a single numeric argument.
+    if IsConstructor(this_value):
+        A = Construct(C, [len(items)])
+    else:
+        A = ArrayCreate(len(items))
+    for k, kValue in enumerate(items):
+        Pk = ToString(k)
+        CreateDataPropertyOrThrow(A, Pk, kValue)
+    Set(A, "length", len(items), True)
+    return A
+
+
+Array_of.length = 0
+Array_of.name = "of"
+
 
 # 22.1.3 Properties of the Array Prototype Object
 # The Array prototype object:
