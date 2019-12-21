@@ -7951,6 +7951,9 @@ class ParseNode2:
     def KeyedBindingInitialization(self, *args, **kwargs):
         return self.defer_target().KeyedBindingInitialization(*args, **kwargs)
 
+    def ComputedPropertyContains(self, *args, **kwargs):
+        return self.defer_target().ComputedPropertyContains(*args, **kwargs)
+
     def NamedEvaluation(self, *args, **kwargs):
         return self.defer_target().NamedEvaluation(*args, **kwargs)
 
@@ -26455,7 +26458,7 @@ class P2_MethodDefinition_SET_PropertyName_PropertySetParameterList_FunctionBody
         # 14.3.4 Static Semantics: HasDirectSuper
         #   1. If PropertySetParameterList Contains SuperCall is true, return true.
         #   2. Return FunctionBody Contains SuperCall.
-        return any(pn.contains("SuperCall") for pn in (self.PropertySetParameterList, self.FunctionBody))
+        return any(pn.Contains("SuperCall") for pn in (self.PropertySetParameterList, self.FunctionBody))
 
     def SpecialMethod(self):
         # 14.3.6 Static Semantics: SpecialMethod
@@ -27998,7 +28001,7 @@ class P2_ClassElementList_ClassElementList_ClassElement(P2_ClassElementList):
         #   4. Append ClassElement to the end of list.
         #   5. Return list.
         return (
-            self.ClassElementList.NonConstrutorMethodDefinitions + self.ClassElement.NonConstructorMethodDefinitions
+            self.ClassElementList.NonConstructorMethodDefinitions + self.ClassElement.NonConstructorMethodDefinitions
         )
 
     @lru_cache

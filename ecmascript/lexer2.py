@@ -716,7 +716,7 @@ class Lexer(LexerCore):
         if (
             tok
             and tok.type == "IDENTIFIER"
-            and tok.value == id_value
+            and tok.src[tok.span.start : tok.span.after] == id_value
             and (prior_newline_allowed or len(tok.newlines) == 0)
         ):
             self.pos = tok.span.after
