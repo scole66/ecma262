@@ -229,10 +229,10 @@ class LexerCore:
         r"((0|[1-9][0-9]*)(\.[0-9]*)?|(\.[0-9]+))([eE][-+]?[0-9]+)?(?!([\p{ID_Start}_$]|(\\u([0-9a-fA-F]{4}|({[0-9a-fA-F]*})))))"
     )
     doublestringliteral_match = regex.compile(
-        r'"([^"\\\N{LF}\N{CR}\N{LINE SEPARATOR}\N{PARAGRAPH SEPARATOR}]|\\([\N{LF}\N{LINE SEPARATOR}\N{PARAGRAPH SEPARATOR}]|\N{CR}\N{LF}?)|\\([^ux0-9\r\n\N{LINE SEPARATOR}\N{PARAGRAPH SEPARATOR}]|0(?![0-9])|x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|u{[0-9a-fA-F]+}))*"'
+        r'"([^"\\\N{LF}\N{CR}]|\\([\N{LF}\N{LINE SEPARATOR}\N{PARAGRAPH SEPARATOR}]|\N{CR}\N{LF}?)|\\([^ux0-9\r\n\N{LINE SEPARATOR}\N{PARAGRAPH SEPARATOR}]|0(?![0-9])|x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|u{[0-9a-fA-F]+}))*"'
     )
     singlestringliteral_match = regex.compile(
-        r"'([^'\\\N{LF}\N{CR}\N{LINE SEPARATOR}\N{PARAGRAPH SEPARATOR}]|\\([\N{LF}\N{LINE SEPARATOR}\N{PARAGRAPH SEPARATOR}]|\N{CR}\N{LF}?)|\\([^ux0-9\r\n\N{LINE SEPARATOR}\N{PARAGRAPH SEPARATOR}]|0(?![0-9])|x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|u{[0-9a-fA-F]+}))*'"
+        r"'([^'\\\N{LF}\N{CR}]|\\([\N{LF}\N{LINE SEPARATOR}\N{PARAGRAPH SEPARATOR}]|\N{CR}\N{LF}?)|\\([^ux0-9\r\n\N{LINE SEPARATOR}\N{PARAGRAPH SEPARATOR}]|0(?![0-9])|x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|u{[0-9a-fA-F]+}))*'"
     )
 
     _RegularExpressionFlags = r"(([\p{ID_Continue}$\N{ZWJ}\N{ZWNJ}]|(\\u([0-9a-fA-F]{4}|({[0-9a-fA-F]*}))))*)"
