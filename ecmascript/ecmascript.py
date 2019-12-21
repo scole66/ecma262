@@ -3,7 +3,7 @@ import dateutil.tz
 import sys
 from enum import Enum, unique, auto
 from collections import namedtuple, deque, Counter
-from functools import reduce, partial, cached_property
+from functools import reduce, partial, cached_property, lru_cache
 from itertools import chain
 from typing import Union, Any, Tuple, Callable, Optional, List, Mapping, Deque
 from copy import copy
@@ -7939,6 +7939,14 @@ class ParseNode2:
 
     def HasName(self, *args, **kwargs):
         return self.defer_target().HasName(*args, **kwargs)
+
+    @cached_property
+    def ConstructorMethod(self):
+        return self.defer_target().ConstructorMethod
+
+    @cached_property
+    def NonConstructorMethodDefinitions(self):
+        return self.defer_target().NonConstructorMethodDefinitions
 
     def KeyedBindingInitialization(self, *args, **kwargs):
         return self.defer_target().KeyedBindingInitialization(*args, **kwargs)
@@ -27384,6 +27392,841 @@ def parse_YieldExpression(context, lexer, strict, In, Await):
     return None
 
 
+############################################################################
+# `·._.·●.._.·●.._.·●..... 14.6 Class Definitions .....●·._..●·._..●·._.·´ #
+############################################################################
+# 14.6 Class Definitions
+# 14.6.1 SS: Early Errors
+# 14.6.2 SS: BoundNames
+# 14.6.3 SS: ConstructorMethod
+# 14.6.4 SS: Contains
+# 14.6.5 SS: ComputedPropertyContains
+# 14.6.6 SS: HasName
+# 14.6.7 SS: IsConstantDeclaration
+# 14.6.8 SS: IsFunctionDefinition
+# 14.6.9 SS: IsStatic
+# 14.6.10 SS: NonConstructorMethodDefinitions
+# 14.6.11 SS: PrototypePropertyNameList
+# 14.6.12 SS: PropName
+# 14.6.13 RS: ClassDefinitionEvaluation
+# 14.6.14 RS: BindingClassDeclarationEvaluation
+# 14.6.15 RS: NamedEvaluation
+# 14.6.16 RS: Evaluation
+############################################################################
+
+# --------======= ClassDeclaration =======--------
+# Syntax
+#   ClassDeclaration :
+#       class BindingIdentifier ClassTail
+#       [+Default]class ClassTail
+
+
+class P2_ClassDeclaration(ParseNode2):
+    def __init__(self, ctx, children):
+        super().__init__(ctx, "ClassDeclaration", True, children)
+
+    def IsConstantDeclaration(self):
+        # 14.6.7 Static Semantics: IsConstantDeclaration
+        # ClassDeclaration : class BindingIdentifier ClassTail
+        # ClassDeclaration : class ClassTail
+        #   1. Return false.
+        return False
+
+
+class P2_ClassDeclaration_CLASS_BindingIdentifier_ClassTail(P2_ClassDeclaration):
+    @cached_property
+    def BindingIdentifier(self):
+        return self.children[1]
+
+    @cached_property
+    def ClassTail(self):
+        return self.children[2]
+
+    def BoundNames(self):
+        # 14.6.2 Static Semantics: BoundNames
+        # ClassDeclaration : class BindingIdentifier ClassTail
+        #   1. Return the BoundNames of BindingIdentifier.
+        return self.BindingIdentifier.BoundNames()
+
+    def BindingClassDeclarationEvaluation(self):
+        # 14.6.14 Runtime Semantics: BindingClassDeclarationEvaluation
+        # ClassDeclaration : class BindingIdentifier ClassTail
+        #   1. Let className be StringValue of BindingIdentifier.
+        #   2. Let value be the result of ClassDefinitionEvaluation of ClassTail with arguments className and className.
+        #   3. ReturnIfAbrupt(value).
+        #   4. Set value.[[SourceText]] to the source text matched by ClassDeclaration.
+        #   5. Let env be the running execution context's LexicalEnvironment.
+        #   6. Perform ? InitializeBoundName(className, value, env).
+        #   7. Return value.
+        className = self.BindingIdentifier.StringValue
+        value = self.ClassTail.ClassDefinitionEvaluation(className, className)
+        value.SourceText = self.matched_source()
+        env = surrounding_agent.running_ec.lexical_environment
+        InitializeBoundName(className, value, env, self.strict)
+        return value
+
+    def evaluate(self):
+        # 14.6.16 Runtime Semantics: Evaluation
+        # ClassDeclaration : class BindingIdentifier ClassTail
+        #   1. Perform ? BindingClassDeclarationEvaluation of this ClassDeclaration.
+        #   2. Return NormalCompletion(empty).
+        self.BindingClassDeclarationEvaluation()
+        return EMPTY
+
+
+class P2_ClassDeclaration_CLASS_ClassTail(P2_ClassDeclaration):
+    @cached_property
+    def ClassTail(self):
+        return self.children[1]
+
+    def BoundNames(self):
+        # 14.6.2 Static Semantics: BoundNames
+        # ClassDeclaration : class ClassTail
+        #   1. Return « "*default*" ».
+        return ["*default*"]
+
+    def BindingClassDeclarationEvaluation(self):
+        # 14.6.14 Runtime Semantics: BindingClassDeclarationEvaluation
+        # ClassDeclaration : class ClassTail
+        #   1. Let value be the result of ClassDefinitionEvaluation of ClassTail with arguments undefined and
+        #      "default".
+        #   2. ReturnIfAbrupt(value).
+        #   3. Set value.[[SourceText]] to the source text matched by ClassDeclaration.
+        #   4. Return value.
+        # NOTE  | ClassDeclaration:classClassTail only occurs as part of an ExportDeclaration and establishing its
+        #       | binding is handled as part of the evaluation action for that production. See 15.2.3.11.
+        value = self.ClassTail.ClassDefinitionEvaluation(None, "default")
+        value.SourceText = self.matched_source()
+        return value
+
+
+def parse_ClassDeclaration(context, lexer, _, Yield, Await, Default):
+    # 14.6 Class Definitions
+    #   ClassDeclaration[Yield, Await, Default] :
+    #       class BindingIdentifier[?Yield, ?Await] ClassTail[?Yield, ?Await]
+    #       [+Default]class ClassTail[?Yield, ?Await]
+    bookmark = lexer.current_position()
+    c = lexer.next_id_if("class")
+    if c:
+        bi = parse_BindingIdentifier(context, lexer, True, Yield, Await)
+        if bi or Default:
+            ct = parse_ClassTail(context, lexer, True, Yield, Await)
+            if ct:
+                if bi:
+                    return P2_ClassDeclaration_CLASS_BindingIdentifier_ClassTail(context, [c, bi, ct])
+                return P2_ClassDeclaration_CLASS_ClassTail(context, [c, ct])
+        lexer.reset_position(bookmark)
+    return None
+
+
+# --------======= ClassExpression =======--------
+# Syntax
+#   ClassExpression[Yield, Await]:
+#       class BindingIdentifier ClassTail
+#       class ClassTail
+class P2_ClassExpression(ParseNode2):
+    def __init__(self, ctx, children):
+        super().__init__(ctx, "ClassExpression", True, children)
+
+    class_name = None
+
+    @cached_property
+    def ClassTail(self):
+        raise ValueError("ClassTail access from base class P2_ClassExpression")
+
+    def evaluate(self):
+        # 14.6.16 Runtime Semantics: Evaluation
+        # ClassExpression : class BindingIdentifier ClassTail
+        #   1. If BindingIdentifieropt is not present, let className be undefined.
+        #   2. Else, let className be StringValue of BindingIdentifier.
+        #   3. Let value be the result of ClassDefinitionEvaluation of ClassTail with arguments className and className.
+        #   4. ReturnIfAbrupt(value).
+        #   5. Set value.[[SourceText]] to the source text matched by ClassExpression.
+        #   6. Return value.
+        className = self.class_name
+        value = self.ClassTail.ClassDefinitionEvaluation(className, className)
+        value.SourceText = self.matched_source()
+        return value
+
+    def IsFunctionDefinition(self):
+        # 14.6.8 Static Semantics: IsFunctionDefinition
+        # ClassExpression : class BindingIdentifier ClassTail
+        #   1. Return true.
+        return True
+
+
+class P2_ClassExpression_CLASS_BindingIdentifier_ClassTail(P2_ClassExpression):
+    @cached_property
+    def BindingIdentifier(self):
+        return self.children[1]
+
+    @cached_property
+    def ClassTail(self):
+        return self.children[2]
+
+    @cached_property
+    def class_name(self):
+        return self.BindingIdentifier.StringValue
+
+    def HasName(self):
+        # 14.6.6 Static Semantics: HasName
+        # ClassExpression : class BindingIdentifier ClassTail
+        #   1. Return true.
+        return True
+
+
+class P2_ClassExpression_CLASS_ClassTail(P2_ClassExpression):
+    @cached_property
+    def ClassTail(self):
+        return self.children[1]
+
+    class_name = None
+
+    def HasName(self):
+        # 14.6.6 Static Semantics: HasName
+        # ClassExpression : class ClassTail
+        #   1. Return false.
+        return False
+
+    def NamedEvaluation(self, name):
+        # 14.6.15 Runtime Semantics: NamedEvaluation
+        #   With parameter name.
+        # ClassExpression : class ClassTail
+        #   1. Return the result of ClassDefinitionEvaluation of ClassTail with arguments undefined and name.
+        return self.ClassTail.ClassDefinitionEvaluation(None, name)
+
+
+def parse_ClassExpression(context, lexer, _, Yield, Await):
+    # 14.6 Class Definitions
+    #   ClassExpression[Yield, Await]:
+    #       class BindingIdentifier[?Yield, ?Await]opt ClassTail[?Yield, ?Await]
+    bookmark = lexer.current_position()
+    c = lexer.next_id_if("class")
+    if c:
+        bi = parse_BindingIdentifier(context, lexer, True, Yield, Await)
+        ct = parse_ClassTail(context, lexer, True, Yield, Await)
+        if ct:
+            if bi:
+                return P2_ClassExpression_CLASS_BindingIdentifier_ClassTail(context, [c, bi, ct])
+            return P2_ClassExpression_CLASS_ClassTail(context, [c, ct])
+        lexer.reset_position(bookmark)
+    return None
+
+
+# --------======= ClassTail =======--------
+# Syntax
+#   ClassTail:
+#       { }
+#       { ClassBody }
+#       ClassHeritage { }
+#       ClassHeritage { ClassBody }
+
+
+class P2_ClassTail(ParseNode2):
+    def __init__(self, ctx, children):
+        super().__init__(ctx, "ClassTail", True, children)
+
+    ClassBody = None
+    ClassHeritage = None
+
+    def ClassDefinitionEvaluation(self, classBinding, className):
+        # 14.6.13 Runtime Semantics: ClassDefinitionEvaluation
+        #   With parameters classBinding and className.
+        # ClassTail : ClassHeritage { ClassBody }
+        #   1. Let lex be the LexicalEnvironment of the running execution context.
+        #   2. Let classScope be NewDeclarativeEnvironment(lex).
+        #   3. Let classScopeEnvRec be classScope's EnvironmentRecord.
+        #   4. If classBinding is not undefined, then
+        #       a. Perform classScopeEnvRec.CreateImmutableBinding(classBinding, true).
+        #   5. If ClassHeritage[opt] is not present, then
+        #       a. Let protoParent be the intrinsic object %ObjectPrototype%.
+        #       b. Let constructorParent be the intrinsic object %FunctionPrototype%.
+        #   6. Else,
+        #       a. Set the running execution context's LexicalEnvironment to classScope.
+        #       b. Let superclassRef be the result of evaluating ClassHeritage.
+        #       c. Set the running execution context's LexicalEnvironment to lex.
+        #       d. Let superclass be ? GetValue(superclassRef).
+        #       e. If superclass is null, then
+        #           i. Let protoParent be null.
+        #           ii. Let constructorParent be the intrinsic object %FunctionPrototype%.
+        #       f. Else if IsConstructor(superclass) is false, throw a TypeError exception.
+        #       g. Else,
+        #           i. Let protoParent be ? Get(superclass, "prototype").
+        #           ii. If Type(protoParent) is neither Object nor Null, throw a TypeError exception.
+        #           iii. Let constructorParent be superclass.
+        #   7. Let proto be ObjectCreate(protoParent).
+        #   8. If ClassBody[opt] is not present, let constructor be empty.
+        #   9. Else, let constructor be ConstructorMethod of ClassBody.
+        #   10. If constructor is empty, then
+        #       a. If ClassHeritageopt is present, then
+        #           i. Set constructor to the result of parsing the source text
+        #               constructor(... args){ super (...args);}
+        #              using the syntactic grammar with the goal symbol MethodDefinition[~Yield, ~Await].
+        #       b. Else,
+        #           i. Set constructor to the result of parsing the source text
+        #               constructor(){ }
+        #              using the syntactic grammar with the goal symbol MethodDefinition[~Yield, ~Await].
+        #   11. Set the running execution context's LexicalEnvironment to classScope.
+        #   12. Let constructorInfo be the result of performing DefineMethod for constructor with arguments proto
+        #       and constructorParent as the optional functionPrototype argument.
+        #   13. Assert: constructorInfo is not an abrupt completion.
+        #   14. Let F be constructorInfo.[[Closure]].
+        #   15. If ClassHeritageopt is present, set F.[[ConstructorKind]] to "derived".
+        #   16. Perform MakeConstructor(F, false, proto).
+        #   17. Perform MakeClassConstructor(F).
+        #   18. If className is not undefined, then
+        #       a. Perform SetFunctionName(F, className).
+        #   19. Perform CreateMethodProperty(proto, "constructor", F).
+        #   20. If ClassBodyopt is not present, let methods be a new empty List.
+        #   21. Else, let methods be NonConstructorMethodDefinitions of ClassBody.
+        #   22. For each ClassElement m in order from methods, do
+        #       a. If IsStatic of m is false, then
+        #           i. Let status be the result of performing PropertyDefinitionEvaluation for m with arguments proto and false.
+        #       b. Else,
+        #           i. Let status be the result of performing PropertyDefinitionEvaluation for m with arguments F and false.
+        #       c. If status is an abrupt completion, then
+        #           i. Set the running execution context's LexicalEnvironment to lex.
+        #           ii. Return Completion(status).
+        #   23. Set the running execution context's LexicalEnvironment to lex.
+        #   24. If classBinding is not undefined, then
+        #       a. Perform classScopeEnvRec.InitializeBinding(classBinding, F).
+        #   25. Return F.
+        running_ec = surrounding_agent.running_ec
+        realm = running_ec.realm
+        lex = running_ec.lexical_environment
+        classScope = NewDeclarativeEnvironment(lex)
+        classScopeEnvRec = classScope.environment_record
+        if classBinding is not None:
+            classScopeEnvRec.CreateImmutableBinding(classBinding, True)
+        if self.ClassHeritage is None:
+            protoParent = realm.intrinsics["%ObjectPrototype%"]
+            constructorParent = realm.intrinsics["%FunctionPrototype%"]
+        else:
+            running_ec.lexical_environment = classScope
+            superclassRef = self.ClassHeritage.evaluate()
+            running_ec.lexical_environment = lex
+            superclass = GetValue(superclassRef)
+            if isNull(superclass):
+                protoParent = JSNull.NULL
+                constructorParent = realm.intrinsics["%FunctionPrototype%"]
+            elif not IsConstructor(superclass):
+                raise ESTypeError("Class super must be a constructor")
+            else:
+                protoParent = Get(superclass, "prototype")
+                if not isNull(protoParent) and not isObject(protoParent):
+                    raise ESTypeError("Class prototype must be null or an object")
+                constructorParent = superclass
+        proto = ObjectCreate(protoParent)
+        if self.ClassBody is None:
+            constructor = None
+        else:
+            constructor = self.ClassBody.ConstructorMethod
+        if not constructor:
+            method_context = Parse2Context(False, self.CreateSyntaxError, "MethodDefinition")
+            lexer = Lexer(
+                "constructor(... args){super(...args);}" if self.ClassHeritage else "constructor(){}",
+                self.CreateSyntaxError,
+            )
+            constructor = parse_MethodDefinition(method_context, lexer, True, False, False)
+        running_ec.lexical_environment = classScope
+        constructorInfo = constructor.DefineMethod(proto, constructorParent)
+        F = constructorInfo.Closure
+        if self.ClassHeritage:
+            F.ConstructorKind = "derived"
+        MakeConstructor(F, False, proto)
+        MakeClassConstructor(F)
+        if className is not None:
+            SetFunctionName(F, className)
+        CreateMethodProperty(proto, "constructor", F)
+        methods = self.ClassBody.NonConstructorMethodDefinitions if self.ClassBody else []
+        try:
+            for m in methods:
+                obj = F if m.IsStatic else proto
+                m.PropertyDefinitionEvaluation(obj, False)
+        finally:
+            running_ec.lexical_environment = lex
+        if classBinding is not None:
+            classScopeEnvRec.InitializeBinding(classBinding, F)
+        return F
+
+
+class P2_ClassTail_EMPTY(P2_ClassTail):
+    pass
+
+
+class P2_ClassTail_ClassBody(P2_ClassTail):
+    @cached_property
+    def ClassBody(self):
+        return self.children[1]
+
+    ClassHeritage = None
+
+    def EarlyErrors(self):
+        # 14.6.1 Static Semantics: Early Errors
+        # ClassTail : ClassHeritage { ClassBody }
+        # It is a Syntax Error if ClassHeritage is not present and the following algorithm evaluates to true:
+        #   1. Let constructor be ConstructorMethod of ClassBody.
+        #   2. If constructor is empty, return false.
+        #   3. Return HasDirectSuper of constructor.
+        constructor = self.ClassBody.ConstructorMethod
+        if constructor and constructor.HasDirectSuper():
+            return [self.CreateSyntaxError("Direct Super not allowed in class constructors")]
+        return []
+
+    def Contains(self, symbol):
+        # 14.6.4 Static Semantics: Contains
+        #   With parameter symbol.
+        # ClassTail : ClassHeritage { ClassBody }
+        #   1. If symbol is ClassBody, return true.
+        #   2. If symbol is ClassHeritage, then
+        #       a. If ClassHeritage is present, return true; otherwise return false.
+        #   3. Let inHeritage be ClassHeritage Contains symbol.
+        #   4. If inHeritage is true, return true.
+        #   5. Return the result of ComputedPropertyContains for ClassBody with argument symbol.
+        # NOTE  | Static semantic rules that depend upon substructure generally do not look into class bodies except
+        #       | for PropertyNames.
+        if symbol == "ClassBody":
+            return True
+        if symbol == "ClassHeritage":
+            return False
+        return self.ClassBody.ComputedPropertyContains(symbol)
+
+
+class P2_ClassTail_ClassHeritage(P2_ClassTail):
+    @cached_property
+    def ClassHeritage(self):
+        return self.children[0]
+
+    ClassBody = None
+
+
+class P2_ClassTail_ClassHeritage_ClassBody(P2_ClassTail):
+    @cached_property
+    def ClassHeritage(self):
+        return self.children[0]
+
+    @cached_property
+    def ClassBody(self):
+        return self.children[2]
+
+    def Contains(self, symbol):
+        # 14.6.4 Static Semantics: Contains
+        #   With parameter symbol.
+        # ClassTail : ClassHeritage { ClassBody }
+        #   1. If symbol is ClassBody, return true.
+        #   2. If symbol is ClassHeritage, then
+        #       a. If ClassHeritage is present, return true; otherwise return false.
+        #   3. Let inHeritage be ClassHeritage Contains symbol.
+        #   4. If inHeritage is true, return true.
+        #   5. Return the result of ComputedPropertyContains for ClassBody with argument symbol.
+        # NOTE  | Static semantic rules that depend upon substructure generally do not look into class bodies except
+        #       | for PropertyNames.
+        return (
+            symbol in ("ClassBody", "ClassHeritage")
+            or self.ClassHeritage.Contains(symbol)
+            or self.ClassBody.ComputedPropertyContains(symbol)
+        )
+
+
+def parse_ClassTail(context, lexer, _, Yield, Await):
+    # 14.6 Class Definitions
+    #   ClassTail[Yield, Await]:
+    #       ClassHeritage[?Yield, ?Await]opt { ClassBody[?Yield, ?Await]opt }
+    bookmark = lexer.current_position()
+    ch = parse_ClassHeritage(context, lexer, True, Yield, Await)
+    lc = lexer.next_token_if("{")
+    if lc:
+        cb = parse_ClassBody(context, lexer, True, Yield, Await)
+        rc = lexer.next_token_if("}")
+        if rc:
+            if ch and cb:
+                return P2_ClassTail_ClassHeritage_ClassBody(context, [ch, lc, cb, rc])
+            if ch:
+                return P2_ClassTail_ClassHeritage(context, [ch, lc, rc])
+            if cb:
+                return P2_ClassTail_ClassBody(context, [lc, cb, rc])
+            return P2_ClassTail_EMPTY(context, [lc, rc])
+    lexer.reset_position(bookmark)
+    return None
+
+
+# --------======= ClassHeritage =======--------
+# Syntax
+#   ClassHeritage:
+#       extends LeftHandSideExpression
+class P2_ClassHeritage(ParseNode2):
+    def __init__(self, ctx, children):
+        super().__init__(ctx, "ClassHeritage", True, children)
+
+
+class P2_ClassHeritage_EXTENDS_LeftHandSideExpression(P2_ClassHeritage):
+    @cached_property
+    def LeftHandSideExpression(self):
+        return self.children[1]
+
+
+def parse_ClassHeritage(context, lexer, _, Yield, Await):
+    # 14.6 Class Definitions
+    #   ClassHeritage[Yield, Await]:
+    #       extends LeftHandSideExpression[?Yield, ?Await]
+    bookmark = lexer.current_position()
+    e = lexer.next_id_if("extends")
+    if e:
+        lhs = parse_LeftHandSideExpression(context, lexer, True, Yield, Await)
+        if lhs:
+            return P2_ClassHeritage_EXTENDS_LeftHandSideExpression(context, [e, lhs])
+        lexer.reset_position(bookmark)
+    return None
+
+
+# --------======= ClassBody =======--------
+# Syntax
+# ClassBody:
+#   ClassElementList
+class P2_ClassBody(ParseNode2):
+    def __init__(self, ctx, children):
+        super().__init__(ctx, "ClassBody", True, children)
+
+
+class P2_ClassBody_ClassElementList(P2_ClassBody):
+    @cached_property
+    def ClassElementList(self):
+        return self.children[0]
+
+    def EarlyErrors(self):
+        # 14.6.1 Static Semantics: Early Errors
+        # ClassBody : ClassElementList
+        #   * It is a Syntax Error if PrototypePropertyNameList of ClassElementList contains more than one
+        #     occurrence of "constructor".
+        return list(
+            filter(
+                None,
+                (
+                    self.ClassElementList.PrototypePropertyNameList.count("constructor") > 1
+                    and self.CreateSyntaxError("Classes may only have one constructor"),
+                ),
+            )
+        )
+
+
+def parse_ClassBody(context, lexer, _, Yield, Await):
+    # 14.6 Class Definitions
+    #   ClassBody[Yield, Await]:
+    #     ClassElementList[?Yield, ?Await]
+    cel = parse_ClassElementList(context, lexer, True, Yield, Await)
+    if cel:
+        return P2_ClassBody_ClassElementList(context, [cel])
+    return None
+
+
+# --------======= ClassElementList =======--------
+# Syntax
+#   ClassElementList:
+#     ClassElement
+#     ClassElementList ClassElement
+class P2_ClassElementList(ParseNode2):
+    def __init__(self, ctx, children):
+        super().__init__(ctx, "ClassElementList", True, children)
+
+
+class P2_ClassElementList_ClassElement(P2_ClassElementList):
+    @cached_property
+    def ClassElement(self):
+        return self.children[0]
+
+    @cached_property
+    def ConstructorMethod(self):
+        # 14.6.3 Static Semantics: ConstructorMethod
+        # ClassElementList : ClassElement
+        #   1. If ClassElement is ClassElement : ; , return empty.
+        #   2. If IsStatic of ClassElement is true, return empty.
+        #   3. If PropName of ClassElement is not "constructor", return empty.
+        #   4. Return ClassElement.
+        return self.ClassElement.ConstructorMethod
+
+    @cached_property
+    def NonConstructorMethodDefinitions(self):
+        # 14.6.10 Static Semantics: NonConstructorMethodDefinitions
+        # ClassElementList : ClassElement
+        #   1. If ClassElement is ClassElement:; , return a new empty List.
+        #   2. If IsStatic of ClassElement is false and PropName of ClassElement is "constructor", return a new
+        #      empty List.
+        #   3. Return a List containing ClassElement.
+        return self.ClassElement.NonConstructorMethodDefinitions
+
+    @cached_property
+    def PrototypePropertyNameList(self):
+        # 14.6.11 Static Semantics: PrototypePropertyNameList
+        # ClassElementList : ClassElement
+        #   1. If PropName of ClassElement is empty, return a new empty List.
+        #   2. If IsStatic of ClassElement is true, return a new empty List.
+        #   3. Return a List containing PropName of ClassElement.
+        return self.ClassElement.PrototypePropertyNameList
+
+
+class P2_ClassElementList_ClassElementList_ClassElement(P2_ClassElementList):
+    @cached_property
+    def ClassElementList(self):
+        return self.children[0]
+
+    @cached_property
+    def ClassElement(self):
+        return self.children[1]
+
+    @cached_property
+    def ConstructorMethod(self):
+        # 14.6.3 Static Semantics: ConstructorMethod
+        # ClassElementList : ClassElementList ClassElement
+        #   1. Let head be ConstructorMethod of ClassElementList.
+        #   2. If head is not empty, return head.
+        #   3. If ClassElement is ClassElement:; , return empty.
+        #   4. If IsStatic of ClassElement is true, return empty.
+        #   5. If PropName of ClassElement is not "constructor", return empty.
+        #   6. Return ClassElement.
+        return self.ClassElementList.ConstructorMethod or self.ClassElement.ConstructorMethod
+
+    @cached_property
+    def NonConstructorMethodDefinitions(self):
+        # 14.6.10 Static Semantics: NonConstructorMethodDefinitions
+        # ClassElementList : ClassElementList ClassElement
+        #   1. Let list be NonConstructorMethodDefinitions of ClassElementList.
+        #   2. If ClassElement is ClassElement:; , return list.
+        #   3. If IsStatic of ClassElement is false and PropName of ClassElement is "constructor", return list.
+        #   4. Append ClassElement to the end of list.
+        #   5. Return list.
+        return (
+            self.ClassElementList.NonConstrutorMethodDefinitions + self.ClassElement.NonConstructorMethodDefinitions
+        )
+
+    @lru_cache
+    def ComputedPropertyContains(self, symbol):
+        # 14.6.5 Static Semantics: ComputedPropertyContains
+        #   With parameter symbol.
+        # ClassElementList : ClassElementList ClassElement
+        #   1. Let inList be the result of ComputedPropertyContains for ClassElementList with argument symbol.
+        #   2. If inList is true, return true.
+        #   3. Return the result of ComputedPropertyContains for ClassElement with argument symbol.
+        return self.ClassElementList.ComputedPropertyContains(symbol) or self.ClassElement.ComputedPropertyContains(
+            symbol
+        )
+
+    @cached_property
+    def PrototypePropertyNameList(self):
+        # 14.6.11 Static Semantics: PrototypePropertyNameList
+        # ClassElementList : ClassElementList ClassElement
+        #   1. Let list be PrototypePropertyNameList of ClassElementList.
+        #   2. If PropName of ClassElement is empty, return list.
+        #   3. If IsStatic of ClassElement is true, return list.
+        #   4. Append PropName of ClassElement to the end of list.
+        #   5. Return list.
+        return self.ClassElementList.PrototypePropertyNameList + self.ClassElement.PrototypePropertyNameList
+
+
+def parse_ClassElementList(context, lexer, _, Yield, Await):
+    # 14.6 Class Definitions
+    #   ClassElementList[Yield, Await]:
+    #     ClassElement[?Yield, ?Await]
+    #     ClassElementList[?Yield, ?Await] ClassElement[?Yield, ?Await]
+    def parse(previous=None):
+        ce = parse_ClassElement(context, lexer, True, Yield, Await)
+        if ce:
+            if previous:
+                return lambda: parse(P2_ClassElementList_ClassElementList_ClassElement(context, [previous, ce]))
+            return lambda: parse(P2_ClassElementList_ClassElement(context, [ce]))
+        return previous
+
+    return trampoline(parse)
+
+
+# --------======= ClassElement =======--------
+# Syntax
+#   ClassElement:
+#       MethodDefinition
+#       static MethodDefinition
+#       ;
+class P2_ClassElement(ParseNode2):
+    def __init__(self, ctx, children):
+        super().__init__(ctx, "ClassElement", True, children)
+
+    # 14.6.9 Static Semantics: IsStatic
+    # ClassElement : MethodDefinition
+    # ClassElement : ;
+    #   1. Return false.
+    IsStatic = False
+
+
+class P2_ClassElement_hasmethod(P2_ClassElement):
+    @cached_property
+    def MethodDefinition(self):
+        raise ValueError("base class")
+
+    @cached_property
+    def ConstructorMethod(self):
+        # 14.6.3 Static Semantics: ConstructorMethod
+        # ClassElementList : ClassElement
+        #   1. If ClassElement is ClassElement : ; , return empty.
+        #   2. If IsStatic of ClassElement is true, return empty.
+        #   3. If PropName of ClassElement is not "constructor", return empty.
+        #   4. Return ClassElement.
+        return self if not self.IsStatic and self.PropName() == "constructor" else None
+
+    def ComputedPropertyContains(self, symbol):
+        # 14.6.5 Static Semantics: ComputedPropertyContains
+        #   With parameter symbol.
+        # ClassElement : MethodDefinition
+        # ClassElement : static MethodDefinition
+        #   1. Return the result of ComputedPropertyContains for MethodDefinition with argument symbol.
+        return self.MethodDefinition.ComputedPropertyContains(symbol)
+
+
+class P2_ClassElement_MethodDefinition(P2_ClassElement_hasmethod):
+    @cached_property
+    def MethodDefinition(self):
+        return self.children[0]
+
+    def EarlyErrors(self):
+        # 14.6.1 Static Semantics: Early Errors
+        # ClassElement : MethodDefinition
+        #   * It is a Syntax Error if PropName of MethodDefinition is not "constructor" and HasDirectSuper of
+        #     MethodDefinition is true.
+        #   * It is a Syntax Error if PropName of MethodDefinition is "constructor" and SpecialMethod of
+        #     MethodDefinition is true.
+        return list(
+            filter(
+                None,
+                (
+                    self.MethodDefinition.PropName() != "constructor"
+                    and self.MethodDefinition.HasDirectSuper()
+                    and self.CreateSyntaxError("Direct Supers only allowed in constructors"),
+                    self.MethodDefinition.PropName() == "constructor"
+                    and self.MethodDefinition.SpecialMethod()
+                    and self.CreateSyntaxError("Constructors must be ordinary methods"),
+                ),
+            )
+        )
+
+    @cached_property
+    def NonConstructorMethodDefinitions(self):
+        # 14.6.10 Static Semantics: NonConstructorMethodDefinitions
+        # ClassElementList : ClassElement
+        #   1. If ClassElement is ClassElement:; , return a new empty List.
+        #   2. If IsStatic of ClassElement is false and PropName of ClassElement is "constructor", return a new
+        #      empty List.
+        #   3. Return a List containing ClassElement.
+        return [self] if self.PropName() != "constructor" else []
+
+    @cached_property
+    def PrototypePropertyNameList(self):
+        # 14.6.11 Static Semantics: PrototypePropertyNameList
+        # ClassElementList : ClassElement
+        #   1. If PropName of ClassElement is empty, return a new empty List.
+        #   2. If IsStatic of ClassElement is true, return a new empty List.
+        #   3. Return a List containing PropName of ClassElement.
+        return [self.PropName()]
+
+
+class P2_ClassElement_STATIC_MethodDefinition(P2_ClassElement_hasmethod):
+    @cached_property
+    def MethodDefinition(self):
+        return self.children[1]
+
+    # 14.6.9 Static Semantics: IsStatic
+    # ClassElement : static MethodDefinition
+    #   1. Return true.
+    IsStatic = True
+
+    def EarlyErrors(self):
+        # 14.6.1 Static Semantics: Early Errors
+        # ClassElement : static MethodDefinition
+        #   * It is a Syntax Error if HasDirectSuper of MethodDefinition is true.
+        #   * It is a Syntax Error if PropName of MethodDefinition is "prototype".
+        return list(
+            filter(
+                None,
+                (
+                    self.MethodDefinition.HasDirectSuper()
+                    and self.CreateSyntaxError("Static methods in classes may not have a direct super"),
+                    self.MethodDefinition.PropName() == "prototype"
+                    and self.CreateSyntaxError("static methods may not be named 'prototype'"),
+                ),
+            )
+        )
+
+    @cached_property
+    def NonConstructorMethodDefinitions(self):
+        # 14.6.10 Static Semantics: NonConstructorMethodDefinitions
+        # ClassElementList : ClassElement
+        #   1. If ClassElement is ClassElement:; , return a new empty List.
+        #   2. If IsStatic of ClassElement is false and PropName of ClassElement is "constructor", return a new
+        #      empty List.
+        #   3. Return a List containing ClassElement.
+        return [self]
+
+    # 14.6.11 Static Semantics: PrototypePropertyNameList
+    # ClassElementList : ClassElement
+    #   1. If PropName of ClassElement is empty, return a new empty List.
+    #   2. If IsStatic of ClassElement is true, return a new empty List.
+    #   3. Return a List containing PropName of ClassElement.
+    PrototypePropertyNameList = []
+
+
+class P2_ClassElement_EMPTY(P2_ClassElement):
+    # 14.6.3 Static Semantics: ConstructorMethod
+    # ClassElementList : ClassElement
+    #   1. If ClassElement is ClassElement : ; , return empty.
+    #   2. If IsStatic of ClassElement is true, return empty.
+    #   3. If PropName of ClassElement is not "constructor", return empty.
+    #   4. Return ClassElement.
+    ConstructorMethod = None
+
+    def ComputedPropertyContains(self, symbol):
+        # 14.6.5 Static Semantics: ComputedPropertyContains
+        #   With parameter symbol.
+        # ClassElement : ;
+        #   1. Return false.
+        return False
+
+    # 14.6.10 Static Semantics: NonConstructorMethodDefinitions
+    # ClassElementList : ClassElement
+    #   1. If ClassElement is ClassElement:; , return a new empty List.
+    #   2. If IsStatic of ClassElement is false and PropName of ClassElement is "constructor", return a new empty
+    #      List.
+    #   3. Return a List containing ClassElement.
+    NonConstructorMethodDefinitions = []
+
+    # 14.6.11 Static Semantics: PrototypePropertyNameList
+    # ClassElementList : ClassElement
+    #   1. If PropName of ClassElement is empty, return a new empty List.
+    #   2. If IsStatic of ClassElement is true, return a new empty List.
+    #   3. Return a List containing PropName of ClassElement.
+    PrototypePropertyNameList = []
+
+    def PropName(self):
+        # 14.6.12 Static Semantics: PropName
+        # ClassElement : ;
+        #   1. Return empty.
+        return EMPTY
+
+
+def parse_ClassElement(context, lexer, _, Yield, Await):
+    #   ClassElement[Yield, Await]:
+    #       MethodDefinition[?Yield, ?Await]
+    #       static MethodDefinition[?Yield, ?Await]
+    #       ;
+    bookmark = lexer.current_position()
+    s = lexer.next_id_if("static")
+    md = parse_MethodDefinition(context, lexer, True, Yield, Await)
+    if md:
+        if s:
+            return P2_ClassElement_STATIC_MethodDefinition(context, [s, md])
+        return P2_ClassElement_MethodDefinition(context, [md])
+    lexer.reset_position(bookmark)
+    semi = lexer.next_token_if(";")
+    if semi:
+        return P2_ClassElement_EMPTY(context, [semi])
+    return None
+
+
 ###########################################################################################
 # `·._.·●.._.·●.._.·●..... 14.8 Async Arrow Function Definitions .....●·._..●·._..●·._.·´ #
 ###########################################################################################
@@ -27446,10 +28289,6 @@ def parse_AsyncArrowFunction(*args):
     return None
 
 
-def parse_ClassDeclaration(*args):
-    return None
-
-
 def parse_AsyncFunctionDeclaration(*args):
     return None
 
@@ -27471,10 +28310,6 @@ def parse_AsyncFunctionExpression(*args):
 
 
 def parse_AsyncGeneratorExpression(*args):
-    return None
-
-
-def parse_ClassExpression(*args):
     return None
 
 
