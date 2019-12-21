@@ -228,23 +228,26 @@ passing = (
     # These paths have passed 100%. We shouldn't break them.
     "built-ins/Boolean",
     "built-ins/Error",
-    "built-ins/parseInt",
-    "built-ins/parseFloat",
-    "built-ins/isNaN",
     "built-ins/isFinite",
-    "language/types/boolean",
+    "built-ins/isNaN",
+    "built-ins/parseFloat",
+    "built-ins/parseInt",
     "language/eval-code",
-    "language/statementList",
-    "language/statements/labeled",
-    "language/identifiers",
     "language/identifier-resolution",
+    "language/identifiers",
     "language/line-terminators",
+    "language/literals/boolean",
+    "language/literals/null",
     "language/literals/string",
+    "language/literas/numeric",
+    "language/statementList",
     "language/statements/block",
     "language/statements/break",
+    "language/statements/const",
     "language/statements/continue",
     "language/statements/debugger",
-    "language/statements/const",
+    "language/statements/labeled",
+    "language/types",
 )
 
 test_passing = False
@@ -259,8 +262,7 @@ if test_passing:
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/String/**/*.js", recursive=True))
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/Array/**/*.js", recursive=True))
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/Object/**/*.js", recursive=True))
-test_files.extend(glob.glob(f"{base_path}/test/language/literals/string/**/*.js", recursive=True))
-# test_files.extend(glob.glob(f"{base_path}/test/language/types/**/*.js", recursive=True))
+test_files.extend(glob.glob(f"{base_path}/test/language/arguments-object/**/*.js", recursive=True))
 # test_files.extend(glob.glob(f"{base_path}/test/language/statements/class/**/*.js", recursive=True))
 test_files = [fn for fn in test_files if not fn.endswith("_FIXTURE.js")]
 
