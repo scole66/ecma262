@@ -34982,7 +34982,11 @@ def CreateArrayPrototype(realm):
             ("values", ArrayPrototype_values, 0),
         ],
     )
-    Set(proto, wks_iterator, Get(proto, "values"), True)
+    DefinePropertyOrThrow(
+        proto,
+        wks_iterator,
+        PropertyDescriptor(value=Get(proto, "values"), writable=True, enumerable=False, configurable=True),
+    )
     return proto
 
 

@@ -232,6 +232,10 @@ passing = (
     "built-ins/isNaN",
     "built-ins/parseFloat",
     "built-ins/parseInt",
+    "language/arguments-object",
+    "language/asi",
+    "language/block-scope",
+    "language/comments",
     "language/eval-code",
     "language/identifier-resolution",
     "language/identifiers",
@@ -262,7 +266,8 @@ if test_passing:
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/String/**/*.js", recursive=True))
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/Array/**/*.js", recursive=True))
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/Object/**/*.js", recursive=True))
-test_files.extend(glob.glob(f"{base_path}/test/language/arguments-object/**/*.js", recursive=True))
+# test_files.extend(glob.glob(f"{base_path}/test/built-ins/Symbol/**/*.js", recursive=True))
+# test_files.extend(glob.glob(f"{base_path}/test/language/computed-property-names/**/*.js", recursive=True))
 # test_files.extend(glob.glob(f"{base_path}/test/language/statements/class/**/*.js", recursive=True))
 test_files = [fn for fn in test_files if not fn.endswith("_FIXTURE.js")]
 
