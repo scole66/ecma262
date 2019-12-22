@@ -150,8 +150,14 @@ class JSNull(Enum):
 #
 # Each Symbol value immutably holds an associated value called [[Description]] that is either undefined or a String
 # value.
-# Implementation: Just use a one-item namedtuple. They're pretty lightweight.
-JSSymbol = namedtuple("Symbol", ["description"])
+#
+# Implementation: A namedtuple seems appropriate, but fails uniqueness. It needs to be a real class.
+class JSSymbol:
+    __slots__ = ["description"]
+
+    def __init__(self, desc: str):
+        self.description = desc
+
 
 # 6.1.5.1 Well-Known Symbols
 #
