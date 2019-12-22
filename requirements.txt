@@ -12,13 +12,13 @@ black==19.10b0
 cheap-repr==0.4.1         # via snoop
 click==7.0                # via black
 coverage==5.0             # via pytest-cov
-executing==0.3.3          # via snoop
+executing==0.4.0          # via snoop
 isort==4.3.21             # via pylint
 lazy-object-proxy==1.4.3  # via astroid
 mccabe==0.6.1             # via pylint
 more-itertools==8.0.2     # via pytest
 mypy-extensions==0.4.3    # via mypy
-mypy==0.760
+mypy==0.761
 packaging==19.2           # via pytest
 pathspec==0.6.0           # via black
 pluggy==0.13.1            # via pytest
@@ -31,7 +31,7 @@ pytest-mock==1.13.0
 pytest==5.3.2
 python-dateutil==2.8.1
 pyyaml==5.2
-regex==2019.12.19
+regex==2019.12.20
 six==1.13.0               # via astroid, asttokens, packaging, python-dateutil, snoop
 snoop==0.2.2
 toml==0.10.0              # via black
