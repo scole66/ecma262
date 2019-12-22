@@ -24863,10 +24863,10 @@ def parse_FunctionDeclaration(context, lexer, strict, Yield, Await, Default):
                                 if rc:
                                     if bi:
                                         return P2_FunctionDeclaration_FUNCTION_BindingIdentifier_FormalParameters_FunctionBody(
-                                            context, strict, [function, bi, lp, fp, rp, lc, body, rc]
+                                            context, body.strict, [function, bi, lp, fp, rp, lc, body, rc]
                                         )
                                     return P2_FunctionDeclaration_FUNCTION_FormalParameters_FunctionBody(
-                                        context, strict, [function, lp, fp, rp, lc, body, rc]
+                                        context, body.strict, [function, lp, fp, rp, lc, body, rc]
                                     )
         lexer.reset_position(bookmark)
     return None
@@ -25075,10 +25075,10 @@ def parse_FunctionExpression(context, lexer, strict):
                             if rc:
                                 if bi:
                                     return P2_FunctionExpression_FUNCTION_BindingIdentifier_FormalParameters_FunctionBody(
-                                        context, strict, [function, bi, lp, fp, rp, lc, body, rc]
+                                        context, body.strict, [function, bi, lp, fp, rp, lc, body, rc]
                                     )
                                 return P2_FunctionExpression_FUNCTION_FormalParameters_FunctionBody(
-                                    context, strict, [function, lp, fp, rp, lc, body, rc]
+                                    context, body.strict, [function, lp, fp, rp, lc, body, rc]
                                 )
         lexer.reset_position(bookmark)
     return None
@@ -25613,7 +25613,7 @@ def parse_FunctionBody(context, lexer, strict, Yield, Await):
     #       FunctionStatementList[?Yield, ?Await]
     fsl = parse_FunctionStatementList(context, lexer, strict, Yield, Await)
     if fsl:
-        return P2_FunctionBody_FunctionStatementList(context, strict, [fsl])
+        return P2_FunctionBody_FunctionStatementList(context, fsl.strict, [fsl])
     return None
 
 
@@ -26137,7 +26137,7 @@ def parse_ConciseBody(context, lexer, strict, In):
         if fb:
             rc = lexer.next_token_if("}")
             if rc:
-                return P2_ConciseBody_FunctionBody(context, strict, [lc, fb, rc])
+                return P2_ConciseBody_FunctionBody(context, fb.strict, [lc, fb, rc])
     else:
         ae = parse_AssignmentExpression(context, lexer, strict, In, False, False)
         if ae:
@@ -26520,7 +26520,7 @@ def parse_MethodDefinition(context, lexer, strict, Yield, Await):
                             rc1 = lexer.next_token_if("}")
                             if rc1:
                                 return P2_MethodDefinition_PropertyName_UniqueFormalParameters_FunctionBody(
-                                    context, strict, [pn1, lp1, ufp, rp1, lc1, fb1, rc1]
+                                    context, fb1.strict, [pn1, lp1, ufp, rp1, lc1, fb1, rc1]
                                 )
         lexer.reset_position(bookmark)
     gm = parse_GeneratorMethod(context, lexer, strict, Yield, Await)
@@ -26547,7 +26547,7 @@ def parse_MethodDefinition(context, lexer, strict, Yield, Await):
                             rc_get = lexer.next_token_if("}")
                             if rc_get:
                                 return P2_MethodDefinition_GET_PropertyName_FunctionBody(
-                                    context, strict, [get, pn_get, lp_get, rp_get, lc_get, fb_get, rc_get]
+                                    context, fb_get.strict, [get, pn_get, lp_get, rp_get, lc_get, fb_get, rc_get]
                                 )
         lexer.reset_position(bookmark)
     set_tok = lexer.next_id_if("set")
@@ -26568,7 +26568,7 @@ def parse_MethodDefinition(context, lexer, strict, Yield, Await):
                                 if rc_set:
                                     return P2_MethodDefinition_SET_PropertyName_PropertySetParameterList_FunctionBody(
                                         context,
-                                        strict,
+                                        fb_set.strict,
                                         [set_tok, pn_set, lp_set, pspl, rp_set, lc_set, fb_set, rc_set],
                                     )
         lexer.reset_position(bookmark)
@@ -27192,7 +27192,7 @@ def parse_GeneratorBody(context, lexer, strict):
     #       FunctionBody[+Yield, ~Await]
     fb = parse_FunctionBody(context, lexer, strict, True, False)
     if fb:
-        return P2_GeneratorBody_FunctionBody(context, strict, [fb])
+        return P2_GeneratorBody_FunctionBody(context, fb.strict, [fb])
     return None
 
 

@@ -174,11 +174,12 @@ class test262_testcase:
 
     def massaged(self, strict=False):
         result = ""
-        if strict:
-            result += '"use strict";\n'
-        for file in chain(("assert.js", "sta.js"), self.config["includes"]):
-            with open(os.path.join(self.root, "harness", file), "r") as f:
-                result += f.read() + "\n"
+        if "raw" not in self.config["flags"]:
+            if strict:
+                result += '"use strict";\n'
+            for file in chain(("assert.js", "sta.js"), self.config["includes"]):
+                with open(os.path.join(self.root, "harness", file), "r") as f:
+                    result += f.read() + "\n"
         result += self.source
         with open("test.js", "w") as f:
             print(result, file=f)
@@ -236,6 +237,8 @@ passing = (
     "language/asi",
     "language/block-scope",
     "language/comments",
+    "language/destructuring",
+    "language/directive-prologue",
     "language/eval-code",
     "language/identifier-resolution",
     "language/identifiers",
@@ -266,8 +269,8 @@ if test_passing:
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/String/**/*.js", recursive=True))
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/Array/**/*.js", recursive=True))
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/Object/**/*.js", recursive=True))
-# test_files.extend(glob.glob(f"{base_path}/test/built-ins/Symbol/**/*.js", recursive=True))
-# test_files.extend(glob.glob(f"{base_path}/test/language/computed-property-names/**/*.js", recursive=True))
+# test_files.extend(glob.glob(f"{base_path}/test/built-ins/Symbol/**/*.js", recursive=True)) # Needs Map
+# test_files.extend(glob.glob(f"{base_path}/test/language/computed-property-names/**/*.js", recursive=True)) # Needs NumberToString accuracy
 # test_files.extend(glob.glob(f"{base_path}/test/language/statements/class/**/*.js", recursive=True))
 test_files = [fn for fn in test_files if not fn.endswith("_FIXTURE.js")]
 
@@ -341,7 +344,10 @@ for tf in test_files:
             val
             for val, _ in filter(
                 itemgetter(1),
-                ((False, "onlyStrict" not in tc.config["flags"]), (True, "noStrict" not in tc.config["flags"])),
+                (
+                    (False, "onlyStrict" not in tc.config["flags"]),
+                    (True, all(x not in tc.config["flags"] for x in ("noStrict", "raw"))),
+                ),
             )
         ):
             params.append(

@@ -257,6 +257,7 @@ def parser_mock(symbol, obj=None):
 class NotStringLiteral:
     IsStringLiteral = False
     HasUseStrict = False
+    strict = False
 
     def __init__(self, name):
         self.name = name
@@ -382,11 +383,13 @@ CATCH_PRODUCTION, catch_sideeffect = parser_mock("Catch")
 FINALLY_PRODUCTION, finally_sideeffect = parser_mock("Finally")
 CATCHPARAMETER, catchparameter_sideeffect = parser_mock("CatchParameter")
 FORMALPARAMETERS, formalparameters_sideeffect = parser_mock("FormalParameters")
-FUNCTIONBODY, functionbody_sideeffect = parser_mock("FunctionBody")
+FUNCTIONBODY, functionbody_sideeffect = parser_mock("FunctionBody", NotStringLiteral("FunctionBody"))
 FORMALPARAMETERLIST, formalparameterlist_sideeffect = parser_mock("FormalParameterList")
 FUNCTIONRESTPARAMETER, functionrestparameter_sideeffect = parser_mock("FunctionRestParameter")
 FORMALPARAMETER, formalparameter_sideeffect = parser_mock("FormalParameter")
-FUNCTIONSTATEMENTLIST, functionstatementlist_sideeffect = parser_mock("FunctionStatementList")
+FUNCTIONSTATEMENTLIST, functionstatementlist_sideeffect = parser_mock(
+    "FunctionStatementList", NotStringLiteral("FunctionStatementList")
+)
 ARROWPARAMETERS, arrowparameters_sideeffect = parser_mock("ArrowParameters")
 CONCISEBODY, concisebody_sideeffect = parser_mock("ConciseBody")
 (
@@ -10264,7 +10267,10 @@ class Test_FunctionDeclaration:
         fd = e.parse_FunctionDeclaration(context, lexer, "StrictArg", "YieldArg", "AwaitArg", Default)
         assert isinstance(fd, expected_class)
         for key in production_checks:
-            assert getattr(fd, key) == key, f"assert fd.{key} == {key!r}"
+            if hasattr(getattr(fd, key), "name"):
+                assert getattr(fd, key).name == key
+            else:
+                assert getattr(fd, key) == key, f"assert fd.{key} == {key!r}"
         for idx, expected in token_checks:
             assert fd.children[idx] == expected, f"assert fd.children[{idx}] == {expected!r}"
         assert lexer.pos == len(token_stream)
@@ -10415,7 +10421,10 @@ class Test_FunctionExpression:
         fe = e.parse_FunctionExpression(context, lexer, "StrictArg")
         assert isinstance(fe, expected_class)
         for key in production_checks:
-            assert getattr(fe, key) == key, f"assert fe.{key} == {key!r}"
+            if hasattr(getattr(fe, key), "name"):
+                assert getattr(fe, key).name == key
+            else:
+                assert getattr(fe, key) == key, f"assert fe.{key} == {key!r}"
         for idx, expected in token_checks:
             assert fe.children[idx] == expected, f"assert fe.children[{idx}] == {expected!r}"
         assert lexer.pos == len(token_stream)
@@ -10978,7 +10987,10 @@ class Test_FunctionBody:
         fb = e.parse_FunctionBody(context, lexer, "StrictArg", "YieldArg", "AwaitArg")
         assert isinstance(fb, expected_class)
         for key in production_checks:
-            assert getattr(fb, key) == key, f"assert fb.{key} == {key!r}"
+            if hasattr(getattr(fb, key), "name"):
+                assert getattr(fb, key).name == key
+            else:
+                assert getattr(fb, key) == key, f"assert fb.{key} == {key!r}"
         for idx, expected in token_checks:
             assert fb.children[idx] == expected, f"assert fb.children[{idx}] == {expected!r}"
         assert lexer.pos == len(token_stream)
