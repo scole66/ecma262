@@ -20,7 +20,7 @@ import operator
 
 import snoop
 
-from .lexer2 import Lexer, utf_16_encode, utf_16_decode
+from .lexer2 import LexerCore, utf_16_encode, utf_16_decode
 from . import e262_regexp
 
 
@@ -1285,7 +1285,7 @@ digits_to_floats = (
 
 def string_to_number(arg):
     stripper = regex.compile(
-        f"^({Lexer.WhiteSpace}|{Lexer.LineTerminator})*(?P<numstr>.*?)({Lexer.WhiteSpace}|{Lexer.LineTerminator})*$"
+        f"^({LexerCore.WhiteSpace}|{LexerCore.LineTerminator})*(?P<numstr>.*?)({LexerCore.WhiteSpace}|{LexerCore.LineTerminator})*$"
     )
     m = stripper.match(arg)
     assert m, "Failed to remove whitespace (should never happen)"
@@ -4570,7 +4570,7 @@ def InitializeHostDefinedRealm(add_host_defined_globals: Callable[[Realm], None]
     # 2. Let newContext be a new execution context.
     new_context = ExecutionContext()
     # 3. Set the Function of newContext to null.
-    new_context.ecma_function = None
+    new_context.function = JSNull.NULL
     # 4. Set the Realm of newContext to realm.
     new_context.realm = realm
     # 5. Set the ScriptOrModule of newContext to null.
@@ -4632,7 +4632,7 @@ def RunJobs(scripts=[], modules=[], add_host_defined_globals: Callable[[Realm], 
         # e. Let newContext be a new execution context.
         new_context = ExecutionContext()
         # f. Set newContext's Function to null.
-        new_context.ecma_function = JSNull.NULL
+        new_context.function = JSNull.NULL
         # g. Set newContext's Realm to nextPending.[[Realm]].
         new_context.realm = next_pending.realm
         # h. Set newContext's ScriptOrModule to nextPending.[[ScriptOrModule]].
@@ -7712,6 +7712,26 @@ class ParseNode2:
         self.children = children
         self.strict = strict
 
+    @cached_property
+    def after(self):
+        if hasattr(self.children[-1], "span"):
+            return self.children[-1].span.after
+        return self.children[-1].after
+
+    @cached_property
+    def start(self):
+        if hasattr(self.children[0], "span"):
+            return self.children[0].span.start
+        return self.children[0].start
+
+    @cached_property
+    def src(self):
+        return self.children[0].src
+
+    @property
+    def pn_count(self):
+        return 1 + sum(node.pn_count for node in self.children if isinstance(node, ParseNode2))
+
     def terminals(self):
         for child in filter(None, self.children):
             if not isinstance(child, ParseNode2):
@@ -7720,20 +7740,8 @@ class ParseNode2:
                 for sub_token in child.terminals():
                     yield sub_token
 
-    @staticmethod
-    def minmax_spans(iter, initial_min, initial_max):
-        minimum = initial_min
-        maximum = initial_max
-        for start, after in iter:
-            minimum = min(minimum, start)
-            maximum = max(maximum, after)
-        return (minimum, maximum)
-
     def matched_source(self):
-        first_token = next(self.terminals(), None)
-        src = first_token.src if first_token else ""
-        start, after = self.minmax_spans((t.span for t in self.terminals()), len(src), 0)
-        return src[start:after]
+        return self.src[self.start : self.after]
 
     def defer_target(self):
         # When a function defers by default to its children, it picks the sole nonterminal. The routine here figures out which
@@ -7773,16 +7781,9 @@ class ParseNode2:
         return None
 
     def covering(self, parse_fcn, *args):
-        tokens = list(self.terminals())
-        assert len(tokens) > 0
-        first_idx = min(t.span[0] for t in tokens)
-        last_idx = max(t.span[1] for t in tokens)
-        assert all(t.src == tokens[0].src for t in tokens)
-        assert 0 <= first_idx and first_idx <= last_idx and last_idx <= len(tokens[0].src)
-
-        sublexer = self.context.lexer_interface(tokens[0].src[first_idx:last_idx], self.CreateSyntaxError)
-        parse_node = parse_fcn(self.context, sublexer, *args)
-        return parse_node if max(t.span[1] for t in parse_node.terminals()) == last_idx - first_idx else None
+        sublexer = self.context.lexer_interface(self.src[self.start : self.after], self.CreateSyntaxError)
+        parse_node = parse_fcn(self.context, sublexer, 0, *args)
+        return parse_node if parse_node.after == self.after - self.start else None
 
     def EarlyErrorsScan(self):
         errs = []
@@ -8007,7 +8008,7 @@ class ParseNode2:
 
 
 class Parse2Context:
-    def __init__(self, direct_eval=False, syntax_error_ctor=SyntaxError, goal="Script", lexer=Lexer, *args):
+    def __init__(self, direct_eval=False, syntax_error_ctor=SyntaxError, goal="Script", lexer=LexerCore):
         self.direct_eval = direct_eval
         self.CreateSyntaxError = syntax_error_ctor
         self.goal = goal
@@ -8044,15 +8045,15 @@ d8888   d88P  Y88b     d8888         888        888                   888    Y8P
 # 12.1 Identifiers
 
 
-def _reference_helper(ctx, lexer, strict, Yield, Await, driver):
-    ident = parse_Identifier(ctx, lexer, strict)
+def _reference_helper(ctx, lexer, pos, strict, Yield, Await, driver):
+    ident = parse_Identifier(ctx, lexer, pos, strict)
     if ident:
         _, ctor = driver["IDENTIFIER"]
         return ctor(ctx, strict, [ident], Yield, Await)
     for kind in ("YIELD", "AWAIT"):
         check, ctor = driver[kind]
         if check:
-            tok = lexer.next_id_if(kind.lower())
+            tok = lexer.id_if(pos, kind.lower())
             if tok:
                 return ctor(ctx, strict, [tok], Yield, Await)
     return None
@@ -8193,7 +8194,7 @@ class P2_IdentifierReference_AWAIT(_P2_Common_Identifier_AWAIT, P2_IdentifierRef
         return ResolveBinding("await", self.strict)
 
 
-def parse_IdentifierReference(ctx, lexer, strict, Yield, Await):
+def parse_IdentifierReference(ctx, lexer, pos, strict, Yield, Await):
     # Syntax
     #   IdentifierReference[Yield, Await]:
     #       Identifier
@@ -8202,6 +8203,7 @@ def parse_IdentifierReference(ctx, lexer, strict, Yield, Await):
     return _reference_helper(
         ctx,
         lexer,
+        pos,
         strict,
         Yield,
         Await,
@@ -8296,12 +8298,10 @@ class P2_Identifier_IdentifierName(P2_Identifier):
         return []
 
 
-def parse_Identifier(ctx, lexer, strict):
-    bookmark = lexer.current_position()
-    ident = lexer.next_token_if("IDENTIFIER")
+def parse_Identifier(ctx, lexer, pos, strict):
+    ident = lexer.token_if(pos, "IDENTIFIER")
     if ident and ident.src[ident.span.start : ident.span.after] not in lexer.reserved_words:
         return P2_Identifier_IdentifierName(ctx, strict, [ident])
-    lexer.reset_position(bookmark)
     return None
 
 
@@ -8409,7 +8409,7 @@ class P2_BindingIdentifier_AWAIT(_P2_Common_Identifier_AWAIT, P2_BindingIdentifi
         return InitializeBoundName("await", value, environment, self.strict)
 
 
-def parse_BindingIdentifier(ctx, lexer, strict, Yield, Await):
+def parse_BindingIdentifier(ctx, lexer, pos, strict, Yield, Await):
     # Syntax
     #   BindingIdentifier[Yield, Await] :
     #       Identifier
@@ -8418,6 +8418,7 @@ def parse_BindingIdentifier(ctx, lexer, strict, Yield, Await):
     return _reference_helper(
         ctx,
         lexer,
+        pos,
         strict,
         Yield,
         Await,
@@ -8461,7 +8462,7 @@ class P2_LabelIdentifier_AWAIT(_P2_Common_Identifier_AWAIT, P2_LabelIdentifier):
     pass
 
 
-def parse_LabelIdentifier(ctx, lexer, strict, Yield, Await):
+def parse_LabelIdentifier(ctx, lexer, pos, strict, Yield, Await):
     # Syntax
     #   LabelIdentifier[Yield, Await]:
     #       Identifier
@@ -8470,6 +8471,7 @@ def parse_LabelIdentifier(ctx, lexer, strict, Yield, Await):
     return _reference_helper(
         ctx,
         lexer,
+        pos,
         strict,
         Yield,
         Await,
@@ -8962,7 +8964,7 @@ class P2_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(P2_
         return self.CoverParenthesizedExpressionAndArrowParameterList.CoveredParenthesizedExpression.evaluate()
 
 
-def parse_PrimaryExpression(ctx, lexer, strict, Yield, Await):
+def parse_PrimaryExpression(ctx, lexer, pos, strict, Yield, Await):
     # 12.2 Primary Expression
     # Syntax
     #   PrimaryExpression[Yield, Await] :
@@ -8980,43 +8982,43 @@ def parse_PrimaryExpression(ctx, lexer, strict, Yield, Await):
     #       TemplateLiteral[?Yield, ?Await, ~Tagged]
     #       CoverParenthesizedExpressionAndArrowParameterList[?Yield, ?Await]
 
-    tok = lexer.next_id_if("this")
+    tok = lexer.id_if(pos, "this")
     if tok:
         return P2_PrimaryExpression_THIS(ctx, strict, [tok])
-    id = parse_IdentifierReference(ctx, lexer, strict, Yield, Await)
+    id = parse_IdentifierReference(ctx, lexer, pos, strict, Yield, Await)
     if id:
         return P2_PrimaryExpression_IdentifierReference(ctx, strict, [id])
-    lit = parse_Literal(ctx, lexer, strict)
+    lit = parse_Literal(ctx, lexer, pos, strict)
     if lit:
         return P2_PrimaryExpression_Literal(ctx, strict, [lit])
-    al = parse_ArrayLiteral(ctx, lexer, strict, Yield, Await)
+    al = parse_ArrayLiteral(ctx, lexer, pos, strict, Yield, Await)
     if al:
         return P2_PrimaryExpression_ArrayLiteral(ctx, strict, [al])
-    ol = parse_ObjectLiteral(ctx, lexer, strict, Yield, Await)
+    ol = parse_ObjectLiteral(ctx, lexer, pos, strict, Yield, Await)
     if ol:
         return P2_PrimaryExpression_ObjectLiteral(ctx, strict, [ol])
-    fe = parse_FunctionExpression(ctx, lexer, strict)
+    fe = parse_FunctionExpression(ctx, lexer, pos, strict)
     if fe:
         return P2_PrimaryExpression_FunctionExpression(ctx, strict, [fe])
-    ce = parse_ClassExpression(ctx, lexer, strict, Yield, Await)
+    ce = parse_ClassExpression(ctx, lexer, pos, strict, Yield, Await)
     if ce:
         return P2_PrimaryExpression_ClassExpression(ctx, strict, [ce])
-    ge = parse_GeneratorExpression(ctx, lexer, strict)
+    ge = parse_GeneratorExpression(ctx, lexer, pos, strict)
     if ge:
         return P2_PrimaryExpression_GeneratorExpression(ctx, strict, [ge])
-    afe = parse_AsyncFunctionExpression(ctx, lexer, strict)
+    afe = parse_AsyncFunctionExpression(ctx, lexer, pos, strict)
     if afe:
         return P2_PrimaryExpression_AsyncFunctionExpression(ctx, strict, [afe])
-    age = parse_AsyncGeneratorExpression(ctx, lexer, strict)
+    age = parse_AsyncGeneratorExpression(ctx, lexer, pos, strict)
     if age:
         return P2_PrimaryExpression_AsyncGeneratorExpression(ctx, strict, [age])
-    rel = lexer.next_token_if("REGEXP")
+    rel = lexer.token_if(pos, "REGEXP")
     if rel:
         return P2_PrimaryExpression_RegularExpressionLiteral(ctx, strict, [rel])
-    tl = parse_TemplateLiteral(ctx, lexer, strict, Yield, Await, False)
+    tl = parse_TemplateLiteral(ctx, lexer, pos, strict, Yield, Await, False)
     if tl:
         return P2_PrimaryExpression_TemplateLiteral(ctx, strict, [tl])
-    cpeapl = parse_CoverParenthesizedExpressionAndArrowParameterList(ctx, lexer, strict, Yield, Await)
+    cpeapl = parse_CoverParenthesizedExpressionAndArrowParameterList(ctx, lexer, pos, strict, Yield, Await)
     if cpeapl:
         return P2_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(ctx, strict, [cpeapl])
     return None
@@ -9122,7 +9124,7 @@ class P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_COM
         return self.children[4]
 
 
-def parse_CoverParenthesizedExpressionAndArrowParameterList(ctx, lexer, strict, Yield, Await):
+def parse_CoverParenthesizedExpressionAndArrowParameterList(ctx, lexer, pos, strict, Yield, Await):
     # 12.2 Primary Expression
     # Syntax
     #   CoverParenthesizedExpressionAndArrowParameterList[Yield, Await] :
@@ -9135,70 +9137,59 @@ def parse_CoverParenthesizedExpressionAndArrowParameterList(ctx, lexer, strict, 
     #       ( Expression[+In, ?Yield, ?Await] , ... BindingPattern[?Yield, ?Await] )
     #
 
-    bookmark = lexer.current_position()
-    lp = lexer.next_token()
-    if lp and lp.type == "(":
-        bookmark3 = lexer.current_position()
-        exp = parse_Expression(ctx, lexer, strict, True, Yield, Await)
+    lp = lexer.token_if(pos, "(")
+    if lp:
+        exp = parse_Expression(ctx, lexer, lp.span.after, strict, True, Yield, Await)
         if exp:
-            peek1 = lexer.peek_token()
-            if peek1 and peek1.type == ")":
-                rp1 = lexer.next_token()
+            rp1 = lexer.token_if(exp.after, ")")
+            if rp1:
                 return P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_RPAREN(
                     ctx, strict, [lp, exp, rp1], Yield, Await
                 )
-            if peek1 and peek1.type == ",":
-                comma = lexer.next_token()
-                peek2 = lexer.peek_token()
-                if peek2 and peek2.type == ")":
-                    rp2 = lexer.next_token()
+            comma = lexer.token_if(exp.after, ",")
+            if comma:
+                rp2 = lexer.token_if(comma.span.after, ")")
+                if rp2:
                     return P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_COMMA_RPAREN(
                         ctx, strict, [lp, exp, comma, rp2], Yield, Await
                     )
-                if peek2 and peek2.type == "...":
-                    dots = lexer.next_token()
-                    bookmark2 = lexer.current_position()
-                    bi = parse_BindingIdentifier(ctx, lexer, strict, Yield, Await)
+                dots = lexer.token_if(comma.span.after, "...")
+                if dots:
+                    bi = parse_BindingIdentifier(ctx, lexer, dots.span.after, strict, Yield, Await)
                     if bi:
-                        rp3 = lexer.next_token()
-                        if rp3 and rp3.type == ")":
+                        rp3 = lexer.token_if(")")
+                        if rp3:
                             return P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_COMMA_DOTDOTDOT_BindingIdentifier_RPAREN(
                                 ctx, strict, [lp, exp, comma, dots, bi, rp3], Yield, Await
                             )
-                    lexer.reset_position(bookmark2)
-                    bp = parse_BindingPattern(ctx, lexer, strict, Yield, Await)
+                    bp = parse_BindingPattern(ctx, lexer, dots.span.after, strict, Yield, Await)
                     if bp:
-                        rp4 = lexer.next_token()
-                        if rp4 and rp4.type == ")":
+                        rp4 = lexer.token_if(")")
+                        if rp4:
                             return P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_COMMA_DOTDOTDOT_BindingPattern_RPAREN(
                                 ctx, strict, [lp, exp, comma, dots, bp, rp4], Yield, Await
                             )
-            lexer.reset_position(bookmark3)
-        peek3 = lexer.peek_token()
-        if peek3 and peek3.type == ")":
-            rp5 = lexer.next_token()
+        rp5 = lexer.token_if(lp.span.after, ")")
+        if rp5:
             return P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_RPAREN(
                 ctx, strict, [lp, rp5], Yield, Await
             )
-        if peek3 and peek3.type == "...":
-            dots = lexer.next_token()
-            bookmark4 = lexer.current_position()
-            bi = parse_BindingIdentifier(ctx, lexer, strict, Yield, Await)
+        dots = lexer.token_if(lp.span.after, "...")
+        if dots:
+            bi = parse_BindingIdentifier(ctx, lexer, dots.span.after, strict, Yield, Await)
             if bi:
-                rp6 = lexer.next_token()
-                if rp6 and rp6.type == ")":
+                rp6 = lexer.token_if(bi.after, ")")
+                if rp6:
                     return P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_DOTDOTDOT_BindingIdentifier_RPAREN(
                         ctx, strict, [lp, dots, bi, rp6], Yield, Await
                     )
-            lexer.reset_position(bookmark4)
-            bp = parse_BindingPattern(ctx, lexer, strict, Yield, Await)
+            bp = parse_BindingPattern(ctx, lexer, dots.span.after, strict, Yield, Await)
             if bp:
-                rp7 = lexer.next_token()
-                if rp7 and rp7.type == ")":
+                rp7 = lexer.token_if(bp.after, ")")
+                if rp7:
                     return P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_DOTDOTDOT_BindingPattern_RPAREN(
                         ctx, strict, [lp, dots, bp, rp7], Yield, Await
                     )
-    lexer.reset_position(bookmark)
     return None
 
 
@@ -9245,21 +9236,19 @@ class P2_ParenthesizedExpression_LPAREN_Expression_RPAREN(P2_ParenthesizedExpres
     # Implementation Note: This is handled correctly by the normal deferred semantics system.
 
 
-def parse_ParenthesizedExpression(ctx, lexer, strict, Yield, Await):
+def parse_ParenthesizedExpression(ctx, lexer, pos, strict, Yield, Await):
     # 12.2 Primary Expression
     # Syntax
     #   ParenthesizedExpression[Yield, Await] :
     #       ( Expression[+In, ?Yield, ?Await] )
     #
-    bookmark = lexer.current_position()
-    lp = lexer.next_token_if("(")
+    lp = lexer.token_if(pos, "(")
     if lp:
-        exp = parse_Expression(ctx, lexer, strict, True, Yield, Await)
+        exp = parse_Expression(ctx, lexer, lp.span.after, strict, True, Yield, Await)
         if exp:
-            rp = lexer.next_token_if(")")
+            rp = lexer.token_if(exp.after, ")")
             if rp:
                 return P2_ParenthesizedExpression_LPAREN_Expression_RPAREN(ctx, strict, [lp, exp, rp])
-    lexer.reset_position(bookmark)
     return None
 
 
@@ -9340,7 +9329,16 @@ class P2_Literal_StringLiteral(P2_Literal):
         return _use_strict_pat.match(srctext) is not None
 
 
-def parse_Literal(ctx, lexer, strict):
+Literal_Constructors = {
+    "null": P2_Literal_NullLiteral,
+    "true": P2_Literal_BooleanLiteral,
+    "false": P2_Literal_BooleanLiteral,
+    "NUMERIC": P2_Literal_NumericLiteral,
+    "STRING": P2_Literal_StringLiteral,
+}
+
+
+def parse_Literal(ctx, lexer, pos, strict):
     # 12.2.4 Literals
     # Syntax
     #   Literal:
@@ -9348,24 +9346,11 @@ def parse_Literal(ctx, lexer, strict):
     #       BooleanLiteral
     #       NumericLiteral
     #       StringLiteral
-    peek = lexer.peek_token()
-    if peek:
-
-        def make_helper(ctor):
-            def tok_to_node():
-                tok = lexer.next_token()
-                return ctor(ctx, strict, [tok])
-
-            return tok_to_node
-
-        driver = {
-            "null": make_helper(P2_Literal_NullLiteral),
-            "true": make_helper(P2_Literal_BooleanLiteral),
-            "false": make_helper(P2_Literal_BooleanLiteral),
-            "NUMERIC": make_helper(P2_Literal_NumericLiteral),
-            "STRING": make_helper(P2_Literal_StringLiteral),
-        }
-        return driver.get(peek.type if peek.type != "IDENTIFIER" else peek.value, lambda: None)()
+    tok = lexer.token(pos)
+    if tok:
+        return Literal_Constructors.get(
+            tok.type if tok.type != "IDENTIFIER" else tok.src[tok.span.start : tok.span.after], lambda *args: None
+        )(ctx, strict, [tok])
     return None
 
 
@@ -9484,7 +9469,7 @@ class P2_ArrayLiteral_LBRACKET_ElementList_COMMA_Elision_RBRACKET(P2_ArrayLitera
         return array
 
 
-def parse_ArrayLiteral(ctx, lexer, strict, Yield, Await):
+def parse_ArrayLiteral(ctx, lexer, pos, strict, Yield, Await):
     # 12.2.5 Array Initializer
     # Syntax
     #   ArrayLiteral[Yield, Await] :
@@ -9493,37 +9478,33 @@ def parse_ArrayLiteral(ctx, lexer, strict, Yield, Await):
     #       [ ElementList[?Yield, ?Await] ]
     #       [ ElementList[?Yield, ?Await] , ]
     #       [ ElementList[?Yield, ?Await] , Elision ]
-    bookmark = lexer.current_position()
-    lb = lexer.next_token_if("[")
+    lb = lexer.token_if(pos, "[")
     if lb:
-        book2 = lexer.current_position()
-        rb1 = lexer.next_token_if("]")
+        rb1 = lexer.token_if(lb.span.after, "]")
         if rb1:
             return P2_ArrayLiteral_LBRACKET_RBRACKET(ctx, strict, [lb, rb1])
-        elision = parse_Elision(ctx, lexer, strict)
+        elision = parse_Elision(ctx, lexer, lb.span.after, strict)
         if elision:
-            rb2 = lexer.next_token_if("]")
+            rb2 = lexer.token_if(elision.after, "]")
             if rb2:
                 return P2_ArrayLiteral_LBRACKET_Elision_RBRACKET(ctx, strict, [lb, elision, rb2])
-        lexer.reset_position(book2)
-        el = parse_ElementList(ctx, lexer, strict, Yield, Await)
+        el = parse_ElementList(ctx, lexer, lb.span.after, strict, Yield, Await)
         if el:
-            rb3 = lexer.next_token_if("]")
+            rb3 = lexer.token_if(el.after, "]")
             if rb3:
                 return P2_ArrayLiteral_LBRACKET_ElementList_RBRACKET(ctx, strict, [lb, el, rb3])
-            comma = lexer.next_token_if(",")
+            comma = lexer.token_if(el.after, ",")
             if comma:
-                rb4 = lexer.next_token_if("]")
+                rb4 = lexer.token_if(comma.span.after, "]")
                 if rb4:
                     return P2_ArrayLiteral_LBRACKET_ElementList_COMMA_RBRACKET(ctx, strict, [lb, el, comma, rb4])
-                elision2 = parse_Elision(ctx, lexer, strict)
+                elision2 = parse_Elision(ctx, lexer, comma.span.after, strict)
                 if elision2:
-                    rb5 = lexer.next_token_if("]")
+                    rb5 = lexer.token_if(elision2.after, "]")
                     if rb5:
                         return P2_ArrayLiteral_LBRACKET_ElementList_COMMA_Elision_RBRACKET(
                             ctx, strict, [lb, el, comma, elision2, rb5]
                         )
-    lexer.reset_position(bookmark)
     return None
 
 
@@ -9704,7 +9685,7 @@ class P2_ElementList_ElementList_COMMA_Elision_SpreadElement(P2_ElementList_Elem
         return self.children[3]
 
 
-def parse_ElementList(ctx, lexer, strict, Yield, Await):
+def parse_ElementList(ctx, lexer, pos, strict, Yield, Await):
     # 12.2.5 Array Initializer
     # Syntax
     #   ElementList[Yield, Await] :
@@ -9712,45 +9693,52 @@ def parse_ElementList(ctx, lexer, strict, Yield, Await):
     #       Elision_opt SpreadElement[?Yield, ?Await]
     #       ElementList[?Yield, ?Await] , Elision_opt AssignmentExpression[+In, ?Yield, ?Await]
     #       ElementList[?Yield, ?Await] , Elision_opt SpreadElement[?Yield, ?Await]
-    def parse(previous=None):
-        bookmark = lexer.current_position()
+    def parse(position, previous=None):
         if previous is not None:
-            comma = lexer.next_token_if(",")
+            comma = lexer.token_if(position, ",")
             if not comma:
                 return previous
-        elision = parse_Elision(ctx, lexer, strict)
-        ae = parse_AssignmentExpression(ctx, lexer, strict, True, Yield, Await)
+            pos = comma.span.after
+        else:
+            pos = position
+        elision = parse_Elision(ctx, lexer, pos, strict)
+        ae = parse_AssignmentExpression(ctx, lexer, elision.after if elision else pos, strict, True, Yield, Await)
         if ae:
             if previous is None:
                 if elision is not None:
-                    return lambda: parse(P2_ElementList_Elision_AssignmentExpression(ctx, strict, [elision, ae]))
-                return lambda: parse(P2_ElementList_AssignmentExpression(ctx, strict, [ae]))
+                    return lambda: parse(
+                        ae.after, P2_ElementList_Elision_AssignmentExpression(ctx, strict, [elision, ae])
+                    )
+                return lambda: parse(ae.after, P2_ElementList_AssignmentExpression(ctx, strict, [ae]))
             if elision is not None:
                 return lambda: parse(
+                    ae.after,
                     P2_ElementList_ElementList_COMMA_Elision_AssignmentExpression(
                         ctx, strict, [previous, comma, elision, ae]
-                    )
+                    ),
                 )
             return lambda: parse(
-                P2_ElementList_ElementList_COMMA_AssignmentExpression(ctx, strict, [previous, comma, ae])
+                ae.after, P2_ElementList_ElementList_COMMA_AssignmentExpression(ctx, strict, [previous, comma, ae])
             )
-        se = parse_SpreadElement(ctx, lexer, strict, Yield, Await)
+        se = parse_SpreadElement(ctx, lexer, elision.after if elision else pos, strict, Yield, Await)
         if se:
             if previous is None:
                 if elision is not None:
-                    return lambda: parse(P2_ElementList_Elision_SpreadElement(ctx, strict, [elision, se]))
-                return lambda: parse(P2_ElementList_SpreadElement(ctx, strict, [se]))
+                    return lambda: parse(se.after, P2_ElementList_Elision_SpreadElement(ctx, strict, [elision, se]))
+                return lambda: parse(se.after, P2_ElementList_SpreadElement(ctx, strict, [se]))
             if elision is not None:
                 return lambda: parse(
+                    se.after,
                     P2_ElementList_ElementList_COMMA_Elision_SpreadElement(
                         ctx, strict, [previous, comma, elision, se]
-                    )
+                    ),
                 )
-            return lambda: parse(P2_ElementList_ElementList_COMMA_SpreadElement(ctx, strict, [previous, comma, se]))
-        lexer.reset_position(bookmark)
+            return lambda: parse(
+                se.after, P2_ElementList_ElementList_COMMA_SpreadElement(ctx, strict, [previous, comma, se])
+            )
         return previous
 
-    return trampoline(parse)
+    return trampoline(lambda: parse(pos))
 
 
 # --------======= 𝓔𝓵𝓲𝓼𝓲𝓸𝓷 =======--------
@@ -9829,21 +9817,21 @@ class P2_Elision_Elision_COMMA(P2_Elision):
         return EMPTY
 
 
-def parse_Elision(ctx, lexer, strict):
+def parse_Elision(ctx, lexer, pos, strict):
     # 12.2.5 Array Initializer
     # Syntax
     #   Elision :
     #       ,
     #       Elision ,
-    def parse(previous=None):
-        comma = lexer.next_token_if(",")
+    def parse(pos, previous=None):
+        comma = lexer.token_if(pos, ",")
         if not comma:
             return previous
         if previous is None:
-            return lambda: parse(P2_Elision_COMMA(ctx, strict, [comma]))
-        return lambda: parse(P2_Elision_Elision_COMMA(ctx, strict, [previous, comma]))
+            return lambda: parse(comma.span.after, P2_Elision_COMMA(ctx, strict, [comma]))
+        return lambda: parse(comma.span.after, P2_Elision_Elision_COMMA(ctx, strict, [previous, comma]))
 
-    return trampoline(parse)
+    return trampoline(lambda: parse(pos))
 
 
 # --------======= 𝓢𝓹𝓻𝓮𝓪𝓭𝓔𝓵𝓮𝓶𝓮𝓷𝓽 =======--------
@@ -9889,19 +9877,17 @@ class P2_SpreadElement_DOTDOTDOT_AssignmentExpression(P2_SpreadElement):
             nextIndex += 1
 
 
-def parse_SpreadElement(ctx, lexer, strict, Yield, Await):
+def parse_SpreadElement(ctx, lexer, pos, strict, Yield, Await):
     # 12.2.5 Array Initializer
     # Syntax
     #   SpreadElement[Yield, Await]:
     #       ... AssignmentExpression[+In, ?Yield, ?Await]
     #
-    bookmark = lexer.current_position()
-    dots = lexer.next_token_if("...")
+    dots = lexer.token_if(pos, "...")
     if dots:
-        ae = parse_AssignmentExpression(ctx, lexer, strict, True, Yield, Await)
+        ae = parse_AssignmentExpression(ctx, lexer, dots.span.after, strict, True, Yield, Await)
         if ae:
             return P2_SpreadElement_DOTDOTDOT_AssignmentExpression(ctx, strict, [dots, ae])
-    lexer.reset_position(bookmark)
     return None
 
 
@@ -9960,7 +9946,7 @@ class P2_ObjectLiteral_LCURLY_PropertyDefinitionList_COMMA_RCURLY(
     pass
 
 
-def parse_ObjectLiteral(ctx, lexer, strict, Yield, Await):
+def parse_ObjectLiteral(ctx, lexer, pos, strict, Yield, Await):
     # 12.2.6 Object Initializer
     # Syntax
     #   ObjectLiteral[Yield, Await] :
@@ -9968,25 +9954,24 @@ def parse_ObjectLiteral(ctx, lexer, strict, Yield, Await):
     #       { PropertyDefinitionList[?Yield, ?Await] }
     #       { PropertyDefinitionList[?Yield, ?Await] , }
     #
-    bookmark = lexer.current_position()
-    lcurly = lexer.next_token()
-    if lcurly and lcurly.type == "{":
-        pdl = parse_PropertyDefinitionList(ctx, lexer, strict, Yield, Await)
+    lcurly = lexer.token_if(pos, "{")
+    if lcurly:
+        pdl = parse_PropertyDefinitionList(ctx, lexer, lcurly.span.after, strict, Yield, Await)
         if pdl:
-            comma = lexer.next_token()
-            if comma and comma.type == ",":
-                rcurly = lexer.next_token()
-                if rcurly and rcurly.type == "}":
+            comma = lexer.token_if(pdl.after, ",")
+            if comma:
+                rcurly = lexer.token_if(comma.span.after, "}")
+                if rcurly:
                     return P2_ObjectLiteral_LCURLY_PropertyDefinitionList_COMMA_RCURLY(
                         ctx, strict, [lcurly, pdl, comma, rcurly]
                     )
-            elif comma and comma.type == "}":
-                return P2_ObjectLiteral_LCURLY_PropertyDefinitionList_RCURLY(ctx, strict, [lcurly, pdl, comma])
+            rc2 = lexer.token_if(pdl.after, "}")
+            if rc2:
+                return P2_ObjectLiteral_LCURLY_PropertyDefinitionList_RCURLY(ctx, strict, [lcurly, pdl, rc2])
         else:
-            rcurly = lexer.next_token()
-            if rcurly and rcurly.type == "}":
+            rcurly = lexer.token_if(lcurly.span.after, "}")
+            if rcurly:
                 return P2_ObjectLiteral_LCURLY_RCURLY(ctx, strict, [lcurly, rcurly])
-    lexer.reset_position(bookmark)
     return None
 
 
@@ -10050,32 +10035,33 @@ class P2_PropertyDefinitionList_PropertyDefinitionList_COMMA_PropertyDefinition(
         return self.PropertyDefinition.PropertyDefinitionEvaluation(object, enumerable)
 
 
-def parse_PropertyDefinitionList(ctx, lexer, strict, Yield, Await):
+def parse_PropertyDefinitionList(ctx, lexer, pos, strict, Yield, Await):
     # 12.2.6 Object Initializer
     # Syntax
     #   PropertyDefinitionList[Yield, Await] :
     #       PropertyDefinition[?Yield, ?Await]
     #       PropertyDefinitionList[?Yield, ?Await] , PropertyDefinition[?Yield, ?Await]
     #
-    def parse(previous=None):
-        bookmark = lexer.current_position()
+    def parse(pos, previous=None):
         if previous is not None:
-            comma = lexer.next_token_if(",")
+            comma = lexer.token_if(pos, ",")
             if not comma:
                 return previous
-        pd = parse_PropertyDefinition(ctx, lexer, strict, Yield, Await)
+        else:
+            comma = None
+        pd = parse_PropertyDefinition(ctx, lexer, comma.span.after if comma else pos, strict, Yield, Await)
         if pd:
             if previous is None:
-                return lambda: parse(P2_PropertyDefinitionList_PropertyDefinition(ctx, strict, [pd]))
+                return lambda: parse(pd.after, P2_PropertyDefinitionList_PropertyDefinition(ctx, strict, [pd]))
             return lambda: parse(
+                pd.after,
                 P2_PropertyDefinitionList_PropertyDefinitionList_COMMA_PropertyDefinition(
                     ctx, strict, [previous, comma, pd]
-                )
+                ),
             )
-        lexer.reset_position(bookmark)
         return previous
 
-    return trampoline(parse)
+    return trampoline(lambda: parse(pos))
 
 
 # --------======= 𝓟𝓻𝓸𝓹𝓮𝓻𝓽𝔂𝓓𝓮𝓯𝓲𝓷𝓲𝓽𝓲𝓸𝓷 =======--------
@@ -10246,7 +10232,7 @@ class P2_PropertyDefinition_DOTDOTDOT_AssignmentExpression(P2_PropertyDefinition
         return CopyDataProperties(object, GetValue(self.AssignmentExpression.evaluate()), [])
 
 
-def parse_PropertyDefinition(ctx, lexer, strict, Yield, Await):
+def parse_PropertyDefinition(ctx, lexer, pos, strict, Yield, Await):
     # 12.2.6 Object Initializer
     # Syntax
     #   PropertyDefinition[Yield, Await] :
@@ -10257,28 +10243,25 @@ def parse_PropertyDefinition(ctx, lexer, strict, Yield, Await):
     #       ... AssignmentExpression[+In, ?Yield, ?Await]
     #
     # Note: Have to try IdentifierReference after all the other ones, since it starts off the same as most of the others.
-    bookmark = lexer.current_position()
-    cin = parse_CoverInitializedName(ctx, lexer, strict, Yield, Await)
+    cin = parse_CoverInitializedName(ctx, lexer, pos, strict, Yield, Await)
     if cin:
         return P2_PropertyDefinition_CoverInitializedName(ctx, strict, [cin])
-    pn = parse_PropertyName(ctx, lexer, strict, Yield, Await)
+    pn = parse_PropertyName(ctx, lexer, pos, strict, Yield, Await)
     if pn:
-        colon = lexer.next_token_if(":")
+        colon = lexer.token_if(pn.after, ":")
         if colon:
-            ae = parse_AssignmentExpression(ctx, lexer, strict, True, Yield, Await)
+            ae = parse_AssignmentExpression(ctx, lexer, colon.span.after, strict, True, Yield, Await)
             if ae:
                 return P2_PropertyDefinition_PropertyName_COLON_AssignmentExpression(ctx, strict, [pn, colon, ae])
-        lexer.reset_position(bookmark)
-    md = parse_MethodDefinition(ctx, lexer, strict, Yield, Await)
+    md = parse_MethodDefinition(ctx, lexer, pos, strict, Yield, Await)
     if md:
         return P2_PropertyDefinition_MethodDefinition(ctx, strict, [md])
-    dots = lexer.next_token_if("...")
+    dots = lexer.token_if(pos, "...")
     if dots:
-        ae = parse_AssignmentExpression(ctx, lexer, strict, True, Yield, Await)
+        ae = parse_AssignmentExpression(ctx, lexer, dots.span.after, strict, True, Yield, Await)
         if ae:
             return P2_PropertyDefinition_DOTDOTDOT_AssignmentExpression(ctx, strict, [dots, ae])
-        lexer.reset_position(bookmark)
-    ir = parse_IdentifierReference(ctx, lexer, strict, Yield, Await)
+    ir = parse_IdentifierReference(ctx, lexer, pos, strict, Yield, Await)
     if ir:
         return P2_PropertyDefinition_IdentifierReference(ctx, strict, [ir])
     return None
@@ -10337,17 +10320,17 @@ class P2_PropertyName_ComputedPropertyName(P2_PropertyName):
         return True
 
 
-def parse_PropertyName(ctx, lexer, strict, Yield, Await):
+def parse_PropertyName(ctx, lexer, pos, strict, Yield, Await):
     # 12.2.6 Object Initializer
     # Syntax
     #   PropertyName[Yield, Await] :
     #       LiteralPropertyName
     #       ComputedPropertyName[?Yield, ?Await]
     #
-    lpn = parse_LiteralPropertyName(ctx, lexer, strict)
+    lpn = parse_LiteralPropertyName(ctx, lexer, pos, strict)
     if lpn:
         return P2_PropertyName_LiteralPropertyName(ctx, strict, [lpn])
-    cpn = parse_ComputedPropertyName(ctx, lexer, strict, Yield, Await)
+    cpn = parse_ComputedPropertyName(ctx, lexer, pos, strict, Yield, Await)
     if cpn:
         return P2_PropertyName_ComputedPropertyName(ctx, strict, [cpn])
     return None
@@ -10421,29 +10404,23 @@ class P2_LiteralPropertyName_NumericLiteral(P2_LiteralPropertyName):
         return ToString(self.NumericLiteral.value)
 
 
-def parse_LiteralPropertyName(ctx, lexer, strict):
+LiteralPropertyConstructors = {
+    "IDENTIFIER": P2_LiteralPropertyName_IdentifierName,
+    "STRING": P2_LiteralPropertyName_StringLiteral,
+    "NUMERIC": P2_LiteralPropertyName_NumericLiteral,
+}
+
+
+def parse_LiteralPropertyName(ctx, lexer, pos, strict):
     # 12.2.6 Object Initializer
     # Syntax
     #   LiteralPropertyName:
     #       IdentifierName
     #       StringLiteral
     #       NumericLiteral
-    peek = lexer.peek_token()
-    if peek:
-
-        def make_helper(ast_ctor):
-            def create_node(ctx, lexer, strict):
-                tok = lexer.next_token()
-                return ast_ctor(ctx, strict, [tok])
-
-            return create_node
-
-        driver = {
-            "IDENTIFIER": make_helper(P2_LiteralPropertyName_IdentifierName),
-            "STRING": make_helper(P2_LiteralPropertyName_StringLiteral),
-            "NUMERIC": make_helper(P2_LiteralPropertyName_NumericLiteral),
-        }
-        return driver.get(peek.type, lambda ctx, lexer, strict: None)(ctx, lexer, strict)
+    tok = lexer.token(pos)
+    if tok:
+        return LiteralPropertyConstructors.get(tok.type, lambda *args: None)(ctx, strict, [tok])
     return None
 
 
@@ -10473,21 +10450,19 @@ class P2_ComputedPropertyName_LBRACKET_AssignmentExpression_RBRACKET(P2_Computed
         return ToPropertyKey(GetValue(self.AssignmentExpression.evaluate()))
 
 
-def parse_ComputedPropertyName(ctx, lexer, strict, Yield, Await):
+def parse_ComputedPropertyName(ctx, lexer, pos, strict, Yield, Await):
     # 12.2.6 Object Initializer
     # Syntax
     #   ComputedPropertyName[Yield, Await] :
     #       [ AssignmentExpression[+In, ?Yield, ?Await] ]
     #
-    bookmark = lexer.current_position()
-    lb = lexer.next_token()
-    if lb and lb.type == "[":
-        ae = parse_AssignmentExpression(ctx, lexer, strict, True, Yield, Await)
+    lb = lexer.token_if(pos, "[")
+    if lb:
+        ae = parse_AssignmentExpression(ctx, lexer, lb.span.after, strict, True, Yield, Await)
         if ae:
-            rb = lexer.next_token()
-            if rb and rb.type == "]":
+            rb = lexer.token_if(ae.after, "]")
+            if rb:
                 return P2_ComputedPropertyName_LBRACKET_AssignmentExpression_RBRACKET(ctx, strict, [lb, ae, rb])
-    lexer.reset_position(bookmark)
     return None
 
 
@@ -10507,19 +10482,17 @@ class P2_CoverInitializedName_IdentifierReference_Initializer(P2_CoverInitialize
         return self.children[1]
 
 
-def parse_CoverInitializedName(ctx, lexer, strict, Yield, Await):
+def parse_CoverInitializedName(ctx, lexer, pos, strict, Yield, Await):
     # 12.2.6 Object Initializer
     # Syntax
     #   CoverInitializedName[Yield, Await] :
     #       IdentifierReference[?Yield, ?Await] Initializer[+In, ?Yield, ?Await]
     #
-    bookmark = lexer.current_position()
-    ir = parse_IdentifierReference(ctx, lexer, strict, Yield, Await)
+    ir = parse_IdentifierReference(ctx, lexer, pos, strict, Yield, Await)
     if ir:
-        initializer = parse_Initializer(ctx, lexer, strict, True, Yield, Await)
+        initializer = parse_Initializer(ctx, lexer, ir.after, strict, True, Yield, Await)
         if initializer:
             return P2_CoverInitializedName_IdentifierReference_Initializer(ctx, strict, [ir, initializer])
-    lexer.reset_position(bookmark)
     return None
 
 
@@ -10535,19 +10508,17 @@ class P2_Initializer_EQUALS_AssignmentExpression(P2_Initializer):
         return self.children[1]
 
 
-def parse_Initializer(ctx, lexer, strict, In, Yield, Await):
+def parse_Initializer(ctx, lexer, pos, strict, In, Yield, Await):
     # 12.2.6 Object Initializer
     # Syntax
     #   Initializer[In, Yield, Await]:
     #       = AssignmentExpression[?In, ?Yield, ?Await]
     #
-    bookmark = lexer.current_position()
-    equals = lexer.next_token_if("=")
+    equals = lexer.token_if(pos, "=")
     if equals:
-        ae = parse_AssignmentExpression(ctx, lexer, strict, In, Yield, Await)
+        ae = parse_AssignmentExpression(ctx, lexer, equals.span.after, strict, In, Yield, Await)
         if ae:
             return P2_Initializer_EQUALS_AssignmentExpression(ctx, strict, [equals, ae])
-    lexer.reset_position(bookmark)
     return None
 
 
@@ -10587,7 +10558,7 @@ class P2_TemplateLiteral_NoSubstitutionTemplate(P2_TemplateLiteral):
                 None,
                 [
                     not self.Tagged
-                    and self.NoSubstitutionTemplate.tv is None
+                    and self.NoSubstitutionTemplate.value.tv is None
                     and self.CreateSyntaxError("Invalid Escape Sequence in template")
                 ],
             )
@@ -10632,29 +10603,27 @@ class P2_TemplateLiteral_SubstitutionTemplate(P2_TemplateLiteral):
         #   TemplateLiteral : SubstitutionTemplate
         # * It is a Syntax Error if the number of elements in the result of TemplateStrings of TemplateLiteral with
         #   argument false is greater than 2^32-1.
-        return list(
-            filter(
-                None,
-                [
-                    len(self.TemplateStrings(False)) > 2 ** 32 - 1
-                    and self.CreateSyntaxError("Too many substitutions in template. (Boy are we impressed.)")
-                ],
+        return [
+            err
+            for err in (
+                len(self.TemplateStrings(False)) > 2 ** 32 - 1
+                and self.CreateSyntaxError("Too many substitutions in template. (Boy are we impressed.)"),
             )
-        )
+            if err
+        ]
 
 
-def parse_TemplateLiteral(ctx, lexer, strict, Yield, Await, Tagged):
+def parse_TemplateLiteral(ctx, lexer, pos, strict, Yield, Await, Tagged):
     # 12.2.9 Template Literals
     # Syntax
     #   TemplateLiteral[Yield, Await, Tagged] :
     #       NoSubstitutionTemplate
     #       SubstitutionTemplate[?Yield, ?Await, ?Tagged]
     #
-    peek = lexer.peek_token()
-    if peek and peek.type == "NOSUBSTITUTIONTEMPLATE":
-        nst = lexer.next_token()
+    nst = lexer.token_if(pos, "NOSUBSTITUTIONTEMPLATE")
+    if nst:
         return P2_TemplateLiteral_NoSubstitutionTemplate(ctx, strict, [nst], Tagged)
-    st = parse_SubstitutionTemplate(ctx, lexer, strict, Yield, Await, Tagged)
+    st = parse_SubstitutionTemplate(ctx, lexer, pos, strict, Yield, Await, Tagged)
     if st:
         return P2_TemplateLiteral_SubstitutionTemplate(ctx, strict, [st], Tagged)
     return None
@@ -10747,23 +10716,21 @@ class P2_SubstitutionTemplate_TemplateHead_Expression_TemplateSpans(P2_Substitut
         # the + operator.
 
 
-def parse_SubstitutionTemplate(ctx, lexer, strict, Yield, Await, Tagged):
+def parse_SubstitutionTemplate(ctx, lexer, pos, strict, Yield, Await, Tagged):
     # 12.2.9 Template Literals
     # Syntax
     #   SubstitutionTemplate[Yield, Await, Tagged] :
     #       TemplateHead Expression[+In, ?Yield, ?Await] TemplateSpans[?Yield, ?Await, ?Tagged]
     #
-    bookmark = lexer.current_position()
-    th = lexer.next_token(goal=lexer.InputElementDiv)
-    if th and th.type == "TEMPLATEHEAD":
-        exp = parse_Expression(ctx, lexer, strict, True, Yield, Await)
+    th = lexer.token_if(pos, "TEMPLATEHEAD", goal=lexer.InputElementDiv)
+    if th:
+        exp = parse_Expression(ctx, lexer, th.span.after, strict, True, Yield, Await)
         if exp:
-            ts = parse_TemplateSpans(ctx, lexer, strict, Yield, Await, Tagged)
+            ts = parse_TemplateSpans(ctx, lexer, exp.after, strict, Yield, Await, Tagged)
             if ts:
                 return P2_SubstitutionTemplate_TemplateHead_Expression_TemplateSpans(
                     ctx, strict, [th, exp, ts], Tagged
                 )
-    lexer.reset_position(bookmark)
     return None
 
 
@@ -10861,21 +10828,19 @@ class P2_TemplateSpans_TemplateMiddleList_TemplateTail(P2_TemplateSpans):
         return f"{head}{tail}"
 
 
-def parse_TemplateSpans(ctx, lexer, strict, Yield, Await, Tagged):
+def parse_TemplateSpans(ctx, lexer, pos, strict, Yield, Await, Tagged):
     # 12.2.9 Template Literals
     # Syntax
     #   TemplateSpans[Yield, Await, Tagged] :
     #       TemplateTail
     #       TemplateMiddleList[?Yield, ?Await, ?Tagged] TemplateTail
     #
-    bookmark = lexer.current_position()
-    tml = parse_TemplateMiddleList(ctx, lexer, strict, Yield, Await, Tagged)
-    tt = lexer.next_token(goal=lexer.InputElementTemplateTail)
-    if tt and tt.type == "TEMPLATETAIL":
+    tml = parse_TemplateMiddleList(ctx, lexer, pos, strict, Yield, Await, Tagged)
+    tt = lexer.token_if(tml.after if tml else pos, "TEMPLATETAIL", goal=lexer.InputElementTemplateTail)
+    if tt:
         if tml:
             return P2_TemplateSpans_TemplateMiddleList_TemplateTail(ctx, strict, [tml, tt], Tagged)
         return P2_TemplateSpans_TemplateTail(ctx, strict, [tt], Tagged)
-    lexer.reset_position(bookmark)
     return None
 
 
@@ -11012,30 +10977,31 @@ class P2_TemplateMiddleList_TemplateMiddleList_TemplateMiddle_Expression(P2_Temp
         # the + operator.
 
 
-def parse_TemplateMiddleList(ctx, lexer, strict, Yield, Await, Tagged):
+def parse_TemplateMiddleList(ctx, lexer, pos, strict, Yield, Await, Tagged):
     # 12.2.9 Template Literals
     # Syntax
     #   TemplateMiddleList[Yield, Await, Tagged] :
     #       TemplateMiddle Expression[+In, ?Yield, ?Await]
     #       TemplateMiddleList[?Yield, ?Await, ?Tagged] TemplateMiddle Expression[+In, ?Yield, ?Await]
     #
-    def parse(previous=None):
-        bookmark = lexer.current_position()
-        tm = lexer.next_token(goal=lexer.InputElementTemplateTail)
-        if tm and tm.type == "TEMPLATEMIDDLE":
-            exp = parse_Expression(ctx, lexer, strict, True, Yield, Await)
+    def parse(pos, previous=None):
+        tm = lexer.token_if(pos, "TEMPLATEMIDDLE", goal=lexer.InputElementTemplateTail)
+        if tm:
+            exp = parse_Expression(ctx, lexer, tm.span.after, strict, True, Yield, Await)
             if exp:
                 if previous:
                     return lambda: parse(
+                        exp.after,
                         P2_TemplateMiddleList_TemplateMiddleList_TemplateMiddle_Expression(
                             ctx, strict, [previous, tm, exp], Tagged
-                        )
+                        ),
                     )
-                return lambda: parse(P2_TemplateMiddleList_TemplateMiddle_Expression(ctx, strict, [tm, exp], Tagged))
-        lexer.reset_position(bookmark)
+                return lambda: parse(
+                    exp.after, P2_TemplateMiddleList_TemplateMiddle_Expression(ctx, strict, [tm, exp], Tagged)
+                )
         return previous
 
-    return trampoline(parse)
+    return trampoline(lambda: parse(pos))
 
 
 # 12.2.9.4 Runtime Semantics: GetTemplateObject ( templateLiteral )
@@ -11402,7 +11368,7 @@ class P2_MemberExpression_NEW_MemberExpression_Arguments(P2_MemberExpression_bas
         return EvaluateNew(self.MemberExpression, self.Arguments)
 
 
-def parse_MemberExpression(ctx, lexer, strict, Yield, Await):
+def parse_MemberExpression(ctx, lexer, pos, strict, Yield, Await):
     # 12.3 Left-Hand-Side Expressions
     # Syntax
     #   MemberExpression[Yield, Await] :
@@ -11414,60 +11380,58 @@ def parse_MemberExpression(ctx, lexer, strict, Yield, Await):
     #       MetaProperty
     #       new MemberExpression[?Yield, ?Await] Arguments[?Yield, ?Await]
     #
-    def parse(previous=None):
-        bookmark = lexer.current_position()
+    def parse(pos, previous=None):
         if previous is None:
-            pe = parse_PrimaryExpression(ctx, lexer, strict, Yield, Await)
+            pe = parse_PrimaryExpression(ctx, lexer, pos, strict, Yield, Await)
             if pe:
-                return lambda: parse(P2_MemberExpression_PrimaryExpression(ctx, strict, [pe]))
-            sp = parse_SuperProperty(ctx, lexer, strict, Yield, Await)
+                return lambda: parse(pe.after, P2_MemberExpression_PrimaryExpression(ctx, strict, [pe]))
+            sp = parse_SuperProperty(ctx, lexer, pos, strict, Yield, Await)
             if sp:
-                return lambda: parse(P2_MemberExpression_SuperProperty(ctx, strict, [sp]))
-            mp = parse_MetaProperty(ctx, lexer, strict)
+                return lambda: parse(sp.after, P2_MemberExpression_SuperProperty(ctx, strict, [sp]))
+            mp = parse_MetaProperty(ctx, lexer, pos, strict)
             if mp:
-                return lambda: parse(P2_MemberExpression_MetaProperty(ctx, strict, [mp]))
-            new_tok = lexer.next_id_if("new")
+                return lambda: parse(mp.after, P2_MemberExpression_MetaProperty(ctx, strict, [mp]))
+            new_tok = lexer.id_if(pos, "new")
             if new_tok:
-                me = parse_MemberExpression(ctx, lexer, strict, Yield, Await)
+                me = parse_MemberExpression(ctx, lexer, new_tok.span.after, strict, Yield, Await)
                 if me:
-                    args = parse_Arguments(ctx, lexer, strict, Yield, Await)
+                    args = parse_Arguments(ctx, lexer, me.after, strict, Yield, Await)
                     if args:
                         return lambda: parse(
-                            P2_MemberExpression_NEW_MemberExpression_Arguments(ctx, strict, [new_tok, me, args])
+                            args.after,
+                            P2_MemberExpression_NEW_MemberExpression_Arguments(ctx, strict, [new_tok, me, args]),
                         )
         else:
-            peek = lexer.peek_token()
-            if peek and peek.type == "[":
-                lb = lexer.next_token()
-                exp = parse_Expression(ctx, lexer, strict, True, Yield, Await)
+            lb = lexer.token_if(pos, "[")
+            if lb:
+                exp = parse_Expression(ctx, lexer, lb.span.after, strict, True, Yield, Await)
                 if exp:
-                    rb = lexer.next_token()
-                    if rb and rb.type == "]":
+                    rb = lexer.token_if(exp.after, "]")
+                    if rb:
                         return lambda: parse(
+                            rb.span.after,
                             P2_MemberExpression_MemberExpression_LBRACKET_Expression_RBRACKET(
                                 ctx, strict, [previous, lb, exp, rb]
-                            )
+                            ),
                         )
-                lexer.reset_position(bookmark)
-            if peek and peek.type == ".":
-                dot = lexer.next_token()
-                ident = lexer.next_token_if("IDENTIFIER")
+            dot = lexer.token_if(pos, ".")
+            if dot:
+                ident = lexer.token_if(dot.span.after, "IDENTIFIER")
                 if ident:
                     return lambda: parse(
+                        ident.span.after,
                         P2_MemberExpression_MemberExpression_PERIOD_IdentifierName(
                             ctx, strict, [previous, dot, ident]
-                        )
+                        ),
                     )
-                lexer.reset_position(bookmark)
-            tl = parse_TemplateLiteral(ctx, lexer, strict, Yield, Await, True)
+            tl = parse_TemplateLiteral(ctx, lexer, pos, strict, Yield, Await, True)
             if tl:
                 return lambda: parse(
-                    P2_MemberExpression_MemberExpression_TemplateLiteral(ctx, strict, [previous, tl])
+                    tl.after, P2_MemberExpression_MemberExpression_TemplateLiteral(ctx, strict, [previous, tl])
                 )
-        lexer.reset_position(bookmark)
         return previous
 
-    return trampoline(parse)
+    return trampoline(lambda: parse(pos))
 
 
 # --------======= 𝓢𝓾𝓹𝓮𝓻𝓟𝓻𝓸𝓹𝓮𝓻𝓽𝔂 =======--------
@@ -11535,30 +11499,28 @@ class P2_SuperProperty_SUPER_PERIOD_IdentifierName(P2_SuperProperty):
         return MakeSuperPropertyReference(actualThis, propertyKey, self.strict)
 
 
-def parse_SuperProperty(ctx, lexer, strict, Yield, Await):
+def parse_SuperProperty(ctx, lexer, pos, strict, Yield, Await):
     # 12.3 Left-Hand-Side Expressions
     # Syntax
     #   SuperProperty[Yield, Await] :
     #       super [ Expression[+In, ?Yield, ?Await] ]
     #       super . IdentifierName
     #
-    bookmark = lexer.current_position()
-    super = lexer.next_id_if("super")
+    super = lexer.id_if(pos, "super")
     if super:
-        lb = lexer.next_token_if("[")
+        lb = lexer.token_if(super.span.after, "[")
         if lb:
-            exp = parse_Expression(ctx, lexer, strict, True, Yield, Await)
+            exp = parse_Expression(ctx, lexer, lb.span.after, strict, True, Yield, Await)
             if exp:
-                rb = lexer.next_token_if("]")
+                rb = lexer.token_if(exp.after, "]")
                 if rb:
                     return P2_SuperProperty_SUPER_LBRACKET_Expression_RBRACKET(ctx, strict, [super, lb, exp, rb])
         else:
-            dot = lexer.next_token_if(".")
+            dot = lexer.token_if(super.span.after, ".")
             if dot:
-                ident = lexer.next_token_if("IDENTIFIER")
+                ident = lexer.token_if(dot.span.after, "IDENTIFIER")
                 if ident:
                     return P2_SuperProperty_SUPER_PERIOD_IdentifierName(ctx, strict, [super, dot, ident])
-    lexer.reset_position(bookmark)
     return None
 
 
@@ -11579,13 +11541,13 @@ class P2_MetaProperty_NewTarget(P2_MetaProperty):
         return self.children[0]
 
 
-def parse_MetaProperty(ctx, lexer, strict):
+def parse_MetaProperty(ctx, lexer, pos, strict):
     # 12.3 Left-Hand-Side Expressions
     # Syntax
     #   MetaProperty:
     #       NewTarget
     #
-    nt = parse_NewTarget(ctx, lexer, strict)
+    nt = parse_NewTarget(ctx, lexer, pos, strict)
     if nt:
         return P2_MetaProperty_NewTarget(ctx, strict, [nt])
     return None
@@ -11615,21 +11577,19 @@ class P2_NewTarget_NEW_PERIOD_TARGET(P2_NewTarget):
         return GetNewTarget()
 
 
-def parse_NewTarget(ctx, lexer, strict):
+def parse_NewTarget(ctx, lexer, pos, strict):
     # 12.3 Left-Hand-Side Expressions
     # Syntax
     #   NewTarget :
     #       new . target
     #
-    bookmark = lexer.current_position()
-    new_tok = lexer.next_id_if("new")
+    new_tok = lexer.id_if(pos, "new")
     if new_tok:
-        dot = lexer.next_token_if(".")
+        dot = lexer.token_if(new_tok.span.after, ".")
         if dot:
-            target = lexer.next_id_if("target")
+            target = lexer.id_if(dot.span.after, "target")
             if target:
                 return P2_NewTarget_NEW_PERIOD_TARGET(ctx, strict, [new_tok, dot, target])
-    lexer.reset_position(bookmark)
     return None
 
 
@@ -11694,23 +11654,21 @@ class P2_NewExpression_NEW_NewExpression(P2_NewExpression):
         return EvaluateNew(self.NewExpression, EMPTY)
 
 
-def parse_NewExpression(ctx, lexer, strict, Yield, Await):
+def parse_NewExpression(ctx, lexer, pos, strict, Yield, Await):
     # 12.3 Left-Hand-Side Expressions
     # Syntax
     #   NewExpression[Yield, Await] :
     #       MemberExpression[?Yield, ?Await]
     #       new NewExpression[?Yield, ?Await]
     #
-    bookmark = lexer.current_position()
-    me = parse_MemberExpression(ctx, lexer, strict, Yield, Await)
+    me = parse_MemberExpression(ctx, lexer, pos, strict, Yield, Await)
     if me:
         return P2_NewExpression_MemberExpression(ctx, strict, [me])
-    new_tok = lexer.next_id_if("new")
+    new_tok = lexer.id_if(pos, "new")
     if new_tok:
-        ne = parse_NewExpression(ctx, lexer, strict, Yield, Await)
+        ne = parse_NewExpression(ctx, lexer, new_tok.span.after, strict, Yield, Await)
         if ne:
             return P2_NewExpression_NEW_NewExpression(ctx, strict, [new_tok, ne])
-    lexer.reset_position(bookmark)
     return None
 
 
@@ -11997,7 +11955,7 @@ class P2_CallExpression_CallExpression_TemplateLiteral(P2_CallExpression):
         return EvaluateCall(tagFunc, tagRef, self.TemplateLiteral, tailCall)
 
 
-def parse_CallExpression(ctx, lexer, strict, Yield, Await):
+def parse_CallExpression(ctx, lexer, pos, strict, Yield, Await):
     # 12.3 Left-Hand-Side Expressions
     # Syntax
     #   CallExpression[Yield, Await] :
@@ -12007,48 +11965,51 @@ def parse_CallExpression(ctx, lexer, strict, Yield, Await):
     #       CallExpression[?Yield, ?Await] [ Expression[+In, ?Yield, ?Await] ]
     #       CallExpression[?Yield, ?Await] . IdentifierName
     #       CallExpression[?Yield, ?Await] TemplateLiteral[?Yield, ?Await, +Tagged]
-    def parse(previous=None):
-        bookmark = lexer.current_position()
+    def parse(pos, previous=None):
         if previous is None:
-            cceaaah = parse_CoverCallExpressionAndAsyncArrowHead(ctx, lexer, strict, Yield, Await)
+            cceaaah = parse_CoverCallExpressionAndAsyncArrowHead(ctx, lexer, pos, strict, Yield, Await)
             if cceaaah:
                 return lambda: parse(
-                    P2_CallExpression_CoverCallExpressionAndAsyncArrowHead(ctx, strict, [cceaaah], Yield, Await)
+                    cceaaah.after,
+                    P2_CallExpression_CoverCallExpressionAndAsyncArrowHead(ctx, strict, [cceaaah], Yield, Await),
                 )
-            sc = parse_SuperCall(ctx, lexer, strict, Yield, Await)
+            sc = parse_SuperCall(ctx, lexer, pos, strict, Yield, Await)
             if sc:
-                return lambda: parse(P2_CallExpression_SuperCall(ctx, strict, [sc]))
+                return lambda: parse(sc.after, P2_CallExpression_SuperCall(ctx, strict, [sc]))
         else:
-            args = parse_Arguments(ctx, lexer, strict, Yield, Await)
+            args = parse_Arguments(ctx, lexer, pos, strict, Yield, Await)
             if args:
-                return lambda: parse(P2_CallExpression_CallExpression_Arguments(ctx, strict, [previous, args]))
-            lb = lexer.next_token_if("[")
+                return lambda: parse(
+                    args.after, P2_CallExpression_CallExpression_Arguments(ctx, strict, [previous, args])
+                )
+            lb = lexer.token_if(pos, "[")
             if lb:
-                exp = parse_Expression(ctx, lexer, strict, True, Yield, Await)
+                exp = parse_Expression(ctx, lexer, lb.span.after, strict, True, Yield, Await)
                 if exp:
-                    rb = lexer.next_token_if("]")
+                    rb = lexer.token_if(exp.after, "]")
                     if rb:
                         return lambda: parse(
+                            rb.span.after,
                             P2_CallExpression_CallExpression_LBRACKET_Expression_RBRACKET(
                                 ctx, strict, [previous, lb, exp, rb]
-                            )
+                            ),
                         )
-                lexer.reset_position(bookmark)
-            dot = lexer.next_token_if(".")
+            dot = lexer.token_if(pos, ".")
             if dot:
-                ident = lexer.next_token_if("IDENTIFIER")
+                ident = lexer.token_if(dot.span.after, "IDENTIFIER")
                 if ident:
                     return lambda: parse(
-                        P2_CallExpression_CallExpression_PERIOD_IdentifierName(ctx, strict, [previous, dot, ident])
+                        ident.span.after,
+                        P2_CallExpression_CallExpression_PERIOD_IdentifierName(ctx, strict, [previous, dot, ident]),
                     )
-                lexer.reset_position(bookmark)
-            tl = parse_TemplateLiteral(ctx, lexer, strict, Yield, Await, True)
+            tl = parse_TemplateLiteral(ctx, lexer, pos, strict, Yield, Await, True)
             if tl:
-                return lambda: parse(P2_CallExpression_CallExpression_TemplateLiteral(ctx, strict, [previous, tl]))
-        lexer.reset_position(bookmark)
+                return lambda: parse(
+                    tl.after, P2_CallExpression_CallExpression_TemplateLiteral(ctx, strict, [previous, tl])
+                )
         return previous
 
-    return trampoline(parse)
+    return trampoline(lambda: parse(pos))
 
 
 # --------======= 𝓢𝓾𝓹𝓮𝓻𝓒𝓪𝓵𝓵 =======--------
@@ -12086,18 +12047,16 @@ class P2_SuperCall_SUPER_Arguments(P2_SuperCall):
         return GetThisEnvironment().BindThisValue(result)
 
 
-def parse_SuperCall(ctx, lexer, strict, Yield, Await):
+def parse_SuperCall(ctx, lexer, pos, strict, Yield, Await):
     # 12.3 Left-Hand-Side Expressions
     # Syntax
     #   SuperCall[Yield, Await] :
     #       super Arguments[?Yield, ?Await]
-    bookmark = lexer.current_position()
-    super = lexer.next_id_if("super")
+    super = lexer.id_if(pos, "super")
     if super:
-        args = parse_Arguments(ctx, lexer, strict, Yield, Await)
+        args = parse_Arguments(ctx, lexer, super.span.after, strict, Yield, Await)
         if args:
             return P2_SuperCall_SUPER_Arguments(ctx, strict, [super, args])
-    lexer.reset_position(bookmark)
     return None
 
 
@@ -12178,7 +12137,7 @@ class P2_Arguments_LPAREN_ArgumentList_COMMA_RPAREN(P2_Arguments):
         return self.children[1]
 
 
-def parse_Arguments(ctx, lexer, strict, Yield, Await):
+def parse_Arguments(ctx, lexer, pos, strict, Yield, Await):
     # 12.3 Left-Hand-Side Expressions
     # Syntax
     #   Arguments[Yield, Await] :
@@ -12186,23 +12145,21 @@ def parse_Arguments(ctx, lexer, strict, Yield, Await):
     #       ( ArgumentList[?Yield, ?Await] )
     #       ( ArgumentList[?Yield, ?Await] , )
     #
-    bookmark = lexer.current_position()
-    lp = lexer.next_token_if("(")
+    lp = lexer.token_if(pos, "(")
     if lp:
-        rp1 = lexer.next_token_if(")")
+        rp1 = lexer.token_if(lp.span.after, ")")
         if rp1:
             return P2_Arguments_LPAREN_RPAREN(ctx, strict, [lp, rp1])
-        al = parse_ArgumentList(ctx, lexer, strict, Yield, Await)
+        al = parse_ArgumentList(ctx, lexer, lp.span.after, strict, Yield, Await)
         if al:
-            rp2 = lexer.next_token_if(")")
+            rp2 = lexer.token_if(al.after, ")")
             if rp2:
                 return P2_Arguments_LPAREN_ArgumentList_RPAREN(ctx, strict, [lp, al, rp2])
-            comma = lexer.next_token_if(",")
+            comma = lexer.token_if(al.after, ",")
             if comma:
-                rp3 = lexer.next_token_if(")")
+                rp3 = lexer.token_if(comma.span.after, ")")
                 if rp3:
                     return P2_Arguments_LPAREN_ArgumentList_COMMA_RPAREN(ctx, strict, [lp, al, comma, rp3])
-    lexer.reset_position(bookmark)
     return None
 
 
@@ -12313,7 +12270,7 @@ class P2_ArgumentList_ArgumentList_COMMA_DOTDOTDOT_AssignmentExpression(P2_Argum
             precedingArgs.append(IteratorValue(nxt))
 
 
-def parse_ArgumentList(ctx, lexer, strict, Yield, Await):
+def parse_ArgumentList(ctx, lexer, pos, strict, Yield, Await):
     # 12.3 Left-Hand-Side Expressions
     # Syntax
     #   ArgumentList[Yield, Await]:
@@ -12321,38 +12278,40 @@ def parse_ArgumentList(ctx, lexer, strict, Yield, Await):
     #       ... AssignmentExpression[+In, ?Yield, ?Await]
     #       ArgumentList[?Yield, ?Await] , AssignmentExpression[+In, ?Yield, ?Await]
     #       ArgumentList[?Yield, ?Await] , ... AssignmentExpression[+In, ?Yield, ?Await]
-    def parse(previous=None):
-        bookmark = lexer.current_position()
+    def parse(pos, previous=None):
         if previous is None:
-            ae1 = parse_AssignmentExpression(ctx, lexer, strict, True, Yield, Await)
+            ae1 = parse_AssignmentExpression(ctx, lexer, pos, strict, True, Yield, Await)
             if ae1:
-                return lambda: parse(P2_ArgumentList_AssignmentExpression(ctx, strict, [ae1]))
-            dots1 = lexer.next_token_if("...")
+                return lambda: parse(ae1.after, P2_ArgumentList_AssignmentExpression(ctx, strict, [ae1]))
+            dots1 = lexer.token_if(pos, "...")
             if dots1:
-                ae2 = parse_AssignmentExpression(ctx, lexer, strict, True, Yield, Await)
+                ae2 = parse_AssignmentExpression(ctx, lexer, dots1.span.after, strict, True, Yield, Await)
                 if ae2:
-                    return lambda: parse(P2_ArgumentList_DOTDOTDOT_AssignmentExpression(ctx, strict, [dots1, ae2]))
+                    return lambda: parse(
+                        ae2.after, P2_ArgumentList_DOTDOTDOT_AssignmentExpression(ctx, strict, [dots1, ae2])
+                    )
         else:
-            comma = lexer.next_token_if(",")
+            comma = lexer.token_if(pos, ",")
             if comma:
-                ae3 = parse_AssignmentExpression(ctx, lexer, strict, True, Yield, Await)
+                ae3 = parse_AssignmentExpression(ctx, lexer, comma.span.after, strict, True, Yield, Await)
                 if ae3:
                     return lambda: parse(
-                        P2_ArgumentList_ArgumentList_COMMA_AssignmentExpression(ctx, strict, [previous, comma, ae3])
+                        ae3.after,
+                        P2_ArgumentList_ArgumentList_COMMA_AssignmentExpression(ctx, strict, [previous, comma, ae3]),
                     )
-                dots2 = lexer.next_token_if("...")
+                dots2 = lexer.token_if(comma.span.after, "...")
                 if dots2:
-                    ae4 = parse_AssignmentExpression(ctx, lexer, strict, True, Yield, Await)
+                    ae4 = parse_AssignmentExpression(ctx, lexer, dots2.span.after, strict, True, Yield, Await)
                     if ae4:
                         return lambda: parse(
+                            ae4.after,
                             P2_ArgumentList_ArgumentList_COMMA_DOTDOTDOT_AssignmentExpression(
                                 ctx, strict, [previous, comma, dots2, ae4]
-                            )
+                            ),
                         )
-        lexer.reset_position(bookmark)
         return previous
 
-    return trampoline(parse)
+    return trampoline(lambda: parse(pos))
 
 
 # --------======= 𝓛𝓮𝓯𝓽𝓗𝓪𝓷𝓭𝓢𝓲𝓭𝓮𝓔𝔁𝓹𝓻𝓮𝓼𝓼𝓲𝓸𝓷 =======--------
@@ -12418,17 +12377,17 @@ class P2_LeftHandSideExpression_CallExpression(P2_LeftHandSideExpression):
         return False
 
 
-def parse_LeftHandSideExpression(ctx, lexer, strict, Yield, Await):
+def parse_LeftHandSideExpression(ctx, lexer, pos, strict, Yield, Await):
     # 12.3 Left-Hand-Side Expressions
     # Syntax
     #   LeftHandSideExpression[Yield, Await] :
     #       NewExpression[?Yield, ?Await]
     #       CallExpression[?Yield, ?Await]
     #
-    ce = parse_CallExpression(ctx, lexer, strict, Yield, Await)
+    ce = parse_CallExpression(ctx, lexer, pos, strict, Yield, Await)
     if ce:
         return P2_LeftHandSideExpression_CallExpression(ctx, strict, [ce], Yield, Await)
-    ne = parse_NewExpression(ctx, lexer, strict, Yield, Await)
+    ne = parse_NewExpression(ctx, lexer, pos, strict, Yield, Await)
     if ne:
         return P2_LeftHandSideExpression_NewExpression(ctx, strict, [ne], Yield, Await)
     return None
@@ -12455,19 +12414,17 @@ class P2_CallMemberExpression_MemberExpression_Arguments(P2_CallMemberExpression
         return self.children[1]
 
 
-def parse_CallMemberExpression(ctx, lexer, strict, Yield, Await):
+def parse_CallMemberExpression(ctx, lexer, pos, strict, Yield, Await):
     # 12.3 Left-Hand-Side Expressions
     # Syntax
     #   CallMemberExpression[Yield, Await] :
     #       MemberExpression[?Yield, ?Await] Arguments[?Yield, ?Await]
     #
-    bookmark = lexer.current_position()
-    me = parse_MemberExpression(ctx, lexer, strict, Yield, Await)
+    me = parse_MemberExpression(ctx, lexer, pos, strict, Yield, Await)
     if me:
-        args = parse_Arguments(ctx, lexer, strict, Yield, Await)
+        args = parse_Arguments(ctx, lexer, me.after, strict, Yield, Await)
         if args:
             return P2_CallMemberExpression_MemberExpression_Arguments(ctx, strict, [me, args])
-    lexer.reset_position(bookmark)
     return None
 
 
@@ -12692,7 +12649,7 @@ class P2_UpdateExpression_MINUSMINUS_UnaryExpression(P2_UpdateExpression_Pre):
         return newValue
 
 
-def parse_UpdateExpression(ctx, lexer, strict, Yield, Await):
+def parse_UpdateExpression(ctx, lexer, pos, strict, Yield, Await):
     # 12.4 Update Expressions
     # Syntax
     #   UpdateExpression[Yield, Await]:
@@ -12702,28 +12659,26 @@ def parse_UpdateExpression(ctx, lexer, strict, Yield, Await):
     #       ++ UnaryExpression[?Yield, ?Await]
     #       -- UnaryExpression[?Yield, ?Await]
     #
-    bookmark = lexer.current_position()
-    lhs = parse_LeftHandSideExpression(ctx, lexer, strict, Yield, Await)
+    lhs = parse_LeftHandSideExpression(ctx, lexer, pos, strict, Yield, Await)
     if lhs:
-        plusplus = lexer.next_token_if("++", prior_newline_allowed=False)
+        plusplus = lexer.token_if(lhs.after, "++", prior_newline_allowed=False)
         if plusplus:
             return P2_UpdateExpression_LeftHandSideExpression_PLUSPLUS(ctx, strict, [lhs, plusplus])
-        minusminus = lexer.next_token_if("--", prior_newline_allowed=False)
+        minusminus = lexer.token_if(lhs.after, "--", prior_newline_allowed=False)
         if minusminus:
             return P2_UpdateExpression_LeftHandSideExpression_MINUSMINUS(ctx, strict, [lhs, minusminus])
         return P2_UpdateExpression_LeftHandSideExpression(ctx, strict, [lhs])
-    plusplus = lexer.next_token_if("++")
+    plusplus = lexer.token_if(pos, "++")
     if plusplus:
-        ue = parse_UnaryExpression(ctx, lexer, strict, Yield, Await)
+        ue = parse_UnaryExpression(ctx, lexer, plusplus.span.after, strict, Yield, Await)
         if ue:
             return P2_UpdateExpression_PLUSPLUS_UnaryExpression(ctx, strict, [plusplus, ue])
     else:
-        minusminus = lexer.next_token_if("--")
+        minusminus = lexer.token_if(pos, "--")
         if minusminus:
-            ue = parse_UnaryExpression(ctx, lexer, strict, Yield, Await)
+            ue = parse_UnaryExpression(ctx, lexer, minusminus.span.after, strict, Yield, Await)
             if ue:
                 return P2_UpdateExpression_MINUSMINUS_UnaryExpression(ctx, strict, [minusminus, ue])
-    lexer.reset_position(bookmark)
     return None
 
 
@@ -13068,7 +13023,7 @@ class P2_UnaryExpression_AwaitExpression(P2_UnaryExpression_NotFallThru):
         return self.children[0]
 
 
-def parse_UnaryExpression(ctx, lexer, strict, Yield, Await):
+def parse_UnaryExpression(ctx, lexer, pos, strict, Yield, Await):
     # 12.5 Unary Operators
     # Syntax
     #   UnaryExpression[Yield, Await] :
@@ -13082,20 +13037,19 @@ def parse_UnaryExpression(ctx, lexer, strict, Yield, Await):
     #       ! UnaryExpression[?Yield, ?Await]
     #       [+Await]AwaitExpression[?Yield]
     #
-    bookmark = lexer.current_position()
-    ue = parse_UpdateExpression(ctx, lexer, strict, Yield, Await)
+    ue = parse_UpdateExpression(ctx, lexer, pos, strict, Yield, Await)
     if ue:
         return P2_UnaryExpression_UpdateExpression(ctx, strict, [ue])
     if Await:
-        ae = parse_AwaitExpression(ctx, lexer, strict, Yield)
+        ae = parse_AwaitExpression(ctx, lexer, pos, strict, Yield)
         if ae:
             return P2_UnaryExpression_AwaitExpression(ctx, strict, [ae])
-    tok = lexer.next_token()
+    tok = lexer.token(pos)
     if tok and (
         (tok.type == "IDENTIFIER" and tok.value in ("delete", "void", "typeof"))
         or (tok.type in ("+", "-", "~", "!"))
     ):
-        une = parse_UnaryExpression(ctx, lexer, strict, Yield, Await)
+        une = parse_UnaryExpression(ctx, lexer, tok.span.after, strict, Yield, Await)
         une_class = {
             "delete": P2_UnaryExpression_DELETE_UnaryExpression,
             "void": P2_UnaryExpression_VOID_UnaryExpression,
@@ -13107,7 +13061,6 @@ def parse_UnaryExpression(ctx, lexer, strict, Yield, Await):
         }
         if une:
             return une_class[tok.value if tok.type == "IDENTIFIER" else tok.type](ctx, strict, [tok, une])
-    lexer.reset_position(bookmark)
     return None
 
 
@@ -13220,7 +13173,7 @@ class P2_ExponentiationExpression_UpdateExpression_STARSTAR_ExponentiationExpres
         return ExponentiationOperation(leftValue, rightValue)
 
 
-def parse_ExponentiationExpression(ctx, lexer, strict, Yield, Await):
+def parse_ExponentiationExpression(ctx, lexer, pos, strict, Yield, Await):
     # 12.6 Exponentiation Operator
     # Syntax
     #   ExponentiationExpression[Yield, Await] :
@@ -13228,21 +13181,23 @@ def parse_ExponentiationExpression(ctx, lexer, strict, Yield, Await):
     #       UpdateExpression[?Yield, ?Await] ** ExponentiationExpression[?Yield, ?Await]
     #
     # (There's a shift/reduce conflict here. Choose in favor of shift: try the second line first.)
-    bookmark = lexer.current_position()
-    upe = parse_UpdateExpression(ctx, lexer, strict, Yield, Await)
+    #
+    # @@@ UnaryExpressions and UpdateExpressions are very nearly the same. Most expressions will fit
+    # in either category. In addition, most expressions do not use exponentiation. Therefore, this
+    # function parses most expressions twice. :sadface: We need to do something to re-use what we
+    # did in parse_UpdateExpression so that we don't repeat all the work in parse_UnaryExpression.
+    upe = parse_UpdateExpression(ctx, lexer, pos, strict, Yield, Await)
     if upe:
-        stars = lexer.next_token_if("**")
+        stars = lexer.token_if(upe.after, "**")
         if stars:
-            ee = parse_ExponentiationExpression(ctx, lexer, strict, Yield, Await)
+            ee = parse_ExponentiationExpression(ctx, lexer, stars.span.after, strict, Yield, Await)
             if ee:
                 return P2_ExponentiationExpression_UpdateExpression_STARSTAR_ExponentiationExpression(
                     ctx, strict, [upe, stars, ee]
                 )
-        lexer.reset_position(bookmark)
-    unary = parse_UnaryExpression(ctx, lexer, strict, Yield, Await)
+    unary = parse_UnaryExpression(ctx, lexer, pos, strict, Yield, Await)
     if unary:
         return P2_ExponentiationExpression_UnaryExpression(ctx, strict, [unary])
-    lexer.reset_position(bookmark)
     return None
 
 
@@ -13418,33 +13373,34 @@ class P2_MultiplicativeExpression_MultiplicativeExpression_MultiplicativeOperato
         return self.MultiplicativeOperator.operation(leftValue, rightValue)
 
 
-def parse_MultiplicativeExpression(ctx, lexer, strict, Yield, Await):
+def parse_MultiplicativeExpression(ctx, lexer, pos, strict, Yield, Await):
     # 12.7 Multiplicative Operators
     # Syntax
     #   MultiplicativeExpression[Yield, Await] :
     #       ExponentiationExpression[?Yield, ?Await]
     #       MultiplicativeExpression[?Yield, ?Await] MultiplicativeOperator ExponentiationExpression[?Yield, ?Await]
     #
-    def parse(previous=None):
-        bookmark = lexer.current_position()
+    def parse(pos, previous=None):
         if previous is None:
-            ee1 = parse_ExponentiationExpression(ctx, lexer, strict, Yield, Await)
+            ee1 = parse_ExponentiationExpression(ctx, lexer, pos, strict, Yield, Await)
             if ee1:
-                return lambda: parse(P2_MultiplicativeExpression_ExponentiationExpression(ctx, strict, [ee1]))
+                return lambda: parse(
+                    ee1.after, P2_MultiplicativeExpression_ExponentiationExpression(ctx, strict, [ee1])
+                )
         else:
-            mo = parse_MultiplicativeOperator(ctx, lexer, strict)
+            mo = parse_MultiplicativeOperator(ctx, lexer, pos, strict)
             if mo:
-                ee2 = parse_ExponentiationExpression(ctx, lexer, strict, Yield, Await)
+                ee2 = parse_ExponentiationExpression(ctx, lexer, mo.after, strict, Yield, Await)
                 if ee2:
                     return lambda: parse(
+                        ee2.after,
                         P2_MultiplicativeExpression_MultiplicativeExpression_MultiplicativeOperator_ExponentiationExpression(
                             ctx, strict, [previous, mo, ee2]
-                        )
+                        ),
                     )
-        lexer.reset_position(bookmark)
         return previous
 
-    return trampoline(parse)
+    return trampoline(lambda: parse(pos))
 
 
 # --------======= 𝓜𝓾𝓵𝓽𝓲𝓹𝓵𝓲𝓬𝓪𝓽𝓲𝓿𝓮𝓞𝓹𝓮𝓻𝓪𝓽𝓸𝓻 =======--------
@@ -13473,14 +13429,14 @@ class P2_MultiplicativeOperator_MOD(P2_MultiplicativeOperator):
         return ModuloOperation(lval, rval)
 
 
-def parse_MultiplicativeOperator(context, lexer, strict):
-    mult = lexer.next_token_if("*", goal=lexer.InputElementDiv)
+def parse_MultiplicativeOperator(context, lexer, pos, strict):
+    mult = lexer.token_if(pos, "*", goal=lexer.InputElementDiv)
     if mult:
         return P2_MultiplicativeOperator_MULT(context, strict, [mult])
-    div = lexer.next_token_if("/", goal=lexer.InputElementDiv)
+    div = lexer.token_if(pos, "/", goal=lexer.InputElementDiv)
     if div:
         return P2_MultiplicativeOperator_DIV(context, strict, [div])
-    mod = lexer.next_token_if("%", goal=lexer.InputElementDiv)
+    mod = lexer.token_if(pos, "%", goal=lexer.InputElementDiv)
     if mod:
         return P2_MultiplicativeOperator_MOD(context, strict, [mod])
     return None
@@ -13745,7 +13701,7 @@ class P2_AdditiveExpression_AdditiveExpression_MINUS_MultiplicativeExpression(P2
         return lnum - rnum
 
 
-def parse_AdditiveExpression(ctx, lexer, strict, Yield, Await):
+def parse_AdditiveExpression(ctx, lexer, pos, strict, Yield, Await):
     # 12.8 Additive Operators
     # Syntax
     #   AdditiveExpression[Yield, Await] :
@@ -13753,36 +13709,36 @@ def parse_AdditiveExpression(ctx, lexer, strict, Yield, Await):
     #       AdditiveExpression[?Yield, ?Await] + MultiplicativeExpression[?Yield, ?Await]
     #       AdditiveExpression[?Yield, ?Await] - MultiplicativeExpression[?Yield, ?Await]
     #
-    def parse(previous=None):
-        bookmark = lexer.current_position()
+    def parse(pos, previous=None):
         if previous is None:
-            me1 = parse_MultiplicativeExpression(ctx, lexer, strict, Yield, Await)
+            me1 = parse_MultiplicativeExpression(ctx, lexer, pos, strict, Yield, Await)
             if me1:
-                return lambda: parse(P2_AdditiveExpression_MultiplicativeExpression(ctx, strict, [me1]))
+                return lambda: parse(me1.after, P2_AdditiveExpression_MultiplicativeExpression(ctx, strict, [me1]))
         else:
-            plus = lexer.next_token_if("+")
+            plus = lexer.token_if(pos, "+")
             if plus:
-                me2 = parse_MultiplicativeExpression(ctx, lexer, strict, Yield, Await)
+                me2 = parse_MultiplicativeExpression(ctx, lexer, plus.span.after, strict, Yield, Await)
                 if me2:
                     return lambda: parse(
+                        me2.after,
                         P2_AdditiveExpression_AdditiveExpression_PLUS_MultiplicativeExpression(
                             ctx, strict, [previous, plus, me2]
-                        )
+                        ),
                     )
             else:
-                minus = lexer.next_token_if("-")
+                minus = lexer.token_if(pos, "-")
                 if minus:
-                    me3 = parse_MultiplicativeExpression(ctx, lexer, strict, Yield, Await)
+                    me3 = parse_MultiplicativeExpression(ctx, lexer, minus.span.after, strict, Yield, Await)
                     if me3:
                         return lambda: parse(
+                            me3.after,
                             P2_AdditiveExpression_AdditiveExpression_MINUS_MultiplicativeExpression(
                                 ctx, strict, [previous, minus, me3]
-                            )
+                            ),
                         )
-        lexer.reset_position(bookmark)
         return previous
 
-    return trampoline(parse)
+    return trampoline(lambda: parse(pos))
 
 
 # 12.8.5 Applying the Additive Operators to Numbers
@@ -13980,7 +13936,7 @@ class P2_ShiftExpression_ShiftExpression_GTGTGT_AdditiveExpression(P2_ShiftExpre
         return lnum >> shiftCount
 
 
-def parse_ShiftExpression(context, lexer, strict, Yield, Await):
+def parse_ShiftExpression(context, lexer, pos, strict, Yield, Await):
     # 12.9 Bitwise Shift Operators
     # Syntax
     #   ShiftExpression[Yield, Await] :
@@ -13995,23 +13951,21 @@ def parse_ShiftExpression(context, lexer, strict, Yield, Await):
         ">>>": P2_ShiftExpression_ShiftExpression_GTGTGT_AdditiveExpression,
     }
 
-    def parse(previous=None):
-        bookmark = lexer.current_position()
+    def parse(pos, previous=None):
         if previous is None:
-            ae1 = parse_AdditiveExpression(context, lexer, strict, Yield, Await)
+            ae1 = parse_AdditiveExpression(context, lexer, pos, strict, Yield, Await)
             if ae1:
-                return lambda: parse(P2_ShiftExpression_AdditiveExpression(context, strict, [ae1]))
+                return lambda: parse(ae1.after, P2_ShiftExpression_AdditiveExpression(context, strict, [ae1]))
         else:
-            tok = lexer.next_token()
+            tok = lexer.token(pos)
             if tok and tok.type in ("<<", ">>", ">>>"):
-                ae2 = parse_AdditiveExpression(context, lexer, strict, Yield, Await)
+                ae2 = parse_AdditiveExpression(context, lexer, tok.span.after, strict, Yield, Await)
                 if ae2:
                     ctor = shift_expression_constructors[tok.type]
-                    return lambda: parse(ctor(context, strict, [previous, tok, ae2]))
-        lexer.reset_position(bookmark)
+                    return lambda: parse(ae2.after, ctor(context, strict, [previous, tok, ae2]))
         return previous
 
-    return trampoline(parse)
+    return trampoline(lambda: parse(pos))
 
 
 #######################################################################################################################
@@ -14215,7 +14169,7 @@ class P2_RelationalExpression_RelationalExpression_IN_ShiftExpression(
         return HasProperty(rval, key)
 
 
-def parse_RelationalExpression(context, lexer, strict, In, Yield, Await):
+def parse_RelationalExpression(context, lexer, pos, strict, In, Yield, Await):
     # 12.10 Relational Operators
     # Syntax
     #   RelationalExpression[In, Yield, Await]:
@@ -14235,27 +14189,25 @@ def parse_RelationalExpression(context, lexer, strict, In, Yield, Await):
         "in": P2_RelationalExpression_RelationalExpression_IN_ShiftExpression,
     }
 
-    def parse(previous=None):
-        bookmark = lexer.current_position()
+    def parse(pos, previous=None):
         if previous is None:
-            se1 = parse_ShiftExpression(context, lexer, strict, Yield, Await)
+            se1 = parse_ShiftExpression(context, lexer, pos, strict, Yield, Await)
             if se1:
-                return lambda: parse(P2_RelationalExpression_ShiftExpression(context, strict, [se1]))
+                return lambda: parse(se1.after, P2_RelationalExpression_ShiftExpression(context, strict, [se1]))
         else:
-            tok = lexer.next_token()
+            tok = lexer.token(pos)
             if tok and (
                 tok.type in (">", "<", ">=", "<=")
                 or tok.type == "IDENTIFIER"
                 and (tok.value == "instanceof" or (tok.value == "in" and In))
             ):
-                se2 = parse_ShiftExpression(context, lexer, strict, Yield, Await)
+                se2 = parse_ShiftExpression(context, lexer, tok.span.after, strict, Yield, Await)
                 if se2:
                     ctor = relational_constructor[tok.type if tok.type != "IDENTIFIER" else tok.value]
-                    return lambda: parse(ctor(context, strict, [previous, tok, se2]))
-        lexer.reset_position(bookmark)
+                    return lambda: parse(se2.after, ctor(context, strict, [previous, tok, se2]))
         return previous
 
-    return trampoline(parse)
+    return trampoline(lambda: parse(pos))
 
 
 # 12.10.4 Runtime Semantics: InstanceofOperator ( V, target )
@@ -14436,7 +14388,7 @@ class P2_EqualityExpression_EqualityExpression_BANGEQEQ_RelationalExpression(
         return not StrictEqualityComparison(rval, lval)
 
 
-def parse_EqualityExpression(context, lexer, strict, In, Yield, Await):
+def parse_EqualityExpression(context, lexer, pos, strict, In, Yield, Await):
     # 12.11 Equality Operators
     # Syntax
     #   EqualityExpression[In, Yield, Await] :
@@ -14453,23 +14405,21 @@ def parse_EqualityExpression(context, lexer, strict, In, Yield, Await):
         "!==": P2_EqualityExpression_EqualityExpression_BANGEQEQ_RelationalExpression,
     }
 
-    def parse(previous=None):
-        bookmark = lexer.current_position()
+    def parse(pos, previous=None):
         if previous is None:
-            re1 = parse_RelationalExpression(context, lexer, strict, In, Yield, Await)
+            re1 = parse_RelationalExpression(context, lexer, pos, strict, In, Yield, Await)
             if re1:
-                return lambda: parse(P2_EqualityExpression_RelationalExpression(context, strict, [re1]))
+                return lambda: parse(re1.after, P2_EqualityExpression_RelationalExpression(context, strict, [re1]))
         else:
-            tok = lexer.next_token()
+            tok = lexer.token(pos)
             if tok and tok.type in ("==", "!=", "===", "!=="):
-                re2 = parse_RelationalExpression(context, lexer, strict, In, Yield, Await)
+                re2 = parse_RelationalExpression(context, lexer, tok.span.after, strict, In, Yield, Await)
                 if re2:
                     ctor = equality_constructor[tok.type]
-                    return lambda: parse(ctor(context, strict, [previous, tok, re2]))
-        lexer.reset_position(bookmark)
+                    return lambda: parse(re2.after, ctor(context, strict, [previous, tok, re2]))
         return previous
 
-    return trampoline(parse)
+    return trampoline(lambda: parse(pos))
 
 
 #######################################################################################################################
@@ -14598,33 +14548,32 @@ class P2_BitwiseANDExpression_BitwiseANDExpression_AMP_EqualityExpression(
         return lnum & rnum
 
 
-def parse_BitwiseANDExpression(context, lexer, strict, In, Yield, Await):
+def parse_BitwiseANDExpression(context, lexer, pos, strict, In, Yield, Await):
     # 12.12 Binary Bitwise Operators
     # Syntax
     #   BitwiseANDExpression[In, Yield, Await] :
     #       EqualityExpression[?In, ?Yield, ?Await]
     #       BitwiseANDExpression[?In, ?Yield, ?Await] & EqualityExpression[?In, ?Yield, ?Await]
     #
-    def parse(previous=None):
-        bookmark = lexer.current_position()
+    def parse(pos, previous=None):
         if previous is None:
-            ee1 = parse_EqualityExpression(context, lexer, strict, In, Yield, Await)
+            ee1 = parse_EqualityExpression(context, lexer, pos, strict, In, Yield, Await)
             if ee1:
-                return lambda: parse(P2_BitwiseANDExpression_EqualityExpression(context, strict, [ee1]))
+                return lambda: parse(ee1.after, P2_BitwiseANDExpression_EqualityExpression(context, strict, [ee1]))
         else:
-            amp = lexer.next_token_if("&")
+            amp = lexer.token_if(pos, "&")
             if amp:
-                ee2 = parse_EqualityExpression(context, lexer, strict, In, Yield, Await)
+                ee2 = parse_EqualityExpression(context, lexer, amp.span.after, strict, In, Yield, Await)
                 if ee2:
                     return lambda: parse(
+                        ee2.after,
                         P2_BitwiseANDExpression_BitwiseANDExpression_AMP_EqualityExpression(
                             context, strict, [previous, amp, ee2]
-                        )
+                        ),
                     )
-        lexer.reset_position(bookmark)
         return previous
 
-    return trampoline(parse)
+    return trampoline(lambda: parse(pos))
 
 
 # --------======= 𝓑𝓲𝓽𝔀𝓲𝓼𝓮𝓧𝓞𝓡𝓔𝔁𝓹𝓻𝓮𝓼𝓼𝓲𝓸𝓷 =======--------
@@ -14669,33 +14618,34 @@ class P2_BitwiseXORExpression_BitwiseXORExpression_CARET_BitwiseANDExpression(
         return lnum ^ rnum
 
 
-def parse_BitwiseXORExpression(context, lexer, strict, In, Yield, Await):
+def parse_BitwiseXORExpression(context, lexer, pos, strict, In, Yield, Await):
     # 12.12 Binary Bitwise Operators
     # Syntax
     #   BitwiseXORExpression[In, Yield, Await] :
     #       BitwiseANDExpression[?In, ?Yield, ?Await]
     #       BitwiseXORExpression[?In, ?Yield, ?Await] ^ BitwiseANDExpression[?In, ?Yield, ?Await]
     #
-    def parse(previous=None):
-        bookmark = lexer.current_position()
+    def parse(pos, previous=None):
         if previous is None:
-            bae1 = parse_BitwiseANDExpression(context, lexer, strict, In, Yield, Await)
+            bae1 = parse_BitwiseANDExpression(context, lexer, pos, strict, In, Yield, Await)
             if bae1:
-                return lambda: parse(P2_BitwiseXORExpression_BitwiseANDExpression(context, strict, [bae1]))
+                return lambda: parse(
+                    bae1.after, P2_BitwiseXORExpression_BitwiseANDExpression(context, strict, [bae1])
+                )
         else:
-            xor = lexer.next_token_if("^")
+            xor = lexer.token_if(pos, "^")
             if xor:
-                bae2 = parse_BitwiseANDExpression(context, lexer, strict, In, Yield, Await)
+                bae2 = parse_BitwiseANDExpression(context, lexer, xor.span.after, strict, In, Yield, Await)
                 if bae2:
                     return lambda: parse(
+                        bae2.after,
                         P2_BitwiseXORExpression_BitwiseXORExpression_CARET_BitwiseANDExpression(
                             context, strict, [previous, xor, bae2]
-                        )
+                        ),
                     )
-        lexer.reset_position(bookmark)
         return previous
 
-    return trampoline(parse)
+    return trampoline(lambda: parse(pos))
 
 
 # --------======= 𝓑𝓲𝓽𝔀𝓲𝓼𝓮𝓞𝓡𝓔𝔁𝓹𝓻𝓮𝓼𝓼𝓲𝓸𝓷 =======--------
@@ -14740,33 +14690,34 @@ class P2_BitwiseORExpression_BitwiseORExpression_PIPE_BitwiseXORExpression(
         return lnum | rnum
 
 
-def parse_BitwiseORExpression(context, lexer, strict, In, Yield, Await):
+def parse_BitwiseORExpression(context, lexer, pos, strict, In, Yield, Await):
     # 12.12 Binary Bitwise Operators
     # Syntax
     #   BitwiseORExpression[In, Yield, Await] :
     #       BitwiseXORExpression[?In, ?Yield, ?Await]
     #       BitwiseORExpression[?In, ?Yield, ?Await] | BitwiseXORExpression[?In, ?Yield, ?Await]
     #
-    def parse(previous=None):
-        bookmark = lexer.current_position()
+    def parse(pos, previous=None):
         if previous is None:
-            bxe1 = parse_BitwiseXORExpression(context, lexer, strict, In, Yield, Await)
+            bxe1 = parse_BitwiseXORExpression(context, lexer, pos, strict, In, Yield, Await)
             if bxe1:
-                return lambda: parse(P2_BitwiseORExpression_BitwiseXORExpression(context, strict, [bxe1]))
+                return lambda: parse(
+                    bxe1.after, P2_BitwiseORExpression_BitwiseXORExpression(context, strict, [bxe1])
+                )
         else:
-            pipe = lexer.next_token_if("|")
+            pipe = lexer.token_if(pos, "|")
             if pipe:
-                bxe2 = parse_BitwiseXORExpression(context, lexer, strict, In, Yield, Await)
+                bxe2 = parse_BitwiseXORExpression(context, lexer, pipe.span.after, strict, In, Yield, Await)
                 if bxe2:
                     return lambda: parse(
+                        bxe2.after,
                         P2_BitwiseORExpression_BitwiseORExpression_PIPE_BitwiseXORExpression(
                             context, strict, [previous, pipe, bxe2]
-                        )
+                        ),
                     )
-        lexer.reset_position(bookmark)
         return previous
 
-    return trampoline(parse)
+    return trampoline(lambda: parse(pos))
 
 
 #######################################################################################################################
@@ -14886,33 +14837,34 @@ class P2_LogicalANDExpression_LogicalANDExpression_AMPAMP_BitwiseORExpression(
         return GetValue(rref)
 
 
-def parse_LogicalANDExpression(context, lexer, strict, In, Yield, Await):
+def parse_LogicalANDExpression(context, lexer, pos, strict, In, Yield, Await):
     # 12.13 Binary Logical Operators
     # Syntax
     #   LogicalANDExpression[In, Yield, Await] :
     #       BitwiseORExpression[?In, ?Yield, ?Await]
     #       LogicalANDExpression[?In, ?Yield, ?Await] && BitwiseORExpression[?In, ?Yield, ?Await]
     #
-    def parse(previous=None):
-        bookmark = lexer.current_position()
+    def parse(pos, previous=None):
         if previous is None:
-            boe1 = parse_BitwiseORExpression(context, lexer, strict, In, Yield, Await)
+            boe1 = parse_BitwiseORExpression(context, lexer, pos, strict, In, Yield, Await)
             if boe1:
-                return lambda: parse(P2_LogicalANDExpression_BitwiseORExpression(context, strict, [boe1]))
+                return lambda: parse(
+                    boe1.after, P2_LogicalANDExpression_BitwiseORExpression(context, strict, [boe1])
+                )
         else:
-            amps = lexer.next_token_if("&&")
+            amps = lexer.token_if(pos, "&&")
             if amps:
-                boe2 = parse_BitwiseORExpression(context, lexer, strict, In, Yield, Await)
+                boe2 = parse_BitwiseORExpression(context, lexer, amps.span.after, strict, In, Yield, Await)
                 if boe2:
                     return lambda: parse(
+                        boe2.after,
                         P2_LogicalANDExpression_LogicalANDExpression_AMPAMP_BitwiseORExpression(
                             context, strict, [previous, amps, boe2]
-                        )
+                        ),
                     )
-        lexer.reset_position(bookmark)
         return previous
 
-    return trampoline(parse)
+    return trampoline(lambda: parse(pos))
 
 
 # --------======= 𝓛𝓸𝓰𝓲𝓬𝓪𝓵𝓞𝓡𝓔𝔁𝓹𝓻𝓮𝓼𝓼𝓲𝓸𝓷 =======--------
@@ -14969,33 +14921,34 @@ class P2_LogicalORExpression_LogicalORExpression_PIPEPIPE_LogicalANDExpression(
         return GetValue(rref)
 
 
-def parse_LogicalORExpression(context, lexer, strict, In, Yield, Await):
+def parse_LogicalORExpression(context, lexer, pos, strict, In, Yield, Await):
     # 12.13 Binary Logical Operators
     # Syntax
     #   LogicalORExpression[In, Yield, Await] :
     #       LogicalANDExpression[?In, ?Yield, ?Await]
     #       LogicalORExpression[?In, ?Yield, ?Await] || LogicalANDExpression[?In, ?Yield, ?Await]
     #
-    def parse(previous=None):
-        bookmark = lexer.current_position()
+    def parse(pos, previous=None):
         if previous is None:
-            lae1 = parse_LogicalANDExpression(context, lexer, strict, In, Yield, Await)
+            lae1 = parse_LogicalANDExpression(context, lexer, pos, strict, In, Yield, Await)
             if lae1:
-                return lambda: parse(P2_LogicalORExpression_LogicalANDExpression(context, strict, [lae1]))
+                return lambda: parse(
+                    lae1.after, P2_LogicalORExpression_LogicalANDExpression(context, strict, [lae1])
+                )
         else:
-            pipes = lexer.next_token_if("||")
+            pipes = lexer.token_if(pos, "||")
             if pipes:
-                lae2 = parse_LogicalANDExpression(context, lexer, strict, In, Yield, Await)
+                lae2 = parse_LogicalANDExpression(context, lexer, pipes.span.after, strict, In, Yield, Await)
                 if lae2:
                     return lambda: parse(
+                        lae2.after,
                         P2_LogicalORExpression_LogicalORExpression_PIPEPIPE_LogicalANDExpression(
                             context, strict, [previous, pipes, lae2]
-                        )
+                        ),
                     )
-        lexer.reset_position(bookmark)
         return previous
 
-    return trampoline(parse)
+    return trampoline(lambda: parse(pos))
 
 
 #######################################################################################################################
@@ -15118,31 +15071,27 @@ class P2_ConditionalExpression_LogicalORExpression_QUESTION_AssignmentExpression
         return GetValue(falseRef)
 
 
-def parse_ConditionalExpression(context, lexer, strict, In, Yield, Await):
+def parse_ConditionalExpression(context, lexer, pos, strict, In, Yield, Await):
     # 12.14 Conditional Operator ( ? : )
     # Syntax
     #   ConditionalExpression[In, Yield, Await]:
     #       LogicalORExpression[?In, ?Yield, ?Await]
     #       LogicalORExpression[?In, ?Yield, ?Await] ? AssignmentExpression[+In, ?Yield, ?Await] : AssignmentExpression[?In, ?Yield, ?Await]
     #
-    bookmark = lexer.current_position()
-    loe = parse_LogicalORExpression(context, lexer, strict, In, Yield, Await)
+    loe = parse_LogicalORExpression(context, lexer, pos, strict, In, Yield, Await)
     if loe:
-        book2 = lexer.current_position()
-        question = lexer.next_token_if("?")
+        question = lexer.token_if(loe.after, "?")
         if question:
-            ae1 = parse_AssignmentExpression(context, lexer, strict, True, Yield, Await)
+            ae1 = parse_AssignmentExpression(context, lexer, question.span.after, strict, True, Yield, Await)
             if ae1:
-                colon = lexer.next_token_if(":")
+                colon = lexer.token_if(ae1.after, ":")
                 if colon:
-                    ae2 = parse_AssignmentExpression(context, lexer, strict, In, Yield, Await)
+                    ae2 = parse_AssignmentExpression(context, lexer, colon.span.after, strict, In, Yield, Await)
                     if ae2:
                         return P2_ConditionalExpression_LogicalORExpression_QUESTION_AssignmentExpression_COLON_AssignmentExpression(
                             context, strict, [loe, question, ae1, colon, ae2]
                         )
-        lexer.reset_position(book2)
         return P2_ConditionalExpression_LogicalORExpression(context, strict, [loe])
-    lexer.reset_position(bookmark)
     return None
 
 
@@ -15448,7 +15397,7 @@ class P2_AssignmentExpression_LeftHandSideExpression_AssignmentOperator_Assignme
         # TypeError exception is thrown.
 
 
-def parse_AssignmentExpression(context, lexer, strict, In, Yield, Await):
+def parse_AssignmentExpression(context, lexer, pos, strict, In, Yield, Await):
     #   AssignmentExpression[In, Yield, Await] :
     #       ConditionalExpression[?In, ?Yield, ?Await]
     #       [+Yield]YieldExpression[?In, ?Await]
@@ -15456,34 +15405,31 @@ def parse_AssignmentExpression(context, lexer, strict, In, Yield, Await):
     #       AsyncArrowFunction[?In, ?Yield, ?Await]
     #       LeftHandSideExpression[?Yield, ?Await] = AssignmentExpression[?In, ?Yield, ?Await]
     #       LeftHandSideExpression[?Yield, ?Await] AssignmentOperator AssignmentExpression[?In, ?Yield, ?Await]
-    bookmark = lexer.current_position()
-    lhs = parse_LeftHandSideExpression(context, lexer, strict, Yield, Await)
+    lhs = parse_LeftHandSideExpression(context, lexer, pos, strict, Yield, Await)
     if lhs:
         # AssignmentOperator: one of  *= /= %= += -= <<= >>= >>>= &= ^= |= **=
-        op = lexer.next_token(goal=lexer.InputElementDiv)
+        op = lexer.token(lhs.after, goal=lexer.InputElementDiv)
         if op and op.type in ("=", "*=", "/=", "%=", "+=", "-=", "<<=", ">>=", ">>>=", "&=", "^=", "|=", "**="):
-            ae = parse_AssignmentExpression(context, lexer, strict, In, Yield, Await)
+            ae = parse_AssignmentExpression(context, lexer, op.span.after, strict, In, Yield, Await)
             if ae:
                 ctor = (
                     P2_AssignmentExpression_LeftHandSideExpression_AssignmentOperator_AssignmentExpression,
                     P2_AssignmentExpression_LeftHandSideExpression_EQ_AssignmentExpression,
                 )[op.type == "="]
                 return ctor(context, strict, [lhs, op, ae])
-        lexer.reset_position(bookmark)
-    aaf = parse_AsyncArrowFunction(context, lexer, strict, In, Yield, Await)
+    aaf = parse_AsyncArrowFunction(context, lexer, pos, strict, In, Yield, Await)
     if aaf:
         return P2_AssignmentExpression_AsyncArrowFunction(context, strict, [aaf])
-    af = parse_ArrowFunction(context, lexer, strict, In, Yield, Await)
+    af = parse_ArrowFunction(context, lexer, pos, strict, In, Yield, Await)
     if af:
         return P2_AssignmentExpression_ArrowFunction(context, strict, [af])
     if Yield:
-        ye = parse_YieldExpression(context, lexer, strict, In, Await)
+        ye = parse_YieldExpression(context, lexer, pos, strict, In, Await)
         if ye:
             return P2_AssignmentExpression_YieldExpression(context, strict, [ye])
-    ce = parse_ConditionalExpression(context, lexer, strict, In, Yield, Await)
+    ce = parse_ConditionalExpression(context, lexer, pos, strict, In, Yield, Await)
     if ce:
         return P2_AssignmentExpression_ConditionalExpression(context, strict, [ce])
-    lexer.reset_position(bookmark)
     return None
 
 
@@ -15511,16 +15457,16 @@ class P2_AssignmentPattern_ArrayAssignmentPattern(P2_AssignmentPattern):
         return self.children[0]
 
 
-def parse_AssignmentPattern(context, lexer, strict, Yield, Await):
+def parse_AssignmentPattern(context, lexer, pos, strict, Yield, Await):
     # 12.15.5 Destructuring Assignment
     # Syntax
     #   AssignmentPattern[Yield, Await]:
     #       ObjectAssignmentPattern[?Yield, ?Await]
     #       ArrayAssignmentPattern[?Yield, ?Await]
-    oap = parse_ObjectAssignmentPattern(context, lexer, strict, Yield, Await)
+    oap = parse_ObjectAssignmentPattern(context, lexer, pos, strict, Yield, Await)
     if oap:
         return P2_AssignmentPattern_ObjectAssignmentPattern(context, strict, [oap])
-    aap = parse_ArrayAssignmentPattern(context, lexer, strict, Yield, Await)
+    aap = parse_ArrayAssignmentPattern(context, lexer, pos, strict, Yield, Await)
     if aap:
         return P2_AssignmentPattern_ArrayAssignmentPattern(context, strict, [aap])
     return None
@@ -15609,7 +15555,7 @@ class P2_ObjectAssignmentPattern_AssignmentPropertyList_AssignmentRestProperty(P
         return self.AssignmentRestProperty.RestDestructuringAssignmentEvaluation(value, excludedNames)
 
 
-def parse_ObjectAssignmentPattern(context, lexer, strict, Yield, Await):
+def parse_ObjectAssignmentPattern(context, lexer, pos, strict, Yield, Await):
     # 12.15.5 Destructuring Assignment
     # Syntax
     #   ObjectAssignmentPattern[Yield, Await]:
@@ -15618,28 +15564,25 @@ def parse_ObjectAssignmentPattern(context, lexer, strict, Yield, Await):
     #       { AssignmentPropertyList[?Yield, ?Await] }
     #       { AssignmentPropertyList[?Yield, ?Await] , AssignmentRestProperty[?Yield, ?Await]opt }
     #
-    bookmark = lexer.current_position()
-    lcurly = lexer.next_token_if("{")
+    lcurly = lexer.token_if(pos, "{")
     if lcurly:
-        book2 = lexer.current_position()
-        rcurly1 = lexer.next_token_if("}")
+        rcurly1 = lexer.token_if(lcurly.span.after, "}")
         if rcurly1:
             return P2_ObjectAssignmentPattern_Empty(context, strict, [lcurly, rcurly1])
-        arp1 = parse_AssignmentRestProperty(context, lexer, strict, Yield, Await)
+        arp1 = parse_AssignmentRestProperty(context, lexer, lcurly.span.after, strict, Yield, Await)
         if arp1:
-            rcurly2 = lexer.next_token_if("}")
+            rcurly2 = lexer.token_if(arp1.after, "}")
             if rcurly2:
                 return P2_ObjectAssignmentPattern_AssignmentRestProperty(context, strict, [lcurly, arp1, rcurly2])
-            lexer.reset_position(book2)
-        apl = parse_AssignmentPropertyList(context, lexer, strict, Yield, Await)
+        apl = parse_AssignmentPropertyList(context, lexer, lcurly.span.after, strict, Yield, Await)
         if apl:
-            rcurly3 = lexer.next_token_if("}")
+            rcurly3 = lexer.token_if(apl.after, "}")
             if rcurly3:
                 return P2_ObjectAssignmentPattern_AssignmentPropertyList(context, strict, [lcurly, apl, rcurly3])
-            comma = lexer.next_token_if(",")
+            comma = lexer.token_if(apl.after, ",")
             if comma:
-                arp2 = parse_AssignmentRestProperty(context, lexer, strict, Yield, Await)
-                rcurly4 = lexer.next_token_if("}")
+                arp2 = parse_AssignmentRestProperty(context, lexer, comma.span.after, strict, Yield, Await)
+                rcurly4 = lexer.token_if(arp2.after if arp2 else comma.span.after, "}")
                 if rcurly4:
                     if arp2:
                         return P2_ObjectAssignmentPattern_AssignmentPropertyList_AssignmentRestProperty(
@@ -15648,7 +15591,6 @@ def parse_ObjectAssignmentPattern(context, lexer, strict, Yield, Await):
                     return P2_ObjectAssignmentPattern_AssignmentPropertyList(
                         context, strict, [lcurly, apl, comma, rcurly4]
                     )
-    lexer.reset_position(bookmark)
     return None
 
 
@@ -15855,7 +15797,7 @@ class P2_ArrayAssignmentPattern_AssignmentElementList_AssignmentRestElement(
     Elision = None
 
 
-def parse_ArrayAssignmentPattern(context, lexer, strict, Yield, Await):
+def parse_ArrayAssignmentPattern(context, lexer, pos, strict, Yield, Await):
     # 12.15.5 Destructuring Assignment
     # Syntax
     #   ArrayAssignmentPattern[Yield, Await] :
@@ -15863,14 +15805,18 @@ def parse_ArrayAssignmentPattern(context, lexer, strict, Yield, Await):
     #       [ AssignmentElementList[?Yield, ?Await] ]
     #       [ AssignmentElementList[?Yield, ?Await] , Elision[opt] AssignmentRestElement[?Yield, ?Await][opt] ]
     #
-    bookmark = lexer.current_position()
-    lbracket = lexer.next_token_if("[")
+    lbracket = lexer.token_if(pos, "[")
     if lbracket:
-        ael = parse_AssignmentElementList(context, lexer, strict, Yield, Await)
-        comma = lexer.next_token_if(",") if ael else None
-        elision = parse_Elision(context, lexer, strict)
-        are = parse_AssignmentRestElement(context, lexer, strict, Yield, Await)
-        rbracket = lexer.next_token_if("]")
+        lb_after = lbracket.span.after
+        ael = parse_AssignmentElementList(context, lexer, lb_after, strict, Yield, Await)
+        ael_after = ael.after if ael else lb_after
+        comma = lexer.token_if(ael_after, ",") if ael else None
+        comma_after = comma.span.after if comma else ael_after
+        elision = parse_Elision(context, lexer, comma_after, strict)
+        elision_after = elision.after if elision else comma_after
+        are = parse_AssignmentRestElement(context, lexer, elision_after, strict, Yield, Await)
+        are_after = are.after if are else elision_after
+        rbracket = lexer.token_if(are_after, "]")
         if rbracket:
             children = list(filter(lambda x: x is not None, [lbracket, ael, comma, elision, are, rbracket]))
             # "ael", "elision", and "are" are the potential bits here. They can exist or not in 2^3 = 8 different ways.
@@ -15896,7 +15842,6 @@ def parse_ArrayAssignmentPattern(context, lexer, strict, Yield, Await):
                 P2_ArrayAssignmentPattern_AssignmentElementList_Elision_AssignmentRestElement,
             )[index]
             return ctor(context, strict, children)
-    lexer.reset_position(bookmark)
     return None
 
 
@@ -15947,18 +15892,16 @@ class P2_AssignmentRestProperty_DestructuringAssignmentTarget(P2_AssignmentRestP
         return PutValue(lref, restObj)
 
 
-def parse_AssignmentRestProperty(context, lexer, strict, Yield, Await):
+def parse_AssignmentRestProperty(context, lexer, pos, strict, Yield, Await):
     # 12.15.5 Destructuring Assignment
     # Syntax
     #   AssignmentRestProperty[Yield, Await] :
     #       ... DestructuringAssignmentTarget[?Yield, ?Await]
-    bookmark = lexer.current_position()
-    dots = lexer.next_token_if("...")
+    dots = lexer.token_if(pos, "...")
     if dots:
-        dat = parse_DestructuringAssignmentTarget(context, lexer, strict, Yield, Await)
+        dat = parse_DestructuringAssignmentTarget(context, lexer, dots.span.after, strict, Yield, Await)
         if dat:
             return P2_AssignmentRestProperty_DestructuringAssignmentTarget(context, strict, [dots, dat])
-    lexer.reset_position(bookmark)
     return None
 
 
@@ -16007,32 +15950,31 @@ class P2_AssignmentPropertyList_AssignmentPropertyList_AssignmentProperty(P2_Ass
         return propertyNames
 
 
-def parse_AssignmentPropertyList(context, lexer, strict, Yield, Await):
+def parse_AssignmentPropertyList(context, lexer, pos, strict, Yield, Await):
     # 12.15.5 Destructuring Assignment
     # Syntax
     #   AssignmentPropertyList[Yield, Await] :
     #       AssignmentProperty[?Yield, ?Await]
     #       AssignmentPropertyList[?Yield, ?Await] , AssignmentProperty[?Yield, ?Await]
-    def parse(previous=None):
-        bookmark = lexer.current_position()
+    def parse(pos, previous=None):
         if previous is None:
-            ap1 = parse_AssignmentProperty(context, lexer, strict, Yield, Await)
+            ap1 = parse_AssignmentProperty(context, lexer, pos, strict, Yield, Await)
             if ap1:
-                return lambda: parse(P2_AssignmentPropertyList_AssignmentProperty(context, strict, [ap1]))
+                return lambda: parse(ap1.after, P2_AssignmentPropertyList_AssignmentProperty(context, strict, [ap1]))
         else:
-            comma = lexer.next_token_if(",")
+            comma = lexer.token_if(pos, ",")
             if comma:
-                ap2 = parse_AssignmentProperty(context, lexer, strict, Yield, Await)
+                ap2 = parse_AssignmentProperty(context, lexer, comma.span.after, strict, Yield, Await)
                 if ap2:
                     return lambda: parse(
+                        ap2.after,
                         P2_AssignmentPropertyList_AssignmentPropertyList_AssignmentProperty(
                             context, strict, [previous, comma, ap2]
-                        )
+                        ),
                     )
-        lexer.reset_position(bookmark)
         return previous
 
-    return trampoline(parse)
+    return trampoline(lambda: parse(pos))
 
 
 # --------======= 𝓐𝓼𝓼𝓲𝓰𝓷𝓶𝓮𝓷𝓽𝓔𝓵𝓮𝓶𝓮𝓷𝓽𝓛𝓲𝓼𝓽 =======--------
@@ -16074,32 +16016,33 @@ class P2_AssignmentElementList_AssignmentElementList_AssignmentElisionElement(P2
         return self.AssignmentElisionElement.IteratorDestructuringAssignmentEvaluation(iteratorRecord)
 
 
-def parse_AssignmentElementList(context, lexer, strict, Yield, Await):
+def parse_AssignmentElementList(context, lexer, pos, strict, Yield, Await):
     # 12.15.5 Destructuring Assignment
     # Syntax
     #   AssignmentElementList[Yield, Await] :
     #       AssignmentElisionElement[?Yield, ?Await]
     #       AssignmentElementList[?Yield, ?Await] , AssignmentElisionElement[?Yield, ?Await]
-    def parse(previous=None):
-        bookmark = lexer.current_position()
+    def parse(pos, previous=None):
         if previous is None:
-            aee1 = parse_AssignmentElisionElement(context, lexer, strict, Yield, Await)
+            aee1 = parse_AssignmentElisionElement(context, lexer, pos, strict, Yield, Await)
             if aee1:
-                return lambda: parse(P2_AssignmentElementList_AssignmentElisionElement(context, strict, [aee1]))
+                return lambda: parse(
+                    aee1.after, P2_AssignmentElementList_AssignmentElisionElement(context, strict, [aee1])
+                )
         else:
-            comma = lexer.next_token_if(",")
+            comma = lexer.token_if(pos, ",")
             if comma:
-                aee2 = parse_AssignmentElisionElement(context, lexer, strict, Yield, Await)
+                aee2 = parse_AssignmentElisionElement(context, lexer, comma.span.after, strict, Yield, Await)
                 if aee2:
                     return lambda: parse(
+                        aee2.after,
                         P2_AssignmentElementList_AssignmentElementList_AssignmentElisionElement(
                             context, strict, [previous, comma, aee2]
-                        )
+                        ),
                     )
-        lexer.reset_position(bookmark)
         return previous
 
-    return trampoline(parse)
+    return trampoline(lambda: parse(pos))
 
 
 # --------======= 𝓐𝓼𝓼𝓲𝓰𝓷𝓶𝓮𝓷𝓽𝓔𝓵𝓲𝓼𝓲𝓸𝓷𝓔𝓵𝓮𝓶𝓮𝓷𝓽 =======--------
@@ -16139,14 +16082,13 @@ class P2_AssignmentElisionElement_AssignmentElement(P2_AssignmentElisionElement)
         return self.children[0]
 
 
-def parse_AssignmentElisionElement(context, lexer, strict, Yield, Await):
+def parse_AssignmentElisionElement(context, lexer, pos, strict, Yield, Await):
     # 12.15.5 Destructuring Assignment
     # Syntax
     #   AssignmentElisionElement[Yield, Await] :
     #       Elision[opt] AssignmentElement[?Yield, ?Await]
-    bookmark = lexer.current_position()
-    elision = parse_Elision(context, lexer, strict)
-    ae = parse_AssignmentElement(context, lexer, strict, Yield, Await)
+    elision = parse_Elision(context, lexer, pos, strict)
+    ae = parse_AssignmentElement(context, lexer, elision.after if elision else pos, strict, Yield, Await)
     if ae:
         children = list(filter(lambda x: x is not None, [elision, ae]))
         ctor = (
@@ -16155,7 +16097,6 @@ def parse_AssignmentElisionElement(context, lexer, strict, Yield, Await):
             else P2_AssignmentElisionElement_Elision_AssignmentElement
         )
         return ctor(context, strict, children)
-    lexer.reset_position(bookmark)
     return None
 
 
@@ -16249,29 +16190,26 @@ class P2_AssignmentProperty_PropertyName_AssignmentElement(P2_AssignmentProperty
         return [name]
 
 
-def parse_AssignmentProperty(context, lexer, strict, Yield, Await):
+def parse_AssignmentProperty(context, lexer, pos, strict, Yield, Await):
     # 12.15.5 Destructuring Assignment
     # Syntax
     #   AssignmentProperty[Yield, Await] :
     #       IdentifierReference[?Yield, ?Await] Initializer[+In, ?Yield, ?Await][opt]
     #       PropertyName[?Yield, ?Await] : AssignmentElement[?Yield, ?Await]
     #
-    bookmark = lexer.current_position()
-    pn = parse_PropertyName(context, lexer, strict, Yield, Await)
+    pn = parse_PropertyName(context, lexer, pos, strict, Yield, Await)
     if pn:
-        colon = lexer.next_token_if(":")
+        colon = lexer.token_if(pn.after, ":")
         if colon:
-            ae = parse_AssignmentElement(context, lexer, strict, Yield, Await)
+            ae = parse_AssignmentElement(context, lexer, colon.span.after, strict, Yield, Await)
             if ae:
                 return P2_AssignmentProperty_PropertyName_AssignmentElement(context, strict, [pn, colon, ae])
-        lexer.reset_position(bookmark)
-    ir = parse_IdentifierReference(context, lexer, strict, Yield, Await)
+    ir = parse_IdentifierReference(context, lexer, pos, strict, Yield, Await)
     if ir:
-        init = parse_Initializer(context, lexer, strict, True, Yield, Await)
+        init = parse_Initializer(context, lexer, ir.after, strict, True, Yield, Await)
         if init:
             return P2_AssignmentProperty_IdentifierReference_Initializer(context, strict, [ir, init])
         return P2_AssignmentProperty_IdentifierReference(context, strict, [ir])
-    lexer.reset_position(bookmark)
     return None
 
 
@@ -16411,15 +16349,15 @@ class P2_AssignmentElement_DestructuringAssignmentTarget(
     Initializer = None
 
 
-def parse_AssignmentElement(context, lexer, strict, Yield, Await):
+def parse_AssignmentElement(context, lexer, pos, strict, Yield, Await):
     # 12.15.5 Destructuring Assignment
     # Syntax
     #   AssignmentElement[Yield, Await] :
     #       DestructuringAssignmentTarget[?Yield, ?Await] Initializer[+In, ?Yield, ?Await][opt]
     #
-    dat = parse_DestructuringAssignmentTarget(context, lexer, strict, Yield, Await)
+    dat = parse_DestructuringAssignmentTarget(context, lexer, pos, strict, Yield, Await)
     if dat:
-        init = parse_Initializer(context, lexer, strict, True, Yield, Await)
+        init = parse_Initializer(context, lexer, dat.after, strict, True, Yield, Await)
         if init:
             return P2_AssignmentElement_DestructuringAssignmentTarget_Initializer(context, strict, [dat, init])
         return P2_AssignmentElement_DestructuringAssignmentTarget(context, strict, [dat])
@@ -16493,18 +16431,16 @@ class P2_AssignmentRestElement_DestructuringAssignmentTarget(P2_AssignmentRestEl
         return nestedAssignmentPattern.DestructuringAssignmentEvaluation(A)
 
 
-def parse_AssignmentRestElement(context, lexer, strict, Yield, Await):
+def parse_AssignmentRestElement(context, lexer, pos, strict, Yield, Await):
     # 12.15.5 Destructuring Assignment
     # Syntax
     #   AssignmentRestElement[Yield, Await] :
     #       ... DestructuringAssignmentTarget[?Yield, ?Await]
-    bookmark = lexer.current_position()
-    dots = lexer.next_token_if("...")
+    dots = lexer.token_if(pos, "...")
     if dots:
-        dat = parse_DestructuringAssignmentTarget(context, lexer, strict, Yield, Await)
+        dat = parse_DestructuringAssignmentTarget(context, lexer, dots.span.after, strict, Yield, Await)
         if dat:
             return P2_AssignmentRestElement_DestructuringAssignmentTarget(context, strict, [dots, dat])
-        lexer.reset_position(bookmark)
     return None
 
 
@@ -16547,12 +16483,12 @@ class P2_DestructuringAssignmentTarget_LeftHandSideExpression(P2_DestructuringAs
         )
 
 
-def parse_DestructuringAssignmentTarget(context, lexer, strict, Yield, Await):
+def parse_DestructuringAssignmentTarget(context, lexer, pos, strict, Yield, Await):
     # 12.15.5 Destructuring Assignment
     # Syntax
     #   DestructuringAssignmentTarget[Yield, Await] :
     #       LeftHandSideExpression[?Yield, ?Await]
-    lhs = parse_LeftHandSideExpression(context, lexer, strict, Yield, Await)
+    lhs = parse_LeftHandSideExpression(context, lexer, pos, strict, Yield, Await)
     if lhs:
         return P2_DestructuringAssignmentTarget_LeftHandSideExpression(context, strict, [lhs])
     return None
@@ -16657,30 +16593,29 @@ class P2_Expression_Expression_COMMA_AssignmentExpression(P2_Expression):
         #       | side-effects.
 
 
-def parse_Expression(ctx, lexer, strict, In, Yield, Await):
+def parse_Expression(ctx, lexer, pos, strict, In, Yield, Await):
     # 12.16 Comma Operator ( , )
     # Syntax
     #   Expression[In, Yield, Await]:
     #       AssignmentExpression[?In, ?Yield, ?Await]
     #       Expression[?In, ?Yield, ?Await] , AssignmentExpression[?In, ?Yield, ?Await]
-    def parse(previous=None):
-        bookmark = lexer.current_position()
+    def parse(pos, previous=None):
         if previous is None:
-            ae1 = parse_AssignmentExpression(ctx, lexer, strict, In, Yield, Await)
+            ae1 = parse_AssignmentExpression(ctx, lexer, pos, strict, In, Yield, Await)
             if ae1:
-                return lambda: parse(P2_Expression_AssignmentExpression(ctx, strict, [ae1]))
+                return lambda: parse(ae1.after, P2_Expression_AssignmentExpression(ctx, strict, [ae1]))
         else:
-            comma = lexer.next_token_if(",")
+            comma = lexer.token_if(pos, ",")
             if comma:
-                ae2 = parse_AssignmentExpression(ctx, lexer, strict, In, Yield, Await)
+                ae2 = parse_AssignmentExpression(ctx, lexer, comma.span.after, strict, In, Yield, Await)
                 if ae2:
                     return lambda: parse(
-                        P2_Expression_Expression_COMMA_AssignmentExpression(ctx, strict, [previous, comma, ae2])
+                        ae2.after,
+                        P2_Expression_Expression_COMMA_AssignmentExpression(ctx, strict, [previous, comma, ae2]),
                     )
-        lexer.reset_position(bookmark)
         return previous
 
-    return trampoline(parse)
+    return trampoline(lambda: parse(pos))
 
 
 #######################################################################################################################
@@ -17098,7 +17033,7 @@ class P2_Statement_DebuggerStatement(
         return self.children[0]
 
 
-def parse_Statement(ctx, lexer, strict, Yield, Await, Return):
+def parse_Statement(ctx, lexer, pos, strict, Yield, Await, Return):
     # 13 ECMAScript Language: Statements and Declarations
     # Syntax
     # Statement[Yield, Await, Return]:
@@ -17116,47 +17051,47 @@ def parse_Statement(ctx, lexer, strict, Yield, Await, Return):
     #   ThrowStatement[?Yield, ?Await]
     #   TryStatement[?Yield, ?Await, ?Return]
     #   DebuggerStatement
-    block_statement = parse_BlockStatement(ctx, lexer, strict, Yield, Await, Return)
+    block_statement = parse_BlockStatement(ctx, lexer, pos, strict, Yield, Await, Return)
     if block_statement:
         return P2_Statement_BlockStatement(ctx, strict, [block_statement])
-    variable_statement = parse_VariableStatement(ctx, lexer, strict, Yield, Await)
+    variable_statement = parse_VariableStatement(ctx, lexer, pos, strict, Yield, Await)
     if variable_statement:
         return P2_Statement_VariableStatement(ctx, strict, [variable_statement])
-    empty_statement = parse_EmptyStatement(ctx, lexer, strict)
+    empty_statement = parse_EmptyStatement(ctx, lexer, pos, strict)
     if empty_statement:
         return P2_Statement_EmptyStatement(ctx, strict, [empty_statement])
-    expression_statement = parse_ExpressionStatement(ctx, lexer, strict, Yield, Await)
+    expression_statement = parse_ExpressionStatement(ctx, lexer, pos, strict, Yield, Await)
     if expression_statement:
         return P2_Statement_ExpressionStatement(ctx, strict, [expression_statement])
-    if_statement = parse_IfStatement(ctx, lexer, strict, Yield, Await, Return)
+    if_statement = parse_IfStatement(ctx, lexer, pos, strict, Yield, Await, Return)
     if if_statement:
         return P2_Statement_IfStatement(ctx, strict, [if_statement])
-    breakable_statement = parse_BreakableStatement(ctx, lexer, strict, Yield, Await, Return)
+    breakable_statement = parse_BreakableStatement(ctx, lexer, pos, strict, Yield, Await, Return)
     if breakable_statement:
         return P2_Statement_BreakableStatement(ctx, strict, [breakable_statement])
-    continue_statement = parse_ContinueStatement(ctx, lexer, strict, Yield, Await)
+    continue_statement = parse_ContinueStatement(ctx, lexer, pos, strict, Yield, Await)
     if continue_statement:
         return P2_Statement_ContinueStatement(ctx, strict, [continue_statement])
-    break_statement = parse_BreakStatement(ctx, lexer, strict, Yield, Await)
+    break_statement = parse_BreakStatement(ctx, lexer, pos, strict, Yield, Await)
     if break_statement:
         return P2_Statement_BreakStatement(ctx, strict, [break_statement])
     if Return:
-        return_statement = parse_ReturnStatement(ctx, lexer, strict, Yield, Await)
+        return_statement = parse_ReturnStatement(ctx, lexer, pos, strict, Yield, Await)
         if return_statement:
             return P2_Statement_ReturnStatement(ctx, strict, [return_statement])
-    with_statement = parse_WithStatement(ctx, lexer, strict, Yield, Await, Return)
+    with_statement = parse_WithStatement(ctx, lexer, pos, strict, Yield, Await, Return)
     if with_statement:
         return P2_Statement_WithStatement(ctx, strict, [with_statement])
-    labelled_statement = parse_LabelledStatement(ctx, lexer, strict, Yield, Await, Return)
+    labelled_statement = parse_LabelledStatement(ctx, lexer, pos, strict, Yield, Await, Return)
     if labelled_statement:
         return P2_Statement_LabelledStatement(ctx, strict, [labelled_statement])
-    throw_statement = parse_ThrowStatement(ctx, lexer, strict, Yield, Await)
+    throw_statement = parse_ThrowStatement(ctx, lexer, pos, strict, Yield, Await)
     if throw_statement:
         return P2_Statement_ThrowStatement(ctx, strict, [throw_statement])
-    try_statement = parse_TryStatement(ctx, lexer, strict, Yield, Await, Return)
+    try_statement = parse_TryStatement(ctx, lexer, pos, strict, Yield, Await, Return)
     if try_statement:
         return P2_Statement_TryStatement(ctx, strict, [try_statement])
-    debugger_statement = parse_DebuggerStatement(ctx, lexer, strict)
+    debugger_statement = parse_DebuggerStatement(ctx, lexer, pos, strict)
     if debugger_statement:
         return P2_Statement_DebuggerStatement(ctx, strict, [debugger_statement])
     return None
@@ -17262,20 +17197,20 @@ class P2_Declaration_LexicalDeclaration(P2_Declaration):
         return self.LexicalDeclaration
 
 
-def parse_Declaration(context, lexer, strict, Yield, Await):
+def parse_Declaration(context, lexer, pos, strict, Yield, Await):
     # 13 ECMAScript Language: Statements and Declarations
     # Syntax
     #   Declaration[Yield, Await] :
     #       HoistableDeclaration[?Yield, ?Await, ~Default]
     #       ClassDeclaration[?Yield, ?Await, ~Default]
     #       LexicalDeclaration[+In, ?Yield, ?Await]
-    hd = parse_HoistableDeclaration(context, lexer, strict, Yield, Await, False)
+    hd = parse_HoistableDeclaration(context, lexer, pos, strict, Yield, Await, False)
     if hd:
         return P2_Declaration_HoistableDeclaration(context, strict, [hd])
-    cd = parse_ClassDeclaration(context, lexer, strict, Yield, Await, False)
+    cd = parse_ClassDeclaration(context, lexer, pos, strict, Yield, Await, False)
     if cd:
         return P2_Declaration_ClassDeclaration(context, strict, [cd])
-    ld = parse_LexicalDeclaration(context, lexer, strict, True, Yield, Await)
+    ld = parse_LexicalDeclaration(context, lexer, pos, strict, True, Yield, Await)
     if ld:
         return P2_Declaration_LexicalDeclaration(context, strict, [ld])
     return None
@@ -17361,7 +17296,7 @@ class P2_HoistableDeclaration_AsyncGeneratorDeclaration(P2_HoistableDeclaration)
         return EMPTY
 
 
-def parse_HoistableDeclaration(context, lexer, strict, Yield, Await, Default):
+def parse_HoistableDeclaration(context, lexer, pos, strict, Yield, Await, Default):
     # 13 ECMAScript Language: Statements and Declarations
     # Syntax
     #   HoistableDeclaration[Yield, Await, Default] :
@@ -17369,16 +17304,16 @@ def parse_HoistableDeclaration(context, lexer, strict, Yield, Await, Default):
     #       GeneratorDeclaration[?Yield, ?Await, ?Default]
     #       AsyncFunctionDeclaration[?Yield, ?Await, ?Default]
     #       AsyncGeneratorDeclaration[?Yield, ?Await, ?Default]
-    fd = parse_FunctionDeclaration(context, lexer, strict, Yield, Await, Default)
+    fd = parse_FunctionDeclaration(context, lexer, pos, strict, Yield, Await, Default)
     if fd:
         return P2_HoistableDeclaration_FunctionDeclaration(context, strict, [fd])
-    gd = parse_GeneratorDeclaration(context, lexer, strict, Yield, Await, Default)
+    gd = parse_GeneratorDeclaration(context, lexer, pos, strict, Yield, Await, Default)
     if gd:
         return P2_HoistableDeclaration_GeneratorDeclaration(context, strict, [gd])
-    afd = parse_AsyncFunctionDeclaration(context, lexer, strict, Yield, Await, Default)
+    afd = parse_AsyncFunctionDeclaration(context, lexer, pos, strict, Yield, Await, Default)
     if afd:
         return P2_HoistableDeclaration_AsyncFunctionDeclaration(context, strict, [afd])
-    agd = parse_AsyncGeneratorDeclaration(context, lexer, strict, Yield, Await, Default)
+    agd = parse_AsyncGeneratorDeclaration(context, lexer, pos, strict, Yield, Await, Default)
     if agd:
         return P2_HoistableDeclaration_AsyncGeneratorDeclaration(context, strict, [agd])
     return None
@@ -17468,16 +17403,16 @@ class P2_BreakableStatement_SwitchStatement(P2_BreakableStatement):
         return self.LabelledEvaluation([])
 
 
-def parse_BreakableStatement(context, lexer, strict, Yield, Await, Return):
+def parse_BreakableStatement(context, lexer, pos, strict, Yield, Await, Return):
     # 13 ECMAScript Language: Statements and Declarations
     # Syntax
     #   BreakableStatement[Yield, Await, Return] :
     #       IterationStatement[?Yield, ?Await, ?Return]
     #       SwitchStatement[?Yield, ?Await, ?Return]
-    its = parse_IterationStatement(context, lexer, strict, Yield, Await, Return)
+    its = parse_IterationStatement(context, lexer, pos, strict, Yield, Await, Return)
     if its:
         return P2_BreakableStatement_IterationStatement(context, strict, [its])
-    ss = parse_SwitchStatement(context, lexer, strict, Yield, Await, Return)
+    ss = parse_SwitchStatement(context, lexer, pos, strict, Yield, Await, Return)
     if ss:
         return P2_BreakableStatement_SwitchStatement(context, strict, [ss])
     return None
@@ -17534,12 +17469,12 @@ class P2_BlockStatement_Block(P2_BlockStatement):
         return self.children[0]
 
 
-def parse_BlockStatement(context, lexer, strict, Yield, Await, Return):
+def parse_BlockStatement(context, lexer, pos, strict, Yield, Await, Return):
     # 13.2 Block
     # Syntax
     #   BlockStatement[Yield, Await, Return] :
     #       Block[?Yield, ?Await, ?Return]
-    block = parse_Block(context, lexer, strict, Yield, Await, Return)
+    block = parse_Block(context, lexer, pos, strict, Yield, Await, Return)
     if block:
         return P2_BlockStatement_Block(context, strict, [block])
     return None
@@ -17667,21 +17602,19 @@ class P2_Block_StatementList(P2_Block):
             surrounding_agent.running_ec.lexical_environment = oldEnv
 
 
-def parse_Block(context, lexer, strict, Yield, Await, Return):
+def parse_Block(context, lexer, pos, strict, Yield, Await, Return):
     # 13.2 Block
     # Syntax
     #   Block[Yield, Await, Return] :
     #       { StatementList[?Yield, ?Await, ?Return][opt] }
-    bookmark = lexer.current_position()
-    lcurly = lexer.next_token_if("{")
+    lcurly = lexer.token_if(pos, "{")
     if lcurly:
-        sl = parse_StatementList(context, lexer, strict, False, Yield, Await, Return)
-        rcurly = lexer.next_token_if("}")
+        sl = parse_StatementList(context, lexer, lcurly.span.after, strict, False, Yield, Await, Return)
+        rcurly = lexer.token_if(sl.after if sl else lcurly.span.after, "}")
         if rcurly:
             if sl:
                 return P2_Block_StatementList(context, strict, [lcurly, sl, rcurly])
             return P2_Block_Empty(context, strict, [lcurly, rcurly])
-        lexer.reset_position(bookmark)
     return None
 
 
@@ -17839,27 +17772,32 @@ class P2_StatementList_StatementList_StatementListItem(P2_StatementList):
         return (more, strings)
 
 
-def parse_StatementList(ctx, lexer, strict, dp_active, Yield, Await, Return):
+def parse_StatementList(ctx, lexer, pos, strict, dp_active, Yield, Await, Return):
     # 13.2 Block
     # Syntax
     #   StatementList[Yield, Await, Return] :
     #       StatementListItem[?Yield, ?Await, ?Return]
     #       StatementList[?Yield, ?Await, ?Return] StatementListItem[?Yield, ?Await, ?Return]
-    def parse(strict, dp_active, collected=None):
-        sli = parse_StatementListItem(ctx, lexer, strict, Yield, Await, Return)
+    def parse(pos, strict, dp_active, collected=None):
+        sli = parse_StatementListItem(ctx, lexer, pos, strict, Yield, Await, Return)
         if not sli:
             return collected
         dp_active = dp_active and sli.IsStringLiteral
         use_strict = dp_active and sli.HasUseStrict
         strict = strict or use_strict
         if collected is None:
-            return lambda: parse(strict, dp_active, P2_StatementList_StatementListItem(ctx, strict, [sli]))
+            return lambda: parse(
+                sli.after, strict, dp_active, P2_StatementList_StatementListItem(ctx, strict, [sli])
+            )
         # Tail recursion replaced by a thunk; please use trampoline.
         return lambda: parse(
-            strict, dp_active, P2_StatementList_StatementList_StatementListItem(ctx, strict, [collected, sli])
+            sli.after,
+            strict,
+            dp_active,
+            P2_StatementList_StatementList_StatementListItem(ctx, strict, [collected, sli]),
         )
 
-    return trampoline(lambda: parse(strict, dp_active))
+    return trampoline(lambda: parse(pos, strict, dp_active))
 
 
 # --------======= 𝓢𝓽𝓪𝓽𝓮𝓶𝓮𝓷𝓽𝓛𝓲𝓼𝓽𝓘𝓽𝓮𝓶 =======--------
@@ -18045,16 +17983,16 @@ class P2_StatementListItem_Declaration(P2_StatementListItem):
         return self.Declaration.evaluate()
 
 
-def parse_StatementListItem(ctx, lexer, strict, Yield, Await, Return):
+def parse_StatementListItem(ctx, lexer, pos, strict, Yield, Await, Return):
     # 13.2 Block
     # Syntax
     #   StatementListItem[Yield, Await, Return]:
     #       Statement[?Yield, ?Await, ?Return]
     #       Declaration[?Yield, ?Await]
-    stmt = parse_Statement(ctx, lexer, strict, Yield, Await, Return)
+    stmt = parse_Statement(ctx, lexer, pos, strict, Yield, Await, Return)
     if stmt:
         return P2_StatementListItem_Statement(ctx, strict, [stmt])
-    decl = parse_Declaration(ctx, lexer, strict, Yield, Await)
+    decl = parse_Declaration(ctx, lexer, pos, strict, Yield, Await)
     if decl:
         return P2_StatementListItem_Declaration(ctx, strict, [decl])
     return None
@@ -18248,20 +18186,18 @@ class P2_LexicalDeclaration_LetOrConst_BindingList(P2_LexicalDeclaration):
         return EMPTY
 
 
-def parse_LexicalDeclaration(context, lexer, strict, In, Yield, Await):
+def parse_LexicalDeclaration(context, lexer, pos, strict, In, Yield, Await):
     # 13.3.1 Let and Const Declarations
     # Syntax
     #   LexicalDeclaration[In, Yield, Await] :
     #       LetOrConst BindingList[?In, ?Yield, ?Await] ;
-    bookmark = lexer.current_position()
-    loc = parse_LetOrConst(context, lexer, strict)
+    loc = parse_LetOrConst(context, lexer, pos, strict)
     if loc:
-        bl = parse_BindingList(context, lexer, strict, In, Yield, Await)
+        bl = parse_BindingList(context, lexer, loc.after, strict, In, Yield, Await)
         if bl:
-            semi = lexer.next_token_asi()
+            semi = lexer.token_asi(bl.after)
             if semi:
                 return P2_LexicalDeclaration_LetOrConst_BindingList(context, strict, [loc, bl, semi])
-        lexer.reset_position(bookmark)
     return None
 
 
@@ -18293,16 +18229,16 @@ class P2_LetOrConst_Const(P2_LetOrConst):
         return True
 
 
-def parse_LetOrConst(context, lexer, strict):
+def parse_LetOrConst(context, lexer, pos, strict):
     # 13.3.1 Let and Const Declarations
     # Syntax
     #   LetOrConst :
     #       let
     #       const
-    Let = lexer.next_id_if("let")
+    Let = lexer.id_if(pos, "let")
     if Let:
         return P2_LetOrConst_Let(context, strict, [Let])
-    Const = lexer.next_id_if("const")
+    Const = lexer.id_if(pos, "const")
     if Const:
         return P2_LetOrConst_Const(context, strict, [Const])
     return None
@@ -18356,31 +18292,29 @@ class P2_BindingList_BindingList_LexicalBinding(P2_BindingList):
         return self.LexicalBinding.evaluate()
 
 
-def parse_BindingList(context, lexer, strict, In, Yield, Await):
+def parse_BindingList(context, lexer, pos, strict, In, Yield, Await):
     # 13.3.1 Let and Const Declarations
     # Syntax
     #   BindingList[In, Yield, Await] :
     #       LexicalBinding[?In, ?Yield, ?Await]
     #       BindingList[?In, ?Yield, ?Await] , LexicalBinding[?In, ?Yield, ?Await]
     #
-    def parse(previous=None):
-        bookmark = lexer.current_position()
+    def parse(pos, previous=None):
         if previous is None:
-            lb1 = parse_LexicalBinding(context, lexer, strict, In, Yield, Await)
+            lb1 = parse_LexicalBinding(context, lexer, pos, strict, In, Yield, Await)
             if lb1:
-                return lambda: parse(P2_BindingList_LexicalBinding(context, strict, [lb1]))
+                return lambda: parse(lb1.after, P2_BindingList_LexicalBinding(context, strict, [lb1]))
         else:
-            comma = lexer.next_token_if(",")
+            comma = lexer.token_if(pos, ",")
             if comma:
-                lb2 = parse_LexicalBinding(context, lexer, strict, In, Yield, Await)
+                lb2 = parse_LexicalBinding(context, lexer, comma.span.after, strict, In, Yield, Await)
                 if lb2:
                     return lambda: parse(
-                        P2_BindingList_BindingList_LexicalBinding(context, strict, [previous, comma, lb2])
+                        lb2.after, P2_BindingList_BindingList_LexicalBinding(context, strict, [previous, comma, lb2])
                     )
-        lexer.reset_position(bookmark)
         return previous
 
-    return trampoline(parse)
+    return trampoline(lambda: parse(pos))
 
 
 # --------======= 𝓛𝓮𝔁𝓲𝓬𝓪𝓵𝓑𝓲𝓷𝓭𝓲𝓷𝓰 =======--------
@@ -18485,25 +18419,23 @@ class P2_LexicalBinding_BindingPattern_Initializer(P2_LexicalBinding):
         return self.BindingPattern.BindingInitialization(value, env)
 
 
-def parse_LexicalBinding(context, lexer, strict, In, Yield, Await):
+def parse_LexicalBinding(context, lexer, pos, strict, In, Yield, Await):
     # 13.3.1 Let and Const Declarations
     # Syntax
     #   LexicalBinding[In, Yield, Await] :
     #       BindingIdentifier[?Yield, ?Await] Initializer[?In, ?Yield, ?Await][opt]
     #       BindingPattern[?Yield, ?Await] Initializer[?In, ?Yield, ?Await]
-    bookmark = lexer.current_position()
-    bi = parse_BindingIdentifier(context, lexer, strict, Yield, Await)
+    bi = parse_BindingIdentifier(context, lexer, pos, strict, Yield, Await)
     if bi:
-        init1 = parse_Initializer(context, lexer, strict, In, Yield, Await)
+        init1 = parse_Initializer(context, lexer, bi.after, strict, In, Yield, Await)
         if init1:
             return P2_LexicalBinding_BindingIdentifier_Initializer(context, strict, [bi, init1])
         return P2_LexicalBinding_BindingIdentifier(context, strict, [bi])
-    bp = parse_BindingPattern(context, lexer, strict, Yield, Await)
+    bp = parse_BindingPattern(context, lexer, pos, strict, Yield, Await)
     if bp:
-        init2 = parse_Initializer(context, lexer, strict, In, Yield, Await)
+        init2 = parse_Initializer(context, lexer, bp.after, strict, In, Yield, Await)
         if init2:
             return P2_LexicalBinding_BindingPattern_Initializer(context, strict, [bp, init2])
-        lexer.reset_position(bookmark)
     return None
 
 
@@ -18539,21 +18471,19 @@ class P2_VariableStatement_VariableDeclarationList(P2_VariableStatement):
         return EMPTY
 
 
-def parse_VariableStatement(context, lexer, strict, Yield, Await):
+def parse_VariableStatement(context, lexer, pos, strict, Yield, Await):
     # 13.3.2 Variable Statement
     # Syntax
     #   VariableStatement[Yield, Await] :
     #       var VariableDeclarationList[+In, ?Yield, ?Await] ;
     #
-    bookmark = lexer.current_position()
-    var = lexer.next_id_if("var")
+    var = lexer.id_if(pos, "var")
     if var:
-        vdl = parse_VariableDeclarationList(context, lexer, strict, True, Yield, Await)
+        vdl = parse_VariableDeclarationList(context, lexer, var.span.after, strict, True, Yield, Await)
         if vdl:
-            semi = lexer.next_token_asi()
+            semi = lexer.token_asi(vdl.after)
             if semi:
                 return P2_VariableStatement_VariableDeclarationList(context, strict, [var, vdl, semi])
-        lexer.reset_position(bookmark)
     return None
 
 
@@ -18616,33 +18546,34 @@ class P2_VariableDeclarationList_VariableDeclarationList_VariableDeclaration(P2_
         return self.VariableDeclaration.evaluate()
 
 
-def parse_VariableDeclarationList(context, lexer, strict, In, Yield, Await):
+def parse_VariableDeclarationList(context, lexer, pos, strict, In, Yield, Await):
     # 13.3.2 Variable Statement
     # Syntax
     #   VariableDeclarationList[In, Yield, Await] :
     #       VariableDeclaration[?In, ?Yield, ?Await]
     #       VariableDeclarationList[?In, ?Yield, ?Await] , VariableDeclaration[?In, ?Yield, ?Await]
     #
-    def parse(previous=None):
-        bookmark = lexer.current_position()
+    def parse(pos, previous=None):
         if previous is None:
-            vd1 = parse_VariableDeclaration(context, lexer, strict, In, Yield, Await)
+            vd1 = parse_VariableDeclaration(context, lexer, pos, strict, In, Yield, Await)
             if vd1:
-                return lambda: parse(P2_VariableDeclarationList_VariableDeclaration(context, strict, [vd1]))
+                return lambda: parse(
+                    vd1.after, P2_VariableDeclarationList_VariableDeclaration(context, strict, [vd1])
+                )
         else:
-            comma = lexer.next_token_if(",")
+            comma = lexer.token_if(pos, ",")
             if comma:
-                vd2 = parse_VariableDeclaration(context, lexer, strict, In, Yield, Await)
+                vd2 = parse_VariableDeclaration(context, lexer, comma.span.after, strict, In, Yield, Await)
                 if vd2:
                     return lambda: parse(
+                        vd2.after,
                         P2_VariableDeclarationList_VariableDeclarationList_VariableDeclaration(
                             context, strict, [previous, comma, vd2]
-                        )
+                        ),
                     )
-        lexer.reset_position(bookmark)
         return previous
 
-    return trampoline(parse)
+    return trampoline(lambda: parse(pos))
 
 
 # --------======= 𝓥𝓪𝓻𝓲𝓪𝓫𝓵𝓮𝓓𝓮𝓬𝓵𝓪𝓻𝓪𝓽𝓲𝓸𝓷 =======--------
@@ -18733,26 +18664,24 @@ class P2_VariableDeclaration_BindingPattern_Initializer(P2_VariableDeclaration):
         return self.BindingPattern.BindingInitialization(rval, None)
 
 
-def parse_VariableDeclaration(context, lexer, strict, In, Yield, Await):
+def parse_VariableDeclaration(context, lexer, pos, strict, In, Yield, Await):
     # 13.3.2 Variable Statement
     # Syntax
     #   VariableDeclaration[In, Yield, Await] :
     #       BindingIdentifier[?Yield, ?Await]
     #       BindingIdentifier[?Yield, ?Await] Initializer[?In, ?Yield, ?Await]
     #       BindingPattern[?Yield, ?Await] Initializer[?In, ?Yield, ?Await]
-    bookmark = lexer.current_position()
-    bi = parse_BindingIdentifier(context, lexer, strict, Yield, Await)
+    bi = parse_BindingIdentifier(context, lexer, pos, strict, Yield, Await)
     if bi:
-        init1 = parse_Initializer(context, lexer, strict, In, Yield, Await)
+        init1 = parse_Initializer(context, lexer, bi.after, strict, In, Yield, Await)
         if init1:
             return P2_VariableDeclaration_BindingIdentifier_Initializer(context, strict, [bi, init1])
         return P2_VariableDeclaration_BindingIdentifier(context, strict, [bi])
-    bp = parse_BindingPattern(context, lexer, strict, Yield, Await)
+    bp = parse_BindingPattern(context, lexer, pos, strict, Yield, Await)
     if bp:
-        init2 = parse_Initializer(context, lexer, strict, In, Yield, Await)
+        init2 = parse_Initializer(context, lexer, bp.after, strict, In, Yield, Await)
         if init2:
             return P2_VariableDeclaration_BindingPattern_Initializer(context, strict, [bp, init2])
-        lexer.reset_position(bookmark)
     return None
 
 
@@ -18808,16 +18737,16 @@ class P2_BindingPattern_ArrayBindingPattern(P2_BindingPattern):
         return result
 
 
-def parse_BindingPattern(context, lexer, strict, Yield, Await):
+def parse_BindingPattern(context, lexer, pos, strict, Yield, Await):
     # 13.3.3 Destructuring Binding Patterns
     # Syntax
     #   BindingPattern[Yield, Await] :
     #       ObjectBindingPattern[?Yield, ?Await]
     #       ArrayBindingPattern[?Yield, ?Await]
-    obp = parse_ObjectBindingPattern(context, lexer, strict, Yield, Await)
+    obp = parse_ObjectBindingPattern(context, lexer, pos, strict, Yield, Await)
     if obp:
         return P2_BindingPattern_ObjectBindingPattern(context, strict, [obp])
-    abp = parse_ArrayBindingPattern(context, lexer, strict, Yield, Await)
+    abp = parse_ArrayBindingPattern(context, lexer, pos, strict, Yield, Await)
     if abp:
         return P2_BindingPattern_ArrayBindingPattern(context, strict, [abp])
     return None
@@ -18917,7 +18846,7 @@ class P2_ObjectBindingPattern_BindingPropertyList_BindingRestProperty(P2_ObjectB
         return self.BindingPropertyList.ContainsExpression() or self.BindingRestProperty.ContainsExpression()
 
 
-def parse_ObjectBindingPattern(context, lexer, strict, Yield, Await):
+def parse_ObjectBindingPattern(context, lexer, pos, strict, Yield, Await):
     # 13.3.3 Destructuring Binding Patterns
     # Syntax
     #   ObjectBindingPattern[Yield, Await]:
@@ -18926,15 +18855,14 @@ def parse_ObjectBindingPattern(context, lexer, strict, Yield, Await):
     #       { BindingPropertyList[?Yield, ?Await] }
     #       { BindingPropertyList[?Yield, ?Await] , BindingRestProperty[?Yield, ?Await][opt] }
     #
-    bookmark = lexer.current_position()
-    lc = lexer.next_token_if("{")
+    lc = lexer.token_if(pos, "{")
     if lc:
-        bpl = parse_BindingPropertyList(context, lexer, strict, Yield, Await)
+        bpl = parse_BindingPropertyList(context, lexer, lc.span.after, strict, Yield, Await)
         if bpl:
-            comma = lexer.next_token_if(",")
+            comma = lexer.token_if(bpl.after, ",")
             if comma:
-                brp1 = parse_BindingRestProperty(context, lexer, strict, Yield, Await)
-                rc1 = lexer.next_token_if("}")
+                brp1 = parse_BindingRestProperty(context, lexer, comma.span.after, strict, Yield, Await)
+                rc1 = lexer.token_if(brp1.after if brp1 else comma.span.after, "}")
                 if rc1:
                     if brp1:
                         return P2_ObjectBindingPattern_BindingPropertyList_BindingRestProperty(
@@ -18942,17 +18870,16 @@ def parse_ObjectBindingPattern(context, lexer, strict, Yield, Await):
                         )
                     return P2_ObjectBindingPattern_BindingPropertyList(context, strict, [lc, bpl, comma, rc1])
             else:
-                rc2 = lexer.next_token_if("}")
+                rc2 = lexer.token_if(bpl.after, "}")
                 if rc2:
                     return P2_ObjectBindingPattern_BindingPropertyList(context, strict, [lc, bpl, rc2])
         else:
-            brp2 = parse_BindingRestProperty(context, lexer, strict, Yield, Await)
-            rc3 = lexer.next_token_if("}")
+            brp2 = parse_BindingRestProperty(context, lexer, lc.span.after, strict, Yield, Await)
+            rc3 = lexer.token_if(brp2.after if brp2 else lc.span.after, "}")
             if rc3:
                 if brp2:
                     return P2_ObjectBindingPattern_BindingRestProperty(context, strict, [lc, brp2, rc3])
                 return P2_ObjectBindingPattern_Empty(context, strict, [lc, rc3])
-    lexer.reset_position(bookmark)
     return None
 
 
@@ -19145,21 +19072,43 @@ class P2_ArrayBindingPattern_BindingElementList_Elision_BindingRestElement(P2_Ar
         return self.BindingRestElement.IteratorBindingInitialization(iteratorRecord, environment)
 
 
-def parse_ArrayBindingPattern(context, lexer, strict, Yield, Await):
+def parse_ArrayBindingPattern(context, lexer, pos, strict, Yield, Await):
     # 13.3.3 Destructuring Binding Patterns
     # Syntax
     #   ArrayBindingPattern[Yield, Await] :
     #       [ Elision[opt] BindingRestElement[?Yield, ?Await][opt] ]
     #       [ BindingElementList[?Yield, ?Await] ]
     #       [ BindingElementList[?Yield, ?Await] , Elision[opt] BindingRestElement[?Yield, ?Await][opt] ]
-    bookmark = lexer.current_position()
-    lb = lexer.next_token_if("[")
+
+    # @@@ I think this erroneously allows [ BindingElementList BindingRestElement ]
+    # (I.e.: no comma). Need to make a test for that.
+    lb = lexer.token_if(pos, "[")
     if lb:
-        bel = parse_BindingElementList(context, lexer, strict, Yield, Await)
-        comma = lexer.next_token_if(",") if bel else None
-        elision = parse_Elision(context, lexer, strict)
-        bre = parse_BindingRestElement(context, lexer, strict, Yield, Await)
-        rb = lexer.next_token_if("]")
+        bel = parse_BindingElementList(context, lexer, lb.span.after, strict, Yield, Await)
+        comma = lexer.token_if(bel.after, ",") if bel else None
+        elision = parse_Elision(
+            context, lexer, comma.span.after if comma else bel.after if bel else lb.span.after, strict
+        )
+        bre = parse_BindingRestElement(
+            context,
+            lexer,
+            elision.after if elision else comma.span.after if comma else bel.after if bel else lb.span.after,
+            strict,
+            Yield,
+            Await,
+        )
+        rb = lexer.token_if(
+            bre.after
+            if bre
+            else elision.after
+            if elision
+            else comma.span.after
+            if comma
+            else bel.after
+            if bel
+            else lb.span.after,
+            "]",
+        )
         if rb:
             children = list(filter(lambda x: x is not None, (lb, bel, comma, elision, bre, rb)))
             idx = 4 * int(bre is not None) + 2 * int(elision is not None) + int(bel is not None)
@@ -19174,7 +19123,6 @@ def parse_ArrayBindingPattern(context, lexer, strict, Yield, Await):
                 P2_ArrayBindingPattern_BindingElementList_Elision_BindingRestElement,  # 111
             ][idx]
             return ctor(context, strict, children)
-        lexer.reset_position(bookmark)
     return None
 
 
@@ -19211,19 +19159,17 @@ class P2_BindingRestProperty_BindingIdentifier(P2_BindingRestProperty):
         return InitializeReferencedBinding(lhs, restObj)
 
 
-def parse_BindingRestProperty(context, lexer, strict, Yield, Await):
+def parse_BindingRestProperty(context, lexer, pos, strict, Yield, Await):
     # 13.3.3 Destructuring Binding Patterns
     # Syntax
     #   BindingRestProperty[Yield, Await] :
     #       ... BindingIdentifier[?Yield, ?Await]
     #
-    bookmark = lexer.current_position()
-    dots = lexer.next_token_if("...")
+    dots = lexer.token_if(pos, "...")
     if dots:
-        bi = parse_BindingIdentifier(context, lexer, strict, Yield, Await)
+        bi = parse_BindingIdentifier(context, lexer, dots.span.after, strict, Yield, Await)
         if bi:
             return P2_BindingRestProperty_BindingIdentifier(context, strict, [dots, bi])
-        lexer.reset_position(bookmark)
     return None
 
 
@@ -19289,32 +19235,31 @@ class P2_BindingPropertyList_BindingPropertyList_BindingProperty(P2_BindingPrope
         return boundNames + nextNames
 
 
-def parse_BindingPropertyList(context, lexer, strict, Yield, Await):
+def parse_BindingPropertyList(context, lexer, pos, strict, Yield, Await):
     # 13.3.3 Destructuring Binding Patterns
     # Syntax
     #   BindingPropertyList[Yield, Await] :
     #       BindingProperty[?Yield, ?Await]
     #       BindingPropertyList[?Yield, ?Await] , BindingProperty[?Yield, ?Await]
-    def parse(previous=None):
-        bookmark = lexer.current_position()
+    def parse(pos, previous=None):
         if previous is None:
-            bp1 = parse_BindingProperty(context, lexer, strict, Yield, Await)
+            bp1 = parse_BindingProperty(context, lexer, pos, strict, Yield, Await)
             if bp1:
-                return lambda: parse(P2_BindingPropertyList_BindingProperty(context, strict, [bp1]))
+                return lambda: parse(bp1.after, P2_BindingPropertyList_BindingProperty(context, strict, [bp1]))
         else:
-            comma = lexer.next_token_if(",")
+            comma = lexer.token_if(pos, ",")
             if comma:
-                bp2 = parse_BindingProperty(context, lexer, strict, Yield, Await)
+                bp2 = parse_BindingProperty(context, lexer, comma.span.after, strict, Yield, Await)
                 if bp2:
                     return lambda: parse(
+                        bp2.after,
                         P2_BindingPropertyList_BindingPropertyList_BindingProperty(
                             context, strict, [previous, comma, bp2]
-                        )
+                        ),
                     )
-        lexer.reset_position(bookmark)
         return previous
 
-    return trampoline(parse)
+    return trampoline(lambda: parse(pos))
 
 
 # --------======= 𝓑𝓲𝓷𝓭𝓲𝓷𝓰𝓔𝓵𝓮𝓶𝓮𝓷𝓽𝓛𝓲𝓼𝓽 =======--------
@@ -19380,32 +19325,31 @@ class P2_BindingElementList_BindingElementList_BindingElisionElement(P2_BindingE
         return self.BindingElisionElement.IteratorBindingInitialization(iteratorRecord, environment)
 
 
-def parse_BindingElementList(context, lexer, strict, Yield, Await):
+def parse_BindingElementList(context, lexer, pos, strict, Yield, Await):
     # 13.3.3 Destructuring Binding Patterns
     # Syntax
     #   BindingElementList[Yield, Await] :
     #       BindingElisionElement[?Yield, ?Await]
     #       BindingElementList[?Yield, ?Await] , BindingElisionElement[?Yield, ?Await]
-    def parse(previous=None):
-        bookmark = lexer.current_position()
+    def parse(pos, previous=None):
         if previous is None:
-            bp1 = parse_BindingElisionElement(context, lexer, strict, Yield, Await)
+            bp1 = parse_BindingElisionElement(context, lexer, pos, strict, Yield, Await)
             if bp1:
-                return lambda: parse(P2_BindingElementList_BindingElisionElement(context, strict, [bp1]))
+                return lambda: parse(bp1.after, P2_BindingElementList_BindingElisionElement(context, strict, [bp1]))
         else:
-            comma = lexer.next_token_if(",")
+            comma = lexer.token_if(pos, ",")
             if comma:
-                bp2 = parse_BindingElisionElement(context, lexer, strict, Yield, Await)
+                bp2 = parse_BindingElisionElement(context, lexer, comma.span.after, strict, Yield, Await)
                 if bp2:
                     return lambda: parse(
+                        bp2.after,
                         P2_BindingElementList_BindingElementList_BindingElisionElement(
                             context, strict, [previous, comma, bp2]
-                        )
+                        ),
                     )
-        lexer.reset_position(bookmark)
         return previous
 
-    return trampoline(parse)
+    return trampoline(lambda: parse(pos))
 
 
 # --------======= 𝓑𝓲𝓷𝓭𝓲𝓷𝓰𝓔𝓵𝓲𝓼𝓲𝓸𝓷𝓔𝓵𝓮𝓶𝓮𝓷𝓽 =======--------
@@ -19465,19 +19409,17 @@ class P2_BindingElisionElement_Elision_BindingElement(P2_BindingElisionElement):
         return self.BindingElement.IteratorBindingInitialization(iteratorRecord, environment)
 
 
-def parse_BindingElisionElement(context, lexer, strict, Yield, Await):
+def parse_BindingElisionElement(context, lexer, pos, strict, Yield, Await):
     # 13.3.3 Destructuring Binding Patterns
     # Syntax
     #   BindingElisionElement[Yield, Await] :
     #       Elision[opt] BindingElement[?Yield, ?Await]
-    bookmark = lexer.current_position()
-    elision = parse_Elision(context, lexer, strict)
-    be = parse_BindingElement(context, lexer, strict, Yield, Await)
+    elision = parse_Elision(context, lexer, pos, strict)
+    be = parse_BindingElement(context, lexer, elision.after if elision else pos, strict, Yield, Await)
     if be:
         if elision:
             return P2_BindingElisionElement_Elision_BindingElement(context, strict, [elision, be])
         return P2_BindingElisionElement_BindingElement(context, strict, [be])
-    lexer.reset_position(bookmark)
     return None
 
 
@@ -19547,7 +19489,7 @@ class P2_BindingProperty_PropertyName_BindingElement(P2_BindingProperty):
         return [P]
 
 
-def parse_BindingProperty(context, lexer, strict, Yield, Await):
+def parse_BindingProperty(context, lexer, pos, strict, Yield, Await):
     # 13.3.3 Destructuring Binding Patterns
     # Syntax
     #   BindingProperty[Yield, Await] :
@@ -19555,16 +19497,14 @@ def parse_BindingProperty(context, lexer, strict, Yield, Await):
     #       PropertyName[?Yield, ?Await] : BindingElement[?Yield, ?Await]
     #
     # Have to do SingleNameBinding last, because it starts off the same as PropertyName.
-    bookmark = lexer.current_position()
-    pn = parse_PropertyName(context, lexer, strict, Yield, Await)
+    pn = parse_PropertyName(context, lexer, pos, strict, Yield, Await)
     if pn:
-        colon = lexer.next_token_if(":")
+        colon = lexer.token_if(pn.after, ":")
         if colon:
-            be = parse_BindingElement(context, lexer, strict, Yield, Await)
+            be = parse_BindingElement(context, lexer, colon.span.after, strict, Yield, Await)
             if be:
                 return P2_BindingProperty_PropertyName_BindingElement(context, strict, [pn, colon, be])
-        lexer.reset_position(bookmark)
-    snb = parse_SingleNameBinding(context, lexer, strict, Yield, Await)
+    snb = parse_SingleNameBinding(context, lexer, pos, strict, Yield, Await)
     if snb:
         return P2_BindingProperty_SingleNameBinding(context, strict, [snb])
     return None
@@ -19766,23 +19706,21 @@ class P2_BindingElement_BindingPattern_Initializer(P2_BindingElement):
         return self.BindingPattern.BindingInitialization(v, environment)
 
 
-def parse_BindingElement(context, lexer, strict, Yield, Await):
+def parse_BindingElement(context, lexer, pos, strict, Yield, Await):
     # 13.3.3 Destructuring Binding Patterns
     # Syntax
     #   BindingElement[Yield, Await] :
     #       SingleNameBinding[?Yield, ?Await]
     #       BindingPattern[?Yield, ?Await] Initializer[+In, ?Yield, ?Await][opt]
-    bookmark = lexer.current_position()
-    snb = parse_SingleNameBinding(context, lexer, strict, Yield, Await)
+    snb = parse_SingleNameBinding(context, lexer, pos, strict, Yield, Await)
     if snb:
         return P2_BindingElement_SingleNameBinding(context, strict, [snb])
-    bp = parse_BindingPattern(context, lexer, strict, Yield, Await)
-    init = parse_Initializer(context, lexer, strict, True, Yield, Await)
+    bp = parse_BindingPattern(context, lexer, pos, strict, Yield, Await)
     if bp:
+        init = parse_Initializer(context, lexer, bp.after, strict, True, Yield, Await)
         if init:
             return P2_BindingElement_BindingPattern_Initializer(context, strict, [bp, init])
         return P2_BindingElement_BindingPattern(context, strict, [bp])
-    lexer.reset_position(bookmark)
     return None
 
 
@@ -19990,14 +19928,14 @@ class P2_SingleNameBinding_BindingIdentifier_Initializer(P2_SingleNameBinding):
         return InitializeReferencedBinding(lhs, v) if environment else PutValue(lhs, v)
 
 
-def parse_SingleNameBinding(context, lexer, strict, Yield, Await):
+def parse_SingleNameBinding(context, lexer, pos, strict, Yield, Await):
     # 13.3.3 Destructuring Binding Patterns
     # Syntax
     #   SingleNameBinding[Yield, Await] :
     #       BindingIdentifier[?Yield, ?Await] Initializer[+In, ?Yield, ?Await][opt]
-    bi = parse_BindingIdentifier(context, lexer, strict, Yield, Await)
+    bi = parse_BindingIdentifier(context, lexer, pos, strict, Yield, Await)
     if bi:
-        init = parse_Initializer(context, lexer, strict, True, Yield, Await)
+        init = parse_Initializer(context, lexer, bi.after, strict, True, Yield, Await)
         if init:
             return P2_SingleNameBinding_BindingIdentifier_Initializer(context, strict, [bi, init])
         return P2_SingleNameBinding_BindingIdentifier(context, strict, [bi])
@@ -20124,22 +20062,20 @@ class P2_BindingRestElement_BindingPattern(P2_BindingRestElement):
             n += 1
 
 
-def parse_BindingRestElement(context, lexer, strict, Yield, Await):
+def parse_BindingRestElement(context, lexer, pos, strict, Yield, Await):
     # 13.3.3 Destructuring Binding Patterns
     # Syntax
     #   BindingRestElement[Yield, Await] :
     #       ... BindingIdentifier[?Yield, ?Await]
     #       ... BindingPattern[?Yield, ?Await]
-    bookmark = lexer.current_position()
-    dots = lexer.next_token_if("...")
+    dots = lexer.token_if(pos, "...")
     if dots:
-        bi = parse_BindingIdentifier(context, lexer, strict, Yield, Await)
+        bi = parse_BindingIdentifier(context, lexer, dots.span.after, strict, Yield, Await)
         if bi:
             return P2_BindingRestElement_BindingIdentifier(context, strict, [dots, bi])
-        bp = parse_BindingPattern(context, lexer, strict, Yield, Await)
+        bp = parse_BindingPattern(context, lexer, dots.span.after, strict, Yield, Await)
         if bp:
             return P2_BindingRestElement_BindingPattern(context, strict, [dots, bp])
-        lexer.reset_position(bookmark)
     return None
 
 
@@ -20197,12 +20133,12 @@ class P2_EmptyStatement_SEMICOLON(P2_EmptyStatement):
         return EMPTY
 
 
-def parse_EmptyStatement(ctx, lexer, strict):
+def parse_EmptyStatement(ctx, lexer, pos, strict):
     # 13.4 Empty Statement
     # Syntax
     #   EmptyStatement:
     #       ;
-    semi = lexer.next_token_if(";")
+    semi = lexer.token_if(pos, ";")
     if semi:
         return P2_EmptyStatement_SEMICOLON(ctx, strict, [semi])
     return None
@@ -20286,7 +20222,7 @@ class P2_ExpressionStatement_Expression_SEMICOLON(P2_ExpressionStatement):
         return self.Expression.HasUseStrict
 
 
-def parse_ExpressionStatement(ctx, lexer, strict, Yield, Await):
+def parse_ExpressionStatement(ctx, lexer, pos, strict, Yield, Await):
     # 13.5 Expression Statement
     # Syntax
     #   ExpressionStatement[Yield, Await]:
@@ -20299,7 +20235,7 @@ def parse_ExpressionStatement(ctx, lexer, strict, Yield, Await):
     # cannot start with async function because that would make it ambiguous with an AsyncFunctionDeclaration or a
     # AsyncGeneratorDeclaration. An ExpressionStatement cannot start with the two token sequence let [ because that
     # would make it ambiguous with a let LexicalDeclaration whose first LexicalBinding was an ArrayBindingPattern.
-    tok1, tok2 = lexer.peek_token(2)
+    tok1, tok2 = lexer.tokens(pos, 2)
     if tok1 and (
         (tok1.type == "{")
         or (tok1.type == "IDENTIFIER" and (tok1.value in ("function", "class")))
@@ -20315,13 +20251,11 @@ def parse_ExpressionStatement(ctx, lexer, strict, Yield, Await):
     ):
         return None
 
-    bookmark = lexer.current_position()
-    exp = parse_Expression(ctx, lexer, strict, True, Yield, Await)
+    exp = parse_Expression(ctx, lexer, pos, strict, True, Yield, Await)
     if exp:
-        semi = lexer.next_token_asi()
+        semi = lexer.token_asi(exp.after)
         if semi:
             return P2_ExpressionStatement_Expression_SEMICOLON(ctx, strict, [exp, semi])
-    lexer.reset_position(bookmark)
     return None
 
 
@@ -20508,34 +20442,32 @@ class P2_IfStatement_Expression_Statement(P2_IfStatement):
         return UpdateEmpty(self.Statement.evaluate(), None) if ToBoolean(exprValue) else None
 
 
-def parse_IfStatement(context, lexer, strict, Yield, Await, Return):
+def parse_IfStatement(context, lexer, pos, strict, Yield, Await, Return):
     # 13.6 The if Statement
     # Syntax
     #   IfStatement[Yield, Await, Return] :
     #       if ( Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return] else Statement[?Yield, ?Await, ?Return]
     #       if ( Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
-    bookmark = lexer.current_position()
-    if_token = lexer.next_id_if("if")
+    if_token = lexer.id_if(pos, "if")
     if if_token:
-        lp = lexer.next_token_if("(")
+        lp = lexer.token_if(if_token.span.after, "(")
         if lp:
-            exp = parse_Expression(context, lexer, strict, True, Yield, Await)
+            exp = parse_Expression(context, lexer, lp.span.after, strict, True, Yield, Await)
             if exp:
-                rp = lexer.next_token_if(")")
+                rp = lexer.token_if(exp.after, ")")
                 if rp:
-                    stmt = parse_Statement(context, lexer, strict, Yield, Await, Return)
+                    stmt = parse_Statement(context, lexer, rp.span.after, strict, Yield, Await, Return)
                     if stmt:
-                        book2 = lexer.current_position()
-                        else_token = lexer.next_id_if("else")
+                        else_token = lexer.id_if(stmt.after, "else")
                         if else_token:
-                            stmt_else = parse_Statement(context, lexer, strict, Yield, Await, Return)
+                            stmt_else = parse_Statement(
+                                context, lexer, else_token.span.after, strict, Yield, Await, Return
+                            )
                             if stmt_else:
                                 return P2_IfStatement_Expression_Statement_Statement(
                                     context, strict, [if_token, lp, exp, rp, stmt, else_token, stmt_else]
                                 )
-                            lexer.reset_position(book2)
                         return P2_IfStatement_Expression_Statement(context, strict, [if_token, lp, exp, rp, stmt])
-        lexer.reset_position(bookmark)
     return None
 
 
@@ -21411,7 +21343,7 @@ class P2_IterationStatement_FOR_AWAIT_ForDeclaration_OF_AssignmentExpression_Sta
         return self.children[7]
 
 
-def parse_IterationStatement(context, lexer, strict, Yield, Await, Return):
+def parse_IterationStatement(context, lexer, pos, strict, Yield, Await, Return):
     # 13.7 Iteration Statements
     # Syntax
     #   IterationStatement[Yield, Await, Return]:
@@ -21430,85 +21362,79 @@ def parse_IterationStatement(context, lexer, strict, Yield, Await, Return):
     #       [+Await] for await ( var ForBinding[?Yield, ?Await] of AssignmentExpression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
     #       [+Await] for await ( ForDeclaration[?Yield, ?Await] of AssignmentExpression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
     #
-    bookmark = lexer.current_position()
-    do_token = lexer.next_id_if("do")
+    do_token = lexer.id_if(pos, "do")
     if do_token:
-        stmt1 = parse_Statement(context, lexer, strict, Yield, Await, Return)
+        stmt1 = parse_Statement(context, lexer, do_token.span.after, strict, Yield, Await, Return)
         if stmt1:
-            while_token1 = lexer.next_id_if("while")
+            while_token1 = lexer.id_if(stmt1.after, "while")
             if while_token1:
-                lp1 = lexer.next_token_if("(")
+                lp1 = lexer.token_if(while_token1.span.after, "(")
                 if lp1:
-                    exp1 = parse_Expression(context, lexer, strict, True, Yield, Await)
+                    exp1 = parse_Expression(context, lexer, lp1.span.after, strict, True, Yield, Await)
                     if exp1:
-                        rp1 = lexer.next_token_if(")")
+                        rp1 = lexer.token_if(exp1.after, ")")
                         if rp1:
-                            semi = lexer.next_token_asi(do_while=True)
+                            semi = lexer.token_asi(rp1.span.after, do_while=True)
                             if semi:
                                 return P2_IterationStatement_DO_Statement_WHILE_Expression(
                                     context, strict, [do_token, stmt1, while_token1, lp1, exp1, rp1, semi]
                                 )
-        lexer.reset_position(bookmark)
-    while_token2 = lexer.next_id_if("while")
+    while_token2 = lexer.id_if(pos, "while")
     if while_token2:
-        lp2 = lexer.next_token_if("(")
+        lp2 = lexer.token_if(while_token2.span.after, "(")
         if lp2:
-            exp2 = parse_Expression(context, lexer, strict, True, Yield, Await)
+            exp2 = parse_Expression(context, lexer, lp2.span.after, strict, True, Yield, Await)
             if exp2:
-                rp2 = lexer.next_token_if(")")
+                rp2 = lexer.token_if(exp2.after, ")")
                 if rp2:
-                    stmt2 = parse_Statement(context, lexer, strict, Yield, Await, Return)
+                    stmt2 = parse_Statement(context, lexer, rp2.span.after, strict, Yield, Await, Return)
                     if stmt2:
                         return P2_IterationStatement_WHILE_Expression_Statement(
                             context, strict, [while_token2, lp2, exp2, rp2, stmt2]
                         )
-        lexer.reset_position(bookmark)
-    for_token = lexer.next_id_if("for")
+    for_token = lexer.id_if(pos, "for")
     if for_token:
-        after_for = lexer.current_position()
-        lp3 = lexer.next_token_if("(")
+        lp3 = lexer.token_if(for_token.span.after, "(")
         if lp3:
-            after_open = lexer.current_position()
-
             # Three-expression style:
             exp_init = None
-            lookahead = lexer.peek_token()
+            lookahead = lexer.token(lp3.span.after)
             if not (
                 lookahead
                 and (((lookahead.type == "IDENTIFIER") and (lookahead.value == "let")) or (lookahead.type == "["))
             ):
-                exp_init = parse_Expression(context, lexer, strict, False, Yield, Await)
-            semi2 = lexer.next_token_if(";")
+                exp_init = parse_Expression(context, lexer, lp3.span.after, strict, False, Yield, Await)
+            semi2 = lexer.token_if(exp_init.after if exp_init else lp3.span.after, ";")
             if semi2:
-                exp_test = parse_Expression(context, lexer, strict, True, Yield, Await)
-                semi3 = lexer.next_token_if(";")
+                exp_test = parse_Expression(context, lexer, semi2.span.after, strict, True, Yield, Await)
+                semi3 = lexer.token_if(exp_test.after if exp_test else semi2.span.after, ";")
                 if semi3:
-                    exp_inc = parse_Expression(context, lexer, strict, True, Yield, Await)
-                    rp3 = lexer.next_token_if(")")
+                    exp_inc = parse_Expression(context, lexer, semi3.span.after, strict, True, Yield, Await)
+                    rp3 = lexer.token_if(exp_inc.after if exp_inc else semi3.span.after, ")")
                     if rp3:
-                        stmt3 = parse_Statement(context, lexer, strict, Yield, Await, Return)
+                        stmt3 = parse_Statement(context, lexer, rp3.span.after, strict, Yield, Await, Return)
                         if stmt3:
                             return P2_IterationStatement_FOR_ExpressionInit_ExpressionTest_ExpressionInc_Statement(
                                 context,
                                 strict,
                                 [for_token, lp3, exp_init, semi2, exp_test, semi3, exp_inc, rp3, stmt3],
                             )
-            lexer.reset_position(after_open)
-
             # VariableDeclarationList style:
-            var_token = lexer.next_id_if("var")
+            var_token = lexer.id_if(lp3.span.after, "var")
             if var_token:
-                vdl = parse_VariableDeclarationList(context, lexer, strict, False, Yield, Await)
+                vdl = parse_VariableDeclarationList(
+                    context, lexer, var_token.span.after, strict, False, Yield, Await
+                )
                 if vdl:
-                    semi4 = lexer.next_token_if(";")
+                    semi4 = lexer.token_if(vdl.after, ";")
                     if semi4:
-                        exp_test2 = parse_Expression(context, lexer, strict, True, Yield, Await)
-                        semi5 = lexer.next_token_if(";")
+                        exp_test2 = parse_Expression(context, lexer, semi4.span.after, strict, True, Yield, Await)
+                        semi5 = lexer.token_if(exp_test2.after if exp_test2 else semi4.span.after, ";")
                         if semi5:
-                            exp_inc2 = parse_Expression(context, lexer, strict, True, Yield, Await)
-                            rp4 = lexer.next_token_if(")")
+                            exp_inc2 = parse_Expression(context, lexer, semi5.span.after, strict, True, Yield, Await)
+                            rp4 = lexer.token_if(exp_inc2.after if exp_inc2 else semi5.span.after, ")")
                             if rp4:
-                                stmt4 = parse_Statement(context, lexer, strict, Yield, Await, Return)
+                                stmt4 = parse_Statement(context, lexer, rp4.span.after, strict, Yield, Await, Return)
                                 if stmt4:
                                     return P2_IterationStatement_FOR_VAR_VariableDeclarationList_ExpressionTest_ExpressionInc_Statement(
                                         context,
@@ -21526,159 +21452,169 @@ def parse_IterationStatement(context, lexer, strict, Yield, Await, Return):
                                             stmt4,
                                         ],
                                     )
-            lexer.reset_position(after_open)
 
             # LexicalDeclaration style:
-            ld = parse_LexicalDeclaration(context, lexer, strict, False, Yield, Await)
+            ld = parse_LexicalDeclaration(context, lexer, lp3.span.after, strict, False, Yield, Await)
             if ld:
-                exp_test_ld = parse_Expression(context, lexer, strict, True, Yield, Await)
-                semi_ld = lexer.next_token_if(";")
+                exp_test_ld = parse_Expression(context, lexer, ld.after, strict, True, Yield, Await)
+                semi_ld = lexer.token_if(exp_test_ld.after if exp_test_ld else ld.after, ";")
                 if semi_ld:
-                    exp_inc_ld = parse_Expression(context, lexer, strict, True, Yield, Await)
-                    rp_ld = lexer.next_token_if(")")
+                    exp_inc_ld = parse_Expression(context, lexer, semi_ld.span.after, strict, True, Yield, Await)
+                    rp_ld = lexer.token_if(exp_inc_ld.after if exp_inc_ld else semi_ld.span.after, ")")
                     if rp_ld:
-                        stmt_ld = parse_Statement(context, lexer, strict, Yield, Await, Return)
+                        stmt_ld = parse_Statement(context, lexer, rp_ld.span.after, strict, Yield, Await, Return)
                         if stmt_ld:
                             return P2_IterationStatement_FOR_LexicalDeclaration_ExpressionTest_ExpressionInc_Statement(
                                 context,
                                 strict,
                                 [for_token, lp3, ld, exp_test_ld, semi_ld, exp_inc_ld, rp_ld, stmt_ld],
                             )
-            lexer.reset_position(after_open)
 
             # LHS IN Expr style:
-            lookahead = lexer.peek_token()
+            lookahead = lexer.token(lp3.span.after)
             if not (
                 lookahead
                 and (((lookahead.type == "IDENTIFIER") and (lookahead.value == "let")) or (lookahead.type == "["))
             ):
-                lhs = parse_LeftHandSideExpression(context, lexer, strict, Yield, Await)
+                lhs = parse_LeftHandSideExpression(context, lexer, lp3.span.after, strict, Yield, Await)
                 if lhs:
-                    in_token = lexer.next_id_if("in")
+                    in_token = lexer.id_if(lhs.after, "in")
                     if in_token:
-                        exp_lhs_in = parse_Expression(context, lexer, strict, True, Yield, Await)
+                        exp_lhs_in = parse_Expression(
+                            context, lexer, in_token.span.after, strict, True, Yield, Await
+                        )
                         if exp_lhs_in:
-                            rp_lhs_in = lexer.next_token_if(")")
+                            rp_lhs_in = lexer.token_if(exp_lhs_in.after, ")")
                             if rp_lhs_in:
-                                stmt_lhs_in = parse_Statement(context, lexer, strict, Yield, Await, Return)
+                                stmt_lhs_in = parse_Statement(
+                                    context, lexer, rp_lhs_in.span.after, strict, Yield, Await, Return
+                                )
                                 if stmt_lhs_in:
                                     return P2_IterationStatement_FOR_LeftHandSideExpression_IN_Expression_Statement(
                                         context,
                                         strict,
                                         [for_token, lp3, lhs, in_token, exp_lhs_in, rp_lhs_in, stmt_lhs_in],
                                     )
-            lexer.reset_position(after_open)
 
             # ForBinding IN Expr style
-            var_fb = lexer.next_id_if("var")
+            var_fb = lexer.id_if(lp3.span.after, "var")
             if var_fb:
-                fb = parse_ForBinding(context, lexer, strict, Yield, Await)
+                fb = parse_ForBinding(context, lexer, var_fb.span.after, strict, Yield, Await)
                 if fb:
-                    in_fb = lexer.next_id_if("in")
+                    in_fb = lexer.id_if(fb.after, "in")
                     if in_fb:
-                        exp_fb = parse_Expression(context, lexer, strict, True, Yield, Await)
+                        exp_fb = parse_Expression(context, lexer, in_fb.span.after, strict, True, Yield, Await)
                         if exp_fb:
-                            rp_fb = lexer.next_token_if(")")
+                            rp_fb = lexer.token_if(exp_fb.after, ")")
                             if rp_fb:
-                                stmt_fb = parse_Statement(context, lexer, strict, Yield, Await, Return)
+                                stmt_fb = parse_Statement(
+                                    context, lexer, rp_fb.span.after, strict, Yield, Await, Return
+                                )
                                 if stmt_fb:
                                     return P2_IterationStatement_FOR_VAR_ForBinding_IN_Expression_Statement(
                                         context, strict, [for_token, lp3, var_fb, fb, in_fb, exp_fb, rp_fb, stmt_fb]
                                     )
-            lexer.reset_position(after_open)
 
             # ForDeclaration IN Expr style
-            fd = parse_ForDeclaration(context, lexer, strict, Yield, Await)
+            fd = parse_ForDeclaration(context, lexer, lp3.span.after, strict, Yield, Await)
             if fd:
-                in_fd = lexer.next_id_if("in")
+                in_fd = lexer.id_if(fd.after, "in")
                 if in_fd:
-                    exp_fd = parse_Expression(context, lexer, strict, True, Yield, Await)
+                    exp_fd = parse_Expression(context, lexer, in_fd.span.after, strict, True, Yield, Await)
                     if exp_fd:
-                        rp_fd = lexer.next_token_if(")")
+                        rp_fd = lexer.token_if(exp_fd.after, ")")
                         if rp_fd:
-                            stmt_fd = parse_Statement(context, lexer, strict, Yield, Await, Return)
+                            stmt_fd = parse_Statement(context, lexer, rp_fd.span.after, strict, Yield, Await, Return)
                             if stmt_fd:
                                 return P2_IterationStatement_FOR_ForDeclaration_IN_Expression_Statement(
                                     context, strict, [for_token, lp3, fd, in_fd, exp_fd, rp_fd, stmt_fd]
                                 )
-            lexer.reset_position(after_open)
 
             # LHS OF Expression style
-            lookahead = lexer.peek_token()
+            lookahead = lexer.token(lp3.span.after)
             if not (lookahead and lookahead.type == "IDENTIFIER" and lookahead.value == "let"):
-                lhs_of = parse_LeftHandSideExpression(context, lexer, strict, Yield, Await)
+                lhs_of = parse_LeftHandSideExpression(context, lexer, lp3.span.after, strict, Yield, Await)
                 if lhs_of:
-                    of_lhs = lexer.next_id_if("of")
+                    of_lhs = lexer.id_if(lhs_of.after, "of")
                     if of_lhs:
-                        ae_lhs = parse_AssignmentExpression(context, lexer, strict, True, Yield, Await)
+                        ae_lhs = parse_AssignmentExpression(
+                            context, lexer, of_lhs.span.after, strict, True, Yield, Await
+                        )
                         if ae_lhs:
-                            rp_lhs_of = lexer.next_token_if(")")
+                            rp_lhs_of = lexer.token_if(ae_lhs.after, ")")
                             if rp_lhs_of:
-                                stmt_lhs_of = parse_Statement(context, lexer, strict, Yield, Await, Return)
+                                stmt_lhs_of = parse_Statement(
+                                    context, lexer, rp_lhs_of.span.after, strict, Yield, Await, Return
+                                )
                                 if stmt_lhs_of:
                                     return P2_IterationStatement_FOR_LeftHandSideExpression_OF_AssignmentExpression_Statement(
                                         context,
                                         strict,
                                         [for_token, lp3, lhs_of, of_lhs, ae_lhs, rp_lhs_of, stmt_lhs_of],
                                     )
-            lexer.reset_position(after_open)
 
             # ForBinding OF Expression style
-            var_fb_of = lexer.next_id_if("var")
+            var_fb_of = lexer.id_if(lp3.span.after, "var")
             if var_fb_of:
-                fb_of = parse_ForBinding(context, lexer, strict, Yield, Await)
+                fb_of = parse_ForBinding(context, lexer, var_fb_of.span.after, strict, Yield, Await)
                 if fb_of:
-                    of_fb = lexer.next_id_if("of")
+                    of_fb = lexer.id_if(fb_of.after, "of")
                     if of_fb:
-                        ae_fb_of = parse_AssignmentExpression(context, lexer, strict, True, Yield, Await)
+                        ae_fb_of = parse_AssignmentExpression(
+                            context, lexer, of_fb.span.after, strict, True, Yield, Await
+                        )
                         if ae_fb_of:
-                            rp_fb_of = lexer.next_token_if(")")
+                            rp_fb_of = lexer.token_if(ae_fb_of.after, ")")
                             if rp_fb_of:
-                                stmt_fb_of = parse_Statement(context, lexer, strict, Yield, Await, Return)
+                                stmt_fb_of = parse_Statement(
+                                    context, lexer, rp_fb_of.span.after, strict, Yield, Await, Return
+                                )
                                 if stmt_fb_of:
                                     return P2_IterationStatement_FOR_VAR_ForBinding_OF_AssignmentExpression_Statement(
                                         context,
                                         strict,
                                         [for_token, lp3, var_fb_of, fb_of, of_fb, ae_fb_of, rp_fb_of, stmt_fb_of],
                                     )
-            lexer.reset_position(after_open)
 
             # ForDeclaration OF Expression style
-            fd_of = parse_ForDeclaration(context, lexer, strict, Yield, Await)
+            fd_of = parse_ForDeclaration(context, lexer, lp3.span.after, strict, Yield, Await)
             if fd_of:
-                of_fd = lexer.next_id_if("of")
+                of_fd = lexer.id_if(fd_of.after, "of")
                 if of_fd:
-                    ae_fd = parse_AssignmentExpression(context, lexer, strict, True, Yield, Await)
+                    ae_fd = parse_AssignmentExpression(context, lexer, of_fd.span.after, strict, True, Yield, Await)
                     if ae_fd:
-                        rp_fd = lexer.next_token_if(")")
+                        rp_fd = lexer.token_if(ae_fd.after, ")")
                         if rp_fd:
-                            stmt_fd = parse_Statement(context, lexer, strict, Yield, Await, Return)
+                            stmt_fd = parse_Statement(context, lexer, rp_fd.span.after, strict, Yield, Await, Return)
                             if stmt_fd:
                                 return P2_IterationStatement_FOR_ForDeclaration_OF_AssignmentExpression_Statement(
                                     context, strict, [for_token, lp3, fd_of, of_fd, ae_fd, rp_fd, stmt_fd]
                                 )
         if Await:
-            lexer.reset_position(after_for)
-            await_token = lexer.next_id_if("await")
+            await_token = lexer.id_if(lp3.span.after, "await")
             if await_token:
-                lp4 = lexer.next_token_if("(")
+                lp4 = lexer.token_if(await_token.span.after, "(")
                 if lp4:
-                    await_paren = lexer.current_position()
+                    await_paren = lp4.span.after
 
                     # await LHS of AssignmentExpression
-                    lookahead_await = lexer.peek_token()
+                    lookahead_await = lexer.token(await_paren)
                     if not (
                         lookahead_await and lookahead_await.type == "IDENTIFIER" and lookahead_await.value == "let"
                     ):
-                        lhs_await = parse_LeftHandSideExpression(context, lexer, strict, Yield, True)
+                        lhs_await = parse_LeftHandSideExpression(context, lexer, await_paren, strict, Yield, True)
                         if lhs_await:
-                            of_lhs_await = lexer.next_id_if("of")
+                            of_lhs_await = lexer.id_if(lhs_await.after, "of")
                             if of_lhs_await:
-                                ae_lhs_await = parse_AssignmentExpression(context, lexer, strict, True, Yield, True)
+                                ae_lhs_await = parse_AssignmentExpression(
+                                    context, lexer, of_lhs_await.span.after, strict, True, Yield, True
+                                )
                                 if ae_lhs_await:
-                                    rp_lhs_await = lexer.next_token_if(")")
+                                    rp_lhs_await = lexer.token_if(ae_lhs_await.after, ")")
                                     if rp_lhs_await:
-                                        stmt_lhs_await = parse_Statement(context, lexer, strict, Yield, True, Return)
+                                        stmt_lhs_await = parse_Statement(
+                                            context, lexer, rp_lhs_await.span.after, strict, Yield, True, Return
+                                        )
                                         if stmt_lhs_await:
                                             return P2_IterationStatement_FOR_AWAIT_LeftHandSideExpression_OF_AssignmentExpression_Statement(
                                                 context,
@@ -21694,20 +21630,23 @@ def parse_IterationStatement(context, lexer, strict, Yield, Await, Return):
                                                     stmt_lhs_await,
                                                 ],
                                             )
-                    lexer.reset_position(await_paren)
 
                     # await for var forbinding of expression
-                    var_fb_await = lexer.next_id_if("var")
+                    var_fb_await = lexer.id_if(await_paren, "var")
                     if var_fb_await:
-                        fb_await = parse_ForBinding(context, lexer, strict, Yield, True)
+                        fb_await = parse_ForBinding(context, lexer, var_fb_await.span.after, strict, Yield, True)
                         if fb_await:
-                            of_fb_await = lexer.next_id_if("of")
+                            of_fb_await = lexer.id_if(fb_await.after, "of")
                             if of_fb_await:
-                                ae_fb_await = parse_AssignmentExpression(context, lexer, strict, True, Yield, True)
+                                ae_fb_await = parse_AssignmentExpression(
+                                    context, lexer, of_fb_await.span.after, strict, True, Yield, True
+                                )
                                 if ae_fb_await:
-                                    rp_fb_await = lexer.next_token_if(")")
+                                    rp_fb_await = lexer.token_if(ae_fb_await.after, ")")
                                     if rp_fb_await:
-                                        stmt_fb_await = parse_Statement(context, lexer, strict, Yield, True, Return)
+                                        stmt_fb_await = parse_Statement(
+                                            context, lexer, rp_fb_await.span.after, strict, Yield, True, Return
+                                        )
                                         if stmt_fb_await:
                                             return P2_IterationStatement_FOR_AWAIT_VAR_ForBinding_OF_AssignmentExpression_Statement(
                                                 context,
@@ -21724,18 +21663,21 @@ def parse_IterationStatement(context, lexer, strict, Yield, Await, Return):
                                                     stmt_fb_await,
                                                 ],
                                             )
-                    lexer.reset_position(await_paren)
 
                     # await for fordeclaration of expression
-                    fd_await = parse_ForDeclaration(context, lexer, strict, Yield, True)
+                    fd_await = parse_ForDeclaration(context, lexer, await_paren, strict, Yield, True)
                     if fd_await:
-                        of_fd_await = lexer.next_id_if("of")
+                        of_fd_await = lexer.id_if(fd_await.after, "of")
                         if of_fd_await:
-                            ae_fd_await = parse_AssignmentExpression(context, lexer, strict, True, Yield, True)
+                            ae_fd_await = parse_AssignmentExpression(
+                                context, lexer, of_fd_await.span.after, strict, True, Yield, True
+                            )
                             if ae_fd_await:
-                                rp_fd_await = lexer.next_token_if(")")
+                                rp_fd_await = lexer.token_if(ae_fd_await.after, ")")
                                 if rp_fd_await:
-                                    stmt_fd_await = parse_Statement(context, lexer, strict, Yield, True, Return)
+                                    stmt_fd_await = parse_Statement(
+                                        context, lexer, rp_fd_await.span.after, strict, Yield, True, Return
+                                    )
                                     if stmt_fd_await:
                                         return P2_IterationStatement_FOR_AWAIT_ForDeclaration_OF_AssignmentExpression_Statement(
                                             context,
@@ -21751,7 +21693,6 @@ def parse_IterationStatement(context, lexer, strict, Yield, Await, Return):
                                                 stmt_fd_await,
                                             ],
                                         )
-    lexer.reset_position(bookmark)
     return None
 
 
@@ -22142,18 +22083,16 @@ class P2_ForDeclaration_LetOrConst_ForBinding(P2_ForDeclaration):
                 envRec.CreateMutableBinding(name, False)
 
 
-def parse_ForDeclaration(context, lexer, strict, Yield, Await):
+def parse_ForDeclaration(context, lexer, pos, strict, Yield, Await):
     # 13.7 Iteration Statements
     # Syntax
     #   ForDeclaration[Yield, Await] :
     #       LetOrConst ForBinding[?Yield, ?Await]
-    bookmark = lexer.current_position()
-    loc = parse_LetOrConst(context, lexer, strict)
+    loc = parse_LetOrConst(context, lexer, pos, strict)
     if loc:
-        fb = parse_ForBinding(context, lexer, strict, Yield, Await)
+        fb = parse_ForBinding(context, lexer, loc.after, strict, Yield, Await)
         if fb:
             return P2_ForDeclaration_LetOrConst_ForBinding(context, strict, [loc, fb])
-        lexer.reset_position(bookmark)
     return None
 
 
@@ -22200,16 +22139,16 @@ class P2_ForBinding_BindingPattern(P2_ForBinding):
         return True
 
 
-def parse_ForBinding(context, lexer, strict, Yield, Await):
+def parse_ForBinding(context, lexer, pos, strict, Yield, Await):
     # 13.7 Iteration Statements
     # Syntax
     #   ForBinding[Yield, Await] :
     #       BindingIdentifier[?Yield, ?Await]
     #       BindingPattern[?Yield, ?Await]
-    bi = parse_BindingIdentifier(context, lexer, strict, Yield, Await)
+    bi = parse_BindingIdentifier(context, lexer, pos, strict, Yield, Await)
     if bi:
         return P2_ForBinding_BindingIdentifier(context, strict, [bi])
-    bp = parse_BindingPattern(context, lexer, strict, Yield, Await)
+    bp = parse_BindingPattern(context, lexer, pos, strict, Yield, Await)
     if bp:
         return P2_ForBinding_BindingPattern(context, strict, [bp])
     return None
@@ -22322,31 +22261,28 @@ class P2_ContinueStatement_CONTINUE_LabelIdentifier(P2_ContinueStatement):
         raise ESContinue(target=self.LabelIdentifier.StringValue)
 
 
-def parse_ContinueStatement(context, lexer, strict, Yield, Await):
+def parse_ContinueStatement(context, lexer, pos, strict, Yield, Await):
     # 13.8 The continue Statement
     # Syntax
     #   ContinueStatement[Yield, Await] :
     #       continue ;
     #       continue [no LineTerminator here] LabelIdentifier[?Yield, ?Await] ;
     #
-    bookmark = lexer.current_position()
-    continue_token = lexer.next_id_if("continue")
+    continue_token = lexer.id_if(pos, "continue")
     if continue_token:
-        after_continue = lexer.current_position()
-        peek = lexer.peek_token()
+        after_continue = continue_token.span.after
+        peek = lexer.token(after_continue)
         if peek and not peek.newlines:
-            li = parse_LabelIdentifier(context, lexer, strict, Yield, Await)
+            li = parse_LabelIdentifier(context, lexer, after_continue, strict, Yield, Await)
             if li:
-                semi_li = lexer.next_token_asi()
+                semi_li = lexer.token_asi(li.after)
                 if semi_li:
                     return P2_ContinueStatement_CONTINUE_LabelIdentifier(
                         context, strict, [continue_token, li, semi_li]
                     )
-                lexer.reset_position(after_continue)
-        semi_plain = lexer.next_token_asi()
+        semi_plain = lexer.token_asi(after_continue)
         if semi_plain:
             return P2_ContinueStatement_CONTINUE(context, strict, [continue_token, semi_plain])
-        lexer.reset_position(bookmark)
     return None
 
 
@@ -22444,28 +22380,25 @@ class P2_BreakStatement_BREAK(P2_BreakStatement):
         raise ESBreak()
 
 
-def parse_BreakStatement(context, lexer, strict, Yield, Await):
+def parse_BreakStatement(context, lexer, pos, strict, Yield, Await):
     # 13.9 The break Statement
     # Sytax
     #   BreakStatement[Yield, Await]:
     #       break [no LineTerminator here] LabelIdentifier[?Yield, ?Await] ;
     #       break ;
-    bookmark = lexer.current_position()
-    break_token = lexer.next_id_if("break")
+    break_token = lexer.id_if(pos, "break")
     if break_token:
-        after_break = lexer.current_position()
-        peek = lexer.peek_token()
+        after_break = break_token.span.after
+        peek = lexer.token(after_break)
         if peek and not peek.newlines:
-            li = parse_LabelIdentifier(context, lexer, strict, Yield, Await)
+            li = parse_LabelIdentifier(context, lexer, after_break, strict, Yield, Await)
             if li:
-                semi1 = lexer.next_token_asi()
+                semi1 = lexer.token_asi(li.after)
                 if semi1:
                     return P2_BreakStatement_BREAK_LabelIdentifier(context, strict, [break_token, li, semi1])
-            lexer.reset_position(after_break)
-        semi2 = lexer.next_token_asi()
+        semi2 = lexer.token_asi(after_break)
         if semi2:
             return P2_BreakStatement_BREAK(context, strict, [break_token, semi2])
-        lexer.reset_position(bookmark)
     return None
 
 
@@ -22544,28 +22477,25 @@ class P2_ReturnStatement_RETURN_Expression(P2_ReturnStatement):
         raise ESReturn(value=exprValue)
 
 
-def parse_ReturnStatement(context, lexer, strict, Yield, Await):
+def parse_ReturnStatement(context, lexer, pos, strict, Yield, Await):
     # 13.10 The return Statement
     # Syntax
     #   ReturnStatement[Yield, Await] :
     #       return ;
     #       return [no LineTerminator here] Expression[+In, ?Yield, ?Await] ;
-    bookmark = lexer.current_position()
-    ret = lexer.next_id_if("return")
+    ret = lexer.id_if(pos, "return")
     if ret:
-        after_return = lexer.current_position()
-        peek = lexer.peek_token()
+        after_return = ret.span.after
+        peek = lexer.token(after_return)
         if peek and not peek.newlines:
-            exp = parse_Expression(context, lexer, strict, True, Yield, Await)
+            exp = parse_Expression(context, lexer, after_return, strict, True, Yield, Await)
             if exp:
-                semi1 = lexer.next_token_asi()
+                semi1 = lexer.token_asi(exp.after)
                 if semi1:
                     return P2_ReturnStatement_RETURN_Expression(context, strict, [ret, exp, semi1])
-            lexer.reset_position(after_return)
-        semi2 = lexer.next_token_asi()
+        semi2 = lexer.token_asi(after_return)
         if semi2:
             return P2_ReturnStatement_RETURN(context, strict, [ret, semi2])
-        lexer.reset_position(bookmark)
     return None
 
 
@@ -22702,27 +22632,25 @@ class P2_WithStatement_WITH_Expression_Statement(P2_WithStatement):
         return UpdateEmpty(C, None)
 
 
-def parse_WithStatement(context, lexer, strict, Yield, Await, Return):
+def parse_WithStatement(context, lexer, pos, strict, Yield, Await, Return):
     # 13.11 The with Statement
     # Syntax
     #   WithStatement[Yield, Await, Return] :
     #       with ( Expression[+In, ?Yield, ?Await] ) Statement[?Yield, ?Await, ?Return]
     #
-    bookmark = lexer.current_position()
-    with_tok = lexer.next_id_if("with")
+    with_tok = lexer.id_if(pos, "with")
     if with_tok:
-        lp = lexer.next_token_if("(")
+        lp = lexer.token_if(with_tok.span.after, "(")
         if lp:
-            exp = parse_Expression(context, lexer, strict, True, Yield, Await)
+            exp = parse_Expression(context, lexer, lp.span.after, strict, True, Yield, Await)
             if exp:
-                rp = lexer.next_token_if(")")
+                rp = lexer.token_if(exp.after, ")")
                 if rp:
-                    stmt = parse_Statement(context, lexer, strict, Yield, Await, Return)
+                    stmt = parse_Statement(context, lexer, rp.span.after, strict, Yield, Await, Return)
                     if stmt:
                         return P2_WithStatement_WITH_Expression_Statement(
                             context, strict, [with_tok, lp, exp, rp, stmt]
                         )
-        lexer.reset_position(bookmark)
     return None
 
 
@@ -22882,26 +22810,24 @@ class P2_SwitchStatement_SWITCH_Expression_CaseBlock(P2_SwitchStatement):
         return R
 
 
-def parse_SwitchStatement(context, lexer, strict, Yield, Await, Return):
+def parse_SwitchStatement(context, lexer, pos, strict, Yield, Await, Return):
     # 13.12 The switch Statement
     # Syntax
     #   SwitchStatement[Yield, Await, Return] :
     #       switch ( Expression[+In, ?Yield, ?Await] ) CaseBlock[?Yield, ?Await, ?Return]
-    bookmark = lexer.current_position()
-    switch_tok = lexer.next_id_if("switch")
+    switch_tok = lexer.id_if(pos, "switch")
     if switch_tok:
-        lp = lexer.next_token_if("(")
+        lp = lexer.token_if(switch_tok.span.after, "(")
         if lp:
-            exp = parse_Expression(context, lexer, strict, True, Yield, Await)
+            exp = parse_Expression(context, lexer, lp.span.after, strict, True, Yield, Await)
             if exp:
-                rp = lexer.next_token_if(")")
+                rp = lexer.token_if(exp.after, ")")
                 if rp:
-                    cb = parse_CaseBlock(context, lexer, strict, Yield, Await, Return)
+                    cb = parse_CaseBlock(context, lexer, rp.span.after, strict, Yield, Await, Return)
                     if cb:
                         return P2_SwitchStatement_SWITCH_Expression_CaseBlock(
                             context, strict, [switch_tok, lp, exp, rp, cb]
                         )
-        lexer.reset_position(bookmark)
     return None
 
 
@@ -23251,19 +23177,21 @@ class P2_CaseBlock_CaseClauses_DefaultClause_CaseClauses(P2_CaseBlock_HasDefault
         return self.children[3]
 
 
-def parse_CaseBlock(context, lexer, strict, Yield, Await, Return):
+def parse_CaseBlock(context, lexer, pos, strict, Yield, Await, Return):
     # 13.12 The switch Statement
     # Syntax
     #   CaseBlock[Yield, Await, Return] :
     #       { CaseClauses[?Yield, ?Await, ?Return]opt }
     #       { CaseClauses[?Yield, ?Await, ?Return]opt DefaultClause[?Yield, ?Await, ?Return] CaseClauses[?Yield, ?Await, ?Return]opt }
-    bookmark = lexer.current_position()
-    lc = lexer.next_token_if("{")
+    lc = lexer.token_if(pos, "{")
     if lc:
-        ccb = parse_CaseClauses(context, lexer, strict, Yield, Await, Return)
-        dc = parse_DefaultClause(context, lexer, strict, Yield, Await, Return)
-        cca = parse_CaseClauses(context, lexer, strict, Yield, Await, Return)
-        rc = lexer.next_token_if("}")
+        ccb = parse_CaseClauses(context, lexer, lc.span.after, strict, Yield, Await, Return)
+        ccb_after = ccb.after if ccb else lc.span.after
+        dc = parse_DefaultClause(context, lexer, ccb_after, strict, Yield, Await, Return)
+        dc_after = dc.after if dc else ccb_after
+        cca = parse_CaseClauses(context, lexer, dc_after, strict, Yield, Await, Return)
+        cca_after = cca.after if cca else dc_after
+        rc = lexer.token_if(cca_after, "}")
         if rc:
             children = list(filter(None, [lc, ccb, dc, cca, rc]))
             choice_idx = int(ccb is not None) << 2 | int(dc is not None) << 1 | int(cca is not None)
@@ -23278,7 +23206,6 @@ def parse_CaseBlock(context, lexer, strict, Yield, Await, Return):
                 P2_CaseBlock_CaseClauses_DefaultClause_CaseClauses,  # 111
             ]
             return ctors[choice_idx](context, strict, children)
-        lexer.reset_position(bookmark)
     return None
 
 
@@ -23381,22 +23308,24 @@ class P2_CaseClauses_CaseClauses_CaseClause(P2_CaseClauses):
         return self.CaseClauses.VarScopedDeclarations() + self.CaseClause.VarScopedDeclarations()
 
 
-def parse_CaseClauses(context, lexer, strict, Yield, Await, Return):
+def parse_CaseClauses(context, lexer, pos, strict, Yield, Await, Return):
     # 13.12 The switch Statement
     # Syntax
     #   CaseClauses[Yield, Await, Return] :
     #       CaseClause[?Yield, ?Await, ?Return]
     #       CaseClauses[?Yield, ?Await, ?Return] CaseClause[?Yield, ?Await, ?Return]
-    def parse(previous=None):
-        cc = parse_CaseClause(context, lexer, strict, Yield, Await, Return)
+    def parse(pos, previous=None):
+        cc = parse_CaseClause(context, lexer, pos, strict, Yield, Await, Return)
         if cc:
             if previous is None:
-                return lambda: parse(P2_CaseClauses_CaseClause(context, strict, [cc]))
+                return lambda: parse(cc.after, P2_CaseClauses_CaseClause(context, strict, [cc]))
             else:
-                return lambda: parse(P2_CaseClauses_CaseClauses_CaseClause(context, strict, [previous, cc]))
+                return lambda: parse(
+                    cc.after, P2_CaseClauses_CaseClauses_CaseClause(context, strict, [previous, cc])
+                )
         return previous
 
-    return trampoline(parse)
+    return trampoline(lambda: parse(pos))
 
 
 # --------======= 𝓒𝓪𝓼𝓮𝓒𝓵𝓪𝓾𝓼𝓮 =======--------
@@ -23509,23 +23438,21 @@ class P2_CaseClause_CASE_Expression(P2_CaseClause):
         return EMPTY
 
 
-def parse_CaseClause(context, lexer, strict, Yield, Await, Return):
+def parse_CaseClause(context, lexer, pos, strict, Yield, Await, Return):
     # 13.12 The switch Statement
     # Syntax
     #   CaseClause[Yield, Await, Return] :
     #       case Expression[+In, ?Yield, ?Await] : StatementList[?Yield, ?Await, ?Return]opt
-    bookmark = lexer.current_position()
-    case = lexer.next_id_if("case")
+    case = lexer.id_if(pos, "case")
     if case:
-        exp = parse_Expression(context, lexer, strict, True, Yield, Await)
+        exp = parse_Expression(context, lexer, case.span.after, strict, True, Yield, Await)
         if exp:
-            colon = lexer.next_token_if(":")
+            colon = lexer.token_if(exp.after, ":")
             if colon:
-                sl = parse_StatementList(context, lexer, strict, False, Yield, Await, Return)
+                sl = parse_StatementList(context, lexer, colon.span.after, strict, False, Yield, Await, Return)
                 if sl:
                     return P2_CaseClause_CASE_Expression_StatementList(context, strict, [case, exp, colon, sl])
                 return P2_CaseClause_CASE_Expression(context, strict, [case, exp, colon])
-        lexer.reset_position(bookmark)
     return None
 
 
@@ -23619,21 +23546,19 @@ class P2_DefaultClause_DEFAULT_StatementList(P2_DefaultClause):
         return self.StatementList.evaluate()
 
 
-def parse_DefaultClause(context, lexer, strict, Yield, Await, Return):
+def parse_DefaultClause(context, lexer, pos, strict, Yield, Await, Return):
     # 13.12 The switch Statement
     # Syntax
     #   DefaultClause[Yield, Await, Return] :
     #       default : StatementList[?Yield, ?Await, ?Return]opt
-    bookmark = lexer.current_position()
-    default = lexer.next_id_if("default")
+    default = lexer.id_if(pos, "default")
     if default:
-        colon = lexer.next_token_if(":")
+        colon = lexer.token_if(default.span.after, ":")
         if colon:
-            sl = parse_StatementList(context, lexer, strict, False, Yield, Await, Return)
+            sl = parse_StatementList(context, lexer, colon.span.after, strict, False, Yield, Await, Return)
             if sl:
                 return P2_DefaultClause_DEFAULT_StatementList(context, strict, [default, colon, sl])
             return P2_DefaultClause_DEFAULT(context, strict, [default, colon])
-        lexer.reset_position(bookmark)
     return None
 
 
@@ -23813,20 +23738,18 @@ class P2_LabelledStatement_LabelIdentifier_LabelledItem(P2_LabelledStatement):
         return self.LabelledEvaluation([])
 
 
-def parse_LabelledStatement(context, lexer, strict, Yield, Await, Return):
+def parse_LabelledStatement(context, lexer, pos, strict, Yield, Await, Return):
     # 13.13 Labelled Statements
     # Syntax
     #   LabelledStatement[Yield, Await, Return] :
     #       LabelIdentifier[?Yield, ?Await] : LabelledItem[?Yield, ?Await, ?Return]
-    bookmark = lexer.current_position()
-    ident = parse_LabelIdentifier(context, lexer, strict, Yield, Await)
+    ident = parse_LabelIdentifier(context, lexer, pos, strict, Yield, Await)
     if ident:
-        colon = lexer.next_token_if(":")
+        colon = lexer.token_if(ident.after, ":")
         if colon:
-            item = parse_LabelledItem(context, lexer, strict, Yield, Await, Return)
+            item = parse_LabelledItem(context, lexer, colon.span.after, strict, Yield, Await, Return)
             if item:
                 return P2_LabelledStatement_LabelIdentifier_LabelledItem(context, strict, [ident, colon, item])
-        lexer.reset_position(bookmark)
     return None
 
 
@@ -23966,16 +23889,16 @@ class P2_LabelledItem_FunctionDeclaration(P2_LabelledItem):
         return self.FunctionDeclaration.evaluate()
 
 
-def parse_LabelledItem(context, lexer, strict, Yield, Await, Return):
+def parse_LabelledItem(context, lexer, pos, strict, Yield, Await, Return):
     # 13.13 Labelled Statements
     # Syntax
     #   LabelledItem[Yield, Await, Return] :
     #       Statement[?Yield, ?Await, ?Return]
     #       FunctionDeclaration[?Yield, ?Await, ~Default]
-    stmt = parse_Statement(context, lexer, strict, Yield, Await, Return)
+    stmt = parse_Statement(context, lexer, pos, strict, Yield, Await, Return)
     if stmt:
         return P2_LabelledItem_Statement(context, strict, [stmt])
-    fd = parse_FunctionDeclaration(context, lexer, strict, Yield, Await, False)
+    fd = parse_FunctionDeclaration(context, lexer, pos, strict, Yield, Await, False)
     if fd:
         return P2_LabelledItem_FunctionDeclaration(context, strict, [fd])
     return None
@@ -24053,22 +23976,20 @@ class P2_ThrowStatement_THROW_Expression(P2_ThrowStatement):
         raise ESError(exprValue)
 
 
-def parse_ThrowStatement(context, lexer, strict, Yield, Await):
+def parse_ThrowStatement(context, lexer, pos, strict, Yield, Await):
     # 13.14 The throw Statement
     # Syntax
     #   ThrowStatement[Yield, Await] :
     #       throw [no LineTerminator here] Expression[+In, ?Yield, ?Await] ;
-    bookmark = lexer.current_position()
-    throw_tok = lexer.next_id_if("throw")
+    throw_tok = lexer.id_if(pos, "throw")
     if throw_tok:
-        peek = lexer.peek_token()
+        peek = lexer.token(throw_tok.span.after)
         if peek and not peek.newlines:
-            exp = parse_Expression(context, lexer, strict, True, Yield, Await)
+            exp = parse_Expression(context, lexer, throw_tok.span.after, strict, True, Yield, Await)
             if exp:
-                semi = lexer.next_token_asi()
+                semi = lexer.token_asi(exp.after)
                 if semi:
                     return P2_ThrowStatement_THROW_Expression(context, strict, [throw_tok, exp, semi])
-        lexer.reset_position(bookmark)
     return None
 
 
@@ -24273,27 +24194,26 @@ class P2_TryStatement_TRY_Block_Catch_Finally(P2_TryStatement):
         return UpdateEmpty(C, None)
 
 
-def parse_TryStatement(context, lexer, strict, Yield, Await, Return):
+def parse_TryStatement(context, lexer, pos, strict, Yield, Await, Return):
     # 13.15 The try Statement
     # Syntax
     #   TryStatement[Yield, Await, Return] :
     #       try Block[?Yield, ?Await, ?Return] Catch[?Yield, ?Await, ?Return]
     #       try Block[?Yield, ?Await, ?Return] Finally[?Yield, ?Await, ?Return]
     #       try Block[?Yield, ?Await, ?Return] Catch[?Yield, ?Await, ?Return] Finally[?Yield, ?Await, ?Return]
-    bookmark = lexer.current_position()
-    try_token = lexer.next_id_if("try")
+    try_token = lexer.id_if(pos, "try")
     if try_token:
-        block = parse_Block(context, lexer, strict, Yield, Await, Return)
+        block = parse_Block(context, lexer, try_token.span.after, strict, Yield, Await, Return)
         if block:
-            catch = parse_Catch(context, lexer, strict, Yield, Await, Return)
-            fin = parse_Finally(context, lexer, strict, Yield, Await, Return)
+            catch = parse_Catch(context, lexer, block.after, strict, Yield, Await, Return)
+            catch_after = catch.after if catch else block.after
+            fin = parse_Finally(context, lexer, catch_after, strict, Yield, Await, Return)
             if catch and fin:
                 return P2_TryStatement_TRY_Block_Catch_Finally(context, strict, [try_token, block, catch, fin])
             if catch:
                 return P2_TryStatement_TRY_Block_Catch(context, strict, [try_token, block, catch])
             if fin:
                 return P2_TryStatement_TRY_Block_Finally(context, strict, [try_token, block, fin])
-        lexer.reset_position(bookmark)
     return None
 
 
@@ -24394,30 +24314,27 @@ class P2_Catch_CATCH_Block(P2_Catch):
     CatchParameter = None
 
 
-def parse_Catch(context, lexer, strict, Yield, Await, Return):
+def parse_Catch(context, lexer, pos, strict, Yield, Await, Return):
     # 13.15 The try Statement
     # Syntax
     #   Catch[Yield, Await, Return] :
     #       catch ( CatchParameter[?Yield, ?Await] ) Block[?Yield, ?Await, ?Return]
     #       catch Block[?Yield, ?Await, ?Return]
-    bookmark = lexer.current_position()
-    catch = lexer.next_id_if("catch")
+    catch = lexer.id_if(pos, "catch")
     if catch:
-        after_catch = lexer.current_position()
-        lp = lexer.next_token_if("(")
+        after_catch = catch.span.after
+        lp = lexer.token_if(after_catch, "(")
         if lp:
-            cp = parse_CatchParameter(context, lexer, strict, Yield, Await)
+            cp = parse_CatchParameter(context, lexer, lp.span.after, strict, Yield, Await)
             if cp:
-                rp = lexer.next_token_if(")")
+                rp = lexer.token_if(cp.after, ")")
                 if rp:
-                    block = parse_Block(context, lexer, strict, Yield, Await, Return)
+                    block = parse_Block(context, lexer, rp.span.after, strict, Yield, Await, Return)
                     if block:
                         return P2_Catch_CATCH_CatchParameter_Block(context, strict, [catch, lp, cp, rp, block])
-            lexer.reset_position(after_catch)
-        block2 = parse_Block(context, lexer, strict, Yield, Await, Return)
+        block2 = parse_Block(context, lexer, after_catch, strict, Yield, Await, Return)
         if block2:
             return P2_Catch_CATCH_Block(context, strict, [catch, block2])
-        lexer.reset_position(bookmark)
     return None
 
 
@@ -24438,17 +24355,15 @@ class P2_Finally_FINALLY_Block(P2_Finally):
         return self.children[1]
 
 
-def parse_Finally(context, lexer, strict, Yield, Await, Return):
+def parse_Finally(context, lexer, pos, strict, Yield, Await, Return):
     # 13.15 The try Statement
     #   Finally[Yield, Await, Return] :
     #       finally Block[?Yield, ?Await, ?Return]
-    bookmark = lexer.current_position()
-    finally_tok = lexer.next_id_if("finally")
+    finally_tok = lexer.id_if(pos, "finally")
     if finally_tok:
-        block = parse_Block(context, lexer, strict, Yield, Await, Return)
+        block = parse_Block(context, lexer, finally_tok.span.after, strict, Yield, Await, Return)
         if block:
             return P2_Finally_FINALLY_Block(context, strict, [finally_tok, block])
-        lexer.reset_position(bookmark)
     return None
 
 
@@ -24476,16 +24391,16 @@ class P2_CatchParameter_BindingPattern(P2_CatchParameter):
         return self.children[0]
 
 
-def parse_CatchParameter(context, lexer, strict, Yield, Await):
+def parse_CatchParameter(context, lexer, pos, strict, Yield, Await):
     # 13.15 The try Statement
     # Syntax
     #   CatchParameter[Yield, Await] :
     #       BindingIdentifier[?Yield, ?Await]
     #       BindingPattern[?Yield, ?Await]
-    bi = parse_BindingIdentifier(context, lexer, strict, Yield, Await)
+    bi = parse_BindingIdentifier(context, lexer, pos, strict, Yield, Await)
     if bi:
         return P2_CatchParameter_BindingIdentifier(context, strict, [bi])
-    bp = parse_BindingPattern(context, lexer, strict, Yield, Await)
+    bp = parse_BindingPattern(context, lexer, pos, strict, Yield, Await)
     if bp:
         return P2_CatchParameter_BindingPattern(context, strict, [bp])
     return None
@@ -24552,18 +24467,16 @@ class P2_DebuggerStatement_DEBUGGER(P2_DebuggerStatement):
     pass
 
 
-def parse_DebuggerStatement(context, lexer, strict):
+def parse_DebuggerStatement(context, lexer, pos, strict):
     # 13.16 The debugger Statement
     # Syntax
     #   DebuggerStatement :
     #       debugger ;
-    bookmark = lexer.current_position()
-    deb = lexer.next_id_if("debugger")
+    deb = lexer.id_if(pos, "debugger")
     if deb:
-        semi = lexer.next_token_asi()
+        semi = lexer.token_asi(deb.span.after)
         if semi:
             return P2_DebuggerStatement_DEBUGGER(context, strict, [deb, semi])
-        lexer.reset_position(bookmark)
     return None
 
 
@@ -24838,28 +24751,27 @@ class P2_FunctionDeclaration_FUNCTION_FormalParameters_FunctionBody(P2_FunctionD
         return EMPTY
 
 
-def parse_FunctionDeclaration(context, lexer, strict, Yield, Await, Default):
+def parse_FunctionDeclaration(context, lexer, pos, strict, Yield, Await, Default):
     # 14.1 Function Definitions
     # Syntax
     #   FunctionDeclaration[Yield, Await, Default] :
     #       function BindingIdentifier[?Yield, ?Await] ( FormalParameters[~Yield, ~Await] ) { FunctionBody[~Yield, ~Await] }
     #       [+Default] function ( FormalParameters[~Yield, ~Await] ) { FunctionBody[~Yield, ~Await] }
-    bookmark = lexer.current_position()
-    function = lexer.next_id_if("function")
+    function = lexer.id_if(pos, "function")
     if function:
-        bi = parse_BindingIdentifier(context, lexer, strict, Yield, Await)
+        bi = parse_BindingIdentifier(context, lexer, function.span.after, strict, Yield, Await)
         if bi or Default:
-            lp = lexer.next_token_if("(")
+            lp = lexer.token_if(bi.after if bi else function.span.after, "(")
             if lp:
-                fp = parse_FormalParameters(context, lexer, strict, False, False)
+                fp = parse_FormalParameters(context, lexer, lp.span.after, strict, False, False)
                 if fp:
-                    rp = lexer.next_token_if(")")
+                    rp = lexer.token_if(fp.after, ")")
                     if rp:
-                        lc = lexer.next_token_if("{")
+                        lc = lexer.token_if(rp.span.after, "{")
                         if lc:
-                            body = parse_FunctionBody(context, lexer, strict, False, False)
+                            body = parse_FunctionBody(context, lexer, lc.span.after, strict, False, False)
                             if body:
-                                rc = lexer.next_token_if("}")
+                                rc = lexer.token_if(body.after, "}")
                                 if rc:
                                     if bi:
                                         return P2_FunctionDeclaration_FUNCTION_BindingIdentifier_FormalParameters_FunctionBody(
@@ -24868,7 +24780,6 @@ def parse_FunctionDeclaration(context, lexer, strict, Yield, Await, Default):
                                     return P2_FunctionDeclaration_FUNCTION_FormalParameters_FunctionBody(
                                         context, body.strict, [function, lp, fp, rp, lc, body, rc]
                                     )
-        lexer.reset_position(bookmark)
     return None
 
 
@@ -25051,27 +24962,26 @@ class P2_FunctionExpression_FUNCTION_FormalParameters_FunctionBody(P2_FunctionEx
         return closure
 
 
-def parse_FunctionExpression(context, lexer, strict):
+def parse_FunctionExpression(context, lexer, pos, strict):
     # 14.1 Function Definitions
     # Syntax
     #   FunctionExpression :
     #       function BindingIdentifier[~Yield, ~Await] ( FormalParameters[~Yield, ~Await] ) { FunctionBody[~Yield, ~Await] }
     #       function ( FormalParameters[~Yield, ~Await] ) { FunctionBody[~Yield, ~Await] }
-    bookmark = lexer.current_position()
-    function = lexer.next_id_if("function")
+    function = lexer.id_if(pos, "function")
     if function:
-        bi = parse_BindingIdentifier(context, lexer, strict, False, False)
-        lp = lexer.next_token_if("(")
+        bi = parse_BindingIdentifier(context, lexer, function.span.after, strict, False, False)
+        lp = lexer.token_if(bi.after if bi else function.span.after, "(")
         if lp:
-            fp = parse_FormalParameters(context, lexer, strict, False, False)
+            fp = parse_FormalParameters(context, lexer, lp.span.after, strict, False, False)
             if fp:
-                rp = lexer.next_token_if(")")
+                rp = lexer.token_if(fp.after, ")")
                 if rp:
-                    lc = lexer.next_token_if("{")
+                    lc = lexer.token_if(rp.span.after, "{")
                     if lc:
-                        body = parse_FunctionBody(context, lexer, strict, False, False)
+                        body = parse_FunctionBody(context, lexer, lc.span.after, strict, False, False)
                         if body:
-                            rc = lexer.next_token_if("}")
+                            rc = lexer.token_if(body.after, "}")
                             if rc:
                                 if bi:
                                     return P2_FunctionExpression_FUNCTION_BindingIdentifier_FormalParameters_FunctionBody(
@@ -25080,7 +24990,6 @@ def parse_FunctionExpression(context, lexer, strict):
                                 return P2_FunctionExpression_FUNCTION_FormalParameters_FunctionBody(
                                     context, body.strict, [function, lp, fp, rp, lc, body, rc]
                                 )
-        lexer.reset_position(bookmark)
     return None
 
 
@@ -25115,12 +25024,12 @@ def UniqueFormalParameters_EarlyErrors(pn):
     return []
 
 
-def parse_UniqueFormalParameters(context, lexer, strict, Yield, Await):
+def parse_UniqueFormalParameters(context, lexer, pos, strict, Yield, Await):
     # 14.1 Function Definitions
     # Syntax
     #   UniqueFormalParameters[Yield, Await] :
     #       FormalParameters[?Yield, ?Await]
-    fp = parse_FormalParameters(context, lexer, strict, Yield, Await)
+    fp = parse_FormalParameters(context, lexer, pos, strict, Yield, Await)
     if fp:
         return P2_UniqueFormalParameters_FormalParameters(context, strict, [fp])
     return None
@@ -25142,6 +25051,10 @@ class P2_FormalParameters(ParseNode2):
 
 
 class P2_FormalParameters_EMPTY(P2_FormalParameters):
+    def __init__(self, ctx, pos, strict):
+        super().__init__(ctx, strict, [])
+        self.after = pos
+
     FormalParameterList = None
     FunctionRestParameter = None
 
@@ -25270,7 +25183,7 @@ class P2_FormalParameters_FormalParameterList_FunctionRestParameter(P2_FormalPar
         return self.FunctionRestParameter.IteratorBindingInitialization(iteratorRecord, environment)
 
 
-def parse_FormalParameters(context, lexer, strict, Yield, Await):
+def parse_FormalParameters(context, lexer, pos, strict, Yield, Await):
     # 14.1 Function Definitions
     # Syntax
     #   FormalParameters[Yield, Await] :
@@ -25279,21 +25192,21 @@ def parse_FormalParameters(context, lexer, strict, Yield, Await):
     #       FormalParameterList[?Yield, ?Await]
     #       FormalParameterList[?Yield, ?Await] ,
     #       FormalParameterList[?Yield, ?Await] , FunctionRestParameter[?Yield, ?Await]
-    fpl = parse_FormalParameterList(context, lexer, strict, Yield, Await)
+    fpl = parse_FormalParameterList(context, lexer, pos, strict, Yield, Await)
     if fpl:
-        comma = lexer.next_token_if(",")
+        comma = lexer.token_if(fpl.after, ",")
         if comma:
-            frp = parse_FunctionRestParameter(context, lexer, strict, Yield, Await)
+            frp = parse_FunctionRestParameter(context, lexer, comma.span.after, strict, Yield, Await)
             if frp:
                 return P2_FormalParameters_FormalParameterList_FunctionRestParameter(
                     context, strict, [fpl, comma, frp]
                 )
             return P2_FormalParameters_FormalParameterList(context, strict, [fpl, comma])
         return P2_FormalParameters_FormalParameterList(context, strict, [fpl])
-    frp2 = parse_FunctionRestParameter(context, lexer, strict, Yield, Await)
+    frp2 = parse_FunctionRestParameter(context, lexer, pos, strict, Yield, Await)
     if frp2:
         return P2_FormalParameters_FunctionRestParameter(context, strict, [frp2])
-    return P2_FormalParameters_EMPTY(context, strict, [])
+    return P2_FormalParameters_EMPTY(context, pos, strict)
 
 
 # --------======= 𝓕𝓸𝓻𝓶𝓪𝓵𝓟𝓪𝓻𝓪𝓶𝓮𝓽𝓮𝓻𝓛𝓲𝓼𝓽 =======--------
@@ -25380,32 +25293,31 @@ class P2_FormalParameterList_FormalParameterList_FormalParameter(P2_FormalParame
         return self.FormalParameter.IteratorBindingInitialization(iteratorRecord, environment)
 
 
-def parse_FormalParameterList(context, lexer, strict, Yield, Await):
+def parse_FormalParameterList(context, lexer, pos, strict, Yield, Await):
     # 14.1 Function Definitions
     # Syntax
     #   FormalParameterList[Yield, Await] :
     #       FormalParameter[?Yield, ?Await]
     #       FormalParameterList[?Yield, ?Await] , FormalParameter[?Yield, ?Await]
-    def parse(previous=None):
-        bookmark = lexer.current_position()
+    def parse(pos, previous=None):
         if previous is None:
-            fp = parse_FormalParameter(context, lexer, strict, Yield, Await)
+            fp = parse_FormalParameter(context, lexer, pos, strict, Yield, Await)
             if fp:
-                return lambda: parse(P2_FormalParameterList_FormalParameter(context, strict, [fp]))
+                return lambda: parse(fp.after, P2_FormalParameterList_FormalParameter(context, strict, [fp]))
         else:
-            comma = lexer.next_token_if(",")
+            comma = lexer.token_if(pos, ",")
             if comma:
-                fp2 = parse_FormalParameter(context, lexer, strict, Yield, Await)
+                fp2 = parse_FormalParameter(context, lexer, comma.span.after, strict, Yield, Await)
                 if fp2:
                     return lambda: parse(
+                        fp2.after,
                         P2_FormalParameterList_FormalParameterList_FormalParameter(
                             context, strict, [previous, comma, fp2]
-                        )
+                        ),
                     )
-        lexer.reset_position(bookmark)
         return previous
 
-    return trampoline(parse)
+    return trampoline(lambda: parse(pos))
 
 
 # --------======= 𝓕𝓾𝓷𝓬𝓽𝓲𝓸𝓷𝓡𝓮𝓼𝓽𝓟𝓪𝓻𝓪𝓶𝓮𝓽𝓮𝓻 =======--------
@@ -25461,12 +25373,12 @@ class P2_FunctionRestParameter_BindingRestElement(P2_FunctionRestParameter):
             currentContext.lexical_environment = originalEnv
 
 
-def parse_FunctionRestParameter(context, lexer, strict, Yield, Await):
+def parse_FunctionRestParameter(context, lexer, pos, strict, Yield, Await):
     # 14.1 Function Definitions
     # Syntax
     #   FunctionRestParameter[Yield, Await] :
     #       BindingRestElement[?Yield, ?Await]
-    bre = parse_BindingRestElement(context, lexer, strict, Yield, Await)
+    bre = parse_BindingRestElement(context, lexer, pos, strict, Yield, Await)
     if bre:
         return P2_FunctionRestParameter_BindingRestElement(context, strict, [bre])
     return None
@@ -25524,12 +25436,12 @@ class P2_FormalParameter_BindingElement(P2_FormalParameter):
             currentContext.lexical_environment = originalEnv
 
 
-def parse_FormalParameter(context, lexer, strict, Yield, Await):
+def parse_FormalParameter(context, lexer, pos, strict, Yield, Await):
     # 14.1 Function Definitions
     # Syntax
     #   FormalParameter[Yield, Await] :
     #       BindingElement[?Yield, ?Await]
-    be = parse_BindingElement(context, lexer, strict, Yield, Await)
+    be = parse_BindingElement(context, lexer, pos, strict, Yield, Await)
     if be:
         return P2_FormalParameter_BindingElement(context, strict, [be])
     return None
@@ -25606,12 +25518,12 @@ class P2_FunctionBody_FunctionStatementList(P2_FunctionBody):
         return self.FunctionStatementList.evaluate()
 
 
-def parse_FunctionBody(context, lexer, strict, Yield, Await):
+def parse_FunctionBody(context, lexer, pos, strict, Yield, Await):
     # 14.1 Function Definitions
     # Syntax
     #   FunctionBody[Yield, Await] :
     #       FunctionStatementList[?Yield, ?Await]
-    fsl = parse_FunctionStatementList(context, lexer, strict, Yield, Await)
+    fsl = parse_FunctionStatementList(context, lexer, pos, strict, Yield, Await)
     if fsl:
         return P2_FunctionBody_FunctionStatementList(context, fsl.strict, [fsl])
     return None
@@ -25660,6 +25572,10 @@ class P2_FunctionStatementList_StatementList(P2_FunctionStatementList):
 
 
 class P2_FunctionStatementList_EMPTY(P2_FunctionStatementList):
+    def __init__(self, ctx, pos, strict):
+        super().__init__(ctx, strict, [])
+        self.after = pos
+
     StatementList = None
 
     def LexicallyDeclaredNames(self):
@@ -25704,15 +25620,15 @@ class P2_FunctionStatementList_EMPTY(P2_FunctionStatementList):
         return (False, [])
 
 
-def parse_FunctionStatementList(context, lexer, strict, Yield, Await):
+def parse_FunctionStatementList(context, lexer, pos, strict, Yield, Await):
     # 14.1 Function Definitions
     # Syntax
     #   FunctionStatementList[Yield, Await] :
     #       StatementList[?Yield, ?Await, +Return]opt
-    sl = parse_StatementList(context, lexer, strict, True, Yield, Await, True)
+    sl = parse_StatementList(context, lexer, pos, strict, True, Yield, Await, True)
     if sl:
         return P2_FunctionStatementList_StatementList(context, strict or sl.strict, [sl])
-    return P2_FunctionStatementList_EMPTY(context, strict, [])
+    return P2_FunctionStatementList_EMPTY(context, pos, strict)
 
 
 # 14.1.10 Static Semantics: IsAnonymousFunctionDefinition ( expr )
@@ -25900,22 +25816,20 @@ class P2_ArrowFunction_ArrowParameters_ConciseBody(P2_ArrowFunction):
         return closure
 
 
-def parse_ArrowFunction(context, lexer, strict, In, Yield, Await):
+def parse_ArrowFunction(context, lexer, pos, strict, In, Yield, Await):
     # 14.2 Arrow Function Definitions
     # Syntax
     #   ArrowFunction[In, Yield, Await] :
     #       ArrowParameters[?Yield, ?Await] [no LineTerminator here] => ConciseBody[?In]
-    bookmark = lexer.current_position()
-    ap = parse_ArrowParameters(context, lexer, strict, Yield, Await)
+    ap = parse_ArrowParameters(context, lexer, pos, strict, Yield, Await)
     if ap:
-        peek = lexer.peek_token()
-        if peek and not peek.newlines:
-            arrow = lexer.next_token_if("=>")
+        tok = lexer.token(ap.after)
+        if tok and not tok.newlines:
+            arrow = lexer.token_if(ap.after, "=>")
             if arrow:
-                cb = parse_ConciseBody(context, lexer, strict, In)
+                cb = parse_ConciseBody(context, lexer, arrow.span.after, strict, In)
                 if cb:
                     return P2_ArrowFunction_ArrowParameters_ConciseBody(context, strict, [ap, arrow, cb])
-        lexer.reset_position(bookmark)
     return None
 
 
@@ -26044,16 +25958,16 @@ class P2_ArrowParameters_CoverParenthesizedExpressionAndArrowParameterList(P2_Ar
         return self.CoverParenthesizedExpressionAndArrowParameterList.CoveredFormalsList
 
 
-def parse_ArrowParameters(context, lexer, strict, Yield, Await):
+def parse_ArrowParameters(context, lexer, pos, strict, Yield, Await):
     # 14.2 Arrow Function Definitions
     # Syntax
     #   ArrowParameters[Yield, Await] :
     #       BindingIdentifier[?Yield, ?Await]
     #       CoverParenthesizedExpressionAndArrowParameterList[?Yield, ?Await]
-    bi = parse_BindingIdentifier(context, lexer, strict, Yield, Await)
+    bi = parse_BindingIdentifier(context, lexer, pos, strict, Yield, Await)
     if bi:
         return P2_ArrowParameters_BindingIdentifier(context, strict, [bi])
-    cpeapl = parse_CoverParenthesizedExpressionAndArrowParameterList(context, lexer, strict, Yield, Await)
+    cpeapl = parse_CoverParenthesizedExpressionAndArrowParameterList(context, lexer, pos, strict, Yield, Await)
     if cpeapl:
         return P2_ArrowParameters_CoverParenthesizedExpressionAndArrowParameterList(context, strict, [cpeapl])
     return None
@@ -26124,25 +26038,23 @@ class P2_ConciseBody_FunctionBody(P2_ConciseBody):
         return self.children[1]
 
 
-def parse_ConciseBody(context, lexer, strict, In):
+def parse_ConciseBody(context, lexer, pos, strict, In):
     # 14.2 Arrow Function Definitions
     # Syntax
     #   ConciseBody[In] :
     #       [lookahead ≠ {] AssignmentExpression[?In, ~Yield, ~Await]
     #       { FunctionBody[~Yield, ~Await] }
-    bookmark = lexer.current_position()
-    lc = lexer.next_token_if("{")
+    lc = lexer.token_if(pos, "{")
     if lc:
-        fb = parse_FunctionBody(context, lexer, strict, False, False)
+        fb = parse_FunctionBody(context, lexer, lc.span.after, strict, False, False)
         if fb:
-            rc = lexer.next_token_if("}")
+            rc = lexer.token_if(fb.after, "}")
             if rc:
                 return P2_ConciseBody_FunctionBody(context, fb.strict, [lc, fb, rc])
     else:
-        ae = parse_AssignmentExpression(context, lexer, strict, In, False, False)
+        ae = parse_AssignmentExpression(context, lexer, pos, strict, In, False, False)
         if ae:
             return P2_ConciseBody_AssignmentExpression(context, strict, [ae])
-    lexer.reset_position(bookmark)
     return None
 
 
@@ -26163,20 +26075,18 @@ class P2_ArrowFormalParameters_UniqueFormalParameters(P2_ArrowFormalParameters):
         return self.children[1]
 
 
-def parse_ArrowFormalParameters(context, lexer, strict, Yield, Await):
+def parse_ArrowFormalParameters(context, lexer, pos, strict, Yield, Await):
     # 14.2 Arrow Function Definitions
     # Syntax
     #   ArrowFormalParameters[Yield, Await] :
     #       ( UniqueFormalParameters[?Yield, ?Await] )
-    bookmark = lexer.current_position()
-    lp = lexer.next_token_if("(")
+    lp = lexer.token_if(pos, "(")
     if lp:
-        ufp = parse_UniqueFormalParameters(context, lexer, strict, Yield, Await)
+        ufp = parse_UniqueFormalParameters(context, lexer, pos, strict, Yield, Await)
         if ufp:
-            rp = lexer.next_token_if(")")
+            rp = lexer.token_if(ufp.after, ")")
             if rp:
                 return P2_ArrowFormalParameters_UniqueFormalParameters(context, strict, [lp, ufp, rp])
-        lexer.reset_position(bookmark)
     return None
 
 
@@ -26416,7 +26326,7 @@ class P2_MethodDefinition_GET_PropertyName_FunctionBody(P2_MethodDefinition_Prop
         #   11. Return ? DefinePropertyOrThrow(object, propKey, desc).
         propKey = self.PropertyName.evaluate()
         scope = surrounding_agent.running_ec.lexical_environment
-        formalParameterList = P2_FormalParameters_EMPTY(self.context, self.strict, [empty_node(self.context)])
+        formalParameterList = P2_FormalParameters_EMPTY(self.context, 0, self.strict)
         closure = FunctionCreate(METHOD, formalParameterList, self.FunctionBody, scope, self.strict)
         MakeMethod(closure, object)
         SetFunctionName(closure, propKey, "get")
@@ -26494,7 +26404,7 @@ class P2_MethodDefinition_SET_PropertyName_PropertySetParameterList_FunctionBody
         return DefinePropertyOrThrow(object, propKey, desc)
 
 
-def parse_MethodDefinition(context, lexer, strict, Yield, Await):
+def parse_MethodDefinition(context, lexer, pos, strict, Yield, Await):
     # 14.3 Method Definitions
     # Syntax
     #   MethodDefinition[Yield, Await] :
@@ -26504,74 +26414,70 @@ def parse_MethodDefinition(context, lexer, strict, Yield, Await):
     #       AsyncGeneratorMethod[?Yield, ?Await]
     #       get PropertyName[?Yield, ?Await] ( ) { FunctionBody[~Yield, ~Await] }
     #       set PropertyName[?Yield, ?Await] ( PropertySetParameterList ) { FunctionBody[~Yield, ~Await] }
-    bookmark = lexer.current_position()
-    pn1 = parse_PropertyName(context, lexer, strict, Yield, Await)
+    pn1 = parse_PropertyName(context, lexer, pos, strict, Yield, Await)
     if pn1:
-        lp1 = lexer.next_token_if("(")
+        lp1 = lexer.token_if(pn1.after, "(")
         if lp1:
-            ufp = parse_UniqueFormalParameters(context, lexer, strict, False, False)
+            ufp = parse_UniqueFormalParameters(context, lexer, lp1.span.after, strict, False, False)
             if ufp:
-                rp1 = lexer.next_token_if(")")
+                rp1 = lexer.token_if(ufp.after, ")")
                 if rp1:
-                    lc1 = lexer.next_token_if("{")
+                    lc1 = lexer.token_if(rp1.span.after, "{")
                     if lc1:
-                        fb1 = parse_FunctionBody(context, lexer, strict, False, False)
+                        fb1 = parse_FunctionBody(context, lexer, lc1.span.after, strict, False, False)
                         if fb1:
-                            rc1 = lexer.next_token_if("}")
+                            rc1 = lexer.token_if(fb1.after, "}")
                             if rc1:
                                 return P2_MethodDefinition_PropertyName_UniqueFormalParameters_FunctionBody(
                                     context, fb1.strict, [pn1, lp1, ufp, rp1, lc1, fb1, rc1]
                                 )
-        lexer.reset_position(bookmark)
-    gm = parse_GeneratorMethod(context, lexer, strict, Yield, Await)
+    gm = parse_GeneratorMethod(context, lexer, pos, strict, Yield, Await)
     if gm:
         return P2_MethodDefinition_GeneratorMethod(context, strict, [gm])
-    am = parse_AsyncMethod(context, lexer, strict, Yield, Await)
+    am = parse_AsyncMethod(context, lexer, pos, strict, Yield, Await)
     if am:
         return P2_MethodDefinition_AsyncMethod(context, strict, [am])
-    agm = parse_AsyncGeneratorMethod(context, lexer, strict, Yield, Await)
+    agm = parse_AsyncGeneratorMethod(context, lexer, pos, strict, Yield, Await)
     if agm:
         return P2_MethodDefinition_AsyncGeneratorMethod(context, strict, [agm])
-    get = lexer.next_id_if("get")
+    get = lexer.id_if(pos, "get")
     if get:
-        pn_get = parse_PropertyName(context, lexer, strict, Yield, Await)
+        pn_get = parse_PropertyName(context, lexer, get.span.after, strict, Yield, Await)
         if pn_get:
-            lp_get = lexer.next_token_if("(")
+            lp_get = lexer.token_if(pn_get.after, "(")
             if lp_get:
-                rp_get = lexer.next_token_if(")")
+                rp_get = lexer.token_if(lp_get.span.after, ")")
                 if rp_get:
-                    lc_get = lexer.next_token_if("{")
+                    lc_get = lexer.token_if(rp_get.span.after, "{")
                     if lc_get:
-                        fb_get = parse_FunctionBody(context, lexer, strict, False, False)
+                        fb_get = parse_FunctionBody(context, lexer, lc_get.span.after, strict, False, False)
                         if fb_get:
-                            rc_get = lexer.next_token_if("}")
+                            rc_get = lexer.token_if(fb_get.after, "}")
                             if rc_get:
                                 return P2_MethodDefinition_GET_PropertyName_FunctionBody(
                                     context, fb_get.strict, [get, pn_get, lp_get, rp_get, lc_get, fb_get, rc_get]
                                 )
-        lexer.reset_position(bookmark)
-    set_tok = lexer.next_id_if("set")
+    set_tok = lexer.id_if(pos, "set")
     if set_tok:
-        pn_set = parse_PropertyName(context, lexer, strict, Yield, Await)
+        pn_set = parse_PropertyName(context, lexer, set_tok.span.after, strict, Yield, Await)
         if pn_set:
-            lp_set = lexer.next_token_if("(")
+            lp_set = lexer.token_if(pn_set.after, "(")
             if lp_set:
-                pspl = parse_PropertySetParameterList(context, lexer, strict)
+                pspl = parse_PropertySetParameterList(context, lexer, lp_set.span.after, strict)
                 if pspl:
-                    rp_set = lexer.next_token_if(")")
+                    rp_set = lexer.token_if(pspl.after, ")")
                     if rp_set:
-                        lc_set = lexer.next_token_if("{")
+                        lc_set = lexer.token_if(rp_set.span.after, "{")
                         if lc_set:
-                            fb_set = parse_FunctionBody(context, lexer, strict, False, False)
+                            fb_set = parse_FunctionBody(context, lexer, lc_set.span.after, strict, False, False)
                             if fb_set:
-                                rc_set = lexer.next_token_if("}")
+                                rc_set = lexer.token_if(fb_set.after, "}")
                                 if rc_set:
                                     return P2_MethodDefinition_SET_PropertyName_PropertySetParameterList_FunctionBody(
                                         context,
                                         fb_set.strict,
                                         [set_tok, pn_set, lp_set, pspl, rp_set, lc_set, fb_set, rc_set],
                                     )
-        lexer.reset_position(bookmark)
     return None
 
 
@@ -26598,12 +26504,12 @@ class P2_PropertySetParameterList_FormalParameter(P2_PropertySetParameterList):
         return 0 if self.FormalParameter.HasInitializer() else 1
 
 
-def parse_PropertySetParameterList(context, lexer, strict):
+def parse_PropertySetParameterList(context, lexer, pos, strict):
     # 14.3 Method Definitions
     # Syntax
     #   PropertySetParameterList :
     #       FormalParameter[~Yield, ~Await]
-    fp = parse_FormalParameter(context, lexer, strict, False, False)
+    fp = parse_FormalParameter(context, lexer, pos, strict, False, False)
     if fp:
         return P2_PropertySetParameterList_FormalParameter(context, strict, [fp])
     return None
@@ -26782,26 +26688,26 @@ class P2_GeneratorMethod_PropertyName_UniqueFormalParameters_GeneratorBody(P2_Ge
         return DefinePropertyOrThrow(object, propKey, desc)
 
 
-def parse_GeneratorMethod(context, lexer, strict, Yield, Await):
+def parse_GeneratorMethod(context, lexer, pos, strict, Yield, Await):
     # 14.4 Generator Function Definitions
     # Syntax
     #   GeneratorMethod[Yield, Await] :
     #       * PropertyName[?Yield, ?Await] ( UniqueFormalParameters[+Yield, ~Await] ) { GeneratorBody }
-    star = lexer.next_token_if("*")
+    star = lexer.token_if(pos, "*")
     if star:
-        pn = parse_PropertyName(context, lexer, strict, Yield, Await)
+        pn = parse_PropertyName(context, lexer, star.span.after, strict, Yield, Await)
         if pn:
-            lp = lexer.next_token_if("(")
+            lp = lexer.token_if(pn.after, "(")
             if lp:
-                ufp = parse_UniqueFormalParameters(context, lexer, strict, True, False)
+                ufp = parse_UniqueFormalParameters(context, lexer, lp.span.after, strict, True, False)
                 if ufp:
-                    rp = lexer.next_token_if(")")
+                    rp = lexer.token_if(ufp.after, ")")
                     if rp:
-                        lc = lexer.next_token_if("{")
+                        lc = lexer.token_if(rp.span.after, "{")
                         if lc:
-                            gb = parse_GeneratorBody(context, lexer, strict)
+                            gb = parse_GeneratorBody(context, lexer, lc.span.after, strict)
                             if gb:
-                                rc = lexer.next_token_if("}")
+                                rc = lexer.token_if(gb.after, "}")
                                 if rc:
                                     return P2_GeneratorMethod_PropertyName_UniqueFormalParameters_GeneratorBody(
                                         context, strict, [star, pn, lp, ufp, rp, lc, gb, rc]
@@ -26977,29 +26883,29 @@ class P2_GeneratorDeclaration_FUNCTION_FormalParameters_GeneratorBody(P2_Generat
         return F
 
 
-def parse_GeneratorDeclaration(context, lexer, strict, Yield, Await, Default):
+def parse_GeneratorDeclaration(context, lexer, pos, strict, Yield, Await, Default):
     # 14.4 Generator Function Definitions
     # Syntax
     # GeneratorDeclaration[Yield, Await, Default] :
     #   function * BindingIdentifier[?Yield, ?Await] ( FormalParameters[+Yield, ~Await] ) { GeneratorBody }
     #   [+Default] function * ( FormalParameters[+Yield, ~Await] ) { GeneratorBody }
-    fun = lexer.next_id_if("function")
+    fun = lexer.id_if(pos, "function")
     if fun:
-        star = lexer.next_token_if("*")
+        star = lexer.token_if(fun.span.after, "*")
         if star:
-            bi = parse_BindingIdentifier(context, lexer, strict, Yield, Await)
+            bi = parse_BindingIdentifier(context, lexer, star.span.after, strict, Yield, Await)
             if bi or Default:
-                lp = lexer.next_token_if("(")
+                lp = lexer.token_if(bi.after if bi else star.span.after, "(")
                 if lp:
-                    fp = parse_FormalParameters(context, lexer, strict, True, False)
+                    fp = parse_FormalParameters(context, lexer, lp.span.after, strict, True, False)
                     if fp:
-                        rp = lexer.next_token_if(")")
+                        rp = lexer.token_if(fp.after, ")")
                         if rp:
-                            lc = lexer.next_token_if("{")
+                            lc = lexer.token_if(rp.span.after, "{")
                             if lc:
-                                gb = parse_GeneratorBody(context, lexer, strict)
+                                gb = parse_GeneratorBody(context, lexer, lc.span.after, strict)
                                 if gb:
-                                    rc = lexer.next_token_if("}")
+                                    rc = lexer.token_if(gb.after, "}")
                                     if rc:
                                         ctor = (
                                             P2_GeneratorDeclaration_FUNCTION_BindingIdentifier_FormalParameters_GeneratorBody
@@ -27121,27 +27027,27 @@ class P2_GeneratorExpression_FUNCTION_FormalParameters_GeneratorBody(P2_Generato
         return closure
 
 
-def parse_GeneratorExpression(context, lexer, strict):
+def parse_GeneratorExpression(context, lexer, pos, strict):
     # 14.4 Generator Function Definitions
     # Syntax
     #   GeneratorExpression :
     #       function * BindingIdentifier[+Yield, ~Await]opt ( FormalParameters[+Yield, ~Await] ) { GeneratorBody }
-    fun = lexer.next_id_if("function")
+    fun = lexer.id_if(pos, "function")
     if fun:
-        star = lexer.next_token_if("*")
+        star = lexer.token_if(fun.span.after, "*")
         if star:
-            bi = parse_BindingIdentifier(context, lexer, strict, True, False)
-            lp = lexer.next_token_if("(")
+            bi = parse_BindingIdentifier(context, lexer, star.span.after, strict, True, False)
+            lp = lexer.token_if(bi.after if bi else star.span.after, "(")
             if lp:
-                fp = parse_FormalParameters(context, lexer, strict, True, False)
+                fp = parse_FormalParameters(context, lexer, lp.span.after, strict, True, False)
                 if fp:
-                    rp = lexer.next_token_if(")")
+                    rp = lexer.token_if(fp.after, ")")
                     if rp:
-                        lc = lexer.next_token_if("{")
+                        lc = lexer.token_if(rp.span.after, "{")
                         if lc:
-                            gb = parse_GeneratorBody(context, lexer, strict)
+                            gb = parse_GeneratorBody(context, lexer, lc.span.after, strict)
                             if gb:
-                                rc = lexer.next_token_if("}")
+                                rc = lexer.token_if(gb.after, "}")
                                 if rc:
                                     ctor = (
                                         P2_GeneratorExpression_FUNCTION_BindingIdentifier_FormalParameters_GeneratorBody
@@ -27185,12 +27091,12 @@ class P2_GeneratorBody_FunctionBody(P2_GeneratorBody):
         raise ESReturn(value=G)
 
 
-def parse_GeneratorBody(context, lexer, strict):
+def parse_GeneratorBody(context, lexer, pos, strict):
     # 14.4 Generator Function Definitions
     # Syntax
     #   GeneratorBody :
     #       FunctionBody[+Yield, ~Await]
-    fb = parse_FunctionBody(context, lexer, strict, True, False)
+    fb = parse_FunctionBody(context, lexer, pos, strict, True, False)
     if fb:
         return P2_GeneratorBody_FunctionBody(context, fb.strict, [fb])
     return None
@@ -27379,20 +27285,22 @@ class P2_YieldExpression_YIELD_STAR_AssignmentExpression(P2_YieldExpression):
                     received = abrupt.completion
 
 
-def parse_YieldExpression(context, lexer, strict, In, Await):
+def parse_YieldExpression(context, lexer, pos, strict, In, Await):
     # 14.4 Generator Function Definitions
     # Syntax
     #   YieldExpression[In, Await]:
     #       yield
     #       yield [no LineTerminator here] AssignmentExpression[?In, +Yield, ?Await]
     #       yield [no LineTerminator here] * AssignmentExpression[?In, +Yield, ?Await]
-    y = lexer.next_id_if("yield")
+    y = lexer.id_if(pos, "yield")
     if y:
-        ltcheck = lexer.peek_token(goal=lexer.InputElementRegExpOrTemplateTail)
+        ltcheck = lexer.token(y.span.after, goal=lexer.InputElementRegExpOrTemplateTail)
         if not ltcheck or ltcheck.newlines:
             return P2_YieldExpression_YIELD(context, strict, [y])
-        star = lexer.next_token_if("*")
-        ae = parse_AssignmentExpression(context, lexer, strict, In, True, Await)
+        star = lexer.token_if(y.span.after, "*")
+        ae = parse_AssignmentExpression(
+            context, lexer, star.span.after if star else y.span.after, strict, In, True, Await
+        )
         if ae:
             ctor = (
                 P2_YieldExpression_YIELD_AssignmentExpression
@@ -27512,22 +27420,20 @@ class P2_ClassDeclaration_CLASS_ClassTail(P2_ClassDeclaration):
         return value
 
 
-def parse_ClassDeclaration(context, lexer, _, Yield, Await, Default):
+def parse_ClassDeclaration(context, lexer, pos, _, Yield, Await, Default):
     # 14.6 Class Definitions
     #   ClassDeclaration[Yield, Await, Default] :
     #       class BindingIdentifier[?Yield, ?Await] ClassTail[?Yield, ?Await]
     #       [+Default]class ClassTail[?Yield, ?Await]
-    bookmark = lexer.current_position()
-    c = lexer.next_id_if("class")
+    c = lexer.id_if(pos, "class")
     if c:
-        bi = parse_BindingIdentifier(context, lexer, True, Yield, Await)
+        bi = parse_BindingIdentifier(context, lexer, c.span.after, True, Yield, Await)
         if bi or Default:
-            ct = parse_ClassTail(context, lexer, True, Yield, Await)
+            ct = parse_ClassTail(context, lexer, bi.after if bi else c.span.after, True, Yield, Await)
             if ct:
                 if bi:
                     return P2_ClassDeclaration_CLASS_BindingIdentifier_ClassTail(context, [c, bi, ct])
                 return P2_ClassDeclaration_CLASS_ClassTail(context, [c, ct])
-        lexer.reset_position(bookmark)
     return None
 
 
@@ -27608,20 +27514,18 @@ class P2_ClassExpression_CLASS_ClassTail(P2_ClassExpression):
         return self.ClassTail.ClassDefinitionEvaluation(None, name)
 
 
-def parse_ClassExpression(context, lexer, _, Yield, Await):
+def parse_ClassExpression(context, lexer, pos, _, Yield, Await):
     # 14.6 Class Definitions
     #   ClassExpression[Yield, Await]:
     #       class BindingIdentifier[?Yield, ?Await]opt ClassTail[?Yield, ?Await]
-    bookmark = lexer.current_position()
-    c = lexer.next_id_if("class")
+    c = lexer.id_if(pos, "class")
     if c:
-        bi = parse_BindingIdentifier(context, lexer, True, Yield, Await)
-        ct = parse_ClassTail(context, lexer, True, Yield, Await)
+        bi = parse_BindingIdentifier(context, lexer, c.span.after, True, Yield, Await)
+        ct = parse_ClassTail(context, lexer, bi.after if bi else c.span.after, True, Yield, Await)
         if ct:
             if bi:
                 return P2_ClassExpression_CLASS_BindingIdentifier_ClassTail(context, [c, bi, ct])
             return P2_ClassExpression_CLASS_ClassTail(context, [c, ct])
-        lexer.reset_position(bookmark)
     return None
 
 
@@ -27735,11 +27639,11 @@ class P2_ClassTail(ParseNode2):
             constructor = self.ClassBody.ConstructorMethod
         if not constructor:
             method_context = Parse2Context(False, self.CreateSyntaxError, "MethodDefinition")
-            lexer = Lexer(
+            lexer = LexerCore(
                 "constructor(... args){super(...args);}" if self.ClassHeritage else "constructor(){}",
                 self.CreateSyntaxError,
             )
-            constructor = parse_MethodDefinition(method_context, lexer, True, False, False)
+            constructor = parse_MethodDefinition(method_context, lexer, 0, True, False, False)
         running_ec.lexical_environment = classScope
         constructorInfo = constructor.DefineMethod(proto, constructorParent)
         F = constructorInfo.Closure
@@ -27840,16 +27744,15 @@ class P2_ClassTail_ClassHeritage_ClassBody(P2_ClassTail):
         )
 
 
-def parse_ClassTail(context, lexer, _, Yield, Await):
+def parse_ClassTail(context, lexer, pos, _, Yield, Await):
     # 14.6 Class Definitions
     #   ClassTail[Yield, Await]:
     #       ClassHeritage[?Yield, ?Await]opt { ClassBody[?Yield, ?Await]opt }
-    bookmark = lexer.current_position()
-    ch = parse_ClassHeritage(context, lexer, True, Yield, Await)
-    lc = lexer.next_token_if("{")
+    ch = parse_ClassHeritage(context, lexer, pos, True, Yield, Await)
+    lc = lexer.token_if(ch.after if ch else pos, "{")
     if lc:
-        cb = parse_ClassBody(context, lexer, True, Yield, Await)
-        rc = lexer.next_token_if("}")
+        cb = parse_ClassBody(context, lexer, lc.span.after, True, Yield, Await)
+        rc = lexer.token_if(cb.after if cb else lc.span.after, "}")
         if rc:
             if ch and cb:
                 return P2_ClassTail_ClassHeritage_ClassBody(context, [ch, lc, cb, rc])
@@ -27858,7 +27761,6 @@ def parse_ClassTail(context, lexer, _, Yield, Await):
             if cb:
                 return P2_ClassTail_ClassBody(context, [lc, cb, rc])
             return P2_ClassTail_EMPTY(context, [lc, rc])
-    lexer.reset_position(bookmark)
     return None
 
 
@@ -27877,17 +27779,15 @@ class P2_ClassHeritage_EXTENDS_LeftHandSideExpression(P2_ClassHeritage):
         return self.children[1]
 
 
-def parse_ClassHeritage(context, lexer, _, Yield, Await):
+def parse_ClassHeritage(context, lexer, pos, _, Yield, Await):
     # 14.6 Class Definitions
     #   ClassHeritage[Yield, Await]:
     #       extends LeftHandSideExpression[?Yield, ?Await]
-    bookmark = lexer.current_position()
-    e = lexer.next_id_if("extends")
+    e = lexer.id_if(pos, "extends")
     if e:
-        lhs = parse_LeftHandSideExpression(context, lexer, True, Yield, Await)
+        lhs = parse_LeftHandSideExpression(context, lexer, e.span.after, True, Yield, Await)
         if lhs:
             return P2_ClassHeritage_EXTENDS_LeftHandSideExpression(context, [e, lhs])
-        lexer.reset_position(bookmark)
     return None
 
 
@@ -27921,11 +27821,11 @@ class P2_ClassBody_ClassElementList(P2_ClassBody):
         )
 
 
-def parse_ClassBody(context, lexer, _, Yield, Await):
+def parse_ClassBody(context, lexer, pos, _, Yield, Await):
     # 14.6 Class Definitions
     #   ClassBody[Yield, Await]:
     #     ClassElementList[?Yield, ?Await]
-    cel = parse_ClassElementList(context, lexer, True, Yield, Await)
+    cel = parse_ClassElementList(context, lexer, pos, True, Yield, Await)
     if cel:
         return P2_ClassBody_ClassElementList(context, [cel])
     return None
@@ -28034,20 +27934,22 @@ class P2_ClassElementList_ClassElementList_ClassElement(P2_ClassElementList):
         return self.ClassElementList.PrototypePropertyNameList + self.ClassElement.PrototypePropertyNameList
 
 
-def parse_ClassElementList(context, lexer, _, Yield, Await):
+def parse_ClassElementList(context, lexer, pos, _, Yield, Await):
     # 14.6 Class Definitions
     #   ClassElementList[Yield, Await]:
     #     ClassElement[?Yield, ?Await]
     #     ClassElementList[?Yield, ?Await] ClassElement[?Yield, ?Await]
-    def parse(previous=None):
-        ce = parse_ClassElement(context, lexer, True, Yield, Await)
+    def parse(pos, previous=None):
+        ce = parse_ClassElement(context, lexer, pos, True, Yield, Await)
         if ce:
             if previous:
-                return lambda: parse(P2_ClassElementList_ClassElementList_ClassElement(context, [previous, ce]))
-            return lambda: parse(P2_ClassElementList_ClassElement(context, [ce]))
+                return lambda: parse(
+                    ce.after, P2_ClassElementList_ClassElementList_ClassElement(context, [previous, ce])
+                )
+            return lambda: parse(ce.after, P2_ClassElementList_ClassElement(context, [ce]))
         return previous
 
-    return trampoline(parse)
+    return trampoline(lambda: parse(pos))
 
 
 # --------======= ClassElement =======--------
@@ -28220,20 +28122,18 @@ class P2_ClassElement_EMPTY(P2_ClassElement):
         return EMPTY
 
 
-def parse_ClassElement(context, lexer, _, Yield, Await):
+def parse_ClassElement(context, lexer, pos, _, Yield, Await):
     #   ClassElement[Yield, Await]:
     #       MethodDefinition[?Yield, ?Await]
     #       static MethodDefinition[?Yield, ?Await]
     #       ;
-    bookmark = lexer.current_position()
-    s = lexer.next_id_if("static")
-    md = parse_MethodDefinition(context, lexer, True, Yield, Await)
+    s = lexer.id_if(pos, "static")
+    md = parse_MethodDefinition(context, lexer, s.span.after if s else pos, True, Yield, Await)
     if md:
         if s:
             return P2_ClassElement_STATIC_MethodDefinition(context, [s, md])
         return P2_ClassElement_MethodDefinition(context, [md])
-    lexer.reset_position(bookmark)
-    semi = lexer.next_token_if(";")
+    semi = lexer.token_if(pos, ";")
     if semi:
         return P2_ClassElement_EMPTY(context, [semi])
     return None
@@ -28275,18 +28175,16 @@ class P2_CoverCallExpressionAndAsyncArrowHead_MemberExpression_Arguments(P2_Cove
         return self.children[1]
 
 
-def parse_CoverCallExpressionAndAsyncArrowHead(context, lexer, strict, Yield, Await):
+def parse_CoverCallExpressionAndAsyncArrowHead(context, lexer, pos, strict, Yield, Await):
     # 14.8 Async Arrow Function Definitions
     # Syntax
     #   CoverCallExpressionAndAsyncArrowHead[Yield, Await] :
     #       MemberExpression[?Yield, ?Await] Arguments[?Yield, ?Await]
-    bookmark = lexer.current_position()
-    me = parse_MemberExpression(context, lexer, strict, Yield, Await)
+    me = parse_MemberExpression(context, lexer, pos, strict, Yield, Await)
     if me:
-        args = parse_Arguments(context, lexer, strict, Yield, Await)
+        args = parse_Arguments(context, lexer, me.after, strict, Yield, Await)
         if args:
             return P2_CoverCallExpressionAndAsyncArrowHead_MemberExpression_Arguments(context, strict, [me, args])
-        lexer.reset_position(bookmark)
     return None
 
     #   AsyncArrowHead :
@@ -28464,15 +28362,15 @@ class P2_Script_ScriptBody(P2_Script):
         return [self.CreateSyntaxError(msg) for msg in errs]
 
 
-def parse_Script(ctx, lexer, strict):
+def parse_Script(ctx, lexer, pos, strict):
     # 15.1 Scripts
     # Syntax:
     #   Script :
     #       [empty]
     #       ScriptBody
-    if lexer.peek_token() is None:
+    if lexer.token(pos) is None:
         return P2_Script_Empty(ctx, strict, [empty_node(ctx)])
-    sb = parse_ScriptBody(ctx, lexer, strict)
+    sb = parse_ScriptBody(ctx, lexer, pos, strict)
     if sb:
         return P2_Script_ScriptBody(ctx, strict, [sb])
     return None
@@ -28598,12 +28496,12 @@ class P2_ScriptBody_StatementList(P2_ScriptBody):
         return self.StatementList.TopLevelLexicallyScopedDeclarations()
 
 
-def parse_ScriptBody(ctx, lexer, strict):
+def parse_ScriptBody(ctx, lexer, pos, strict):
     # 15.1 Scripts
     # Syntax:
     #   ScriptBody :
     #       StatementList [~Yield, ~Await, ~Return]
-    sl = parse_StatementList(ctx, lexer, strict, True, False, False, False)
+    sl = parse_StatementList(ctx, lexer, pos, strict, True, False, False, False)
     if sl:
         return P2_ScriptBody_StatementList(ctx, strict, [sl])
     return None
@@ -28646,9 +28544,9 @@ def ParseScript(sourceText, realm, hostDefined):
     #    and early error detection may be interweaved in an implementation-dependent manner. If more than one parsing error or
     #    early error is present, the number and ordering of error objects in the list is implementation-dependent, but at least
     #    one must be present.
-    lex = Lexer(sourceText, ESSyntaxError)
+    lex = LexerCore(sourceText, ESSyntaxError)
     context = Parse2Context(direct_eval=True, syntax_error_ctor=CreateSyntaxError)
-    tree = parse_Script(context, lex, False)
+    tree = parse_Script(context, lex, 0, False)
     after = max((t.span.after for t in tree.terminals()), default=0) if tree else 0
     errs = list(
         chain(
@@ -28672,6 +28570,7 @@ def ParseScript(sourceText, realm, hostDefined):
         return body
     # 4. Return Script Record { [[Realm]]: realm, [[Environment]]: undefined, [[ECMAScriptCode]]: body,
     #                           [[HostDefined]]: hostDefined }.
+    print(f"{body.pn_count} parse nodes in script")
     return ScriptRecord(Realm=realm, Environment=None, ECMAScriptCode=body, HostDefined=hostDefined)
     # NOTE
     # An implementation may parse script source text and analyse it for Early Error conditions prior to evaluation of
@@ -29029,9 +28928,9 @@ def PerformEval(x, evalRealm, strictCaller, direct):
         inFunction = False
         inMethod = False
         inDerivedConstructor = False
-    lex = Lexer(x, ESSyntaxError)
+    lex = LexerCore(x, ESSyntaxError)
     context = Parse2Context(direct_eval=direct, syntax_error_ctor=CreateSyntaxError)
-    tree = parse_Script(context, lex, strictCaller)
+    tree = parse_Script(context, lex, 0, strictCaller)
     after = max((t.span.after for t in tree.terminals()), default=0) if tree else 0
     errs = list(
         chain(
@@ -29293,7 +29192,7 @@ global_isNaN.length = 1
 global_isNaN.name = "isNaN"
 
 _parseNum_RemoveLeadingWhitespace_pattern = regex.compile(
-    rf"(?:({Lexer.WhiteSpace}|{Lexer.LineTerminator})*)(?P<content>.*)"
+    rf"(?:({LexerCore.WhiteSpace}|{LexerCore.LineTerminator})*)(?P<content>.*)"
 )
 
 _ExponentPart = r"([eE][-+]?[0-9]+)"
@@ -30302,28 +30201,28 @@ def CreateDynamicFunction(constructor, newTarget, kind, args):
         newTarget = constructor
     if kind == "normal":
         goal = "FunctionBody"
-        goal_parse = lambda context, lexer: parse_FunctionBody(context, lexer, False, False, False)
+        goal_parse = lambda context, lexer: parse_FunctionBody(context, lexer, 0, False, False, False)
         parameterGoal = "FormalParameters"
-        param_parse = lambda context, lexer: parse_FormalParameters(context, lexer, False, False, False)
+        param_parse = lambda context, lexer: parse_FormalParameters(context, lexer, 0, False, False, False)
         fallbackProto = "%FunctionPrototype%"
     elif kind == "generator":
         goal = "GeneratorBody"
         goal_parse = parse_GeneratorBody
         parameterGoal = "FormalParameters"
-        param_parse = lambda context, lexer: parse_FormalParameters(context, lexer, False, True, False)
+        param_parse = lambda context, lexer: parse_FormalParameters(context, lexer, 0, False, True, False)
         fallbackProto = "%Generator%"
     elif kind == "async":
         goal = "AsyncFunctionBody"
         goal_parse = parse_AsyncFunctionBody
         parameterGoal = "FormalParameters"
-        param_parse = lambda context, lexer: parse_FormalParameters(context, lexer, False, False, True)
+        param_parse = lambda context, lexer: parse_FormalParameters(context, lexer, 0, False, False, True)
         fallbackProto = "%AsyncFunctionPrototype%"
     else:
         assert kind == "async generator"
         goal = "AsyncGeneratorBody"
         goal_parse = parse_AsyncGeneratorBody
         parameterGoal = "FormalParameters"
-        param_parse = lambda context, lexer: parse_FormalParameters(context, lexer, False, True, True)
+        param_parse = lambda context, lexer: parse_FormalParameters(context, lexer, 0, False, True, True)
         fallbackProto = "%AsyncGenerator%"
     argCount = len(args)
     P = ""
@@ -30337,14 +30236,14 @@ def CreateDynamicFunction(constructor, newTarget, kind, args):
     bodyText = ToString(bodyText)
 
     parameter_context = Parse2Context(direct_eval=False, syntax_error_ctor=ESSyntaxError, goal=parameterGoal)
-    plexer = Lexer(P, ESSyntaxError)
+    plexer = LexerCore(P, ESSyntaxError)
     try:
         parameters = param_parse(parameter_context, plexer)
     except ESError as err:
         raise ESSyntaxError(ToString(err.ecma_object))
 
     body_context = Parse2Context(direct_eval=False, syntax_error_ctor=ESSyntaxError, goal=goal)
-    blexer = Lexer(bodyText, ESSyntaxError)
+    blexer = LexerCore(bodyText, ESSyntaxError)
     try:
         body = goal_parse(body_context, blexer)
     except ESError as err:
@@ -34940,7 +34839,7 @@ def Array_of(this_value, new_target, *items):
     #           | value be the Array constructor. Therefore it can be transferred to or inherited by other
     #           | constructors that may be called with a single numeric argument.
     if IsConstructor(this_value):
-        A = Construct(C, [len(items)])
+        A = Construct(this_value, [len(items)])
     else:
         A = ArrayCreate(len(items))
     for k, kValue in enumerate(items):

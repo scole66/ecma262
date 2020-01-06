@@ -2,12 +2,24 @@ import snoop  # type: ignore
 from enum import Enum, unique, auto
 from collections import namedtuple
 import regex  # type: ignore
-from typing import Generator
+from typing import Generator, NamedTuple, Any, List, Iterator, Optional, Sequence
 from functools import lru_cache
+from dataclasses import dataclass
 
 Span = namedtuple("Span", ["start", "after"])
 
-Token = namedtuple("Token", ["type", "src", "value", "span", "newlines"])
+
+@dataclass(frozen=True)
+class Token:
+    type: str
+    src: str
+    value: Any
+    span: Span
+    newlines: Sequence[Span]
+
+    def __repr__(self):
+        return f"Token({self.src[self.span.start:self.span.after]!r})"
+
 
 RegExp = namedtuple("RegExp", ["body", "flags"])
 
@@ -349,7 +361,7 @@ class LexerCore:
         return self.skippable(after=pos, newlines=newlines)
 
     @lru_cache
-    def token(self, pos, goal):
+    def token(self, pos: int, goal: "LexerCore.Goal" = InputElementRegExp) -> Optional[Token]:
         """
         Given a position within the source text, and the lexical goal, this returns the next token.
 
@@ -642,8 +654,77 @@ class LexerCore:
         "null",
     )
 
+    def tokens(self, pos: int, count: int = 1, goal: "LexerCore.Goal" = InputElementRegExp) -> Iterator[Token]:
+        while count > 0:
+            t = self.token(pos, goal)
+            yield t
+            count -= 1
+            if t:
+                pos = t.span.after
+
+    def token_if(
+        self,
+        pos: int,
+        tok_type: str,
+        prior_newline_allowed: bool = True,
+        goal: "LexerCore.Goal" = InputElementRegExp,
+    ) -> Optional[Token]:
+        tok = self.token(pos, goal)
+        return tok if tok and tok.type == tok_type and (prior_newline_allowed or len(tok.newlines) == 0) else None
+
+    def id_if(
+        self,
+        pos: int,
+        id_value: str,
+        prior_newline_allowed: bool = True,
+        goal: "LexerCore.Goal" = InputElementRegExp,
+    ) -> Optional[Token]:
+        tok = self.token(pos, goal)
+        return (
+            tok
+            if tok
+            and tok.type == "IDENTIFIER"
+            and tok.src[tok.span.start : tok.span.after] == id_value
+            and (prior_newline_allowed or len(tok.newlines) == 0)
+            else None
+        )
+
+    def token_asi(
+        self, pos: int, do_while: bool = False, goal: "LexerCore.Goal" = InputElementRegExp
+    ) -> Optional[Token]:
+        tok = self.token(pos, goal)
+        if not tok:
+            if self.is_done(pos):
+                # ASI condition 2:
+                # When, as the source text is parsed from left to right, the end of the input stream of tokens is
+                # encountered and the parser is unable to parse the input token stream as a single instance of the goal
+                # nonterminal, then a semicolon is automatically inserted at the end of the input stream.
+                return Token(";", self.src, ";", Span(pos, pos), [])
+        else:
+            if tok.type == ";":
+                return tok
+            if tok.newlines or tok.type == "}" or do_while:
+                # ASI condition 1:
+                # When, as the source text is parsed from left to right, a token (called the offending token) is
+                # encountered that is not allowed by any production of the grammar, then a semicolon is automatically
+                # inserted before the offending token if one or more of the following conditions is true:
+                #   a. The offending token is separated from the previous token by at least one LineTerminator.
+                #   b. The offending token is }.
+                #   c. The previous token is ) and the inserted semicolon would then be parsed as the terminating
+                #      semicolon of a do-while statement (13.7.2).
+                return Token(";", self.src, ";", Span(pos, pos), [])
+        return None
+
 
 class Lexer(LexerCore):
+    # @property
+    # def pos(self):
+    #     return self._pos
+    # @pos.setter
+    # def pos(self, value):
+    #     self._pos = value
+    #     print(f"Lexer pos now {value}")
+
     # Adds a bit more state for a more stateful API.
     def __init__(self, source_text, syntax_error_ctor):
         super().__init__(source_text, syntax_error_ctor)
@@ -662,16 +743,7 @@ class Lexer(LexerCore):
     def peek_token(self, count=1, goal=LexerCore.InputElementRegExp):
         if count == 1:
             return self.token(self.pos, goal)
-
-        def pt(count, pos):
-            while count > 0:
-                t = self.token(pos, goal)
-                if t:
-                    pos = t.span.after
-                yield t
-                count -= 1
-
-        return list(pt(count, self.pos))
+        return list(self.tokens(self.pos, count, goal))
 
     def next_token(self, goal=LexerCore.InputElementRegExp):
         t = self.token(self.pos, goal)
@@ -680,45 +752,19 @@ class Lexer(LexerCore):
         return t
 
     def next_token_if(self, tok_type, prior_newline_allowed=True, goal=LexerCore.InputElementRegExp):
-        tok = self.peek_token(1, goal)
-        if tok and tok.type == tok_type and (prior_newline_allowed or len(tok.newlines) == 0):
+        tok = self.token_if(self.pos, tok_type, prior_newline_allowed, goal)
+        if tok:
             self.pos = tok.span.after
-            return tok
-        return None
+        return tok
 
     def next_token_asi(self, do_while=False, goal=LexerCore.InputElementRegExp):
-        tok = self.peek_token(1, goal)
-        if not tok:
-            if self.is_done(self.pos):
-                # ASI condition 2:
-                # When, as the source text is parsed from left to right, the end of the input stream of tokens is
-                # encountered and the parser is unable to parse the input token stream as a single instance of the goal
-                # nonterminal, then a semicolon is automatically inserted at the end of the input stream.
-                return Token(";", self.src, ";", Span(self.pos, self.pos), [])
-        else:
-            if tok.type == ";":
-                self.pos = tok.span.after
-                return tok
-            if tok.newlines or tok.type == "}" or do_while:
-                # ASI condition 1:
-                # When, as the source text is parsed from left to right, a token (called the offending token) is
-                # encountered that is not allowed by any production of the grammar, then a semicolon is automatically
-                # inserted before the offending token if one or more of the following conditions is true:
-                #   a. The offending token is separated from the previous token by at least one LineTerminator.
-                #   b. The offending token is }.
-                #   c. The previous token is ) and the inserted semicolon would then be parsed as the terminating
-                #      semicolon of a do-while statement (13.7.2).
-                return Token(";", self.src, ";", Span(self.pos, self.pos), [])
-        return None
+        tok = self.token_asi(self.pos, do_while, goal)
+        if tok:
+            self.pos = tok.span.after
+        return tok
 
     def next_id_if(self, id_value, prior_newline_allowed=True, goal=LexerCore.InputElementRegExp):
-        tok = self.peek_token(1, goal)
-        if (
-            tok
-            and tok.type == "IDENTIFIER"
-            and tok.src[tok.span.start : tok.span.after] == id_value
-            and (prior_newline_allowed or len(tok.newlines) == 0)
-        ):
+        tok = self.id_if(self.pos, id_value, prior_newline_allowed, goal)
+        if tok:
             self.pos = tok.span.after
-            return tok
-        return None
+        return tok
