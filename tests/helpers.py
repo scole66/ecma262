@@ -1,9 +1,16 @@
 from enum import Enum, unique, auto
 from collections import namedtuple
+from functools import reduce, wraps
+from itertools import chain, product
+import regex
+from typing import TypeVar, Iterable, Tuple, Sized
 import pytest
 
-Span = namedtuple("Span", ["start", "after"])
-RegExp = namedtuple("RegExp", ["body", "flags"])
+import snoop
+
+from ecmascript.lexer2 import Span, RegExp  # , Token
+from ecmascript.lexer2 import Token as NewToken
+from ecmascript.ecmascript import ParseNode2
 
 
 class Token:
@@ -406,18 +413,18 @@ def gen_mock_check(mocker, mocks, context, lexer):
     return mock_check
 
 
-def syntax_errify(production):
+def syntax_errify(production, sentinel=MATCHES_NONE):
     collected = tuple()
     yield collected
-    yield collected + (MATCHES_NONE,)
+    yield collected + (sentinel,)
     for symbol in production[:-1]:
         collected += (symbol,)
-        yield collected + (MATCHES_NONE,)
+        yield collected + (sentinel,)
 
 
-def errify_many(productions):
+def errify_many(productions, sentinel=MATCHES_NONE):
     for production in productions:
-        yield from syntax_errify(production)
+        yield from syntax_errify(production, sentinel)
 
 
 def synerror_streams(productions):
@@ -432,3 +439,327 @@ def synerror_streams(productions):
 
 class Expected_Exception(Exception):
     pass
+
+
+NOPE = "¿"
+
+
+def stream_id(item):
+    return " ".join(after or before for before, mark, after in (token.partition("¡") for token in item))
+
+
+def _is_valid_match(testcase, probe):
+    return len(testcase) < len(probe) and all(p == t for p, t in zip(probe, testcase))
+
+
+def _matches_valid(prods, probe):
+    # probe is a "syntax error" stream; the last token is a never match, and all but that one should match the
+    # leading part of one of our productions, but never a whole production. This routine is what's used to validate
+    # the "but never" part of that.
+    return any(_is_valid_match(testcase, probe) for testcase in prods)
+
+
+def synerror2_streams(productions):
+    # Filter out any productions that are prefixes of other productions. They just terminate early, they don't
+    # actually count as syntax errors.
+
+    # Make productions into a sequence we can use multiple times
+    production_texts = tuple(productions)
+    # And then errify them, stripping out the ones that actually are valid
+    errified = tuple(
+        stream for stream in set(errify_many(production_texts, NOPE)) if not _matches_valid(production_texts, stream)
+    )
+
+    # And then make them into pytest parameters
+    return tuple(pytest.param(item, id=stream_id(item)) for item in sorted(errified, key=lambda x: " ".join(x)))
+
+
+_gp_src = r"(\[(?P<flag>[+~])(?P<name>[A-Z][a-z]+)\])"
+_guard_pattern = regex.compile(_gp_src)
+_guardtok_pattern = regex.compile(fr"(?P<guard>{_gp_src})?(?P<core>.*)")
+
+
+def _guardsplit(tokenstream):
+    if tokenstream:
+        m = _guardtok_pattern.match(tokenstream[0])
+        guard = m.group("guard")
+        first_token = m.group("core")
+        return (guard, (first_token,) + tokenstream[1:])
+    return (None, ())
+
+
+def _prod_item(item, ecls):
+    guard, tokenstream = _guardsplit(item)
+    return pytest.param(tokenstream, ecls, guard, id=stream_id(tokenstream))
+
+
+def prod_streams(productions):
+    return tuple(_prod_item(item, ecls) for item, ecls in productions)
+
+
+def _span_reduce(lst, val):
+    start = lst[-1].after + 1 if lst else 0
+    after = start + len(val)
+    return lst + (Span(start, after),)
+
+
+def _new_token(tok_type, src, span, newlines):
+    parts = tok_type.partition("¡")
+    ttype = parts[0]
+    value = parts[2] or parts[0]
+    newspan = Span(span.after - len(value), span.after)
+    return NewToken(ttype, src, value, newspan, newlines)
+
+
+def _new_id(ident, src, span, newlines):
+    return NewToken("IDENTIFIER", src, ident, span, newlines)
+
+
+_all_lowercase = regex.compile("^[a-z]+$")
+
+
+def _new_token_or_id(tok, src, span, newlines):
+    t = _new_token(tok, src, span, newlines)
+    if _all_lowercase.match(t.type):
+        return NewToken("IDENTIFIER", t.src, t.value, t.span, t.newlines)
+    return t
+
+
+def _gen_se_data(token_stream, offset):
+    src = ("#" * offset) + (" ".join(token_stream))
+    spans_fixed = reduce(_span_reduce, token_stream, ())
+    spans = tuple(Span(start + offset, after + offset) for start, after in spans_fixed)
+    prev = offset
+    xlat = {}
+    for si, span in enumerate(spans):
+        start, after = span
+        for idx in range(prev, start + 1):
+            xlat[idx] = si
+        prev = after
+    return (src, spans, xlat)
+
+
+def _token_se(token_stream, lex_pos, ctor):
+    "Generate a side effect function for the token stream that starts at lex_pos"
+    src, spans, xlat = _gen_se_data(token_stream, lex_pos)
+
+    def side_effect(pos, tok_type=None, prior_newline_allowed=True, goal="unspecified"):
+        "Side effect function for lexer.token_if and lexer.id_if."
+        no_newline = False
+        if pos in xlat:
+            stream_index = xlat[pos]
+            token = token_stream[stream_index]
+            before, _, after = token.partition("¡")
+            if before == "NO_LT":
+                no_newline = True
+                before = after
+                token = after
+            if tok_type is None or before == tok_type:
+                span = spans[stream_index]
+                newlines = () if no_newline else (Span(span.start, span.after),)
+                if not prior_newline_allowed and len(newlines) > 0:
+                    return None
+                return ctor(token, src, span, newlines)
+        return None
+
+    return side_effect
+
+
+def token_if_se(token_stream, lex_pos):
+    return _token_se(token_stream, lex_pos, _new_token)
+
+
+def id_if_se(token_stream, lex_pos):
+    return _token_se(token_stream, lex_pos, _new_id)
+
+
+def token_abs_se(token_stream, lex_pos):
+    return _token_se(token_stream, lex_pos, _new_token_or_id)
+
+
+def parse_se(token_stream, lex_pos, name, mocker, pn_ctor):
+    src, spans, xlat = _gen_se_data(token_stream, lex_pos)
+
+    def side_effect(context, lexer, pos, strict, *args, **kwargs):
+        if pos in xlat:
+            stream_index = xlat[pos]
+            if token_stream[stream_index] == name:
+                pn = pn_ctor(context, name, strict, [NewToken("REPLACEMENT", src, name, spans[stream_index], [])])
+                pn.value = name
+                return pn
+        return None
+
+    return side_effect
+
+
+def lexer_mock(mocker, token_stream, lex_pos):
+    return mocker.Mock(
+        **{
+            "token_if.side_effect": token_if_se(token_stream, lex_pos),
+            "id_if.side_effect": id_if_se(token_stream, lex_pos),
+            "token.side_effect": token_abs_se(token_stream, lex_pos),
+            "reserved_words": ("for", "while", "return", "break", "continue"),
+            "InputElementDiv": "InputElementDiv",
+            "InputElementRegExp": "InputElementRegExp",
+            "InputElementRegExpOrTemplateTail": "InputElementRegExpOrTemplateTail",
+            "InputElementTemplateTail": "InputElementTemplateTail",
+        }
+    )
+
+
+def prod_mocks(mocker, token_stream, lex_pos, pn_ctor, identifiers):
+    parse_mock = lambda name: mocker.patch(
+        f"ecmascript.ecmascript.parse_{name}", side_effect=parse_se(token_stream, lex_pos, name, mocker, pn_ctor)
+    )
+    return dict((name, parse_mock(name)) for name in identifiers)
+
+
+_T = TypeVar("_T")
+
+
+def first(seq: Iterable[_T]) -> _T:
+    return next(iter(seq))
+
+
+def prod_args(argnames):
+    values = product((False, True), repeat=len(argnames))
+    return (
+        pytest.param(val, id="-".join(name.upper() if v else name.lower() for v, name in zip(val, argnames)))
+        for val in values
+    )
+
+
+def ordinary_test_params(target_argnames, productions):
+    def decorator(func):
+        @wraps(func)
+        @pytest.mark.parametrize("strict_flag", (pytest.param(False, id="strict"), pytest.param(True, id="STRICT")))
+        @pytest.mark.parametrize("prod_args", prod_args(target_argnames))
+        @pytest.mark.parametrize("lex_pos", (0, 10))
+        @pytest.mark.parametrize("token_stream, expected_class, guard", prod_streams(productions))
+        def wrapped(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        return wrapped
+
+    return decorator
+
+
+def syntax_error_test_params(target_argnames, productions):
+    def decorator(func):
+        @wraps(func)
+        @pytest.mark.parametrize("strict_flag", (pytest.param(False, id="strict"), pytest.param(True, id="STRICT")))
+        @pytest.mark.parametrize("prod_args", prod_args(target_argnames))
+        @pytest.mark.parametrize("lex_pos", (0, 10))
+        @pytest.mark.parametrize("token_stream", synerror2_streams(map(first, productions)))
+        def wrapped(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        return wrapped
+
+    return decorator
+
+
+def strict_params(func):
+    @wraps(func)
+    @pytest.mark.parametrize("strict", (pytest.param(False, id="loose"), pytest.param(True, id="strict")))
+    def wrapped(*args, **kwargs):
+        return func(*args, **kwargs)
+
+    return wrapped
+
+
+def _part(idx, item):
+    try:
+        return item[idx]
+    except TypeError:
+        return item
+
+
+class parse_test:
+    productions = ()
+
+    @classmethod
+    def setup_prod_mocks(cls, mocker, token_stream, lex_pos):
+        return prod_mocks(
+            mocker,
+            token_stream,
+            lex_pos,
+            ParseNode2,
+            set(
+                p
+                for p in chain.from_iterable(_guardsplit(prod)[1] for prod, ecls in cls.productions)
+                if p[0].isupper() and "¡" not in p
+            ),
+        )
+
+    target = staticmethod(lambda context, lexer, pos, strict, *args: None)
+    target_argnames = ()
+    called_argnames = {}
+
+    def expected_args(self, name: str, args: Iterable[bool]) -> Tuple[bool]:
+        assert name in self.called_argnames
+        assert len(args) == len(self.target_argnames)
+        assert all(len(param) > 0 for param in self.target_argnames)
+        assert all(len(arg) > 1 and arg[0] in "+~?" for arg in self.called_argnames[name])
+        # The argument names for the production
+        tgt_names = self.target_argnames
+        # The argument names (and markers) for the child production. Note that each item should have a marker, and
+        # that marker should be one of "+", "~", or "?"
+        ch_names = self.called_argnames[name]
+        return tuple(
+            True
+            if chn[0] == "+"
+            else False
+            if chn[0] == "~"
+            else first(bool(val) for name, val in zip(tgt_names, args) if name == chn[1:])
+            for chn in ch_names
+        )
+
+    def _should_produce_node(self, guard, args):
+        # Checks the args against guard to see if this production should count or not
+        if guard is None:
+            return True
+        m = _guard_pattern.match(guard)
+        assert m
+        flag = m.group("flag")
+        name = m.group("name")
+        passed_args = dict(zip(self.target_argnames, args))
+        return passed_args[name] == (flag == "+")
+
+    def ordinary(self, mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag):
+        lexer = lexer_mock(mocker, token_stream, lex_pos)
+        prod_mocks = self.setup_prod_mocks(mocker, token_stream, lex_pos)
+
+        rv = self.target(context, lexer, lex_pos, strict_flag, *prod_args)
+        if self._should_produce_node(guard, prod_args):
+            assert isinstance(rv, _part(0, expected_class))
+            for name, mock in prod_mocks.items():
+                if name in token_stream:
+                    mock.assert_called_with(
+                        context, lexer, mocker.ANY, strict_flag, *self.expected_args(name, prod_args)
+                    )
+            assert rv.strict == strict_flag
+            assert len(rv.children) == len(token_stream)
+            for idx, token in enumerate(token_stream):
+                try:
+                    value = rv.children[idx].value
+                except AttributeError:
+                    value = rv.children[idx].children[0].value
+                before, _, after = token.partition("¡")
+                expected = after or before
+                assert value == expected
+        else:
+            assert isinstance(rv, _part(1, expected_class))
+
+    def syntax_errors(
+        self, mocker, context, strict_flag, prod_args, token_stream, lex_pos, recursive_expectation=None
+    ):
+        lexer = lexer_mock(mocker, token_stream, lex_pos)
+        self.setup_prod_mocks(mocker, token_stream, lex_pos)
+
+        rv = self.target(context, lexer, lex_pos, strict_flag, *prod_args)
+
+        if recursive_expectation and len(token_stream) > 1 and token_stream[0] == recursive_expectation[0]:
+            assert isinstance(rv, recursive_expectation[1])
+        else:
+            assert rv is None

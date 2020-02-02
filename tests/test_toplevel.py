@@ -297,7 +297,7 @@ def cleanup():
         ("var xx=0;function f(){L:do{xx++;if(xx===5)return;break L;}while(0);}f();xx;", 1),
         ("var c=0;l:for(let x=0;x<10;){while(c<20){x++;c++;continue l;}}c;", 10),
         ("parseFloat(56.e10)", 56e10),
-        ("const {a,b,...rest} = {a:5, b:6, c:7, d:8}; `${a}${b}${rest.c}${rest.d}`", "5678",),
+        ("const {a,b,...rest} = {a:5, b:6, c:7, d:8}; `${a}${b}${rest.c}${rest.d}`", "5678"),
     ],
 )
 def test_scripts_01(cleanup, script, result):

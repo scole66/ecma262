@@ -1,3 +1,4 @@
+from itertools import chain
 import pytest
 
 from .helpers import *
@@ -182,66 +183,34 @@ def test_IdentifierReference_AWAIT_evaluate(context, mocker):
     rb.assert_called_with("await", "strict")
 
 
-def IdentifierReference_mocks(mocker):
-    return {"Identifier": mocker.patch("ecmascript.ecmascript.parse_Identifier", side_effect=identifier_sideeffect)}
+class Test_parse_IdentifierReference(parse_test):
+    # Syntax
+    #   IdentifierReference[Yield, Await]:
+    #       Identifier
+    #       [~Yield]yield
+    #       [~Await]await
+    target = staticmethod(ecmascript.parse_IdentifierReference)
+    target_argnames = ("Yield", "Await")
 
+    IR_Ident = ecmascript.P2_IdentifierReference_Identifier
+    IR_Yield = ecmascript.P2_IdentifierReference_YIELD
+    IR_Await = ecmascript.P2_IdentifierReference_AWAIT
+    productions = (
+        (("Identifier",), IR_Ident),
+        (("[~Yield]yield",), (IR_Yield, type(None))),
+        (("[~Await]await",), (IR_Await, type(None))),
+    )
+    called_argnames = {
+        "Identifier": (),
+    }
 
-@pytest.mark.parametrize(
-    "token_stream, Yield, Await, result_type",
-    [
-        ([IDENTIFIER], False, False, ecmascript.P2_IdentifierReference_Identifier),
-        ([IDENTIFIER], True, False, ecmascript.P2_IdentifierReference_Identifier),
-        ([IDENTIFIER], False, True, ecmascript.P2_IdentifierReference_Identifier),
-        ([IDENTIFIER], True, True, ecmascript.P2_IdentifierReference_Identifier),
-        ([YIELD], False, False, ecmascript.P2_IdentifierReference_YIELD),
-        ([YIELD], False, True, ecmascript.P2_IdentifierReference_YIELD),
-        ([AWAIT], False, False, ecmascript.P2_IdentifierReference_AWAIT),
-        ([AWAIT], True, False, ecmascript.P2_IdentifierReference_AWAIT),
-    ],
-)
-def test_parse_IdentifierReference_01(mocker, context, token_stream, Yield, Await, result_type):
-    lexer = Lexer(token_stream)
-    mocks = IdentifierReference_mocks(mocker)
+    @ordinary_test_params(target_argnames, productions)
+    def test_ordinary(self, context, mocker, token_stream, expected_class, guard, lex_pos, strict_flag, prod_args):
+        self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
 
-    ir = ecmascript.parse_IdentifierReference(context, lexer, False, Yield, Await)
-    assert isinstance(ir, result_type)
-    identifier_expected = result_type == ecmascript.P2_IdentifierReference_Identifier
-    assert not identifier_expected and ir.children[0] == token_stream[0] or ir.Identifier == "Identifier"
-    assert lexer.pos == 1
-    if identifier_expected:
-        mocks["Identifier"].assert_called_with(context, lexer, False)
-
-
-@pytest.mark.parametrize("Await", [True, False])
-def test_parse_IdentifierReference_Yield_True(mocker, context, Await):
-    lexer = Lexer([YIELD])
-    IdentifierReference_mocks(mocker)
-
-    ir = ecmascript.parse_IdentifierReference(context, lexer, False, True, Await)
-    assert ir is None
-    assert lexer.pos == 0
-
-
-@pytest.mark.parametrize("Yield", [True, False])
-def test_parse_IdentifierReference_Await_True(mocker, context, Yield):
-    lexer = Lexer([AWAIT])
-    IdentifierReference_mocks(mocker)
-
-    ir = ecmascript.parse_IdentifierReference(context, lexer, False, Yield, True)
-    assert ir is None
-    assert lexer.pos == 0
-
-
-@pytest.mark.parametrize("Yield", [True, False])
-@pytest.mark.parametrize("Await", [True, False])
-@pytest.mark.parametrize("token_stream", [[], [MATCHES_NONE]])
-def test_parse_IdentifierReference_SyntaxErrs(mocker, context, token_stream, Yield, Await):
-    lexer = Lexer(token_stream)
-    IdentifierReference_mocks(mocker)
-
-    ir = ecmascript.parse_IdentifierReference(context, lexer, False, Yield, Await)
-    assert ir is None
-    assert lexer.pos == 0
+    @syntax_error_test_params(target_argnames, productions)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
 
 
 def test_P2_Identifier_init(context):
@@ -332,25 +301,49 @@ def test_P2_Identifier_IdentifierName_EarlyErrors(context, strict, value, goal, 
         assert type(err) == Expected_Exception
 
 
-@pytest.mark.parametrize("probe", [IBOB, YIELD_ESCAPED])
-def test_parse_Identifier_01(context, probe):
-    # Identifier : IdentifierName if not in ReservedWords
-    lexer = Lexer([probe])
+class Test_parse_Identifier:
+    # Syntax
+    #   Identifier:
+    #       IdentifierName but not ReservedWord
+    ID_IdentName = ecmascript.P2_Identifier_IdentifierName
 
-    ident = ecmascript.parse_Identifier(context, lexer, True)
-    assert isinstance(ident, ecmascript.P2_Identifier_IdentifierName)
-    assert ident.IdentifierName == probe
-    assert lexer.pos == 1
+    @pytest.mark.parametrize("strict_flag", (False, True))
+    @pytest.mark.parametrize("lex_pos", (0, 10))
+    @pytest.mark.parametrize(
+        "token_stream, expected_class, guard",
+        prod_streams(((("IDENTIFIER¡bob",), ID_IdentName), ((r"IDENTIFIER¡f\u006fr",), ID_IdentName))),
+    )
+    def test_parse_Identifier_ordinary(
+        self, mocker, context, token_stream, expected_class, guard, strict_flag, lex_pos
+    ):
+        # Identifier : IdentifierName if not in ReservedWords
+        lexer = lexer_mock(mocker, token_stream, lex_pos)
 
+        ident = ecmascript.parse_Identifier(context, lexer, lex_pos, strict_flag)
+        assert isinstance(ident, expected_class)
+        assert ident.strict == strict_flag
+        assert len(ident.children) == len(token_stream)
+        for idx, expected in enumerate(
+            after or before for before, mark, after in (token.partition("¡") for token in token_stream)
+        ):
+            assert ident.children[idx].value == expected
 
-@pytest.mark.parametrize("token_stream", [[MATCHES_NONE], [YIELD], [FOR]])
-def test_parse_Identifier_02(context, token_stream):
-    # Garbage or a Reserved Word.
-    lexer = Lexer(token_stream)
+    @staticmethod
+    def _error_param(token_stream):
+        return pytest.param(token_stream, id=stream_id(token_stream))
 
-    ident = ecmascript.parse_Identifier(context, lexer, False)
-    assert ident is None
-    assert lexer.pos == 0
+    @pytest.mark.parametrize("strict_flag", (False, True))
+    @pytest.mark.parametrize("lex_pos", (0, 10))
+    @pytest.mark.parametrize(
+        "token_stream",
+        (Test_parse_Identifier._error_param((x,)) for x in ("", NOPE, "IDENTIFIER¡for", "IDENTIFIER¡while")),
+    )
+    def test_parse_Identifier_syntaxerrors(self, mocker, context, token_stream, strict_flag, lex_pos):
+        # Garbage or a Reserved Word.
+        lexer = lexer_mock(mocker, token_stream, lex_pos)
+
+        ident = ecmascript.parse_Identifier(context, lexer, lex_pos, strict_flag)
+        assert ident is None
 
 
 def test_P2_BindingIdentifier_init(context):
@@ -513,44 +506,64 @@ def test_BindingIdentifier_AWAIT_BindingInitialization(context, mocker):
     ibn.assert_called_with("await", "value", "environment", "strict")
 
 
-def BindingIdentifier_mocks(mocker):
-    return {"Identifier": mocker.patch("ecmascript.ecmascript.parse_Identifier", side_effect=identifier_sideeffect)}
+class Test_parse_BindingIdentifier:
+    # Syntax
+    #   BindingIdentifier[Yield, Await] :
+    #       Identifier
+    #       yield
+    #       await
 
+    BI_Ident = ecmascript.P2_BindingIdentifier_Identifier
+    BI_Yield = ecmascript.P2_BindingIdentifier_YIELD
+    BI_Await = ecmascript.P2_BindingIdentifier_AWAIT
+    productions = ((("Identifier",), BI_Ident), (("yield",), BI_Yield), (("await",), BI_Await))
 
-@pytest.mark.parametrize(
-    "token_stream, Yield, Await, result_type",
-    [
-        ([IDENTIFIER], False, False, ecmascript.P2_BindingIdentifier_Identifier),
-        ([IDENTIFIER], True, False, ecmascript.P2_BindingIdentifier_Identifier),
-        ([IDENTIFIER], False, True, ecmascript.P2_BindingIdentifier_Identifier),
-        ([IDENTIFIER], True, True, ecmascript.P2_BindingIdentifier_Identifier),
-        ([YIELD], False, False, ecmascript.P2_BindingIdentifier_YIELD),
-        ([YIELD], True, False, ecmascript.P2_BindingIdentifier_YIELD),
-        ([YIELD], False, True, ecmascript.P2_BindingIdentifier_YIELD),
-        ([YIELD], True, True, ecmascript.P2_BindingIdentifier_YIELD),
-        ([AWAIT], False, False, ecmascript.P2_BindingIdentifier_AWAIT),
-        ([AWAIT], True, False, ecmascript.P2_BindingIdentifier_AWAIT),
-        ([AWAIT], False, True, ecmascript.P2_BindingIdentifier_AWAIT),
-        ([AWAIT], True, True, ecmascript.P2_BindingIdentifier_AWAIT),
-        ([], False, False, type(None)),
-        ([MATCHES_NONE], True, True, type(None)),
-    ],
-)
-def test_parse_BindingIdentifier_01(mocker, context, token_stream, Yield, Await, result_type):
-    lexer = Lexer(token_stream)
-    mocks = BindingIdentifier_mocks(mocker)
-    ir = ecmascript.parse_BindingIdentifier(context, lexer, False, Yield, Await)
+    @classmethod
+    def setup_prod_mocks(cls, mocker, token_stream, lex_pos):
+        return prod_mocks(
+            mocker,
+            token_stream,
+            lex_pos,
+            ecmascript.ParseNode2,
+            set(p for p in chain.from_iterable(prod for prod, ecls in cls.productions) if p[0].isupper()),
+        )
 
-    assert isinstance(ir, result_type)
-    if ir is not None:
-        if result_type != ecmascript.P2_BindingIdentifier_Identifier:
-            assert ir.children[0] == token_stream[0]
-        else:
-            assert ir.Identifier == "Identifier"
-            mocks["Identifier"].assert_called_with(context, lexer, False)
-        assert lexer.pos == 1
-    else:
-        assert lexer.pos == 0
+    @pytest.mark.parametrize("strict_flag", (False, True))
+    @pytest.mark.parametrize("yield_flag", (False, True))
+    @pytest.mark.parametrize("await_flag", (False, True))
+    @pytest.mark.parametrize("lex_pos", (0, 10))
+    @pytest.mark.parametrize("token_stream, result_type, guard", prod_streams(productions))
+    def test_ordinary(
+        self, mocker, context, token_stream, yield_flag, await_flag, result_type, guard, strict_flag, lex_pos
+    ):
+        lexer = lexer_mock(mocker, token_stream, lex_pos)
+        productions = self.setup_prod_mocks(mocker, token_stream, lex_pos)
+
+        bi = ecmascript.parse_BindingIdentifier(context, lexer, lex_pos, strict_flag, yield_flag, await_flag)
+
+        assert isinstance(bi, result_type)
+        for name, mock in productions.items():
+            if name in token_stream:
+                mock.assert_called_with(context, lexer, mocker.ANY, strict_flag)
+        assert bi.Yield == yield_flag
+        assert bi.Await == await_flag
+        assert bi.strict == strict_flag
+        assert len(bi.children) == len(token_stream)
+        for idx, expected in enumerate(token_stream):
+            assert bi.children[idx].value == expected
+
+    @pytest.mark.parametrize("strict_flag", (False, True))
+    @pytest.mark.parametrize("yield_flag", (False, True))
+    @pytest.mark.parametrize("await_flag", (False, True))
+    @pytest.mark.parametrize("lex_pos", (0, 10))
+    @pytest.mark.parametrize("token_stream", synerror2_streams(prod for prod, ecls in productions))
+    def test_syntax_errors(self, mocker, context, strict_flag, yield_flag, await_flag, token_stream, lex_pos):
+        lexer = lexer_mock(mocker, token_stream, lex_pos)
+        self.setup_prod_mocks(mocker, token_stream, lex_pos)
+
+        bi = ecmascript.parse_BindingIdentifier(context, lexer, lex_pos, strict_flag, yield_flag, await_flag)
+
+        assert bi is None
 
 
 def test_P2_LabelIdentifier_init(context):
@@ -627,44 +640,69 @@ def test_LabelIdentifier_YIELD_EarlyErrors(context, strict, expected):
         assert type(err) == Expected_Exception
 
 
-def LabelIdentifier_mocks(mocker):
-    return {"Identifier": mocker.patch("ecmascript.ecmascript.parse_Identifier", side_effect=identifier_sideeffect)}
+class Test_parse_LabelIdentifier:
+    # Syntax
+    #   LabelIdentifier[Yield, Await]:
+    #       Identifier
+    #       [~Yield]yield
+    #       [~Await]await
 
+    LI_Ident = ecmascript.P2_LabelIdentifier_Identifier
+    LI_Yield = ecmascript.P2_LabelIdentifier_YIELD
+    LI_Await = ecmascript.P2_LabelIdentifier_AWAIT
+    productions = ((("Identifier",), LI_Ident), (("yield",), LI_Yield), (("await",), LI_Await))
 
-@pytest.mark.parametrize(
-    "token_stream, Yield, Await, result_type",
-    [
-        ([IDENTIFIER], False, False, ecmascript.P2_LabelIdentifier_Identifier),
-        ([IDENTIFIER], True, False, ecmascript.P2_LabelIdentifier_Identifier),
-        ([IDENTIFIER], False, True, ecmascript.P2_LabelIdentifier_Identifier),
-        ([IDENTIFIER], True, True, ecmascript.P2_LabelIdentifier_Identifier),
-        ([YIELD], False, False, ecmascript.P2_LabelIdentifier_YIELD),
-        ([YIELD], True, False, type(None)),
-        ([YIELD], False, True, ecmascript.P2_LabelIdentifier_YIELD),
-        ([YIELD], True, True, type(None)),
-        ([AWAIT], False, False, ecmascript.P2_LabelIdentifier_AWAIT),
-        ([AWAIT], True, False, ecmascript.P2_LabelIdentifier_AWAIT),
-        ([AWAIT], False, True, type(None)),
-        ([AWAIT], True, True, type(None)),
-        ([], False, False, type(None)),
-        ([MATCHES_NONE], True, True, type(None)),
-    ],
-)
-def test_parse_LabelIdentifier_01(mocker, context, token_stream, Yield, Await, result_type):
-    lexer = Lexer(token_stream)
-    mocks = LabelIdentifier_mocks(mocker)
-    ir = ecmascript.parse_LabelIdentifier(context, lexer, False, Yield, Await)
+    @classmethod
+    def setup_prod_mocks(cls, mocker, token_stream, lex_pos):
+        return prod_mocks(
+            mocker,
+            token_stream,
+            lex_pos,
+            ecmascript.ParseNode2,
+            set(p for p in chain.from_iterable(prod for prod, ecls in cls.productions) if p[0].isupper()),
+        )
 
-    assert isinstance(ir, result_type)
-    if ir is not None:
-        if result_type != ecmascript.P2_LabelIdentifier_Identifier:
-            assert ir.children[0] == token_stream[0]
+    @pytest.mark.parametrize("strict_flag", (False, True))
+    @pytest.mark.parametrize("yield_flag", (False, True))
+    @pytest.mark.parametrize("await_flag", (False, True))
+    @pytest.mark.parametrize("lex_pos", (0, 10))
+    @pytest.mark.parametrize("token_stream, expected_class, guard", prod_streams(productions))
+    def test_ordinary(
+        self, mocker, context, token_stream, strict_flag, yield_flag, await_flag, lex_pos, expected_class, guard
+    ):
+        lexer = lexer_mock(mocker, token_stream, lex_pos)
+        productions = self.setup_prod_mocks(mocker, token_stream, lex_pos)
+
+        li = ecmascript.parse_LabelIdentifier(context, lexer, lex_pos, strict_flag, yield_flag, await_flag)
+
+        # Note: "await" is not allowed if Await is set, and "yield" is not allowed if Yield is set.
+        # That doesn't fit well with the parameterization, so we special case that here.
+        if (await_flag and token_stream[0] == "await") or (yield_flag and token_stream[0] == "yield"):
+            assert li is None
         else:
-            assert ir.Identifier == "Identifier"
-            mocks["Identifier"].assert_called_with(context, lexer, False)
-        assert lexer.pos == 1
-    else:
-        assert lexer.pos == 0
+            assert isinstance(li, expected_class)
+            for name, mock in productions.items():
+                if name in token_stream:
+                    mock.assert_called_with(context, lexer, mocker.ANY, strict_flag)
+            assert li.Yield == yield_flag
+            assert li.Await == await_flag
+            assert li.strict == strict_flag
+            assert len(li.children) == len(token_stream)
+            for idx, expected in enumerate(token_stream):
+                assert li.children[idx].value == expected
+
+    @pytest.mark.parametrize("strict_flag", (False, True))
+    @pytest.mark.parametrize("yield_flag", (False, True))
+    @pytest.mark.parametrize("await_flag", (False, True))
+    @pytest.mark.parametrize("lex_pos", (0, 10))
+    @pytest.mark.parametrize("token_stream", synerror2_streams(prod for prod, ecls in productions))
+    def test_syntax_errors(self, mocker, context, strict_flag, yield_flag, await_flag, token_stream, lex_pos):
+        lexer = lexer_mock(mocker, token_stream, lex_pos)
+        self.setup_prod_mocks(mocker, token_stream, lex_pos)
+
+        li = ecmascript.parse_LabelIdentifier(context, lexer, lex_pos, strict_flag, yield_flag, await_flag)
+
+        assert li is None
 
 
 class Test_InitializeBoundName:

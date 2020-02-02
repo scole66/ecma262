@@ -11,31 +11,31 @@ attrs==19.3.0             # via black, pytest
 black==19.10b0
 cheap-repr==0.4.1         # via snoop
 click==7.0                # via black
-coverage==5.0             # via pytest-cov
-executing==0.4.0          # via snoop
+coverage==5.0.3           # via pytest-cov
+executing==0.4.1          # via snoop
 isort==4.3.21             # via pylint
 lazy-object-proxy==1.4.3  # via astroid
 mccabe==0.6.1             # via pylint
-more-itertools==8.0.2     # via pytest
+more-itertools==8.1.0     # via pytest
 mypy-extensions==0.4.3    # via mypy
 mypy==0.761
-packaging==19.2           # via pytest
-pathspec==0.6.0           # via black
+packaging==20.0           # via pytest
+pathspec==0.7.0           # via black
 pluggy==0.13.1            # via pytest
-py==1.8.0                 # via pytest
+py==1.8.1                 # via pytest
 pygments==2.5.2           # via snoop
 pylint==2.4.4
-pyparsing==2.4.5          # via packaging
+pyparsing==2.4.6          # via packaging
 pytest-cov==2.8.1
-pytest-mock==1.13.0
+pytest-mock==2.0.0
 pytest==5.3.2
 python-dateutil==2.8.1
-pyyaml==5.2
-regex==2019.12.20
+pyyaml==5.3
+regex==2020.1.8
 six==1.13.0               # via astroid, asttokens, packaging, python-dateutil, snoop
-snoop==0.2.2
+snoop==0.2.3
 toml==0.10.0              # via black
 typed-ast==1.4.0          # via black, mypy
 typing-extensions==3.7.4.1  # via mypy
-wcwidth==0.1.7            # via pytest
+wcwidth==0.1.8            # via pytest
 wrapt==1.11.2             # via astroid

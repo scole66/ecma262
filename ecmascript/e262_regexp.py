@@ -1153,7 +1153,7 @@ def parse_QuantifierPrefix(src: str, position: int) -> Optional[QuantifierPrefix
     m = _qfp_regex.match(src, position)
     if m:
         children: Tuple[str, ...] = tuple(
-            filter(None, (m.group(x) for x in ("onechar", "lc", "min", "comma", "max", "rc")),)
+            filter(None, (m.group(x) for x in ("onechar", "lc", "min", "comma", "max", "rc")))
         )
         key = children[0] if len(children) == 1 else len(children)
         return _qfp_ctors[key](src, Span(*m.span()), children)
@@ -1494,7 +1494,7 @@ def parse_CharacterClass(src: str, position: int, U: bool) -> Optional[Character
         return None
     class_ranges = parse_ClassRanges(src, pos, U)
     if class_ranges and class_ranges.span.after < len(src) and src[class_ranges.span.after] == "]":
-        return ctor(src, Span(position, class_ranges.span.after + 1), class_ranges,)
+        return ctor(src, Span(position, class_ranges.span.after + 1), class_ranges)
     return None
 
 

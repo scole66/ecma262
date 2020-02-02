@@ -8,8 +8,8 @@ import ecmascript.ecmascript as parse2
 
 
 def run_test(src, expected_type, parse_fcn, *parse_args):
-    lex = lexer2.Lexer(src, SyntaxError)
-    rv = parse_fcn(parse2.Parse2Context(src), lex, False, *parse_args)
+    lex = lexer2.LexerCore(src, SyntaxError)
+    rv = parse_fcn(parse2.Parse2Context(src), lex, 0, False, *parse_args)
     assert isinstance(rv, expected_type)
 
 
