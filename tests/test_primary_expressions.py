@@ -1456,15 +1456,15 @@ class Test_Semantics_CoveredParenthesizedExpression:
     @pytest.mark.parametrize("Yield", (False, True))
     @strict_params
     def test_normal(self, context, mocker, strict, Yield, Await):
-        # Since covering uses reparsing, this just gets more and more difficult to mock out. We'll use the real parser instead.
-        source = "(expression)"
-        lexer = lexer2.LexerCore(source, Expected_Exception)
-        cpeaapl = ecmascript.ecmascript.parse_CoverParenthesizedExpressionAndArrowParameterList(
-            context, lexer, 0, strict, Yield, Await
+        cpeaapl = ecmascript.ecmascript.P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_RPAREN(
+            context, strict, [mocker.Mock(), mocker.Mock(), mocker.Mock()], Yield, Await
         )
+        cpeaapl.covering = mocker.Mock(return_value=mocker.sentinel.return_value)
         rv = cpeaapl.CoveredParenthesizedExpression
-        assert isinstance(rv, ecmascript.ecmascript.P2_ParenthesizedExpression_LPAREN_Expression_RPAREN)
-        assert rv.src == source
+        assert rv == mocker.sentinel.return_value
+        cpeaapl.covering.assert_called_with(
+            ecmascript.ecmascript.parse_ParenthesizedExpression, strict, Yield, Await
+        )
 
 
 ####################################################################################
@@ -2413,3 +2413,124 @@ class Test_TemplateLiterals_TemplateStrings:
     #       a. Let last be the TRV of TemplateMiddle.
     #   4. Append last as the last element of the List front.
     #   5. Return front.
+
+
+####################################################################################
+#
+#  d888    .d8888b.       .d8888b.       d888    .d8888b.       d888
+# d8888   d88P  Y88b     d88P  Y88b     d8888   d88P  Y88b     d8888
+#   888          888            888       888   888    888       888
+#   888        .d88P          .d88P       888   888    888       888
+#   888    .od888P"       .od888P"        888   888    888       888
+#   888   d88P"          d88P"            888   888    888       888
+#   888   888"       d8b 888"       d8b   888   Y88b  d88P d8b   888
+# 8888888 888888888  Y8P 888888888  Y8P 8888888  "Y8888P"  Y8P 8888888
+#
+#
+#
+####################################################################################
+# ECMAScript Language: Expressions | Primary Expression | The Grouping Operator
+# 12.2.10.1 | Static Semantics: Early Errors
+####################################################################################
+class Test_GroupingOperator_EarlyErrors:
+    # 12.2.10.1 Static Semantics: Early Errors
+    # PrimaryExpression : CoverParenthesizedExpressionAndArrowParameterList
+    #   * It is a Syntax Error if CoverParenthesizedExpressionAndArrowParameterList is not covering a
+    #     ParenthesizedExpression.
+    #   * All Early Error rules for ParenthesizedExpression and its derived productions also apply to
+    #     CoveredParenthesizedExpression of CoverParenthesizedExpressionAndArrowParameterList.
+    @pytest.mark.parametrize("covered", (False, True))
+    @strict_params
+    def test_PE_CPEAAPL(self, context, mocker, strict, covered):
+        cpeaapl = mocker.Mock(CoveredParenthesizedExpression=mocker.sentinel.covered if covered else None)
+        pe = ecmascript.ecmascript.P2_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(
+            context, strict, [cpeaapl]
+        )
+
+        errs = pe.EarlyErrors()
+        expected_count = 1 if not covered else 0
+        assert len(errs) == expected_count
+
+
+####################################################################################
+#
+#  d888    .d8888b.       .d8888b.       d888    .d8888b.          d8888
+# d8888   d88P  Y88b     d88P  Y88b     d8888   d88P  Y88b        d8P888
+#   888          888            888       888   888    888       d8P 888
+#   888        .d88P          .d88P       888   888    888      d8P  888
+#   888    .od888P"       .od888P"        888   888    888     d88   888
+#   888   d88P"          d88P"            888   888    888     8888888888
+#   888   888"       d8b 888"       d8b   888   Y88b  d88P d8b       888
+# 8888888 888888888  Y8P 888888888  Y8P 8888888  "Y8888P"  Y8P       888
+#
+#
+#
+####################################################################################
+# ECMAScript Language: Expressions | Primary Expression | The Grouping Operator
+# 12.2.10.4 | Runtime Semantics: NamedEvaluation
+####################################################################################
+class Test_GroupingOperator_NamedEvaluation:
+    # 12.2.10.4 Runtime Semantics: NamedEvaluation
+    #   With parameter name.
+
+    # PrimaryExpression : CoverParenthesizedExpressionAndArrowParameterList
+    #   1. Let expr be CoveredParenthesizedExpression of CoverParenthesizedExpressionAndArrowParameterList.
+    #   2. Return the result of performing NamedEvaluation for expr with argument name.
+    @strict_params
+    def test_cpeaapl(self, context, mocker, strict):
+        expr = mocker.Mock(**{"NamedEvaluation.return_value": mocker.sentinel.return_value})
+        cpeaapl = mocker.Mock(CoveredParenthesizedExpression=expr)
+        pe = ecmascript.ecmascript.P2_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(
+            context, strict, [cpeaapl]
+        )
+
+        rv = pe.NamedEvaluation(mocker.sentinel.name)
+        assert rv == mocker.sentinel.return_value
+        expr.NamedEvaluation.assert_called_with(mocker.sentinel.name)
+
+    # ParenthesizedExpression : ( Expression )
+    #   1. Assert: IsAnonymousFunctionDefinition(Expression) is true.
+    #   2. Return the result of performing NamedEvaluation for Expression with argument name.
+    @strict_params
+    def test_parenthesizedexpression(self, context, mocker, strict):
+        expr = mocker.Mock(**{"NamedEvaluation.return_value": mocker.sentinel.return_value})
+        mocker.patch("ecmascript.ecmascript.IsAnonymousFunctionDefinition", return_value=True)
+        pe = ecmascript.ecmascript.P2_ParenthesizedExpression_LPAREN_Expression_RPAREN(
+            context, strict, [mocker.Mock(), expr, mocker.Mock()]
+        )
+        rv = pe.NamedEvaluation(mocker.sentinel.name)
+        assert rv == mocker.sentinel.return_value
+        expr.NamedEvaluation.assert_called_with(mocker.sentinel.name)
+
+
+####################################################################################
+#
+#  d888    .d8888b.       .d8888b.       d888    .d8888b.      888888888
+# d8888   d88P  Y88b     d88P  Y88b     d8888   d88P  Y88b     888
+#   888          888            888       888   888    888     888
+#   888        .d88P          .d88P       888   888    888     8888888b.
+#   888    .od888P"       .od888P"        888   888    888          "Y88b
+#   888   d88P"          d88P"            888   888    888            888
+#   888   888"       d8b 888"       d8b   888   Y88b  d88P d8b Y88b  d88P
+# 8888888 888888888  Y8P 888888888  Y8P 8888888  "Y8888P"  Y8P  "Y8888P"
+#
+#
+#
+####################################################################################
+# ECMAScript Language: Expressions | Primary Expression | The Grouping Operator
+# 12.2.10.5 | Static Semantics: Evaluation
+####################################################################################
+class Test_GroupingOperator_Evaluation:
+    # PrimaryExpression : CoverParenthesizedExpressionAndArrowParameterList
+    #   1. Let expr be CoveredParenthesizedExpression of CoverParenthesizedExpressionAndArrowParameterList.
+    #   2. Return the result of evaluating expr.
+    @strict_params
+    def test_cpeeaapl(self, context, mocker, strict):
+        expr = mocker.Mock(**{"evaluate.return_value": mocker.sentinel.return_value})
+        cpeaapl = mocker.Mock(CoveredParenthesizedExpression=expr)
+        pe = ecmascript.ecmascript.P2_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(
+            context, strict, [cpeaapl]
+        )
+        rv = pe.evaluate()
+        assert rv == mocker.sentinel.return_value
+        expr.evaluate.assert_called_with()
