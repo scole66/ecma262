@@ -68,6 +68,31 @@ def test_Literal_StringLiteral_init(context):
     assert lit.StringLiteral == "child"
 
 
+class Test_parse_Literal(parse_test):
+    # Syntax
+    #   Literal:
+    #       NullLiteral
+    #       BooleanLiteral
+    #       NumericLiteral
+    #       StringLiteral
+    target = staticmethod(ecmascript.ecmascript.parse_Literal)
+    target_argnames = ()
+    productions = (
+        (("null",), ecmascript.ecmascript.P2_Literal_NullLiteral),
+        (("true",), ecmascript.ecmascript.P2_Literal_BooleanLiteral),
+        (("NUMERIC¡788",), ecmascript.ecmascript.P2_Literal_NumericLiteral),
+        (("STRING¡bob",), ecmascript.ecmascript.P2_Literal_StringLiteral),
+    )
+
+    @ordinary_test_params(target_argnames, productions)
+    def test_ordinary(self, context, mocker, token_stream, expected_class, guard, lex_pos, strict_flag, prod_args):
+        self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
+
+    @syntax_error_test_params(target_argnames, productions)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+
+
 def test_PrimaryExpression_init(context):
     pe = ecmascript.ecmascript.P2_PrimaryExpression(context, "StrictArg", ["child"])
 
@@ -642,6 +667,28 @@ def test_Elision_Elision_COMMA_init(context):
     assert elision.Elision == "child_a"
 
 
+class Test_parse_Elision(parse_test):
+    # Syntax
+    #   Elision :
+    #       ,
+    #       Elision ,
+    target = staticmethod(ecmascript.ecmascript.parse_Elision)
+    target_argnames = ()
+    productions = (
+        ((",",), ecmascript.ecmascript.P2_Elision_COMMA),
+        ((",", ","), ecmascript.ecmascript.P2_Elision_Elision_COMMA),
+    )
+    called_argnames = {}
+
+    @ordinary_test_params(target_argnames, productions)
+    def test_ordinary(self, context, mocker, token_stream, expected_class, guard, lex_pos, strict_flag, prod_args):
+        self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
+
+    @syntax_error_test_params(target_argnames, productions)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+
+
 class Test_ArrayInitializer_ElisionWidth:
     # 12.2.5.1 Static Semantics: ElisionWidth
     # Elision : ,
@@ -720,6 +767,40 @@ def test_ArrayLiteral_elementlist_elision_init(context):
     assert al.name == "ArrayLiteral"
     assert al.ElementList == "elementlist"
     assert al.Elision == "elision"
+
+
+class Test_parse_ArrayLiteral(parse_test):
+    # Syntax
+    #   ArrayLiteral[Yield, Await] :
+    #       [ ]
+    #       [ Elision ]
+    #       [ ElementList[?Yield, ?Await] ]
+    #       [ ElementList[?Yield, ?Await] , ]
+    #       [ ElementList[?Yield, ?Await] , Elision ]
+    target = staticmethod(ecmascript.ecmascript.parse_ArrayLiteral)
+    target_argnames = ("Yield", "Await")
+    productions = (
+        (("[", "]"), ecmascript.ecmascript.P2_ArrayLiteral_LBRACKET_RBRACKET),
+        (("[", "Elision", "]"), ecmascript.ecmascript.P2_ArrayLiteral_LBRACKET_Elision_RBRACKET),
+        (("[", "ElementList", "]"), ecmascript.ecmascript.P2_ArrayLiteral_LBRACKET_ElementList_RBRACKET),
+        (("[", "ElementList", ",", "]"), ecmascript.ecmascript.P2_ArrayLiteral_LBRACKET_ElementList_COMMA_RBRACKET),
+        (
+            ("[", "ElementList", ",", "Elision", "]"),
+            ecmascript.ecmascript.P2_ArrayLiteral_LBRACKET_ElementList_COMMA_Elision_RBRACKET,
+        ),
+    )
+    called_argnames = {
+        "Elision": (),
+        "ElementList": ("?Yield", "?Await"),
+    }
+
+    @ordinary_test_params(target_argnames, productions)
+    def test_ordinary(self, context, mocker, token_stream, expected_class, guard, lex_pos, strict_flag, prod_args):
+        self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
+
+    @syntax_error_test_params(target_argnames, productions)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
 
 
 class Test_ArrayInitializer_Evaluation:
@@ -903,6 +984,56 @@ def test_P2_ElementList_ElementList_COMMA_Elision_SpreadElement_init(context):
     assert el.ElementList == "ElementList"
     assert el.Elision == "Elision"
     assert el.SpreadElement == "SpreadElement"
+
+
+class Test_parse_ElementList(parse_test):
+    # Syntax
+    #   ElementList[Yield, Await] :
+    #       AssignmentExpression[+In, ?Yield, ?Await]
+    #       Elision AssignmentExpression[+In, ?Yield, ?Await]
+    #       SpreadElement[?Yield, ?Await]
+    #       Elision SpreadElement[?Yield, ?Await]
+    #       ElementList[?Yield, ?Await] , AssignmentExpression[+In, ?Yield, ?Await]
+    #       ElementList[?Yield, ?Await] , SpreadElement[?Yield, ?Await]
+    #       ElementList[?Yield, ?Await] , Elision AssignmentExpression[+In, ?Yield, ?Await]
+    #       ElementList[?Yield, ?Await] , Elision SpreadElement[?Yield, ?Await]
+    target = staticmethod(ecmascript.ecmascript.parse_ElementList)
+    target_argnames = ("Yield", "Await")
+    productions = (
+        (("AssignmentExpression",), ecmascript.ecmascript.P2_ElementList_AssignmentExpression),
+        (("Elision", "AssignmentExpression"), ecmascript.ecmascript.P2_ElementList_Elision_AssignmentExpression),
+        (("SpreadElement",), ecmascript.ecmascript.P2_ElementList_SpreadElement),
+        (("Elision", "SpreadElement"), ecmascript.ecmascript.P2_ElementList_Elision_SpreadElement),
+        (
+            ("AssignmentExpression", ",", "AssignmentExpression"),
+            ecmascript.ecmascript.P2_ElementList_ElementList_COMMA_AssignmentExpression,
+        ),
+        (
+            ("AssignmentExpression", ",", "SpreadElement"),
+            ecmascript.ecmascript.P2_ElementList_ElementList_COMMA_SpreadElement,
+        ),
+        (
+            ("AssignmentExpression", ",", "Elision", "AssignmentExpression"),
+            ecmascript.ecmascript.P2_ElementList_ElementList_COMMA_Elision_AssignmentExpression,
+        ),
+        (
+            ("AssignmentExpression", ",", "Elision", "SpreadElement"),
+            ecmascript.ecmascript.P2_ElementList_ElementList_COMMA_Elision_SpreadElement,
+        ),
+    )
+    called_argnames = {
+        "AssignmentExpression": ("+In", "?Yield", "?Await"),
+        "Elision": (),
+        "SpreadElement": ("?Yield", "?Await"),
+    }
+
+    @ordinary_test_params(target_argnames, productions)
+    def test_ordinary(self, context, mocker, token_stream, expected_class, guard, lex_pos, strict_flag, prod_args):
+        self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
+
+    @syntax_error_test_params(target_argnames, productions)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
 
 
 class Test_ArrayInitializer_ArrayAccumulation:
@@ -1108,6 +1239,28 @@ def test_P2_SpreadElement_DOTDOTDOT_AssignmentExpression_init(context):
     )
     assert se.name == "SpreadElement"
     assert se.AssignmentExpression == "AssignmentExpression"
+
+
+class Test_parse_SpreadElement(parse_test):
+    # Syntax
+    #   SpreadElement[Yield, Await]:
+    #       ... AssignmentExpression[+In, ?Yield, ?Await]
+    target = staticmethod(ecmascript.ecmascript.parse_SpreadElement)
+    target_argnames = ("Yield", "Await")
+    productions = (
+        (("...", "AssignmentExpression"), ecmascript.ecmascript.P2_SpreadElement_DOTDOTDOT_AssignmentExpression),
+    )
+    called_argnames = {
+        "AssignmentExpression": ("+In", "?Yield", "?Await"),
+    }
+
+    @ordinary_test_params(target_argnames, productions)
+    def test_ordinary(self, context, mocker, token_stream, expected_class, guard, lex_pos, strict_flag, prod_args):
+        self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
+
+    @syntax_error_test_params(target_argnames, productions)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
 
 
 #### ObjectLiteral ######################################################################################
