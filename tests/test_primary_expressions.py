@@ -586,6 +586,28 @@ def test_P2_ParenthesizedExpression_LPAREN_Expression_RPAREN_init(context):
     assert pe.Expression == "Expression"
 
 
+class Test_parse_ParenthesizedExpression(parse_test):
+    # Syntax
+    #   ParenthesizedExpression[Yield, Await] :
+    #       ( Expression[+In, ?Yield, ?Await] )
+    target = staticmethod(ecmascript.ecmascript.parse_ParenthesizedExpression)
+    target_argnames = ("Yield", "Await")
+    productions = (
+        (("(", "Expression", ")"), ecmascript.ecmascript.P2_ParenthesizedExpression_LPAREN_Expression_RPAREN),
+    )
+    called_argnames = {
+        "Expression": ("+In", "?Yield", "?Await"),
+    }
+
+    @ordinary_test_params(target_argnames, productions)
+    def test_ordinary(self, context, mocker, token_stream, expected_class, guard, lex_pos, strict_flag, prod_args):
+        self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
+
+    @syntax_error_test_params(target_argnames, productions)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+
+
 #### Elision ########################################################
 #
 #     8888888888 888 d8b          d8b
@@ -2252,12 +2274,22 @@ class Test_PrimaryExpression_IsStringLiteral:
 #
 #
 #####################################################################################################################
-class Test_PrimaryExpression_HasUseStrict:
+class Test_HasUseStrict:
     @strict_params
-    def test_PE_Literal(self, context, mocker, strict):
+    def test_PrimaryExpression_Literal(self, context, mocker, strict):
         literal = mocker.Mock(HasUseStrict=mocker.sentinel.has_use_strict)
         pe = ecmascript.ecmascript.P2_PrimaryExpression_Literal(context, strict, [literal])
         assert pe.HasUseStrict == mocker.sentinel.has_use_strict
+
+    @pytest.mark.parametrize(
+        "test, expected",
+        (('"bob"', False), ('""', False), ('"use strict"', True), ("'use strict'", True), ("'use strict\"", False)),
+    )
+    @strict_params
+    def test_Literal_StringLiteral(self, context, mocker, strict, test, expected):
+        sl = mocker.Mock(src=test, span=(0, len(test)))
+        lit = ecmascript.ecmascript.P2_Literal_StringLiteral(context, strict, [sl])
+        assert lit.HasUseStrict is expected
 
 
 ####################################################################################
