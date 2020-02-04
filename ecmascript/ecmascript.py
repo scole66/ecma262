@@ -7783,7 +7783,7 @@ class ParseNode2:
     def covering(self, parse_fcn, *args):
         sublexer = self.context.lexer_interface(self.src[self.start : self.after], self.CreateSyntaxError)
         parse_node = parse_fcn(self.context, sublexer, 0, *args)
-        return parse_node if parse_node.after == self.after - self.start else None
+        return parse_node if parse_node and parse_node.after == self.after - self.start else None
 
     def EarlyErrorsScan(self):
         errs = []
@@ -26082,7 +26082,7 @@ def parse_ArrowFormalParameters(context, lexer, pos, strict, Yield, Await):
     #       ( UniqueFormalParameters[?Yield, ?Await] )
     lp = lexer.token_if(pos, "(")
     if lp:
-        ufp = parse_UniqueFormalParameters(context, lexer, pos, strict, Yield, Await)
+        ufp = parse_UniqueFormalParameters(context, lexer, lp.span.after, strict, Yield, Await)
         if ufp:
             rp = lexer.token_if(ufp.after, ")")
             if rp:
