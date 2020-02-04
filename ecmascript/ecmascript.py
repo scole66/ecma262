@@ -9157,14 +9157,14 @@ def parse_CoverParenthesizedExpressionAndArrowParameterList(ctx, lexer, pos, str
                 if dots:
                     bi = parse_BindingIdentifier(ctx, lexer, dots.span.after, strict, Yield, Await)
                     if bi:
-                        rp3 = lexer.token_if(")")
+                        rp3 = lexer.token_if(bi.after, ")")
                         if rp3:
                             return P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_COMMA_DOTDOTDOT_BindingIdentifier_RPAREN(
                                 ctx, strict, [lp, exp, comma, dots, bi, rp3], Yield, Await
                             )
                     bp = parse_BindingPattern(ctx, lexer, dots.span.after, strict, Yield, Await)
                     if bp:
-                        rp4 = lexer.token_if(")")
+                        rp4 = lexer.token_if(bp.after, ")")
                         if rp4:
                             return P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_COMMA_DOTDOTDOT_BindingPattern_RPAREN(
                                 ctx, strict, [lp, exp, comma, dots, bp, rp4], Yield, Await

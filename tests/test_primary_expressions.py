@@ -194,6 +194,65 @@ def test_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList_ini
     assert pe.CoverParenthesizedExpressionAndArrowParameterList == "child"
 
 
+class Test_parse_PrimaryExpression(parse_test):
+    # Syntax
+    #   PrimaryExpression[Yield, Await] :
+    #       this
+    #       IdentifierReference[?Yield, ?Await]
+    #       Literal
+    #       ArrayLiteral[?Yield, ?Await]
+    #       ObjectLiteral[?Yield, ?Await]
+    #       FunctionExpression
+    #       ClassExpression[?Yield, ?Await]
+    #       GeneratorExpression
+    #       AsyncFunctionExpression
+    #       AsyncGeneratorExpression
+    #       RegularExpressionLiteral
+    #       TemplateLiteral[?Yield, ?Await, ~Tagged]
+    #       CoverParenthesizedExpressionAndArrowParameterList[?Yield, ?Await]
+    target = staticmethod(ecmascript.ecmascript.parse_PrimaryExpression)
+    target_argnames = ("Yield", "Await")
+    productions = (
+        (("this",), ecmascript.ecmascript.P2_PrimaryExpression_THIS),
+        (("IdentifierReference",), ecmascript.ecmascript.P2_PrimaryExpression_IdentifierReference),
+        (("Literal",), ecmascript.ecmascript.P2_PrimaryExpression_Literal),
+        (("ArrayLiteral",), ecmascript.ecmascript.P2_PrimaryExpression_ArrayLiteral),
+        (("ObjectLiteral",), ecmascript.ecmascript.P2_PrimaryExpression_ObjectLiteral),
+        (("FunctionExpression",), ecmascript.ecmascript.P2_PrimaryExpression_FunctionExpression),
+        (("ClassExpression",), ecmascript.ecmascript.P2_PrimaryExpression_ClassExpression),
+        (("GeneratorExpression",), ecmascript.ecmascript.P2_PrimaryExpression_GeneratorExpression),
+        (("AsyncFunctionExpression",), ecmascript.ecmascript.P2_PrimaryExpression_AsyncFunctionExpression),
+        (("AsyncGeneratorExpression",), ecmascript.ecmascript.P2_PrimaryExpression_AsyncGeneratorExpression),
+        (("REGEXP¡/bob/",), ecmascript.ecmascript.P2_PrimaryExpression_RegularExpressionLiteral),
+        (("TemplateLiteral",), ecmascript.ecmascript.P2_PrimaryExpression_TemplateLiteral),
+        (
+            ("CoverParenthesizedExpressionAndArrowParameterList",),
+            ecmascript.ecmascript.P2_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList,
+        ),
+    )
+    called_argnames = {
+        "IdentifierReference": ("?Yield", "?Await"),
+        "ArrayLiteral": ("?Yield", "?Await"),
+        "ObjectLiteral": ("?Yield", "?Await"),
+        "ClassExpression": ("?Yield", "?Await"),
+        "TemplateLiteral": ("?Yield", "?Await", "~Tagged"),
+        "CoverParenthesizedExpressionAndArrowParameterList": ("?Yield", "?Await"),
+        "Literal": (),
+        "FunctionExpression": (),
+        "GeneratorExpression": (),
+        "AsyncFunctionExpression": (),
+        "AsyncGeneratorExpression": (),
+    }
+
+    @ordinary_test_params(target_argnames, productions)
+    def test_ordinary(self, context, mocker, token_stream, expected_class, guard, lex_pos, strict_flag, prod_args):
+        self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
+
+    @syntax_error_test_params(target_argnames, productions)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+
+
 class Test_PrimaryExpression_IsIdentifierRef:
     THIS = ecmascript.ecmascript.P2_PrimaryExpression_THIS
     Literal = ecmascript.ecmascript.P2_PrimaryExpression_Literal
@@ -442,6 +501,59 @@ def test_P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_
     assert cpeaapl.name == "CoverParenthesizedExpressionAndArrowParameterList"
     assert cpeaapl.Expression == "Expression"
     assert cpeaapl.BindingPattern == "BindingPattern"
+
+
+class Test_parse_CoverParenthesizedExpressionAndArrowParameterList(parse_test):
+    # Syntax
+    #   CoverParenthesizedExpressionAndArrowParameterList[Yield, Await] :
+    #       ( Expression[+In, ?Yield, ?Await] )
+    #       ( Expression[+In, ?Yield, ?Await] , )
+    #       ( )
+    #       ( ... BindingIdentifier[?Yield, ?Await] )
+    #       ( ... BindingPattern[?Yield, ?Await] )
+    #       ( Expression[+In, ?Yield, ?Await] , ... BindingIdentifier[?Yield, ?Await] )
+    #       ( Expression[+In, ?Yield, ?Await] , ... BindingPattern[?Yield, ?Await] )
+    target = staticmethod(ecmascript.ecmascript.parse_CoverParenthesizedExpressionAndArrowParameterList)
+    target_argnames = ("Yield", "Await")
+    LP_EXP_RP = ecmascript.ecmascript.P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_RPAREN
+    LP_EXP_COM_RP = (
+        ecmascript.ecmascript.P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_COMMA_RPAREN
+    )
+    LP_RP = ecmascript.ecmascript.P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_RPAREN
+    LP_DOTS_BI_RP = (
+        ecmascript.ecmascript.P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_DOTDOTDOT_BindingIdentifier_RPAREN
+    )
+    LP_DOTS_BP_RP = (
+        ecmascript.ecmascript.P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_DOTDOTDOT_BindingPattern_RPAREN
+    )
+    LP_EXP_BI_RP = (
+        ecmascript.ecmascript.P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_COMMA_DOTDOTDOT_BindingIdentifier_RPAREN
+    )
+    LP_EXP_BP_RP = (
+        ecmascript.ecmascript.P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_COMMA_DOTDOTDOT_BindingPattern_RPAREN
+    )
+    productions = (
+        (("(", "Expression", ")"), LP_EXP_RP),
+        (("(", "Expression", ",", ")"), LP_EXP_COM_RP),
+        (("(", ")"), LP_RP),
+        (("(", "...", "BindingIdentifier", ")"), LP_DOTS_BI_RP),
+        (("(", "...", "BindingPattern", ")"), LP_DOTS_BP_RP),
+        (("(", "Expression", ",", "...", "BindingIdentifier", ")"), LP_EXP_BI_RP),
+        (("(", "Expression", ",", "...", "BindingPattern", ")"), LP_EXP_BP_RP),
+    )
+    called_argnames = {
+        "Expression": ("+In", "?Yield", "?Await"),
+        "BindingIdentifier": ("?Yield", "?Await"),
+        "BindingPattern": ("?Yield", "?Await"),
+    }
+
+    @ordinary_test_params(target_argnames, productions)
+    def test_ordinary(self, context, mocker, token_stream, expected_class, guard, lex_pos, strict_flag, prod_args):
+        self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
+
+    @syntax_error_test_params(target_argnames, productions)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
 
 
 #### ParenthesizedExpression ##############################################################################################################################################################################
