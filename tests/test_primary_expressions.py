@@ -2006,6 +2006,36 @@ def test_P2_TemplateMiddleList_TemplateMiddleList_TemplateMiddle_Expression_init
     assert tml.Expression == "Expression"
 
 
+class Test_parse_TemplateMiddleList(parse_test):
+    # Syntax
+    #   TemplateMiddleList[Yield, Await, Tagged] :
+    #       TemplateMiddle Expression[+In, ?Yield, ?Await]
+    #       TemplateMiddleList[?Yield, ?Await, ?Tagged] TemplateMiddle Expression[+In, ?Yield, ?Await]
+    target = staticmethod(ecmascript.ecmascript.parse_TemplateMiddleList)
+    target_argnames = ("Yield", "Await", "Tagged")
+    productions = (
+        (
+            ("TEMPLATEMIDDLE¡bob", "Expression"),
+            ecmascript.ecmascript.P2_TemplateMiddleList_TemplateMiddle_Expression,
+        ),
+        (
+            ("TEMPLATEMIDDLE¡bob", "Expression", "TEMPLATEMIDDLE¡alice", "Expression"),
+            ecmascript.ecmascript.P2_TemplateMiddleList_TemplateMiddleList_TemplateMiddle_Expression,
+        ),
+    )
+    called_argnames = {
+        "Expression": ("+In", "?Yield", "?Await"),
+    }
+
+    @ordinary_test_params(target_argnames, productions)
+    def test_ordinary(self, context, mocker, token_stream, expected_class, guard, lex_pos, strict_flag, prod_args):
+        self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
+
+    @syntax_error_test_params(target_argnames, productions)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+
+
 ####################################################################################
 #
 #  d888    .d8888b.       .d8888b.       d888        d888
@@ -2966,6 +2996,20 @@ class Test_TemplateLiterals_TemplateStrings:
     #       a. Let head be the TRV of TemplateHead.
     #   3. Let tail be TemplateStrings of TemplateSpans with argument raw.
     #   4. Return a List containing head followed by the elements, in order, of tail.
+    @pytest.mark.parametrize("raw", (False, True))
+    @pytest.mark.parametrize("Tagged", (False, True))
+    @strict_params
+    def test_SubstitutionTemplate(self, context, mocker, strict, raw, Tagged):
+        th = mocker.Mock(value=mocker.Mock(tv=mocker.sentinel.tv, trv=mocker.sentinel.trv))
+        exp = mocker.Mock()
+        spans = mocker.Mock(**{"TemplateStrings.return_value": [mocker.sentinel.spans]})
+        st = ecmascript.ecmascript.P2_SubstitutionTemplate_TemplateHead_Expression_TemplateSpans(
+            context, strict, [th, exp, spans], Tagged
+        )
+        expected = [mocker.sentinel.trv if raw else mocker.sentinel.tv, mocker.sentinel.spans]
+        ts = st.TemplateStrings(raw)
+        assert ts == expected
+        spans.TemplateStrings.assert_called_with(raw)
 
     # TemplateSpans : TemplateTail
     #   1. If raw is false, then
@@ -2973,6 +3017,15 @@ class Test_TemplateLiterals_TemplateStrings:
     #   2. Else,
     #       a. Let tail be the TRV of TemplateTail.
     #   3. Return a List containing the single element, tail.
+    @pytest.mark.parametrize("raw", (False, True))
+    @pytest.mark.parametrize("Tagged", (False, True))
+    @strict_params
+    def test_TemplateTail(self, context, mocker, strict, raw, Tagged):
+        tt = mocker.Mock(value=mocker.Mock(tv=mocker.sentinel.tv, trv=mocker.sentinel.trv))
+        spans = ecmascript.ecmascript.P2_TemplateSpans_TemplateTail(context, strict, [tt], Tagged)
+        expected = [mocker.sentinel.trv if raw else mocker.sentinel.tv]
+        ts = spans.TemplateStrings(raw)
+        assert ts == expected
 
     # TemplateSpans : TemplateMiddleList TemplateTail
     #   1. Let middle be TemplateStrings of TemplateMiddleList with argument raw.
@@ -2981,6 +3034,19 @@ class Test_TemplateLiterals_TemplateStrings:
     #   3. Else,
     #       a. Let tail be the TRV of TemplateTail.
     #   4. Return a List containing the elements, in order, of middle followed by tail.
+    @pytest.mark.parametrize("raw", (False, True))
+    @pytest.mark.parametrize("Tagged", (False, True))
+    @strict_params
+    def test_Spans_MiddleList_Tail(self, context, mocker, strict, raw, Tagged):
+        tml = mocker.Mock(**{"TemplateStrings.return_value": [mocker.sentinel.middle]})
+        tt = mocker.Mock(value=mocker.Mock(tv=mocker.sentinel.tv, trv=mocker.sentinel.trv))
+        spans = ecmascript.ecmascript.P2_TemplateSpans_TemplateMiddleList_TemplateTail(
+            context, strict, [tml, tt], Tagged
+        )
+        expected = [mocker.sentinel.middle, mocker.sentinel.trv if raw else mocker.sentinel.tv]
+        ts = spans.TemplateStrings(raw)
+        assert ts == expected
+        tml.TemplateStrings.assert_called_with(raw)
 
     # TemplateMiddleList : TemplateMiddle Expression
     #   1. If raw is false, then
@@ -2988,6 +3054,18 @@ class Test_TemplateLiterals_TemplateStrings:
     #   2. Else,
     #       a. Let string be the TRV of TemplateMiddle.
     #   3. Return a List containing the single element, string.
+    @pytest.mark.parametrize("raw", (False, True))
+    @pytest.mark.parametrize("Tagged", (False, True))
+    @strict_params
+    def test_MiddleList_Middle_Exp(self, context, mocker, strict, raw, Tagged):
+        exp = mocker.Mock()
+        tmid = mocker.Mock(value=mocker.Mock(tv=mocker.sentinel.tv, trv=mocker.sentinel.trv))
+        tml = ecmascript.ecmascript.P2_TemplateMiddleList_TemplateMiddle_Expression(
+            context, strict, [tmid, exp], Tagged
+        )
+        expected = [mocker.sentinel.trv if raw else mocker.sentinel.tv]
+        ts = tml.TemplateStrings(raw)
+        assert ts == expected
 
     # TemplateMiddleList : TemplateMiddleList TemplateMiddle Expression
     #   1. Let front be TemplateStrings of TemplateMiddleList with argument raw.
@@ -2997,6 +3075,19 @@ class Test_TemplateLiterals_TemplateStrings:
     #       a. Let last be the TRV of TemplateMiddle.
     #   4. Append last as the last element of the List front.
     #   5. Return front.
+    @pytest.mark.parametrize("raw", (False, True))
+    @pytest.mark.parametrize("Tagged", (False, True))
+    @strict_params
+    def test_MiddleList_MiddleList_Middle(self, context, mocker, strict, raw, Tagged):
+        tml_child = mocker.Mock(**{"TemplateStrings.return_value": [mocker.sentinel.front]})
+        tmid = mocker.Mock(value=mocker.Mock(tv=mocker.sentinel.tv, trv=mocker.sentinel.trv))
+        tml = ecmascript.ecmascript.P2_TemplateMiddleList_TemplateMiddleList_TemplateMiddle_Expression(
+            context, strict, [tml_child, tmid, mocker.Mock()], Tagged
+        )
+        expected = [mocker.sentinel.front, mocker.sentinel.trv if raw else mocker.sentinel.tv]
+        ts = tml.TemplateStrings(raw)
+        assert ts == expected
+        tml_child.TemplateStrings.assert_called_with(raw)
 
 
 ####################################################################################
@@ -3118,3 +3209,156 @@ class Test_GroupingOperator_Evaluation:
         rv = pe.evaluate()
         assert rv == mocker.sentinel.return_value
         expr.evaluate.assert_called_with()
+
+
+####################################################################################
+#
+#  d888    .d8888b.       d888   888888888      888888888      888888888
+# d8888   d88P  Y88b     d8888   888            888            888
+#   888          888       888   888            888            888
+#   888        .d88P       888   8888888b.      8888888b.      8888888b.
+#   888    .od888P"        888        "Y88b          "Y88b          "Y88b
+#   888   d88P"            888          888            888            888
+#   888   888"       d8b   888   Y88b  d88P d8b Y88b  d88P d8b Y88b  d88P
+# 8888888 888888888  Y8P 8888888  "Y8888P"  Y8P  "Y8888P"  Y8P  "Y8888P"
+#
+#
+#
+####################################################################################
+# ECMAScript Language: Expressions | Assignment Operators | Destructuring Assignment
+# 12.15.5.5 | Runtime Semantics: IteratorDestructuringAssignmentEvaluation
+####################################################################################
+class Test_DestructuringAssignment_IteratorDestructuringAssignmentEvaluation:
+    # With parameter iteratorRecord.
+
+    # Elision : ,
+    #   1. If iteratorRecord.[[Done]] is false, then
+    #       a. Let next be IteratorStep(iteratorRecord).
+    #       b. If next is an abrupt completion, set iteratorRecord.[[Done]] to true.
+    #       c. ReturnIfAbrupt(next).
+    #       d. If next is false, set iteratorRecord.[[Done]] to true.
+    #   2. Return NormalCompletion(empty).
+    # Test Cases:
+    #   * IteratorRecord.Done == True
+    #   - IteratorRecord.Done == False
+    #     * IteratorStep(IteratorRecord) returns False
+    #     * IteratorStep(IteratorRecord) returns something not False
+    #     * IteratorStep(IteratorRecord) raises
+    @strict_params
+    def test_Elision_Comma_01(self, context, mocker, strict):
+        # IteratorRecord.Done == True
+        iterator_record = mocker.Mock(Done=True)
+        elision = ecmascript.ecmascript.P2_Elision_COMMA(context, strict, [mocker.Mock()])
+        rv = elision.IteratorDestructuringAssignmentEvaluation(iterator_record)
+        assert rv == ecmascript.ecmascript.EMPTY
+        assert iterator_record.Done is True
+
+    @strict_params
+    def test_Elision_Comma_02(self, context, mocker, strict):
+        # IteratorRecord.Done == False; IteratorStep(IteratorRecord) returns something not False
+        iterator_record = mocker.Mock(Done=False)
+        istep = mocker.patch("ecmascript.ecmascript.IteratorStep", return_value=mocker.sentinel.iterobj)
+        elision = ecmascript.ecmascript.P2_Elision_COMMA(context, strict, [mocker.Mock()])
+        rv = elision.IteratorDestructuringAssignmentEvaluation(iterator_record)
+        assert rv == ecmascript.ecmascript.EMPTY
+        assert iterator_record.Done is False
+        istep.assert_called_with(iterator_record)
+
+    @strict_params
+    def test_Elision_Comma_03(self, context, mocker, strict):
+        # IteratorRecord.Done == False; IteratorStep(IteratorRecord) returns False
+        iterator_record = mocker.Mock(Done=False)
+        istep = mocker.patch("ecmascript.ecmascript.IteratorStep", return_value=False)
+        elision = ecmascript.ecmascript.P2_Elision_COMMA(context, strict, [mocker.Mock()])
+        rv = elision.IteratorDestructuringAssignmentEvaluation(iterator_record)
+        assert rv == ecmascript.ecmascript.EMPTY
+        assert iterator_record.Done is True
+        istep.assert_called_with(iterator_record)
+
+    @strict_params
+    def test_Elision_Comma_04(self, context, mocker, strict):
+        # IteratorRecord.Done == False; IteratorStep(IteratorRecord) raises
+        iterator_record = mocker.Mock(Done=False)
+        istep = mocker.patch(
+            "ecmascript.ecmascript.IteratorStep", side_effect=ecmascript.ecmascript.ESTypeError("Test Error")
+        )
+        elision = ecmascript.ecmascript.P2_Elision_COMMA(context, strict, [mocker.Mock()])
+        with pytest.raises(ecmascript.ecmascript.ESTypeError, match="Test Error"):
+            elision.IteratorDestructuringAssignmentEvaluation(iterator_record)
+        assert iterator_record.Done is True
+        istep.assert_called_with(iterator_record)
+
+    # Elision : Elision ,
+    #   1. Perform ? IteratorDestructuringAssignmentEvaluation of Elision with iteratorRecord as the argument.
+    #   2. If iteratorRecord.[[Done]] is false, then
+    #       a. Let next be IteratorStep(iteratorRecord).
+    #       b. If next is an abrupt completion, set iteratorRecord.[[Done]] to true.
+    #       c. ReturnIfAbrupt(next).
+    #       d. If next is false, set iteratorRecord.[[Done]] to true.
+    #   3. Return NormalCompletion(empty).
+    # Test Cases:
+    #   * After step 1, iteratorRecord.[[Done]] is true
+    #   - After step 1, iteratorRecord.[[Done]] is false
+    #       * IteratorStep(iteratorRecord) raises
+    #       * IteratorStep(iteratorRecord) returns false
+    #       * IteratorStep(iteratorRecord) returns anything but false
+    @strict_params
+    def test_Elision_Elision_Comma_01(self, context, mocker, strict):
+        # After step 1, iteratorRecord.[[Done]] is true
+        elision_child = mocker.Mock(
+            **{"IteratorDestructuringAssignmentEvaluation.return_value": mocker.sentinel.child}
+        )
+        elision = ecmascript.ecmascript.P2_Elision_Elision_COMMA(context, strict, [elision_child, mocker.Mock()])
+        iterator_record = mocker.Mock(Done=True)
+        rv = elision.IteratorDestructuringAssignmentEvaluation(iterator_record)
+        elision_child.IteratorDestructuringAssignmentEvaluation.assert_called_with(iterator_record)
+        assert rv == ecmascript.ecmascript.EMPTY
+        assert iterator_record.Done is True
+        elision_child.IteratorDestructuringAssignmentEvaluation.assert_called_with(iterator_record)
+
+    @strict_params
+    def test_Elision_Elision_Comma_02(self, context, mocker, strict):
+        # After step 1, iteratorRecord.[[Done]] is false; IteratorStep(iteratorRecord) raises
+        elision_child = mocker.Mock(
+            **{"IteratorDestructuringAssignmentEvaluation.return_value": mocker.sentinel.child}
+        )
+        elision = ecmascript.ecmascript.P2_Elision_Elision_COMMA(context, strict, [elision_child, mocker.Mock()])
+        iterator_record = mocker.Mock(Done=False)
+        istep = mocker.patch(
+            "ecmascript.ecmascript.IteratorStep", side_effect=ecmascript.ecmascript.ESTypeError("Test Error")
+        )
+        with pytest.raises(ecmascript.ecmascript.ESTypeError, match="Test Error"):
+            elision.IteratorDestructuringAssignmentEvaluation(iterator_record)
+        assert iterator_record.Done is True
+        istep.assert_called_with(iterator_record)
+        elision_child.IteratorDestructuringAssignmentEvaluation.assert_called_with(iterator_record)
+
+    @strict_params
+    def test_Elision_Elision_Comma_03(self, context, mocker, strict):
+        # After step 1, iteratorRecord.[[Done]] is false; IteratorStep(iteratorRecord) returns false
+        elision_child = mocker.Mock(
+            **{"IteratorDestructuringAssignmentEvaluation.return_value": mocker.sentinel.child}
+        )
+        elision = ecmascript.ecmascript.P2_Elision_Elision_COMMA(context, strict, [elision_child, mocker.Mock()])
+        iterator_record = mocker.Mock(Done=False)
+        istep = mocker.patch("ecmascript.ecmascript.IteratorStep", return_value=False)
+        rv = elision.IteratorDestructuringAssignmentEvaluation(iterator_record)
+        assert rv == ecmascript.ecmascript.EMPTY
+        assert iterator_record.Done is True
+        istep.assert_called_with(iterator_record)
+        elision_child.IteratorDestructuringAssignmentEvaluation.assert_called_with(iterator_record)
+
+    @strict_params
+    def test_Elision_Elision_Comma_04(self, context, mocker, strict):
+        # After step 1, iteratorRecord.[[Done]] is false; IteratorStep(iteratorRecord) returns anything but false
+        elision_child = mocker.Mock(
+            **{"IteratorDestructuringAssignmentEvaluation.return_value": mocker.sentinel.child}
+        )
+        elision = ecmascript.ecmascript.P2_Elision_Elision_COMMA(context, strict, [elision_child, mocker.Mock()])
+        iterator_record = mocker.Mock(Done=False)
+        istep = mocker.patch("ecmascript.ecmascript.IteratorStep", return_value=mocker.sentinel.iterobj)
+        rv = elision.IteratorDestructuringAssignmentEvaluation(iterator_record)
+        assert rv == ecmascript.ecmascript.EMPTY
+        assert iterator_record.Done is False
+        istep.assert_called_with(iterator_record)
+        elision_child.IteratorDestructuringAssignmentEvaluation.assert_called_with(iterator_record)

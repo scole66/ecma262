@@ -739,12 +739,10 @@ class parse_test:
                         context, lexer, mocker.ANY, strict_flag, *self.expected_args(name, prod_args)
                     )
             assert rv.strict == strict_flag
-            assert len(rv.children) == len(token_stream)
-            for idx, token in enumerate(token_stream):
-                try:
-                    value = rv.children[idx].value
-                except AttributeError:
-                    value = rv.children[idx].children[0].value
+            terminals = list(rv.terminals())
+            assert len(terminals) == len(token_stream)
+            for actual, token in zip(terminals, token_stream):
+                value = actual.value
                 before, _, after = token.partition("¡")
                 expected = after or before
                 assert value == expected
