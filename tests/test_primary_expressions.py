@@ -1306,6 +1306,36 @@ def test_P2_ObjectLiteral_LCURLY_PropertyDefinitionList_COMMA_RCURLY_init(contex
     assert ol.PropertyDefinitionList == "PropertyDefinitionList"
 
 
+class Test_parse_ObjectLiteral(parse_test):
+    # Syntax
+    #   ObjectLiteral[Yield, Await] :
+    #       { }
+    #       { PropertyDefinitionList[?Yield, ?Await] }
+    #       { PropertyDefinitionList[?Yield, ?Await] , }
+    target = staticmethod(ecmascript.ecmascript.parse_ObjectLiteral)
+    target_argnames = ("Yield", "Await")
+    productions = (
+        (("{", "}"), ecmascript.ecmascript.P2_ObjectLiteral_LCURLY_RCURLY),
+        (
+            ("{", "PropertyDefinitionList", "}"),
+            ecmascript.ecmascript.P2_ObjectLiteral_LCURLY_PropertyDefinitionList_RCURLY,
+        ),
+        (
+            ("{", "PropertyDefinitionList", ",", "}"),
+            ecmascript.ecmascript.P2_ObjectLiteral_LCURLY_PropertyDefinitionList_COMMA_RCURLY,
+        ),
+    )
+    called_argnames = {"PropertyDefinitionList": ("?Yield", "?Await")}
+
+    @ordinary_test_params(target_argnames, productions)
+    def test_ordinary(self, context, mocker, token_stream, expected_class, guard, lex_pos, strict_flag, prod_args):
+        self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
+
+    @syntax_error_test_params(target_argnames, productions)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+
+
 #### PropertyDefinitionList ######################################################################################################################################################
 #
 #     8888888b.                                             888             8888888b.            .d888 d8b          d8b 888    d8b                   888      d8b          888
@@ -1343,6 +1373,31 @@ def test_P2_PropertyDefinitionList_PropertyDefinitionList_COMMA_PropertyDefiniti
     assert pdl.name == "PropertyDefinitionList"
     assert pdl.PropertyDefinitionList == "PropertyDefinitionList"
     assert pdl.PropertyDefinition == "PropertyDefinition"
+
+
+class Test_parse_PropertyDefinitionList(parse_test):
+    # Syntax
+    #   PropertyDefinitionList[Yield, Await] :
+    #       PropertyDefinition[?Yield, ?Await]
+    #       PropertyDefinitionList[?Yield, ?Await] , PropertyDefinition[?Yield, ?Await]
+    target = staticmethod(ecmascript.ecmascript.parse_PropertyDefinitionList)
+    target_argnames = ("Yield", "Await")
+    productions = (
+        (("PropertyDefinition",), ecmascript.ecmascript.P2_PropertyDefinitionList_PropertyDefinition),
+        (
+            ("PropertyDefinition", ",", "PropertyDefinition"),
+            ecmascript.ecmascript.P2_PropertyDefinitionList_PropertyDefinitionList_COMMA_PropertyDefinition,
+        ),
+    )
+    called_argnames = {"PropertyDefinition": ("?Yield", "?Await")}
+
+    @ordinary_test_params(target_argnames, productions)
+    def test_ordinary(self, context, mocker, token_stream, expected_class, guard, lex_pos, strict_flag, prod_args):
+        self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
+
+    @syntax_error_test_params(target_argnames, productions)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
 
 
 #### PropertyDefinition #############################################################################################################################
@@ -1406,6 +1461,46 @@ def test_P2_PropertyDefinition_DOTDOTDOT_AssignmentExpression_init(context):
     assert pd.AssignmentExpression == "AssignmentExpression"
 
 
+class Test_parse_PropertyDefinition(parse_test):
+    # Syntax
+    #   PropertyDefinition[Yield, Await] :
+    #       IdentifierReference[?Yield, ?Await]
+    #       CoverInitializedName[?Yield, ?Await]
+    #       PropertyName[?Yield, ?Await] : AssignmentExpression[+In, ?Yield, ?Await]
+    #       MethodDefinition[?Yield, ?Await]
+    #       ... AssignmentExpression[+In, ?Yield, ?Await]
+    target = staticmethod(ecmascript.ecmascript.parse_PropertyDefinition)
+    target_argnames = ("Yield", "Await")
+    productions = (
+        (("IdentifierReference",), ecmascript.ecmascript.P2_PropertyDefinition_IdentifierReference),
+        (("CoverInitializedName",), ecmascript.ecmascript.P2_PropertyDefinition_CoverInitializedName),
+        (
+            ("PropertyName", ":", "AssignmentExpression"),
+            ecmascript.ecmascript.P2_PropertyDefinition_PropertyName_COLON_AssignmentExpression,
+        ),
+        (("MethodDefinition",), ecmascript.ecmascript.P2_PropertyDefinition_MethodDefinition),
+        (
+            ("...", "AssignmentExpression"),
+            ecmascript.ecmascript.P2_PropertyDefinition_DOTDOTDOT_AssignmentExpression,
+        ),
+    )
+    called_argnames = {
+        "IdentifierReference": ("?Yield", "?Await"),
+        "CoverInitializedName": ("?Yield", "?Await"),
+        "PropertyName": ("?Yield", "?Await"),
+        "AssignmentExpression": ("+In", "?Yield", "?Await"),
+        "MethodDefinition": ("?Yield", "?Await"),
+    }
+
+    @ordinary_test_params(target_argnames, productions)
+    def test_ordinary(self, context, mocker, token_stream, expected_class, guard, lex_pos, strict_flag, prod_args):
+        self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
+
+    @syntax_error_test_params(target_argnames, productions)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+
+
 #### PropertyName ######################################################################################################
 #
 #     8888888b.                                             888             888b    888
@@ -1438,6 +1533,28 @@ def test_P2_PropertyName_ComputedPropertyName_init(context):
     pn = ecmascript.ecmascript.P2_PropertyName_ComputedPropertyName(context, "StrictArg", ["ComputedPropertyName"])
     assert pn.name == "PropertyName"
     assert pn.ComputedPropertyName == "ComputedPropertyName"
+
+
+class Test_parse_PropertyName(parse_test):
+    # Syntax
+    #   PropertyName[Yield, Await] :
+    #       LiteralPropertyName
+    #       ComputedPropertyName[?Yield, ?Await]
+    target = staticmethod(ecmascript.ecmascript.parse_PropertyName)
+    target_argnames = ("Yield", "Await")
+    productions = (
+        (("LiteralPropertyName",), ecmascript.ecmascript.P2_PropertyName_LiteralPropertyName),
+        (("ComputedPropertyName",), ecmascript.ecmascript.P2_PropertyName_ComputedPropertyName),
+    )
+    called_argnames = {"LiteralPropertyName": (), "ComputedPropertyName": ("?Yield", "?Await")}
+
+    @ordinary_test_params(target_argnames, productions)
+    def test_ordinary(self, context, mocker, token_stream, expected_class, guard, lex_pos, strict_flag, prod_args):
+        self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
+
+    @syntax_error_test_params(target_argnames, productions)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
 
 
 #### LiteralPropertyName #################################################################################################################################################
@@ -1480,6 +1597,30 @@ def test_P2_LiteralPropertyName_NumericLiteral_init(context):
     assert lpn.NumericLiteral == "NumericLiteral"
 
 
+class Test_parse_LiteralPropertyName(parse_test):
+    # Syntax
+    #   LiteralPropertyName:
+    #       IdentifierName
+    #       StringLiteral
+    #       NumericLiteral
+    target = staticmethod(ecmascript.ecmascript.parse_LiteralPropertyName)
+    target_argnames = ()
+    productions = (
+        (("IDENTIFIER¡bob",), ecmascript.ecmascript.P2_LiteralPropertyName_IdentifierName),
+        (("STRING¡bob",), ecmascript.ecmascript.P2_LiteralPropertyName_StringLiteral),
+        (("NUMERIC¡772",), ecmascript.ecmascript.P2_LiteralPropertyName_NumericLiteral),
+    )
+    called_argnames = {}
+
+    @ordinary_test_params(target_argnames, productions)
+    def test_ordinary(self, context, mocker, token_stream, expected_class, guard, lex_pos, strict_flag, prod_args):
+        self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
+
+    @syntax_error_test_params(target_argnames, productions)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+
+
 #### ComputedPropertyName #######################################################################################################################################################################
 #
 #  .d8888b.                                           888                  888 8888888b.                                             888             888b    888
@@ -1508,6 +1649,29 @@ def test_P2_ComputedPropertyName_LBRACKET_AssignmentExpression_RBRACKET_init(con
     )
     assert cpn.name == "ComputedPropertyName"
     assert cpn.AssignmentExpression == "AssignmentExpression"
+
+
+class Test_parse_ComputedPropertyName(parse_test):
+    # Syntax
+    #   ComputedPropertyName[Yield, Await] :
+    #       [ AssignmentExpression[+In, ?Yield, ?Await] ]
+    target = staticmethod(ecmascript.ecmascript.parse_ComputedPropertyName)
+    target_argnames = ("Yield", "Await")
+    productions = (
+        (
+            ("[", "AssignmentExpression", "]"),
+            ecmascript.ecmascript.P2_ComputedPropertyName_LBRACKET_AssignmentExpression_RBRACKET,
+        ),
+    )
+    called_argnames = {"AssignmentExpression": ("+In", "?Yield", "?Await")}
+
+    @ordinary_test_params(target_argnames, productions)
+    def test_ordinary(self, context, mocker, token_stream, expected_class, guard, lex_pos, strict_flag, prod_args):
+        self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
+
+    @syntax_error_test_params(target_argnames, productions)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
 
 
 #### CoverInitializedName ##############################################################################################################################################
@@ -1541,6 +1705,29 @@ def test_P2_CoverInitializedName_IdentifierReference_Initializer_init(context):
     assert cin.Initializer == "Initializer"
 
 
+class Test_parse_CoverInitializedName(parse_test):
+    # Syntax
+    #   CoverInitializedName[Yield, Await] :
+    #       IdentifierReference[?Yield, ?Await] Initializer[+In, ?Yield, ?Await]
+    target = staticmethod(ecmascript.ecmascript.parse_CoverInitializedName)
+    target_argnames = ("Yield", "Await")
+    productions = (
+        (
+            ("IdentifierReference", "Initializer"),
+            ecmascript.ecmascript.P2_CoverInitializedName_IdentifierReference_Initializer,
+        ),
+    )
+    called_argnames = {"IdentifierReference": ("?Yield", "?Await"), "Initializer": ("+In", "?Yield", "?Await")}
+
+    @ordinary_test_params(target_argnames, productions)
+    def test_ordinary(self, context, mocker, token_stream, expected_class, guard, lex_pos, strict_flag, prod_args):
+        self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
+
+    @syntax_error_test_params(target_argnames, productions)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+
+
 #### Initializer ############################################################
 #
 # 8888888          d8b 888    d8b          888 d8b
@@ -1569,6 +1756,28 @@ def test_P2_Initializer_EQUALS_AssignmentExpression_init(context):
     )
     assert init.name == "Initializer"
     assert init.AssignmentExpression == "AssignmentExpression"
+
+
+class Test_parse_Initializer(parse_test):
+    # Syntax
+    #   Initializer[In, Yield, Await]:
+    #       = AssignmentExpression[?In, ?Yield, ?Await]
+    target = staticmethod(ecmascript.ecmascript.parse_Initializer)
+    target_argnames = ("In", "Yield", "Await")
+    productions = (
+        (("=", "AssignmentExpression"), ecmascript.ecmascript.P2_Initializer_EQUALS_AssignmentExpression,),
+    )
+    called_argnames = {
+        "AssignmentExpression": ("?In", "?Yield", "?Await"),
+    }
+
+    @ordinary_test_params(target_argnames, productions)
+    def test_ordinary(self, context, mocker, token_stream, expected_class, guard, lex_pos, strict_flag, prod_args):
+        self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
+
+    @syntax_error_test_params(target_argnames, productions)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
 
 
 #### TemplateLiteral ########################################################################################################
@@ -1606,6 +1815,31 @@ def test_P2_TemplateLiteral_SubstitutionTemplate_init(context):
     assert tl.SubstitutionTemplate == "SubTemp"
 
 
+class Test_parse_TemplateLiteral(parse_test):
+    # Syntax
+    #   TemplateLiteral[Yield, Await, Tagged] :
+    #       NoSubstitutionTemplate
+    #       SubstitutionTemplate[?Yield, ?Await, ?Tagged]
+    target = staticmethod(ecmascript.ecmascript.parse_TemplateLiteral)
+    target_argnames = ("Yield", "Await", "Tagged")
+    productions = (
+        (("NOSUBSTITUTIONTEMPLATE¡bob",), ecmascript.ecmascript.P2_TemplateLiteral_NoSubstitutionTemplate),
+        (("SubstitutionTemplate",), ecmascript.ecmascript.P2_TemplateLiteral_SubstitutionTemplate),
+    )
+    called_argnames = {
+        "NoSubstitutionTempate": (),
+        "SubstitutionTemplate": ("?Yield", "?Await", "?Tagged"),
+    }
+
+    @ordinary_test_params(target_argnames, productions)
+    def test_ordinary(self, context, mocker, token_stream, expected_class, guard, lex_pos, strict_flag, prod_args):
+        self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
+
+    @syntax_error_test_params(target_argnames, productions)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+
+
 #### SubstitutionTemplate ###############################################################################################################################################
 #
 #  .d8888b.           888               888    d8b 888             888    d8b                   88888888888                                 888          888
@@ -1637,6 +1871,32 @@ def test_P2_SubstitutionTemplate_TemplateHead_Expression_TemplateSpans_init(cont
     assert st.TemplateHead == "TemplateHead"
     assert st.Expression == "Expression"
     assert st.TemplateSpans == "TemplateSpans"
+
+
+class Test_parse_SubstitutionTemplate(parse_test):
+    # Syntax
+    #   SubstitutionTemplate[Yield, Await, Tagged] :
+    #       TemplateHead Expression[+In, ?Yield, ?Await] TemplateSpans[?Yield, ?Await, ?Tagged]
+    target = staticmethod(ecmascript.ecmascript.parse_SubstitutionTemplate)
+    target_argnames = ("Yield", "Await", "Tagged")
+    productions = (
+        (
+            ("TEMPLATEHEAD¡bob", "Expression", "TemplateSpans"),
+            ecmascript.ecmascript.P2_SubstitutionTemplate_TemplateHead_Expression_TemplateSpans,
+        ),
+    )
+    called_argnames = {
+        "Expression": ("+In", "?Yield", "?Await"),
+        "TemplateSpans": ("?Yield", "?Await", "?Tagged"),
+    }
+
+    @ordinary_test_params(target_argnames, productions)
+    def test_ordinary(self, context, mocker, token_stream, expected_class, guard, lex_pos, strict_flag, prod_args):
+        self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
+
+    @syntax_error_test_params(target_argnames, productions)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
 
 
 #### TemplateSpans #######################################################################################################
@@ -1675,6 +1935,33 @@ def test_P2_TemplateSpans_TemplateMiddleList_TemplateTail_init(context):
     assert ts.name == "TemplateSpans"
     assert ts.TemplateMiddleList == "MiddleList"
     assert ts.TemplateTail == "Tail"
+
+
+class Test_parse_TemplateSpans(parse_test):
+    # Syntax
+    #   TemplateSpans[Yield, Await, Tagged] :
+    #       TemplateTail
+    #       TemplateMiddleList[?Yield, ?Await, ?Tagged] TemplateTail
+    target = staticmethod(ecmascript.ecmascript.parse_TemplateSpans)
+    target_argnames = ("Yield", "Await", "Tagged")
+    productions = (
+        (
+            ("TemplateMiddleList", "TEMPLATETAIL¡bob"),
+            ecmascript.ecmascript.P2_TemplateSpans_TemplateMiddleList_TemplateTail,
+        ),
+        (("TEMPLATETAIL¡bob",), ecmascript.ecmascript.P2_TemplateSpans_TemplateTail),
+    )
+    called_argnames = {
+        "TemplateMiddleList": ("?Yield", "?Await", "?Tagged"),
+    }
+
+    @ordinary_test_params(target_argnames, productions)
+    def test_ordinary(self, context, mocker, token_stream, expected_class, guard, lex_pos, strict_flag, prod_args):
+        self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
+
+    @syntax_error_test_params(target_argnames, productions)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
 
 
 #### TemplateMiddleList #################################################################################################################################
