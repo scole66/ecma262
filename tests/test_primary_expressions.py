@@ -3092,6 +3092,67 @@ class Test_TemplateLiterals_TemplateStrings:
 
 ####################################################################################
 #
+#  d888    .d8888b.       .d8888b.       .d8888b.       .d8888b.
+# d8888   d88P  Y88b     d88P  Y88b     d88P  Y88b     d88P  Y88b
+#   888          888            888     888    888          .d88P
+#   888        .d88P          .d88P     Y88b. d888         8888"
+#   888    .od888P"       .od888P"       "Y888P888          "Y8b.
+#   888   d88P"          d88P"                 888     888    888
+#   888   888"       d8b 888"       d8b Y88b  d88P d8b Y88b  d88P
+# 8888888 888888888  Y8P 888888888  Y8P  "Y8888P"  Y8P  "Y8888P"
+#
+#
+#
+####################################################################################
+# ECMAScript Language: Expressions | Primary Expression | Template Literals
+# 12.2.9.3 | Runtime Semantics: ArgumentListEvaluation
+####################################################################################
+class Test_TemplateLiterals_ArgumentListEvaluation:
+    # TemplateLiteral : NoSubstitutionTemplate
+    #   1. Let templateLiteral be this TemplateLiteral.
+    #   2. Let siteObj be GetTemplateObject(templateLiteral).
+    #   3. Return a List containing the one element which is siteObj.
+    @pytest.mark.parametrize("Tagged", (False, True))
+    @strict_params
+    def test_NoSubstitutionTemplate(self, context, mocker, strict, Tagged):
+        gto = mocker.patch("ecmascript.ecmascript.GetTemplateObject", return_value=mocker.sentinel.siteObj)
+        tl = ecmascript.ecmascript.P2_TemplateLiteral_NoSubstitutionTemplate(
+            context, strict, [mocker.Mock()], Tagged
+        )
+        assert tl.ArgumentListEvaluation() == [mocker.sentinel.siteObj]
+        gto.assert_called_with(tl)
+
+    # SubstitutionTemplate : TemplateHead Expression TemplateSpans
+    #   1. Let templateLiteral be this TemplateLiteral.
+    #   2. Let siteObj be GetTemplateObject(templateLiteral).
+    #   3. Let firstSubRef be the result of evaluating Expression.
+    #   4. Let firstSub be ? GetValue(firstSubRef).
+    #   5. Let restSub be SubstitutionEvaluation of TemplateSpans.
+    #   6. ReturnIfAbrupt(restSub).
+    #   7. Assert: restSub is a List.
+    #   8. Return a List whose first element is siteObj, whose second elements is firstSub, and whose subsequent
+    #      elements are the elements of restSub, in order. restSub may contain no elements.
+    @pytest.mark.parametrize("Tagged", (False, True))
+    @strict_params
+    def test_SubstitutionTemplate(self, context, mocker, strict, Tagged):
+        th = mocker.Mock()
+        exp = mocker.Mock(**{"evaluate.return_value": mocker.sentinel.firstSubRef})
+        ts = mocker.Mock(**{"SubstitutionEvaluation.return_value": [mocker.sentinel.restSub]})
+        tl = ecmascript.ecmascript.P2_SubstitutionTemplate_TemplateHead_Expression_TemplateSpans(
+            context, strict, [th, exp, ts], Tagged
+        )
+        gto = mocker.patch("ecmascript.ecmascript.GetTemplateObject", return_value=mocker.sentinel.siteObj)
+        gv = mocker.patch("ecmascript.ecmascript.GetValue", return_value=mocker.sentinel.firstSub)
+        rv = tl.ArgumentListEvaluation()
+        assert rv == [mocker.sentinel.siteObj, mocker.sentinel.firstSub, mocker.sentinel.restSub]
+        exp.evaluate.assert_called_with()
+        ts.SubstitutionEvaluation.assert_called_with()
+        gto.assert_called_with(tl)
+        gv.assert_called_with(mocker.sentinel.firstSubRef)
+
+
+####################################################################################
+#
 #  d888    .d8888b.       .d8888b.       d888    .d8888b.       d888
 # d8888   d88P  Y88b     d88P  Y88b     d8888   d88P  Y88b     d8888
 #   888          888            888       888   888    888       888
