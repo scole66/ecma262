@@ -278,167 +278,6 @@ class Test_parse_PrimaryExpression(parse_test):
         self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
 
 
-class Test_PrimaryExpression_IsIdentifierRef:
-    THIS = ecmascript.ecmascript.P2_PrimaryExpression_THIS
-    Literal = ecmascript.ecmascript.P2_PrimaryExpression_Literal
-    ArrayLiteral = ecmascript.ecmascript.P2_PrimaryExpression_ArrayLiteral
-    ObjectLiteral = ecmascript.ecmascript.P2_PrimaryExpression_ObjectLiteral
-    FunctionExpression = ecmascript.ecmascript.P2_PrimaryExpression_FunctionExpression
-    ClassExpression = ecmascript.ecmascript.P2_PrimaryExpression_ClassExpression
-    GeneratorExpression = ecmascript.ecmascript.P2_PrimaryExpression_GeneratorExpression
-    AsyncFunctionExpression = ecmascript.ecmascript.P2_PrimaryExpression_AsyncFunctionExpression
-    AsyncGeneratorExpression = ecmascript.ecmascript.P2_PrimaryExpression_AsyncGeneratorExpression
-    RegularExpressionLiteral = ecmascript.ecmascript.P2_PrimaryExpression_RegularExpressionLiteral
-    TemplateLiteral = ecmascript.ecmascript.P2_PrimaryExpression_TemplateLiteral
-    CPEAAPL = ecmascript.ecmascript.P2_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList
-    IdentifierReference = ecmascript.ecmascript.P2_PrimaryExpression_IdentifierReference
-
-    # 12.2.1.4 Static Semantics: IsIdentifierRef
-    # PrimaryExpression : IdentifierReference
-    #   1. Return true.
-    # PrimaryExpression : this
-    # PrimaryExpression : Literal
-    # PrimaryExpression : ArrayLiteral
-    # PrimaryExpression : ObjectLiteral
-    # PrimaryExpression : FunctionExpression
-    # PrimaryExpression : ClassExpression
-    # PrimaryExpression : GeneratorExpression
-    # PrimaryExpression : AsyncFunctionExpression
-    # PrimaryExpression : AsyncGeneratorExpression
-    # PrimaryExpression : RegularExpressionLiteral
-    # PrimaryExpression : TemplateLiteral
-    # PrimaryExpression : CoverParenthesizedExpressionAndArrowParameterList
-    #   1. Return false.
-    @pytest.mark.parametrize(
-        "ctor, expected",
-        (
-            pytest.param(THIS, False, id="this"),
-            pytest.param(Literal, False, id="Literal"),
-            pytest.param(ArrayLiteral, False, id="ArrayLiteral"),
-            pytest.param(ObjectLiteral, False, id="ObjectLiteral"),
-            pytest.param(FunctionExpression, False, id="FunctionExpression"),
-            pytest.param(ClassExpression, False, id="ClassExpression"),
-            pytest.param(GeneratorExpression, False, id="GeneratorExpression"),
-            pytest.param(AsyncFunctionExpression, False, id="AsyncFunctionExpression",),
-            pytest.param(AsyncGeneratorExpression, False, id="AsyncGeneratorExpression",),
-            pytest.param(RegularExpressionLiteral, False, id="RegularExpressionLiteral",),
-            pytest.param(TemplateLiteral, False, id="TemplateLiteral"),
-            pytest.param(CPEAAPL, False, id="CoverParenthesizedExpressionAndArrowParameterList",),
-            pytest.param(IdentifierReference, True, id="IdentifierReference"),
-        ),
-    )
-    @strict_params
-    def test_normal(self, context, mocker, ctor, expected, strict):
-        pe = ctor(context, strict, [mocker.Mock()])
-        assert pe.IsIdentifierRef() is expected
-
-
-class Test_PrimaryExpression_AssignmentTargetType:
-    THIS = ecmascript.ecmascript.P2_PrimaryExpression_THIS
-    Literal = ecmascript.ecmascript.P2_PrimaryExpression_Literal
-    ArrayLiteral = ecmascript.ecmascript.P2_PrimaryExpression_ArrayLiteral
-    ObjectLiteral = ecmascript.ecmascript.P2_PrimaryExpression_ObjectLiteral
-    FunctionExpression = ecmascript.ecmascript.P2_PrimaryExpression_FunctionExpression
-    ClassExpression = ecmascript.ecmascript.P2_PrimaryExpression_ClassExpression
-    GeneratorExpression = ecmascript.ecmascript.P2_PrimaryExpression_GeneratorExpression
-    AsyncFunctionExpression = ecmascript.ecmascript.P2_PrimaryExpression_AsyncFunctionExpression
-    AsyncGeneratorExpression = ecmascript.ecmascript.P2_PrimaryExpression_AsyncGeneratorExpression
-    RegularExpressionLiteral = ecmascript.ecmascript.P2_PrimaryExpression_RegularExpressionLiteral
-    TemplateLiteral = ecmascript.ecmascript.P2_PrimaryExpression_TemplateLiteral
-    CPEAAPL = ecmascript.ecmascript.P2_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList
-    IdentifierReference = ecmascript.ecmascript.P2_PrimaryExpression_IdentifierReference
-
-    # 12.2.1.5 Static Semantics: AssignmentTargetType
-    # PrimaryExpression : this
-    # PrimaryExpression : Literal
-    # PrimaryExpression : ArrayLiteral
-    # PrimaryExpression : ObjectLiteral
-    # PrimaryExpression : FunctionExpression
-    # PrimaryExpression : ClassExpression
-    # PrimaryExpression : GeneratorExpression
-    # PrimaryExpression : AsyncFunctionExpression
-    # PrimaryExpression : AsyncGeneratorExpression
-    # PrimaryExpression : RegularExpressionLiteral
-    # PrimaryExpression : TemplateLiteral
-    #   1. Return invalid.
-    @pytest.mark.parametrize(
-        "ctor",
-        (
-            pytest.param(THIS, id="this"),
-            pytest.param(Literal, id="Literal"),
-            pytest.param(ArrayLiteral, id="ArrayLiteral"),
-            pytest.param(ObjectLiteral, id="ObjectLiteral"),
-            pytest.param(FunctionExpression, id="FunctionExpression"),
-            pytest.param(ClassExpression, id="ClassExpression"),
-            pytest.param(GeneratorExpression, id="GeneratorExpression"),
-            pytest.param(AsyncFunctionExpression, id="AsyncFunctionExpression",),
-            pytest.param(AsyncGeneratorExpression, id="AsyncGeneratorExpression",),
-            pytest.param(RegularExpressionLiteral, id="RegularExpressionLiteral",),
-            pytest.param(TemplateLiteral, id="TemplateLiteral"),
-        ),
-    )
-    @strict_params
-    def test_normal(self, context, mocker, strict, ctor):
-        pe = ctor(context, strict, [mocker.Mock()])
-        assert pe.AssignmentTargetType == ecmascript.ecmascript.INVALID
-
-    # 12.2.1.5 Static Semantics: AssignmentTargetType
-    # PrimaryExpression : CoverParenthesizedExpressionAndArrowParameterList
-    #   1. Let expr be CoveredParenthesizedExpression of CoverParenthesizedExpressionAndArrowParameterList.
-    #   2. Return AssignmentTargetType of expr.
-    @strict_params
-    def test_CPEAAPL(self, context, mocker, strict):
-        expr = mocker.Mock(**{"AssignmentTargetType.return_value": mocker.sentinel.assignment_target_type})
-        cpeaapl = mocker.Mock(**{"CoveredParenthesizedExpression": expr})
-        pe = ecmascript.ecmascript.P2_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(
-            context, strict, [cpeaapl]
-        )
-
-        rv = pe.AssignmentTargetType()
-
-        assert rv == mocker.sentinel.assignment_target_type
-
-
-# 12.2.2.1 Runtime Semantics: Evaluation
-# PrimaryExpression : this
-#   1. Return ? ResolveThisBinding().
-@strict_params
-def test_PrimaryExpression_Evaluation_THIS(context, mocker, strict):
-    mocker.patch("ecmascript.ecmascript.ResolveThisBinding", return_value=mocker.sentinel.resolve_this_binding)
-    pe = ecmascript.ecmascript.P2_PrimaryExpression_THIS(context, strict, [mocker.Mock()])
-
-    rv = pe.evaluate()
-    assert rv == mocker.sentinel.resolve_this_binding
-
-
-# 12.2.4.1 Runtime Semantics: Evaluation
-# Literal : NullLiteral
-#   1. Return null.
-# Literal : BooleanLiteral
-#   1. If BooleanLiteral is the token false, return false.
-#   2. If BooleanLiteral is the token true, return true.
-# Literal : NumericLiteral
-#   1. Return the number whose value is MV of NumericLiteral as defined in 11.8.3.
-# Literal : StringLiteral
-#   1. Return the StringValue of StringLiteral as defined in 11.8.4.1.
-@pytest.mark.parametrize(
-    "ctor, value, expected",
-    (
-        (ecmascript.ecmascript.P2_Literal_NullLiteral, None, ecmascript.ecmascript.JSNull.NULL),
-        (ecmascript.ecmascript.P2_Literal_BooleanLiteral, "true", True),
-        (ecmascript.ecmascript.P2_Literal_BooleanLiteral, "false", False),
-        (ecmascript.ecmascript.P2_Literal_NumericLiteral, 67.25, 67.25),
-        (ecmascript.ecmascript.P2_Literal_StringLiteral, "mystring", "mystring"),
-    ),
-)
-@strict_params
-def test_Literal_evaluation(context, mocker, strict, ctor, value, expected):
-    token = mocker.Mock(**{"value": value})
-    lit = ctor(context, strict, [token])
-    rv = lit.evaluate()
-    assert rv == expected
-
-
 #### CoverParenthesizedExpressionAndArrowParameterList ##################################################################################################################################################################################################################################################################################################################################################################################################
 #
 #  .d8888b.                                     8888888b.                                     888    888                        d8b                        888 8888888888                                                      d8b                          d8888               888        d8888                                        8888888b.                                                   888                     888      d8b          888
@@ -689,25 +528,6 @@ class Test_parse_Elision(parse_test):
         self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
 
 
-class Test_ArrayInitializer_ElisionWidth:
-    # 12.2.5.1 Static Semantics: ElisionWidth
-    # Elision : ,
-    #   1. Return the numeric value 1.
-    # Elision : Elision ,
-    #   1. Let preceding be the ElisionWidth of Elision.
-    #   2. Return preceding + 1.
-    @strict_params
-    def test_one_comma(self, context, mocker, strict):
-        elision = ecmascript.ecmascript.P2_Elision_COMMA(context, strict, [mocker.Mock()])
-        assert elision.ElisionWidth() == 1
-
-    @strict_params
-    def test_many_commas(self, context, mocker, strict):
-        previous = mocker.Mock(**{"ElisionWidth.return_value": 50})
-        elision = ecmascript.ecmascript.P2_Elision_Elision_COMMA(context, strict, [previous, mocker.Mock()])
-        assert elision.ElisionWidth() == 51
-
-
 #### ArrayLiteral #################################################################################
 #
 #        d8888                                   888      d8b 888                              888
@@ -801,99 +621,6 @@ class Test_parse_ArrayLiteral(parse_test):
     @syntax_error_test_params(target_argnames, productions)
     def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
         self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
-
-
-class Test_ArrayInitializer_Evaluation:
-    # 12.2.5.3 Runtime Semantics: Evaluation
-
-    # ArrayLiteral : [ Elision ]
-    #   1. Let array be ! ArrayCreate(0).
-    #   2. Let pad be the ElisionWidth of Elision; if Elision is not present, use the numeric value zero.
-    #   3. Perform Set(array, "length", ToUint32(pad), false).
-    #   4. NOTE: The above Set cannot fail because of the nature of the object returned by ArrayCreate.
-    #   5. Return array.
-    @strict_params
-    def test_ArrayLiteral_Empty(self, context, mocker, strict):
-        al = ecmascript.ecmascript.P2_ArrayLiteral_LBRACKET_RBRACKET(context, strict, [mocker.Mock(), mocker.Mock()])
-        ac = mocker.patch("ecmascript.ecmascript.ArrayCreate", return_value=mocker.sentinel.array)
-        s = mocker.patch("ecmascript.ecmascript.Set", return_value=None)
-        rv = al.evaluate()
-        assert rv == mocker.sentinel.array
-        ac.assert_called_with(0)
-        s.assert_called_with(mocker.sentinel.array, "length", 0, False)
-
-    @strict_params
-    def test_ArrayLiteral_Elision(self, context, mocker, strict):
-        elision = mocker.Mock(**{"ElisionWidth.return_value": 10})
-        al = ecmascript.ecmascript.P2_ArrayLiteral_LBRACKET_Elision_RBRACKET(
-            context, strict, [mocker.Mock(), elision, mocker.Mock()]
-        )
-        ac = mocker.patch("ecmascript.ecmascript.ArrayCreate", return_value=mocker.sentinel.array)
-        s = mocker.patch("ecmascript.ecmascript.Set", return_value=None)
-        rv = al.evaluate()
-        assert rv == mocker.sentinel.array
-        ac.assert_called_with(0)
-        s.assert_called_with(mocker.sentinel.array, "length", 10, False)
-        elision.ElisionWidth.assert_called_with()
-
-    # ArrayLiteral : [ ElementList ]
-    #   1. Let array be ! ArrayCreate(0).
-    #   2. Let len be the result of performing ArrayAccumulation for ElementList with arguments array and 0.
-    #   3. ReturnIfAbrupt(len).
-    #   4. Perform Set(array, "length", ToUint32(len), false).
-    #   5. NOTE: The above Set cannot fail because of the nature of the object returned by ArrayCreate.
-    #   6. Return array.
-    @strict_params
-    def test_ArrayLiteral_ElementList(self, context, mocker, strict):
-        el = mocker.Mock(**{"ArrayAccumulation.return_value": 100})
-        al = ecmascript.ecmascript.P2_ArrayLiteral_LBRACKET_ElementList_RBRACKET(
-            context, strict, [mocker.Mock(), el, mocker.Mock()]
-        )
-        ac = mocker.patch("ecmascript.ecmascript.ArrayCreate", return_value=mocker.sentinel.array)
-        s = mocker.patch("ecmascript.ecmascript.Set", return_value=None)
-        rv = al.evaluate()
-        assert rv == mocker.sentinel.array
-        ac.assert_called_with(0)
-        s.assert_called_with(mocker.sentinel.array, "length", 100, False)
-        el.ArrayAccumulation.assert_called_with(mocker.sentinel.array, 0)
-
-    # ArrayLiteral : [ ElementList , Elision ]
-    #   1. Let array be ! ArrayCreate(0).
-    #   2. Let len be the result of performing ArrayAccumulation for ElementList with arguments array and 0.
-    #   3. ReturnIfAbrupt(len).
-    #   4. Let padding be the ElisionWidth of Elision; if Elision is not present, use the numeric value zero.
-    #   5. Perform Set(array, "length", ToUint32(padding + len), false).
-    #   6. NOTE: The above Set cannot fail because of the nature of the object returned by ArrayCreate.
-    #   7. Return array.
-    @strict_params
-    def test_ArrayLiteral_ElementList_Elision(self, context, mocker, strict):
-        elision = mocker.Mock(**{"ElisionWidth.return_value": 10})
-        el = mocker.Mock(**{"ArrayAccumulation.return_value": 100})
-        al = ecmascript.ecmascript.P2_ArrayLiteral_LBRACKET_ElementList_COMMA_Elision_RBRACKET(
-            context, strict, [mocker.Mock(), el, mocker.Mock(), elision, mocker.Mock()]
-        )
-        ac = mocker.patch("ecmascript.ecmascript.ArrayCreate", return_value=mocker.sentinel.array)
-        s = mocker.patch("ecmascript.ecmascript.Set", return_value=None)
-        rv = al.evaluate()
-        assert rv == mocker.sentinel.array
-        ac.assert_called_with(0)
-        s.assert_called_with(mocker.sentinel.array, "length", 110, False)
-        el.ArrayAccumulation.assert_called_with(mocker.sentinel.array, 0)
-        elision.ElisionWidth.assert_called_with()
-
-    @strict_params
-    def test_ArrayLiteral_ElementList_COMMA(self, context, mocker, strict):
-        el = mocker.Mock(**{"ArrayAccumulation.return_value": 100})
-        al = ecmascript.ecmascript.P2_ArrayLiteral_LBRACKET_ElementList_COMMA_RBRACKET(
-            context, strict, [mocker.Mock(), el, mocker.Mock(), mocker.Mock()]
-        )
-        ac = mocker.patch("ecmascript.ecmascript.ArrayCreate", return_value=mocker.sentinel.array)
-        s = mocker.patch("ecmascript.ecmascript.Set", return_value=None)
-        rv = al.evaluate()
-        assert rv == mocker.sentinel.array
-        ac.assert_called_with(0)
-        s.assert_called_with(mocker.sentinel.array, "length", 100, False)
-        el.ArrayAccumulation.assert_called_with(mocker.sentinel.array, 0)
 
 
 #### ElementList #################################################################################
@@ -1034,181 +761,6 @@ class Test_parse_ElementList(parse_test):
     @syntax_error_test_params(target_argnames, productions)
     def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
         self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
-
-
-class Test_ArrayInitializer_ArrayAccumulation:
-    # 12.2.5.2 Runtime Semantics: ArrayAccumulation
-    #   With parameters array and nextIndex.
-
-    # ElementList : Elision AssignmentExpression
-    #   1. Let padding be the ElisionWidth of Elision; if Elision is not present, use the numeric value zero.
-    #   2. Let initResult be the result of evaluating AssignmentExpression.
-    #   3. Let initValue be ? GetValue(initResult).
-    #   4. Let created be CreateDataProperty(array, ToString(ToUint32(nextIndex + padding)), initValue).
-    #   5. Assert: created is true.
-    #   6. Return nextIndex + padding + 1.
-    @strict_params
-    def test_ElementList_Elision_AssignmentExpression(self, context, mocker, strict):
-        elision = mocker.Mock(**{"ElisionWidth.return_value": 10})
-        init_value = mocker.Mock()
-        init_result = mocker.Mock()
-        gv = mocker.patch("ecmascript.ecmascript.GetValue", return_value=init_value)
-        ae = mocker.Mock(**{"evaluate.return_value": init_result})
-        array = mocker.Mock()
-        cdp = mocker.patch("ecmascript.ecmascript.CreateDataProperty", return_value=True)
-        el = ecmascript.ecmascript.P2_ElementList_Elision_AssignmentExpression(context, strict, [elision, ae])
-
-        rv = el.ArrayAccumulation(array, 15)
-        assert rv == 26
-        cdp.assert_called_with(array, "25", init_value)
-        gv.assert_called_with(init_result)
-
-    @strict_params
-    def test_ElementList_AssignmentExpression(self, context, mocker, strict):
-        init_value = mocker.Mock()
-        init_result = mocker.Mock()
-        gv = mocker.patch("ecmascript.ecmascript.GetValue", return_value=init_value)
-        ae = mocker.Mock(**{"evaluate.return_value": init_result})
-        array = mocker.Mock()
-        cdp = mocker.patch("ecmascript.ecmascript.CreateDataProperty", return_value=True)
-        el = ecmascript.ecmascript.P2_ElementList_AssignmentExpression(context, strict, [ae])
-
-        rv = el.ArrayAccumulation(array, 15)
-        assert rv == 16
-        cdp.assert_called_with(array, "15", init_value)
-        gv.assert_called_with(init_result)
-
-    # ElementList : Elision SpreadElement
-    #   1. Let padding be the ElisionWidth of Elision; if Elision is not present, use the numeric value zero.
-    #   2. Return the result of performing ArrayAccumulation for SpreadElement with arguments array and
-    #      nextIndex + padding.
-    @strict_params
-    def test_ElementList_Elision_SpreadElement(self, context, mocker, strict):
-        elision = mocker.Mock(**{"ElisionWidth.return_value": 10})
-        se = mocker.Mock(**{"ArrayAccumulation.return_value": mocker.sentinel.aa_se})
-        el = ecmascript.ecmascript.P2_ElementList_Elision_SpreadElement(context, strict, [elision, se])
-        array = mocker.Mock()
-        rv = el.ArrayAccumulation(array, 15)
-        assert rv == mocker.sentinel.aa_se
-        se.ArrayAccumulation.assert_called_with(array, 25)
-
-    @strict_params
-    def test_ElementList_SpreadElement(self, context, mocker, strict):
-        se = mocker.Mock(**{"ArrayAccumulation.return_value": mocker.sentinel.aa_se})
-        el = ecmascript.ecmascript.P2_ElementList_SpreadElement(context, strict, [se])
-        rv = el.ArrayAccumulation(mocker.sentinel.array, 15)
-        assert rv == mocker.sentinel.aa_se
-        se.ArrayAccumulation.assert_called_with(mocker.sentinel.array, 15)
-
-    # ElementList : ElementList , Elision AssignmentExpression
-    #   1. Let postIndex be the result of performing ArrayAccumulation for ElementList with arguments array and nextIndex.
-    #   2. ReturnIfAbrupt(postIndex).
-    #   3. Let padding be the ElisionWidth of Elision; if Elision is not present, use the numeric value zero.
-    #   4. Let initResult be the result of evaluating AssignmentExpression.
-    #   5. Let initValue be ? GetValue(initResult).
-    #   6. Let created be CreateDataProperty(array, ToString(ToUint32(postIndex + padding)), initValue).
-    #   7. Assert: created is true.
-    #   8. Return postIndex + padding + 1.
-    @strict_params
-    def test_ElementList_ElementList_Elision_AssignmentExpression(self, context, mocker, strict):
-        elision = mocker.Mock(**{"ElisionWidth.return_value": 10})
-        el_child = mocker.Mock(**{"ArrayAccumulation.return_value": 100})
-        ae = mocker.Mock(**{"evaluate.return_value": mocker.sentinel.init_result})
-        gv = mocker.patch("ecmascript.ecmascript.GetValue", return_value=mocker.sentinel.init_value)
-        cdp = mocker.patch("ecmascript.ecmascript.CreateDataProperty", return_value=True)
-        el = ecmascript.ecmascript.P2_ElementList_ElementList_COMMA_Elision_AssignmentExpression(
-            context, strict, [el_child, mocker.Mock(), elision, ae]
-        )
-
-        rv = el.ArrayAccumulation(mocker.sentinel.array, 15)
-        el_child.ArrayAccumulation.assert_called_with(mocker.sentinel.array, 15)
-        gv.assert_called_with(mocker.sentinel.init_result)
-        cdp.assert_called_with(mocker.sentinel.array, "110", mocker.sentinel.init_value)
-        assert rv == 111
-
-    @strict_params
-    def test_ElementList_ElementList_AssignmentExpression(self, context, mocker, strict):
-        el_child = mocker.Mock(**{"ArrayAccumulation.return_value": 100})
-        ae = mocker.Mock(**{"evaluate.return_value": mocker.sentinel.init_result})
-        gv = mocker.patch("ecmascript.ecmascript.GetValue", return_value=mocker.sentinel.init_value)
-        cdp = mocker.patch("ecmascript.ecmascript.CreateDataProperty", return_value=True)
-        el = ecmascript.ecmascript.P2_ElementList_ElementList_COMMA_AssignmentExpression(
-            context, strict, [el_child, mocker.Mock(), ae]
-        )
-
-        rv = el.ArrayAccumulation(mocker.sentinel.array, 15)
-        el_child.ArrayAccumulation.assert_called_with(mocker.sentinel.array, 15)
-        gv.assert_called_with(mocker.sentinel.init_result)
-        cdp.assert_called_with(mocker.sentinel.array, "100", mocker.sentinel.init_value)
-        assert rv == 101
-
-    # ElementList : ElementList , Elision SpreadElement
-    #   1. Let postIndex be the result of performing ArrayAccumulation for ElementList with arguments array and nextIndex.
-    #   2. ReturnIfAbrupt(postIndex).
-    #   3. Let padding be the ElisionWidth of Elision; if Elision is not present, use the numeric value zero.
-    #   4. Return the result of performing ArrayAccumulation for SpreadElement with arguments array and
-    #      postIndex + padding.
-    @strict_params
-    def test_ElementList_ElementList_Elision_SpreadElement(self, context, mocker, strict):
-        el_child = mocker.Mock(**{"ArrayAccumulation.return_value": 100})
-        elision = mocker.Mock(**{"ElisionWidth.return_value": 10})
-        se = mocker.Mock(**{"ArrayAccumulation.return_value": mocker.sentinel.aa_se})
-        el = ecmascript.ecmascript.P2_ElementList_ElementList_COMMA_Elision_SpreadElement(
-            context, strict, [el_child, mocker.Mock(), elision, se]
-        )
-        rv = el.ArrayAccumulation(mocker.sentinel.array, 15)
-        el_child.ArrayAccumulation.assert_called_with(mocker.sentinel.array, 15)
-        se.ArrayAccumulation.assert_called_with(mocker.sentinel.array, 110)
-        assert rv == mocker.sentinel.aa_se
-
-    @strict_params
-    def test_ElementList_ElementList_SpreadElement(self, context, mocker, strict):
-        el_child = mocker.Mock(**{"ArrayAccumulation.return_value": 100})
-        se = mocker.Mock(**{"ArrayAccumulation.return_value": mocker.sentinel.aa_se})
-        el = ecmascript.ecmascript.P2_ElementList_ElementList_COMMA_SpreadElement(
-            context, strict, [el_child, mocker.Mock(), se]
-        )
-        rv = el.ArrayAccumulation(mocker.sentinel.array, 15)
-        el_child.ArrayAccumulation.assert_called_with(mocker.sentinel.array, 15)
-        se.ArrayAccumulation.assert_called_with(mocker.sentinel.array, 100)
-        assert rv == mocker.sentinel.aa_se
-
-    # SpreadElement : ... AssignmentExpression
-    #   1. Let spreadRef be the result of evaluating AssignmentExpression.
-    #   2. Let spreadObj be ? GetValue(spreadRef).
-    #   3. Let iteratorRecord be ? GetIterator(spreadObj).
-    #   4. Repeat,
-    #       a. Let next be ? IteratorStep(iteratorRecord).
-    #       b. If next is false, return nextIndex.
-    #       c. Let nextValue be ? IteratorValue(next).
-    #       d. Let status be CreateDataProperty(array, ToString(ToUint32(nextIndex)), nextValue).
-    #       e. Assert: status is true.
-    #       f. Increase nextIndex by 1.
-    @pytest.mark.parametrize("size", (0, 1, 3))
-    @strict_params
-    def test_SpreadElement_AssignmentExpression(self, context, mocker, strict, size):
-        ae = mocker.Mock(**{"evaluate.return_value": mocker.sentinel.spread_ref})
-        gv = mocker.patch("ecmascript.ecmascript.GetValue", return_value=mocker.sentinel.spread_obj)
-        gi = mocker.patch("ecmascript.ecmascript.GetIterator", return_value=mocker.sentinel.iterator_record)
-        gen = ((z,) for z in range(size))
-        mystep = lambda iteratorRecord: next(gen, False)
-        its = mocker.patch("ecmascript.ecmascript.IteratorStep", side_effect=mystep)
-        myvalue = lambda nextresult: str(nextresult[0])
-        itv = mocker.patch("ecmascript.ecmascript.IteratorValue", side_effect=myvalue)
-        cdp = mocker.patch("ecmascript.ecmascript.CreateDataProperty", return_value=True)
-        se = ecmascript.ecmascript.P2_SpreadElement_DOTDOTDOT_AssignmentExpression(
-            context, strict, [mocker.Mock(), ae]
-        )
-
-        rv = se.ArrayAccumulation(mocker.sentinel.array, 15)
-
-        se.AssignmentExpression.evaluate.assert_called_with()
-        gv.assert_called_with(mocker.sentinel.spread_ref)
-        gi.assert_called_with(mocker.sentinel.spread_obj)
-        assert its.call_args_list == [mocker.call(mocker.sentinel.iterator_record)] * (size + 1)
-        assert itv.call_args_list == [mocker.call((x,)) for x in range(size)]
-        assert cdp.call_args_list == [mocker.call(mocker.sentinel.array, str(x + 15), str(x)) for x in range(size)]
-        assert rv == size + 15
 
 
 #### SpreadElement #########################################################################################################
@@ -2006,6 +1558,14 @@ def test_P2_TemplateMiddleList_TemplateMiddleList_TemplateMiddle_Expression_init
     assert tml.Expression == "Expression"
 
 
+@pytest.mark.parametrize("Tagged", (False, True))
+@strict_params
+def test_P2_TemplateMiddleList_TemplateMiddle(context, strict, Tagged):
+    tml = ecmascript.ecmascript.P2_TemplateMiddleList(context, strict, ["anything"], Tagged)
+    with pytest.raises(NotImplementedError):
+        tml.TemplateMiddle
+
+
 class Test_parse_TemplateMiddleList(parse_test):
     # Syntax
     #   TemplateMiddleList[Yield, Await, Tagged] :
@@ -2164,6 +1724,567 @@ class Test_Semantics_IsFunctionDefinition:
         rv = pe.IsFunctionDefinition()
 
         assert rv == mocker.sentinel.is_function_definition
+
+
+####################################################################################
+#
+#  d888    .d8888b.       .d8888b.       d888           d8888
+# d8888   d88P  Y88b     d88P  Y88b     d8888          d8P888
+#   888          888            888       888         d8P 888
+#   888        .d88P          .d88P       888        d8P  888
+#   888    .od888P"       .od888P"        888       d88   888
+#   888   d88P"          d88P"            888       8888888888
+#   888   888"       d8b 888"       d8b   888   d8b       888
+# 8888888 888888888  Y8P 888888888  Y8P 8888888 Y8P       888
+#
+#
+#
+####################################################################################
+# ECMAScript Language: Expressions | Primary Expression | Semantics
+# 12.2.1.4 | Static Semantics: IsIdentifierRef
+####################################################################################
+class Test_Semantics_IsIdentifierRef:
+    THIS = ecmascript.ecmascript.P2_PrimaryExpression_THIS
+    Literal = ecmascript.ecmascript.P2_PrimaryExpression_Literal
+    ArrayLiteral = ecmascript.ecmascript.P2_PrimaryExpression_ArrayLiteral
+    ObjectLiteral = ecmascript.ecmascript.P2_PrimaryExpression_ObjectLiteral
+    FunctionExpression = ecmascript.ecmascript.P2_PrimaryExpression_FunctionExpression
+    ClassExpression = ecmascript.ecmascript.P2_PrimaryExpression_ClassExpression
+    GeneratorExpression = ecmascript.ecmascript.P2_PrimaryExpression_GeneratorExpression
+    AsyncFunctionExpression = ecmascript.ecmascript.P2_PrimaryExpression_AsyncFunctionExpression
+    AsyncGeneratorExpression = ecmascript.ecmascript.P2_PrimaryExpression_AsyncGeneratorExpression
+    RegularExpressionLiteral = ecmascript.ecmascript.P2_PrimaryExpression_RegularExpressionLiteral
+    TemplateLiteral = ecmascript.ecmascript.P2_PrimaryExpression_TemplateLiteral
+    CPEAAPL = ecmascript.ecmascript.P2_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList
+    IdentifierReference = ecmascript.ecmascript.P2_PrimaryExpression_IdentifierReference
+
+    # PrimaryExpression : IdentifierReference
+    #   1. Return true.
+    # PrimaryExpression : this
+    # PrimaryExpression : Literal
+    # PrimaryExpression : ArrayLiteral
+    # PrimaryExpression : ObjectLiteral
+    # PrimaryExpression : FunctionExpression
+    # PrimaryExpression : ClassExpression
+    # PrimaryExpression : GeneratorExpression
+    # PrimaryExpression : AsyncFunctionExpression
+    # PrimaryExpression : AsyncGeneratorExpression
+    # PrimaryExpression : RegularExpressionLiteral
+    # PrimaryExpression : TemplateLiteral
+    # PrimaryExpression : CoverParenthesizedExpressionAndArrowParameterList
+    #   1. Return false.
+    @pytest.mark.parametrize(
+        "ctor, expected",
+        (
+            pytest.param(THIS, False, id="this"),
+            pytest.param(Literal, False, id="Literal"),
+            pytest.param(ArrayLiteral, False, id="ArrayLiteral"),
+            pytest.param(ObjectLiteral, False, id="ObjectLiteral"),
+            pytest.param(FunctionExpression, False, id="FunctionExpression"),
+            pytest.param(ClassExpression, False, id="ClassExpression"),
+            pytest.param(GeneratorExpression, False, id="GeneratorExpression"),
+            pytest.param(AsyncFunctionExpression, False, id="AsyncFunctionExpression",),
+            pytest.param(AsyncGeneratorExpression, False, id="AsyncGeneratorExpression",),
+            pytest.param(RegularExpressionLiteral, False, id="RegularExpressionLiteral",),
+            pytest.param(TemplateLiteral, False, id="TemplateLiteral"),
+            pytest.param(CPEAAPL, False, id="CoverParenthesizedExpressionAndArrowParameterList",),
+            pytest.param(IdentifierReference, True, id="IdentifierReference"),
+        ),
+    )
+    @strict_params
+    def test_normal(self, context, mocker, ctor, expected, strict):
+        pe = ctor(context, strict, [mocker.Mock()])
+        assert pe.IsIdentifierRef() is expected
+
+
+####################################################################################
+#
+#  d888    .d8888b.       .d8888b.       d888       888888888
+# d8888   d88P  Y88b     d88P  Y88b     d8888       888
+#   888          888            888       888       888
+#   888        .d88P          .d88P       888       8888888b.
+#   888    .od888P"       .od888P"        888            "Y88b
+#   888   d88P"          d88P"            888              888
+#   888   888"       d8b 888"       d8b   888   d8b Y88b  d88P
+# 8888888 888888888  Y8P 888888888  Y8P 8888888 Y8P  "Y8888P"
+#
+#
+#
+####################################################################################
+# ECMAScript Language: Expressions | Primary Expression | Semantics
+# 12.2.1.5 | Static Semantics: AssignmentTargetType
+####################################################################################
+class Test_Semantics_AssignmentTargetType:
+    THIS = ecmascript.ecmascript.P2_PrimaryExpression_THIS
+    Literal = ecmascript.ecmascript.P2_PrimaryExpression_Literal
+    ArrayLiteral = ecmascript.ecmascript.P2_PrimaryExpression_ArrayLiteral
+    ObjectLiteral = ecmascript.ecmascript.P2_PrimaryExpression_ObjectLiteral
+    FunctionExpression = ecmascript.ecmascript.P2_PrimaryExpression_FunctionExpression
+    ClassExpression = ecmascript.ecmascript.P2_PrimaryExpression_ClassExpression
+    GeneratorExpression = ecmascript.ecmascript.P2_PrimaryExpression_GeneratorExpression
+    AsyncFunctionExpression = ecmascript.ecmascript.P2_PrimaryExpression_AsyncFunctionExpression
+    AsyncGeneratorExpression = ecmascript.ecmascript.P2_PrimaryExpression_AsyncGeneratorExpression
+    RegularExpressionLiteral = ecmascript.ecmascript.P2_PrimaryExpression_RegularExpressionLiteral
+    TemplateLiteral = ecmascript.ecmascript.P2_PrimaryExpression_TemplateLiteral
+    CPEAAPL = ecmascript.ecmascript.P2_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList
+    IdentifierReference = ecmascript.ecmascript.P2_PrimaryExpression_IdentifierReference
+
+    # PrimaryExpression : this
+    # PrimaryExpression : Literal
+    # PrimaryExpression : ArrayLiteral
+    # PrimaryExpression : ObjectLiteral
+    # PrimaryExpression : FunctionExpression
+    # PrimaryExpression : ClassExpression
+    # PrimaryExpression : GeneratorExpression
+    # PrimaryExpression : AsyncFunctionExpression
+    # PrimaryExpression : AsyncGeneratorExpression
+    # PrimaryExpression : RegularExpressionLiteral
+    # PrimaryExpression : TemplateLiteral
+    #   1. Return invalid.
+    @pytest.mark.parametrize(
+        "ctor",
+        (
+            pytest.param(THIS, id="this"),
+            pytest.param(Literal, id="Literal"),
+            pytest.param(ArrayLiteral, id="ArrayLiteral"),
+            pytest.param(ObjectLiteral, id="ObjectLiteral"),
+            pytest.param(FunctionExpression, id="FunctionExpression"),
+            pytest.param(ClassExpression, id="ClassExpression"),
+            pytest.param(GeneratorExpression, id="GeneratorExpression"),
+            pytest.param(AsyncFunctionExpression, id="AsyncFunctionExpression",),
+            pytest.param(AsyncGeneratorExpression, id="AsyncGeneratorExpression",),
+            pytest.param(RegularExpressionLiteral, id="RegularExpressionLiteral",),
+            pytest.param(TemplateLiteral, id="TemplateLiteral"),
+        ),
+    )
+    @strict_params
+    def test_normal(self, context, mocker, strict, ctor):
+        pe = ctor(context, strict, [mocker.Mock()])
+        assert pe.AssignmentTargetType == ecmascript.ecmascript.INVALID
+
+    # PrimaryExpression : CoverParenthesizedExpressionAndArrowParameterList
+    #   1. Let expr be CoveredParenthesizedExpression of CoverParenthesizedExpressionAndArrowParameterList.
+    #   2. Return AssignmentTargetType of expr.
+    @strict_params
+    def test_CPEAAPL(self, context, mocker, strict):
+        expr = mocker.Mock(**{"AssignmentTargetType.return_value": mocker.sentinel.assignment_target_type})
+        cpeaapl = mocker.Mock(**{"CoveredParenthesizedExpression": expr})
+        pe = ecmascript.ecmascript.P2_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(
+            context, strict, [cpeaapl]
+        )
+
+        rv = pe.AssignmentTargetType()
+
+        assert rv == mocker.sentinel.assignment_target_type
+
+
+####################################################################################
+#
+#  d888    .d8888b.       .d8888b.       .d8888b.       d888
+# d8888   d88P  Y88b     d88P  Y88b     d88P  Y88b     d8888
+#   888          888            888            888       888
+#   888        .d88P          .d88P          .d88P       888
+#   888    .od888P"       .od888P"       .od888P"        888
+#   888   d88P"          d88P"          d88P"            888
+#   888   888"       d8b 888"       d8b 888"       d8b   888
+# 8888888 888888888  Y8P 888888888  Y8P 888888888  Y8P 8888888
+#
+#
+#
+####################################################################################
+# ECMAScript Language: Expressions | Primary Expression | The this Keyword
+# 12.2.2.1 | Runtime Semantics: Evaluation
+####################################################################################
+class Test_ThisKeyword_Evaluation:
+    # PrimaryExpression : this
+    #   1. Return ? ResolveThisBinding().
+    @strict_params
+    def test_PrimaryExpression_Evaluation_THIS(self, context, mocker, strict):
+        mocker.patch("ecmascript.ecmascript.ResolveThisBinding", return_value=mocker.sentinel.resolve_this_binding)
+        pe = ecmascript.ecmascript.P2_PrimaryExpression_THIS(context, strict, [mocker.Mock()])
+
+        rv = pe.evaluate()
+        assert rv == mocker.sentinel.resolve_this_binding
+
+
+####################################################################################
+#
+#  d888    .d8888b.       .d8888b.          d8888       d888
+# d8888   d88P  Y88b     d88P  Y88b        d8P888      d8888
+#   888          888            888       d8P 888        888
+#   888        .d88P          .d88P      d8P  888        888
+#   888    .od888P"       .od888P"      d88   888        888
+#   888   d88P"          d88P"          8888888888       888
+#   888   888"       d8b 888"       d8b       888  d8b   888
+# 8888888 888888888  Y8P 888888888  Y8P       888  Y8P 8888888
+#
+#
+#
+####################################################################################
+# ECMAScript Language: Expressions | Primary Expression | Literals
+# 12.2.4.1 | Runtime Semantics: Evaluation
+####################################################################################
+class Test_Literals_Evaluation:
+    # Literal : NullLiteral
+    #   1. Return null.
+    # Literal : BooleanLiteral
+    #   1. If BooleanLiteral is the token false, return false.
+    #   2. If BooleanLiteral is the token true, return true.
+    # Literal : NumericLiteral
+    #   1. Return the number whose value is MV of NumericLiteral as defined in 11.8.3.
+    # Literal : StringLiteral
+    #   1. Return the StringValue of StringLiteral as defined in 11.8.4.1.
+    @pytest.mark.parametrize(
+        "ctor, value, expected",
+        (
+            (ecmascript.ecmascript.P2_Literal_NullLiteral, None, ecmascript.ecmascript.JSNull.NULL),
+            (ecmascript.ecmascript.P2_Literal_BooleanLiteral, "true", True),
+            (ecmascript.ecmascript.P2_Literal_BooleanLiteral, "false", False),
+            (ecmascript.ecmascript.P2_Literal_NumericLiteral, 67.25, 67.25),
+            (ecmascript.ecmascript.P2_Literal_StringLiteral, "mystring", "mystring"),
+        ),
+    )
+    @strict_params
+    def test_Literal_evaluation(self, context, mocker, strict, ctor, value, expected):
+        token = mocker.Mock(**{"value": value})
+        lit = ctor(context, strict, [token])
+        rv = lit.evaluate()
+        assert rv == expected
+
+
+####################################################################################
+#
+#  d888    .d8888b.       .d8888b.      888888888       d888
+# d8888   d88P  Y88b     d88P  Y88b     888            d8888
+#   888          888            888     888              888
+#   888        .d88P          .d88P     8888888b.        888
+#   888    .od888P"       .od888P"           "Y88b       888
+#   888   d88P"          d88P"                 888       888
+#   888   888"       d8b 888"       d8b Y88b  d88P d8b   888
+# 8888888 888888888  Y8P 888888888  Y8P  "Y8888P"  Y8P 8888888
+#
+#
+#
+####################################################################################
+# ECMAScript Language: Expressions | Primary Expression | Array Initializer
+# 12.2.5.1 | Runtime Semantics: ElisionWidth
+####################################################################################
+class Test_ArrayInitializer_ElisionWidth:
+    # 12.2.5.1 Static Semantics: ElisionWidth
+    # Elision : ,
+    #   1. Return the numeric value 1.
+    # Elision : Elision ,
+    #   1. Let preceding be the ElisionWidth of Elision.
+    #   2. Return preceding + 1.
+    @strict_params
+    def test_one_comma(self, context, mocker, strict):
+        elision = ecmascript.ecmascript.P2_Elision_COMMA(context, strict, [mocker.Mock()])
+        assert elision.ElisionWidth() == 1
+
+    @strict_params
+    def test_many_commas(self, context, mocker, strict):
+        previous = mocker.Mock(**{"ElisionWidth.return_value": 50})
+        elision = ecmascript.ecmascript.P2_Elision_Elision_COMMA(context, strict, [previous, mocker.Mock()])
+        assert elision.ElisionWidth() == 51
+
+
+####################################################################################
+#
+#  d888    .d8888b.       .d8888b.      888888888       .d8888b.
+# d8888   d88P  Y88b     d88P  Y88b     888            d88P  Y88b
+#   888          888            888     888                   888
+#   888        .d88P          .d88P     8888888b.           .d88P
+#   888    .od888P"       .od888P"           "Y88b      .od888P"
+#   888   d88P"          d88P"                 888     d88P"
+#   888   888"       d8b 888"       d8b Y88b  d88P d8b 888"
+# 8888888 888888888  Y8P 888888888  Y8P  "Y8888P"  Y8P 888888888
+#
+#
+#
+####################################################################################
+# ECMAScript Language: Expressions | Primary Expression | Array Initializer
+# 12.2.5.2 | Runtime Semantics: ArrayAccumulation
+####################################################################################
+class Test_ArrayInitializer_ArrayAccumulation:
+    #   With parameters array and nextIndex.
+
+    # ElementList : Elision AssignmentExpression
+    #   1. Let padding be the ElisionWidth of Elision; if Elision is not present, use the numeric value zero.
+    #   2. Let initResult be the result of evaluating AssignmentExpression.
+    #   3. Let initValue be ? GetValue(initResult).
+    #   4. Let created be CreateDataProperty(array, ToString(ToUint32(nextIndex + padding)), initValue).
+    #   5. Assert: created is true.
+    #   6. Return nextIndex + padding + 1.
+    @strict_params
+    def test_ElementList_Elision_AssignmentExpression(self, context, mocker, strict):
+        elision = mocker.Mock(**{"ElisionWidth.return_value": 10})
+        init_value = mocker.Mock()
+        init_result = mocker.Mock()
+        gv = mocker.patch("ecmascript.ecmascript.GetValue", return_value=init_value)
+        ae = mocker.Mock(**{"evaluate.return_value": init_result})
+        array = mocker.Mock()
+        cdp = mocker.patch("ecmascript.ecmascript.CreateDataProperty", return_value=True)
+        el = ecmascript.ecmascript.P2_ElementList_Elision_AssignmentExpression(context, strict, [elision, ae])
+
+        rv = el.ArrayAccumulation(array, 15)
+        assert rv == 26
+        cdp.assert_called_with(array, "25", init_value)
+        gv.assert_called_with(init_result)
+
+    @strict_params
+    def test_ElementList_AssignmentExpression(self, context, mocker, strict):
+        init_value = mocker.Mock()
+        init_result = mocker.Mock()
+        gv = mocker.patch("ecmascript.ecmascript.GetValue", return_value=init_value)
+        ae = mocker.Mock(**{"evaluate.return_value": init_result})
+        array = mocker.Mock()
+        cdp = mocker.patch("ecmascript.ecmascript.CreateDataProperty", return_value=True)
+        el = ecmascript.ecmascript.P2_ElementList_AssignmentExpression(context, strict, [ae])
+
+        rv = el.ArrayAccumulation(array, 15)
+        assert rv == 16
+        cdp.assert_called_with(array, "15", init_value)
+        gv.assert_called_with(init_result)
+
+    # ElementList : Elision SpreadElement
+    #   1. Let padding be the ElisionWidth of Elision; if Elision is not present, use the numeric value zero.
+    #   2. Return the result of performing ArrayAccumulation for SpreadElement with arguments array and
+    #      nextIndex + padding.
+    @strict_params
+    def test_ElementList_Elision_SpreadElement(self, context, mocker, strict):
+        elision = mocker.Mock(**{"ElisionWidth.return_value": 10})
+        se = mocker.Mock(**{"ArrayAccumulation.return_value": mocker.sentinel.aa_se})
+        el = ecmascript.ecmascript.P2_ElementList_Elision_SpreadElement(context, strict, [elision, se])
+        array = mocker.Mock()
+        rv = el.ArrayAccumulation(array, 15)
+        assert rv == mocker.sentinel.aa_se
+        se.ArrayAccumulation.assert_called_with(array, 25)
+
+    @strict_params
+    def test_ElementList_SpreadElement(self, context, mocker, strict):
+        se = mocker.Mock(**{"ArrayAccumulation.return_value": mocker.sentinel.aa_se})
+        el = ecmascript.ecmascript.P2_ElementList_SpreadElement(context, strict, [se])
+        rv = el.ArrayAccumulation(mocker.sentinel.array, 15)
+        assert rv == mocker.sentinel.aa_se
+        se.ArrayAccumulation.assert_called_with(mocker.sentinel.array, 15)
+
+    # ElementList : ElementList , Elision AssignmentExpression
+    #   1. Let postIndex be the result of performing ArrayAccumulation for ElementList with arguments array and nextIndex.
+    #   2. ReturnIfAbrupt(postIndex).
+    #   3. Let padding be the ElisionWidth of Elision; if Elision is not present, use the numeric value zero.
+    #   4. Let initResult be the result of evaluating AssignmentExpression.
+    #   5. Let initValue be ? GetValue(initResult).
+    #   6. Let created be CreateDataProperty(array, ToString(ToUint32(postIndex + padding)), initValue).
+    #   7. Assert: created is true.
+    #   8. Return postIndex + padding + 1.
+    @strict_params
+    def test_ElementList_ElementList_Elision_AssignmentExpression(self, context, mocker, strict):
+        elision = mocker.Mock(**{"ElisionWidth.return_value": 10})
+        el_child = mocker.Mock(**{"ArrayAccumulation.return_value": 100})
+        ae = mocker.Mock(**{"evaluate.return_value": mocker.sentinel.init_result})
+        gv = mocker.patch("ecmascript.ecmascript.GetValue", return_value=mocker.sentinel.init_value)
+        cdp = mocker.patch("ecmascript.ecmascript.CreateDataProperty", return_value=True)
+        el = ecmascript.ecmascript.P2_ElementList_ElementList_COMMA_Elision_AssignmentExpression(
+            context, strict, [el_child, mocker.Mock(), elision, ae]
+        )
+
+        rv = el.ArrayAccumulation(mocker.sentinel.array, 15)
+        el_child.ArrayAccumulation.assert_called_with(mocker.sentinel.array, 15)
+        gv.assert_called_with(mocker.sentinel.init_result)
+        cdp.assert_called_with(mocker.sentinel.array, "110", mocker.sentinel.init_value)
+        assert rv == 111
+
+    @strict_params
+    def test_ElementList_ElementList_AssignmentExpression(self, context, mocker, strict):
+        el_child = mocker.Mock(**{"ArrayAccumulation.return_value": 100})
+        ae = mocker.Mock(**{"evaluate.return_value": mocker.sentinel.init_result})
+        gv = mocker.patch("ecmascript.ecmascript.GetValue", return_value=mocker.sentinel.init_value)
+        cdp = mocker.patch("ecmascript.ecmascript.CreateDataProperty", return_value=True)
+        el = ecmascript.ecmascript.P2_ElementList_ElementList_COMMA_AssignmentExpression(
+            context, strict, [el_child, mocker.Mock(), ae]
+        )
+
+        rv = el.ArrayAccumulation(mocker.sentinel.array, 15)
+        el_child.ArrayAccumulation.assert_called_with(mocker.sentinel.array, 15)
+        gv.assert_called_with(mocker.sentinel.init_result)
+        cdp.assert_called_with(mocker.sentinel.array, "100", mocker.sentinel.init_value)
+        assert rv == 101
+
+    # ElementList : ElementList , Elision SpreadElement
+    #   1. Let postIndex be the result of performing ArrayAccumulation for ElementList with arguments array and nextIndex.
+    #   2. ReturnIfAbrupt(postIndex).
+    #   3. Let padding be the ElisionWidth of Elision; if Elision is not present, use the numeric value zero.
+    #   4. Return the result of performing ArrayAccumulation for SpreadElement with arguments array and
+    #      postIndex + padding.
+    @strict_params
+    def test_ElementList_ElementList_Elision_SpreadElement(self, context, mocker, strict):
+        el_child = mocker.Mock(**{"ArrayAccumulation.return_value": 100})
+        elision = mocker.Mock(**{"ElisionWidth.return_value": 10})
+        se = mocker.Mock(**{"ArrayAccumulation.return_value": mocker.sentinel.aa_se})
+        el = ecmascript.ecmascript.P2_ElementList_ElementList_COMMA_Elision_SpreadElement(
+            context, strict, [el_child, mocker.Mock(), elision, se]
+        )
+        rv = el.ArrayAccumulation(mocker.sentinel.array, 15)
+        el_child.ArrayAccumulation.assert_called_with(mocker.sentinel.array, 15)
+        se.ArrayAccumulation.assert_called_with(mocker.sentinel.array, 110)
+        assert rv == mocker.sentinel.aa_se
+
+    @strict_params
+    def test_ElementList_ElementList_SpreadElement(self, context, mocker, strict):
+        el_child = mocker.Mock(**{"ArrayAccumulation.return_value": 100})
+        se = mocker.Mock(**{"ArrayAccumulation.return_value": mocker.sentinel.aa_se})
+        el = ecmascript.ecmascript.P2_ElementList_ElementList_COMMA_SpreadElement(
+            context, strict, [el_child, mocker.Mock(), se]
+        )
+        rv = el.ArrayAccumulation(mocker.sentinel.array, 15)
+        el_child.ArrayAccumulation.assert_called_with(mocker.sentinel.array, 15)
+        se.ArrayAccumulation.assert_called_with(mocker.sentinel.array, 100)
+        assert rv == mocker.sentinel.aa_se
+
+    # SpreadElement : ... AssignmentExpression
+    #   1. Let spreadRef be the result of evaluating AssignmentExpression.
+    #   2. Let spreadObj be ? GetValue(spreadRef).
+    #   3. Let iteratorRecord be ? GetIterator(spreadObj).
+    #   4. Repeat,
+    #       a. Let next be ? IteratorStep(iteratorRecord).
+    #       b. If next is false, return nextIndex.
+    #       c. Let nextValue be ? IteratorValue(next).
+    #       d. Let status be CreateDataProperty(array, ToString(ToUint32(nextIndex)), nextValue).
+    #       e. Assert: status is true.
+    #       f. Increase nextIndex by 1.
+    @pytest.mark.parametrize("size", (0, 1, 3))
+    @strict_params
+    def test_SpreadElement_AssignmentExpression(self, context, mocker, strict, size):
+        ae = mocker.Mock(**{"evaluate.return_value": mocker.sentinel.spread_ref})
+        gv = mocker.patch("ecmascript.ecmascript.GetValue", return_value=mocker.sentinel.spread_obj)
+        gi = mocker.patch("ecmascript.ecmascript.GetIterator", return_value=mocker.sentinel.iterator_record)
+        gen = ((z,) for z in range(size))
+        mystep = lambda iteratorRecord: next(gen, False)
+        its = mocker.patch("ecmascript.ecmascript.IteratorStep", side_effect=mystep)
+        myvalue = lambda nextresult: str(nextresult[0])
+        itv = mocker.patch("ecmascript.ecmascript.IteratorValue", side_effect=myvalue)
+        cdp = mocker.patch("ecmascript.ecmascript.CreateDataProperty", return_value=True)
+        se = ecmascript.ecmascript.P2_SpreadElement_DOTDOTDOT_AssignmentExpression(
+            context, strict, [mocker.Mock(), ae]
+        )
+
+        rv = se.ArrayAccumulation(mocker.sentinel.array, 15)
+
+        se.AssignmentExpression.evaluate.assert_called_with()
+        gv.assert_called_with(mocker.sentinel.spread_ref)
+        gi.assert_called_with(mocker.sentinel.spread_obj)
+        assert its.call_args_list == [mocker.call(mocker.sentinel.iterator_record)] * (size + 1)
+        assert itv.call_args_list == [mocker.call((x,)) for x in range(size)]
+        assert cdp.call_args_list == [mocker.call(mocker.sentinel.array, str(x + 15), str(x)) for x in range(size)]
+        assert rv == size + 15
+
+
+####################################################################################
+#
+#  d888    .d8888b.       .d8888b.      888888888       .d8888b.
+# d8888   d88P  Y88b     d88P  Y88b     888            d88P  Y88b
+#   888          888            888     888                 .d88P
+#   888        .d88P          .d88P     8888888b.          8888"
+#   888    .od888P"       .od888P"           "Y88b          "Y8b.
+#   888   d88P"          d88P"                 888     888    888
+#   888   888"       d8b 888"       d8b Y88b  d88P d8b Y88b  d88P
+# 8888888 888888888  Y8P 888888888  Y8P  "Y8888P"  Y8P  "Y8888P"
+#
+#
+#
+####################################################################################
+# ECMAScript Language: Expressions | Primary Expression | Array Initializer
+# 12.2.5.3 | Runtime Semantics: Evaluation
+####################################################################################
+class Test_ArrayInitializer_Evaluation:
+    # ArrayLiteral : [ Elision ]
+    #   1. Let array be ! ArrayCreate(0).
+    #   2. Let pad be the ElisionWidth of Elision; if Elision is not present, use the numeric value zero.
+    #   3. Perform Set(array, "length", ToUint32(pad), false).
+    #   4. NOTE: The above Set cannot fail because of the nature of the object returned by ArrayCreate.
+    #   5. Return array.
+    @strict_params
+    def test_ArrayLiteral_Empty(self, context, mocker, strict):
+        al = ecmascript.ecmascript.P2_ArrayLiteral_LBRACKET_RBRACKET(context, strict, [mocker.Mock(), mocker.Mock()])
+        ac = mocker.patch("ecmascript.ecmascript.ArrayCreate", return_value=mocker.sentinel.array)
+        s = mocker.patch("ecmascript.ecmascript.Set", return_value=None)
+        rv = al.evaluate()
+        assert rv == mocker.sentinel.array
+        ac.assert_called_with(0)
+        s.assert_called_with(mocker.sentinel.array, "length", 0, False)
+
+    @strict_params
+    def test_ArrayLiteral_Elision(self, context, mocker, strict):
+        elision = mocker.Mock(**{"ElisionWidth.return_value": 10})
+        al = ecmascript.ecmascript.P2_ArrayLiteral_LBRACKET_Elision_RBRACKET(
+            context, strict, [mocker.Mock(), elision, mocker.Mock()]
+        )
+        ac = mocker.patch("ecmascript.ecmascript.ArrayCreate", return_value=mocker.sentinel.array)
+        s = mocker.patch("ecmascript.ecmascript.Set", return_value=None)
+        rv = al.evaluate()
+        assert rv == mocker.sentinel.array
+        ac.assert_called_with(0)
+        s.assert_called_with(mocker.sentinel.array, "length", 10, False)
+        elision.ElisionWidth.assert_called_with()
+
+    # ArrayLiteral : [ ElementList ]
+    #   1. Let array be ! ArrayCreate(0).
+    #   2. Let len be the result of performing ArrayAccumulation for ElementList with arguments array and 0.
+    #   3. ReturnIfAbrupt(len).
+    #   4. Perform Set(array, "length", ToUint32(len), false).
+    #   5. NOTE: The above Set cannot fail because of the nature of the object returned by ArrayCreate.
+    #   6. Return array.
+    @strict_params
+    def test_ArrayLiteral_ElementList(self, context, mocker, strict):
+        el = mocker.Mock(**{"ArrayAccumulation.return_value": 100})
+        al = ecmascript.ecmascript.P2_ArrayLiteral_LBRACKET_ElementList_RBRACKET(
+            context, strict, [mocker.Mock(), el, mocker.Mock()]
+        )
+        ac = mocker.patch("ecmascript.ecmascript.ArrayCreate", return_value=mocker.sentinel.array)
+        s = mocker.patch("ecmascript.ecmascript.Set", return_value=None)
+        rv = al.evaluate()
+        assert rv == mocker.sentinel.array
+        ac.assert_called_with(0)
+        s.assert_called_with(mocker.sentinel.array, "length", 100, False)
+        el.ArrayAccumulation.assert_called_with(mocker.sentinel.array, 0)
+
+    # ArrayLiteral : [ ElementList , Elision ]
+    #   1. Let array be ! ArrayCreate(0).
+    #   2. Let len be the result of performing ArrayAccumulation for ElementList with arguments array and 0.
+    #   3. ReturnIfAbrupt(len).
+    #   4. Let padding be the ElisionWidth of Elision; if Elision is not present, use the numeric value zero.
+    #   5. Perform Set(array, "length", ToUint32(padding + len), false).
+    #   6. NOTE: The above Set cannot fail because of the nature of the object returned by ArrayCreate.
+    #   7. Return array.
+    @strict_params
+    def test_ArrayLiteral_ElementList_Elision(self, context, mocker, strict):
+        elision = mocker.Mock(**{"ElisionWidth.return_value": 10})
+        el = mocker.Mock(**{"ArrayAccumulation.return_value": 100})
+        al = ecmascript.ecmascript.P2_ArrayLiteral_LBRACKET_ElementList_COMMA_Elision_RBRACKET(
+            context, strict, [mocker.Mock(), el, mocker.Mock(), elision, mocker.Mock()]
+        )
+        ac = mocker.patch("ecmascript.ecmascript.ArrayCreate", return_value=mocker.sentinel.array)
+        s = mocker.patch("ecmascript.ecmascript.Set", return_value=None)
+        rv = al.evaluate()
+        assert rv == mocker.sentinel.array
+        ac.assert_called_with(0)
+        s.assert_called_with(mocker.sentinel.array, "length", 110, False)
+        el.ArrayAccumulation.assert_called_with(mocker.sentinel.array, 0)
+        elision.ElisionWidth.assert_called_with()
+
+    @strict_params
+    def test_ArrayLiteral_ElementList_COMMA(self, context, mocker, strict):
+        el = mocker.Mock(**{"ArrayAccumulation.return_value": 100})
+        al = ecmascript.ecmascript.P2_ArrayLiteral_LBRACKET_ElementList_COMMA_RBRACKET(
+            context, strict, [mocker.Mock(), el, mocker.Mock(), mocker.Mock()]
+        )
+        ac = mocker.patch("ecmascript.ecmascript.ArrayCreate", return_value=mocker.sentinel.array)
+        s = mocker.patch("ecmascript.ecmascript.Set", return_value=None)
+        rv = al.evaluate()
+        assert rv == mocker.sentinel.array
+        ac.assert_called_with(0)
+        s.assert_called_with(mocker.sentinel.array, "length", 100, False)
+        el.ArrayAccumulation.assert_called_with(mocker.sentinel.array, 0)
 
 
 ####################################################################################
@@ -3153,6 +3274,332 @@ class Test_TemplateLiterals_ArgumentListEvaluation:
 
 ####################################################################################
 #
+#  d888    .d8888b.       .d8888b.       .d8888b.          d8888
+# d8888   d88P  Y88b     d88P  Y88b     d88P  Y88b        d8P888
+#   888          888            888     888    888       d8P 888
+#   888        .d88P          .d88P     Y88b. d888      d8P  888
+#   888    .od888P"       .od888P"       "Y888P888     d88   888
+#   888   d88P"          d88P"                 888     8888888888
+#   888   888"       d8b 888"       d8b Y88b  d88P d8b       888
+# 8888888 888888888  Y8P 888888888  Y8P  "Y8888P"  Y8P       888
+#
+#
+#
+####################################################################################
+# ECMAScript Language: Expressions | Primary Expression | Template Literals
+# 12.2.9.4 | Runtime Semantics: GetTemplateObject ( templateLiteral )
+####################################################################################
+class Test_TemplateLiterals_GetTemplateObject:
+    # The abstract operation GetTemplateObject is called with a Parse Node, templateLiteral, as an argument. It
+    # performs the following steps:
+    #
+    #   1. Let rawStrings be TemplateStrings of templateLiteral with argument true.
+    #   2. Let realm be the current Realm Record.
+    #   3. Let templateRegistry be realm.[[TemplateMap]].
+    #   4. For each element e of templateRegistry, do
+    #       a. If e.[[Site]] is the same Parse Node as templateLiteral, then
+    #           i. Return e.[[Array]].
+    #   5. Let cookedStrings be TemplateStrings of templateLiteral with argument false.
+    #   6. Let count be the number of elements in the List cookedStrings.
+    #   7. Assert: count ≤ 2^32-1.
+    #   8. Let template be ! ArrayCreate(count).
+    #   9. Let rawObj be ! ArrayCreate(count).
+    #   10. Let index be 0.
+    #   11. Repeat, while index < count
+    #       a. Let prop be ! ToString(index).
+    #       b. Let cookedValue be the String value cookedStrings[index].
+    #       c. Call template.[[DefineOwnProperty]](prop, PropertyDescriptor { [[Value]]: cookedValue,
+    #          [[Writable]]: false, [[Enumerable]]: true, [[Configurable]]: false }).
+    #       d. Let rawValue be the String value rawStrings[index].
+    #       e. Call rawObj.[[DefineOwnProperty]](prop, PropertyDescriptor { [[Value]]: rawValue, [[Writable]]: false,
+    #          [[Enumerable]]: true, [[Configurable]]: false }).
+    #       f. Increase index by 1.
+    #   12. Perform SetIntegrityLevel(rawObj, "frozen").
+    #   13. Call template.[[DefineOwnProperty]]("raw", PropertyDescriptor { [[Value]]: rawObj, [[Writable]]: false,
+    #       [[Enumerable]]: false, [[Configurable]]: false }).
+    #   14. Perform SetIntegrityLevel(template, "frozen").
+    #   15. Append the Record { [[Site]]: templateLiteral, [[Array]]: template } to templateRegistry.
+    #   16. Return template.
+    def test_GetTemplateObject_01(self, context, realm, mocker):
+        # the templateLiteral is already in the registry
+        def test_tstrings(raw):
+            return (
+                [mocker.sentinel.trv1, mocker.sentinel.trv2] if raw else [mocker.sentinel.tv1, mocker.sentinel.tv2]
+            )
+
+        template_literal = mocker.Mock(**{"TemplateStrings.side_effect": test_tstrings})
+        realm.template_map = [
+            (mocker.Mock(), mocker.Mock()),
+            (template_literal, mocker.sentinel.existing),
+            (mocker.Mock(), mocker.Mock()),
+        ]
+        rv = ecmascript.ecmascript.GetTemplateObject(template_literal)
+        assert rv == mocker.sentinel.existing
+
+    def test_GetTemplateObject_02(self, context, realm, mocker):
+        realm.template_map = [(mocker.sentinel.FirstSiteObj, mocker.sentinel.FirstTemplateObject)]
+
+        def test_tstrings(raw):
+            return (
+                [mocker.sentinel.trv1, mocker.sentinel.trv2] if raw else [mocker.sentinel.tv1, mocker.sentinel.tv2]
+            )
+
+        template_literal = mocker.Mock(**{"TemplateStrings.side_effect": test_tstrings})
+        template = mocker.Mock(**{"DefineOwnProperty.return_value": True})
+        rawObj = mocker.Mock(**{"DefineOwnProperty.return_value": True})
+        ac = mocker.patch("ecmascript.ecmascript.ArrayCreate", side_effect=[template, rawObj])
+        sil = mocker.patch("ecmascript.ecmascript.SetIntegrityLevel", return_value=True)
+        rv = ecmascript.ecmascript.GetTemplateObject(template_literal)
+        assert rv == template
+        assert ac.call_args_list == [mocker.call(2), mocker.call(2)]
+        assert mocker.call(True) in template_literal.TemplateStrings.call_args_list
+        assert mocker.call(False) in template_literal.TemplateStrings.call_args_list
+        assert len(template_literal.TemplateStrings.call_args_list) == 2
+        assert template.DefineOwnProperty.call_args_list == [
+            mocker.call(
+                "0",
+                ecmascript.ecmascript.PropertyDescriptor(
+                    value=mocker.sentinel.tv1, writable=False, enumerable=True, configurable=False
+                ),
+            ),
+            mocker.call(
+                "1",
+                ecmascript.ecmascript.PropertyDescriptor(
+                    value=mocker.sentinel.tv2, writable=False, enumerable=True, configurable=False
+                ),
+            ),
+            mocker.call(
+                "raw",
+                ecmascript.ecmascript.PropertyDescriptor(
+                    value=rawObj, writable=False, enumerable=False, configurable=False
+                ),
+            ),
+        ]
+        assert rawObj.DefineOwnProperty.call_args_list == [
+            mocker.call(
+                "0",
+                ecmascript.ecmascript.PropertyDescriptor(
+                    value=mocker.sentinel.trv1, writable=False, enumerable=True, configurable=False
+                ),
+            ),
+            mocker.call(
+                "1",
+                ecmascript.ecmascript.PropertyDescriptor(
+                    value=mocker.sentinel.trv2, writable=False, enumerable=True, configurable=False
+                ),
+            ),
+        ]
+        assert sil.call_args_list == [mocker.call(rawObj, "frozen"), mocker.call(template, "frozen")]
+        assert len(realm.template_map) == 2
+        assert realm.template_map[-1] == (template_literal, template)
+
+
+####################################################################################
+#
+#  d888    .d8888b.       .d8888b.       .d8888b.      888888888
+# d8888   d88P  Y88b     d88P  Y88b     d88P  Y88b     888
+#   888          888            888     888    888     888
+#   888        .d88P          .d88P     Y88b. d888     8888888b.
+#   888    .od888P"       .od888P"       "Y888P888          "Y88b
+#   888   d88P"          d88P"                 888            888
+#   888   888"       d8b 888"       d8b Y88b  d88P d8b Y88b  d88P
+# 8888888 888888888  Y8P 888888888  Y8P  "Y8888P"  Y8P  "Y8888P"
+#
+#
+#
+####################################################################################
+# ECMAScript Language: Expressions | Primary Expression | Template Literals
+# 12.2.9.5 | Runtime Semantics: SubstitutionEvaluation
+####################################################################################
+class Test_TemplateLiterals_SubstitutionEvaluation:
+    # TemplateSpans : TemplateTail
+    #   1. Return a new empty List.
+    @pytest.mark.parametrize("Tagged", (False, True))
+    @strict_params
+    def test_TemplateTail(self, context, mocker, strict, Tagged):
+        ts = ecmascript.ecmascript.P2_TemplateSpans_TemplateTail(context, strict, [mocker.Mock()], Tagged)
+        assert ts.SubstitutionEvaluation() == []
+
+    # TemplateSpans : TemplateMiddleList TemplateTail
+    #   1. Return the result of SubstitutionEvaluation of TemplateMiddleList.
+    @pytest.mark.parametrize("Tagged", (False, True))
+    @strict_params
+    def test_MiddleList_Tail(self, context, mocker, strict, Tagged):
+        tml = mocker.Mock(**{"SubstitutionEvaluation.return_value": [mocker.sentinel.middle_list]})
+        ts = ecmascript.ecmascript.P2_TemplateSpans_TemplateMiddleList_TemplateTail(
+            context, strict, [tml, mocker.Mock()], Tagged
+        )
+        assert ts.SubstitutionEvaluation() == [mocker.sentinel.middle_list]
+
+    # TemplateMiddleList : TemplateMiddle Expression
+    #   1. Let subRef be the result of evaluating Expression.
+    #   2. Let sub be ? GetValue(subRef).
+    #   3. Return a List containing only sub.
+    @pytest.mark.parametrize("Tagged", (False, True))
+    @strict_params
+    def test_Middle_Exp(self, context, mocker, strict, Tagged):
+        exp = mocker.Mock(**{"evaluate.return_value": mocker.sentinel.subRef})
+        gv = mocker.patch("ecmascript.ecmascript.GetValue", return_value=mocker.sentinel.sub)
+        ts = ecmascript.ecmascript.P2_TemplateMiddleList_TemplateMiddle_Expression(
+            context, strict, [mocker.Mock(), exp], Tagged
+        )
+        assert ts.SubstitutionEvaluation() == [mocker.sentinel.sub]
+        exp.evaluate.assert_called_with()
+        gv.assert_called_with(mocker.sentinel.subRef)
+
+    # TemplateMiddleList : TemplateMiddleList TemplateMiddle Expression
+    #   1. Let preceding be the result of SubstitutionEvaluation of TemplateMiddleList.
+    #   2. ReturnIfAbrupt(preceding).
+    #   3. Let nextRef be the result of evaluating Expression.
+    #   4. Let next be ? GetValue(nextRef).
+    #   5. Append next as the last element of the List preceding.
+    #   6. Return preceding.
+    @pytest.mark.parametrize("Tagged", (False, True))
+    @strict_params
+    def test_List_Middle_Exp(self, context, mocker, strict, Tagged):
+        tml_child = mocker.Mock(**{"SubstitutionEvaluation.return_value": [mocker.sentinel.preceding]})
+        exp = mocker.Mock(**{"evaluate.return_value": mocker.sentinel.nextRef})
+        gv = mocker.patch("ecmascript.ecmascript.GetValue", return_value=mocker.sentinel.next)
+        tml = ecmascript.ecmascript.P2_TemplateMiddleList_TemplateMiddleList_TemplateMiddle_Expression(
+            context, strict, [tml_child, mocker.Mock(), exp], Tagged
+        )
+        assert tml.SubstitutionEvaluation() == [mocker.sentinel.preceding, mocker.sentinel.next]
+        tml_child.SubstitutionEvaluation.assert_called_with()
+        exp.evaluate.assert_called_with()
+        gv.assert_called_with(mocker.sentinel.nextRef)
+
+
+####################################################################################
+#
+#  d888    .d8888b.       .d8888b.       .d8888b.       .d8888b.
+# d8888   d88P  Y88b     d88P  Y88b     d88P  Y88b     d88P  Y88b
+#   888          888            888     888    888     888
+#   888        .d88P          .d88P     Y88b. d888     888d888b.
+#   888    .od888P"       .od888P"       "Y888P888     888P "Y88b
+#   888   d88P"          d88P"                 888     888    888
+#   888   888"       d8b 888"       d8b Y88b  d88P d8b Y88b  d88P
+# 8888888 888888888  Y8P 888888888  Y8P  "Y8888P"  Y8P  "Y8888P"
+#
+#
+#
+####################################################################################
+# ECMAScript Language: Expressions | Primary Expression | Template Literals
+# 12.2.9.6 | Runtime Semantics: Evaluation
+####################################################################################
+class Test_TemplateLiterals_Evaluation:
+    # TemplateLiteral : NoSubstitutionTemplate
+    #   1. Return the String value whose code units are the elements of the TV of NoSubstitutionTemplate as
+    #      defined in 11.8.6.
+    @pytest.mark.parametrize("Tagged", (False, True))
+    @strict_params
+    def test_NoSubstitutionTemplate(self, context, mocker, strict, Tagged):
+        nst = mocker.Mock(value=mocker.Mock(tv=mocker.sentinel.tv, trv=mocker.sentinel.trv))
+        tl = ecmascript.ecmascript.P2_TemplateLiteral_NoSubstitutionTemplate(context, strict, [nst], Tagged)
+        rv = tl.evaluate()
+        assert rv == mocker.sentinel.tv
+
+    # SubstitutionTemplate : TemplateHead Expression TemplateSpans
+    #   1. Let head be the TV of TemplateHead as defined in 11.8.6.
+    #   2. Let subRef be the result of evaluating Expression.
+    #   3. Let sub be ? GetValue(subRef).
+    #   4. Let middle be ? ToString(sub).
+    #   5. Let tail be the result of evaluating TemplateSpans.
+    #   6. ReturnIfAbrupt(tail).
+    #   7. Return the string-concatenation of head, middle, and tail.
+    @pytest.mark.parametrize("Tagged", (False, True))
+    @strict_params
+    def test_SubstitutionTemplate(self, context, mocker, strict, Tagged):
+        head = mocker.Mock(value=mocker.Mock(tv="tvhead", trv="tvrhead"))
+        exp = mocker.Mock(**{"evaluate.return_value": mocker.sentinel.subRef})
+        ts = mocker.Mock(**{"evaluate.return_value": "tail"})
+        st = ecmascript.ecmascript.P2_SubstitutionTemplate_TemplateHead_Expression_TemplateSpans(
+            context, strict, [head, exp, ts], Tagged
+        )
+        gv = mocker.patch("ecmascript.ecmascript.GetValue", return_value=mocker.sentinel.sub)
+        tostr = mocker.patch("ecmascript.ecmascript.ToString", return_value="middle")
+        rv = st.evaluate()
+        assert rv == "tvheadmiddletail"
+        exp.evaluate.assert_called_with()
+        gv.assert_called_with(mocker.sentinel.subRef)
+        tostr.assert_called_with(mocker.sentinel.sub)
+        ts.evaluate.assert_called_with()
+
+    # TemplateSpans : TemplateTail
+    #   1. Let tail be the TV of TemplateTail as defined in 11.8.6.
+    #   2. Return the String value consisting of the code units of tail.
+    @pytest.mark.parametrize("Tagged", (False, True))
+    @strict_params
+    def test_Tail(self, context, mocker, strict, Tagged):
+        tv = mocker.Mock(value=mocker.Mock(tv="tv", trv="trv"))
+        ts = ecmascript.ecmascript.P2_TemplateSpans_TemplateTail(context, strict, [tv], Tagged)
+        assert ts.evaluate() == "tv"
+
+    # TemplateSpans : TemplateMiddleList TemplateTail
+    #   1. Let head be the result of evaluating TemplateMiddleList.
+    #   2. ReturnIfAbrupt(head).
+    #   3. Let tail be the TV of TemplateTail as defined in 11.8.6.
+    #   4. Return the string-concatenation of head and tail.
+    @pytest.mark.parametrize("Tagged", (False, True))
+    @strict_params
+    def test_MiddleList_Tail(self, context, mocker, strict, Tagged):
+        tml = mocker.Mock(**{"evaluate.return_value": "head"})
+        tt = mocker.Mock(value=mocker.Mock(tv="tv", trv="trv"))
+        ts = ecmascript.ecmascript.P2_TemplateSpans_TemplateMiddleList_TemplateTail(
+            context, strict, [tml, tt], Tagged
+        )
+        assert ts.evaluate() == "headtv"
+        tml.evaluate.assert_called_with()
+
+    # TemplateMiddleList : TemplateMiddle Expression
+    #   1. Let head be the TV of TemplateMiddle as defined in 11.8.6.
+    #   2. Let subRef be the result of evaluating Expression.
+    #   3. Let sub be ? GetValue(subRef).
+    #   4. Let middle be ? ToString(sub).
+    #   5. Return the sequence of code units consisting of the code units of head followed by the elements of middle.
+    @pytest.mark.parametrize("Tagged", (False, True))
+    @strict_params
+    def test_Middle_Expression(self, context, mocker, strict, Tagged):
+        tm = mocker.Mock(value=mocker.Mock(tv="middle", trv="rawmiddle"))
+        exp = mocker.Mock(**{"evaluate.return_value": mocker.sentinel.subRef})
+        gv = mocker.patch("ecmascript.ecmascript.GetValue", return_value=mocker.sentinel.sub)
+        tostr = mocker.patch("ecmascript.ecmascript.ToString", return_value="expression")
+        tml = ecmascript.ecmascript.P2_TemplateMiddleList_TemplateMiddle_Expression(
+            context, strict, [tm, exp], Tagged
+        )
+        assert tml.evaluate() == "middleexpression"
+        exp.evaluate.assert_called_with()
+        gv.assert_called_with(mocker.sentinel.subRef)
+        tostr.assert_called_with(mocker.sentinel.sub)
+
+    # TemplateMiddleList : TemplateMiddleList TemplateMiddle Expression
+    #   1. Let rest be the result of evaluating TemplateMiddleList.
+    #   2. ReturnIfAbrupt(rest).
+    #   3. Let middle be the TV of TemplateMiddle as defined in 11.8.6.
+    #   4. Let subRef be the result of evaluating Expression.
+    #   5. Let sub be ? GetValue(subRef).
+    #   6. Let last be ? ToString(sub).
+    #   7. Return the sequence of code units consisting of the elements of rest followed by the code units of middle followed by the elements of last.
+    @pytest.mark.parametrize("Tagged", (False, True))
+    @strict_params
+    def test_MiddleList_Middle_Expression(self, context, mocker, strict, Tagged):
+        tml_child = mocker.Mock(**{"evaluate.return_value": "middlelist"})
+        middle = mocker.Mock(value=mocker.Mock(tv="middle", trv="rawmiddle"))
+        exp = mocker.Mock(**{"evaluate.return_value": mocker.sentinel.subRef})
+        tml = ecmascript.ecmascript.P2_TemplateMiddleList_TemplateMiddleList_TemplateMiddle_Expression(
+            context, strict, [tml_child, middle, exp], Tagged
+        )
+        gv = mocker.patch("ecmascript.ecmascript.GetValue", return_value=mocker.sentinel.sub)
+        tostr = mocker.patch("ecmascript.ecmascript.ToString", return_value="expression")
+        rv = tml.evaluate()
+        tml_child.evaluate.assert_called_with()
+        exp.evaluate.assert_called_with()
+        gv.assert_called_with(mocker.sentinel.subRef)
+        tostr.assert_called_with(mocker.sentinel.sub)
+        assert rv == "middlelistmiddleexpression"
+
+
+####################################################################################
+#
 #  d888    .d8888b.       .d8888b.       d888    .d8888b.       d888
 # d8888   d88P  Y88b     d88P  Y88b     d8888   d88P  Y88b     d8888
 #   888          888            888       888   888    888       888
@@ -3270,156 +3717,3 @@ class Test_GroupingOperator_Evaluation:
         rv = pe.evaluate()
         assert rv == mocker.sentinel.return_value
         expr.evaluate.assert_called_with()
-
-
-####################################################################################
-#
-#  d888    .d8888b.       d888   888888888      888888888      888888888
-# d8888   d88P  Y88b     d8888   888            888            888
-#   888          888       888   888            888            888
-#   888        .d88P       888   8888888b.      8888888b.      8888888b.
-#   888    .od888P"        888        "Y88b          "Y88b          "Y88b
-#   888   d88P"            888          888            888            888
-#   888   888"       d8b   888   Y88b  d88P d8b Y88b  d88P d8b Y88b  d88P
-# 8888888 888888888  Y8P 8888888  "Y8888P"  Y8P  "Y8888P"  Y8P  "Y8888P"
-#
-#
-#
-####################################################################################
-# ECMAScript Language: Expressions | Assignment Operators | Destructuring Assignment
-# 12.15.5.5 | Runtime Semantics: IteratorDestructuringAssignmentEvaluation
-####################################################################################
-class Test_DestructuringAssignment_IteratorDestructuringAssignmentEvaluation:
-    # With parameter iteratorRecord.
-
-    # Elision : ,
-    #   1. If iteratorRecord.[[Done]] is false, then
-    #       a. Let next be IteratorStep(iteratorRecord).
-    #       b. If next is an abrupt completion, set iteratorRecord.[[Done]] to true.
-    #       c. ReturnIfAbrupt(next).
-    #       d. If next is false, set iteratorRecord.[[Done]] to true.
-    #   2. Return NormalCompletion(empty).
-    # Test Cases:
-    #   * IteratorRecord.Done == True
-    #   - IteratorRecord.Done == False
-    #     * IteratorStep(IteratorRecord) returns False
-    #     * IteratorStep(IteratorRecord) returns something not False
-    #     * IteratorStep(IteratorRecord) raises
-    @strict_params
-    def test_Elision_Comma_01(self, context, mocker, strict):
-        # IteratorRecord.Done == True
-        iterator_record = mocker.Mock(Done=True)
-        elision = ecmascript.ecmascript.P2_Elision_COMMA(context, strict, [mocker.Mock()])
-        rv = elision.IteratorDestructuringAssignmentEvaluation(iterator_record)
-        assert rv == ecmascript.ecmascript.EMPTY
-        assert iterator_record.Done is True
-
-    @strict_params
-    def test_Elision_Comma_02(self, context, mocker, strict):
-        # IteratorRecord.Done == False; IteratorStep(IteratorRecord) returns something not False
-        iterator_record = mocker.Mock(Done=False)
-        istep = mocker.patch("ecmascript.ecmascript.IteratorStep", return_value=mocker.sentinel.iterobj)
-        elision = ecmascript.ecmascript.P2_Elision_COMMA(context, strict, [mocker.Mock()])
-        rv = elision.IteratorDestructuringAssignmentEvaluation(iterator_record)
-        assert rv == ecmascript.ecmascript.EMPTY
-        assert iterator_record.Done is False
-        istep.assert_called_with(iterator_record)
-
-    @strict_params
-    def test_Elision_Comma_03(self, context, mocker, strict):
-        # IteratorRecord.Done == False; IteratorStep(IteratorRecord) returns False
-        iterator_record = mocker.Mock(Done=False)
-        istep = mocker.patch("ecmascript.ecmascript.IteratorStep", return_value=False)
-        elision = ecmascript.ecmascript.P2_Elision_COMMA(context, strict, [mocker.Mock()])
-        rv = elision.IteratorDestructuringAssignmentEvaluation(iterator_record)
-        assert rv == ecmascript.ecmascript.EMPTY
-        assert iterator_record.Done is True
-        istep.assert_called_with(iterator_record)
-
-    @strict_params
-    def test_Elision_Comma_04(self, context, mocker, strict):
-        # IteratorRecord.Done == False; IteratorStep(IteratorRecord) raises
-        iterator_record = mocker.Mock(Done=False)
-        istep = mocker.patch(
-            "ecmascript.ecmascript.IteratorStep", side_effect=ecmascript.ecmascript.ESTypeError("Test Error")
-        )
-        elision = ecmascript.ecmascript.P2_Elision_COMMA(context, strict, [mocker.Mock()])
-        with pytest.raises(ecmascript.ecmascript.ESTypeError, match="Test Error"):
-            elision.IteratorDestructuringAssignmentEvaluation(iterator_record)
-        assert iterator_record.Done is True
-        istep.assert_called_with(iterator_record)
-
-    # Elision : Elision ,
-    #   1. Perform ? IteratorDestructuringAssignmentEvaluation of Elision with iteratorRecord as the argument.
-    #   2. If iteratorRecord.[[Done]] is false, then
-    #       a. Let next be IteratorStep(iteratorRecord).
-    #       b. If next is an abrupt completion, set iteratorRecord.[[Done]] to true.
-    #       c. ReturnIfAbrupt(next).
-    #       d. If next is false, set iteratorRecord.[[Done]] to true.
-    #   3. Return NormalCompletion(empty).
-    # Test Cases:
-    #   * After step 1, iteratorRecord.[[Done]] is true
-    #   - After step 1, iteratorRecord.[[Done]] is false
-    #       * IteratorStep(iteratorRecord) raises
-    #       * IteratorStep(iteratorRecord) returns false
-    #       * IteratorStep(iteratorRecord) returns anything but false
-    @strict_params
-    def test_Elision_Elision_Comma_01(self, context, mocker, strict):
-        # After step 1, iteratorRecord.[[Done]] is true
-        elision_child = mocker.Mock(
-            **{"IteratorDestructuringAssignmentEvaluation.return_value": mocker.sentinel.child}
-        )
-        elision = ecmascript.ecmascript.P2_Elision_Elision_COMMA(context, strict, [elision_child, mocker.Mock()])
-        iterator_record = mocker.Mock(Done=True)
-        rv = elision.IteratorDestructuringAssignmentEvaluation(iterator_record)
-        elision_child.IteratorDestructuringAssignmentEvaluation.assert_called_with(iterator_record)
-        assert rv == ecmascript.ecmascript.EMPTY
-        assert iterator_record.Done is True
-        elision_child.IteratorDestructuringAssignmentEvaluation.assert_called_with(iterator_record)
-
-    @strict_params
-    def test_Elision_Elision_Comma_02(self, context, mocker, strict):
-        # After step 1, iteratorRecord.[[Done]] is false; IteratorStep(iteratorRecord) raises
-        elision_child = mocker.Mock(
-            **{"IteratorDestructuringAssignmentEvaluation.return_value": mocker.sentinel.child}
-        )
-        elision = ecmascript.ecmascript.P2_Elision_Elision_COMMA(context, strict, [elision_child, mocker.Mock()])
-        iterator_record = mocker.Mock(Done=False)
-        istep = mocker.patch(
-            "ecmascript.ecmascript.IteratorStep", side_effect=ecmascript.ecmascript.ESTypeError("Test Error")
-        )
-        with pytest.raises(ecmascript.ecmascript.ESTypeError, match="Test Error"):
-            elision.IteratorDestructuringAssignmentEvaluation(iterator_record)
-        assert iterator_record.Done is True
-        istep.assert_called_with(iterator_record)
-        elision_child.IteratorDestructuringAssignmentEvaluation.assert_called_with(iterator_record)
-
-    @strict_params
-    def test_Elision_Elision_Comma_03(self, context, mocker, strict):
-        # After step 1, iteratorRecord.[[Done]] is false; IteratorStep(iteratorRecord) returns false
-        elision_child = mocker.Mock(
-            **{"IteratorDestructuringAssignmentEvaluation.return_value": mocker.sentinel.child}
-        )
-        elision = ecmascript.ecmascript.P2_Elision_Elision_COMMA(context, strict, [elision_child, mocker.Mock()])
-        iterator_record = mocker.Mock(Done=False)
-        istep = mocker.patch("ecmascript.ecmascript.IteratorStep", return_value=False)
-        rv = elision.IteratorDestructuringAssignmentEvaluation(iterator_record)
-        assert rv == ecmascript.ecmascript.EMPTY
-        assert iterator_record.Done is True
-        istep.assert_called_with(iterator_record)
-        elision_child.IteratorDestructuringAssignmentEvaluation.assert_called_with(iterator_record)
-
-    @strict_params
-    def test_Elision_Elision_Comma_04(self, context, mocker, strict):
-        # After step 1, iteratorRecord.[[Done]] is false; IteratorStep(iteratorRecord) returns anything but false
-        elision_child = mocker.Mock(
-            **{"IteratorDestructuringAssignmentEvaluation.return_value": mocker.sentinel.child}
-        )
-        elision = ecmascript.ecmascript.P2_Elision_Elision_COMMA(context, strict, [elision_child, mocker.Mock()])
-        iterator_record = mocker.Mock(Done=False)
-        istep = mocker.patch("ecmascript.ecmascript.IteratorStep", return_value=mocker.sentinel.iterobj)
-        rv = elision.IteratorDestructuringAssignmentEvaluation(iterator_record)
-        assert rv == ecmascript.ecmascript.EMPTY
-        assert iterator_record.Done is False
-        istep.assert_called_with(iterator_record)
-        elision_child.IteratorDestructuringAssignmentEvaluation.assert_called_with(iterator_record)
