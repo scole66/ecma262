@@ -749,6 +749,14 @@ class PropertyDescriptor(Record):
             + ")"
         )
 
+    def __eq__(self, other):
+        for attr in ("Get", "Set", "value", "writable", "enumerable", "configurable"):
+            if hasattr(self, attr) != hasattr(other, attr):
+                return False
+            if hasattr(self, attr) and getattr(self, attr) != getattr(other, attr):
+                return False
+        return True
+
     def is_accessor_descriptor(self):
         "Returns True if this descriptor is an accessor style descriptor."
         # 2. If both Desc.[[Get]] and Desc.[[Set]] are absent, return false.
@@ -10824,7 +10832,7 @@ class P2_TemplateSpans_TemplateMiddleList_TemplateTail(P2_TemplateSpans):
         #   3. Let tail be the TV of TemplateTail as defined in 11.8.6.
         #   4. Return the string-concatenation of head and tail.
         head = self.TemplateMiddleList.evaluate()
-        tail = self.TemplateTail.value[0]
+        tail = self.TemplateTail.value.tv
         return f"{head}{tail}"
 
 
@@ -11036,12 +11044,12 @@ def GetTemplateObject(templateLiteral):
     #   14. Perform SetIntegrityLevel(template, "frozen").
     #   15. Append the Record { [[Site]]: templateLiteral, [[Array]]: template } to templateRegistry.
     #   16. Return template.
-    rawStrings = templateLiteral.TemplateStrings(True)
     realm = surrounding_agent.running_ec.realm
     templateRegistry = realm.template_map
     for site, array in templateRegistry:
         if site == templateLiteral:
             return array
+    rawStrings = templateLiteral.TemplateStrings(True)
     cookedStrings = templateLiteral.TemplateStrings(False)
     count = len(cookedStrings)
     assert count <= 2 ** 32 - 1
