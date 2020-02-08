@@ -2,8 +2,6 @@ import pytest
 from itertools import chain
 import snoop
 
-import ecmascript.ecmascript as parse2
-import ecmascript.ecmascript as basics
 from .helpers import *
 
 import ecmascript.ecmascript
