@@ -11349,7 +11349,7 @@ class P2_MemberExpression_SuperProperty(P2_MemberExpression_base):
     AssignmentTargetType = SIMPLE
 
 
-class P2_MemberExpression_MetaProperty(P2_MemberExpression):
+class P2_MemberExpression_MetaProperty(P2_MemberExpression_base):
     @property
     def MetaProperty(self):
         return self.children[0]
