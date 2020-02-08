@@ -25937,7 +25937,7 @@ class P2_ArrowParameters_CoverParenthesizedExpressionAndArrowParameterList(P2_Ar
         #   * All early error rules for ArrowFormalParameters and its derived productions also apply to
         #     CoveredFormalsList of CoverParenthesizedExpressionAndArrowParameterList.
         cfl = self.CoverParenthesizedExpressionAndArrowParameterList.CoveredFormalsList
-        return cfl.EarlyErrors() if cfl else [self.CreateSyntaxError("Invalid parameter syntax")]
+        return cfl.EarlyErrorsScan() if cfl else [self.CreateSyntaxError("Invalid parameter syntax")]
 
     def BoundNames(self):
         # 14.2.2 Static Semantics: BoundNames
