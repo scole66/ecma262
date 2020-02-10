@@ -11791,8 +11791,8 @@ class P2_CallExpression_CoverCallExpressionAndAsyncArrowHead(P2_CallExpression):
                 evalRealm = surrounding_agent.running_ec.realm
                 HostEnsureCanCompileStrings(evalRealm, evalRealm)
                 return PerformEval(evalText, evalRealm, strictCaller, True)
-        # thisCall = self
-        tailCall = False  # IsInTailPosition(thisCall)
+        thisCall = self
+        tailCall = IsInTailPosition(thisCall)
         return EvaluateCall(func, ref, arguments, tailCall)
 
 

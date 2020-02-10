@@ -812,7 +812,18 @@ class Test_parse_CallMemberExpression(parse_test):
 # 12.3.1.1 | Static Semantics: CoveredCallExpression
 ####################################################################################
 class Test_StaticSemantics_CoveredCallExpression:
-    pass
+    # CallExpression : CoverCallExpressionAndAsyncArrowHead
+    #   1. Return the CallMemberExpression that is covered by CoverCallExpressionAndAsyncArrowHead.
+    @pytest.mark.parametrize("Yield", (False, True))
+    @pytest.mark.parametrize("Await", (False, True))
+    @strict_params
+    def test_CallExpression(self, context, mocker, strict, Yield, Await):
+        cceaaah = mocker.Mock(**{"covering.return_value": mocker.sentinel.cme})
+        ce = e.P2_CallExpression_CoverCallExpressionAndAsyncArrowHead(context, strict, [cceaaah], Yield, Await)
+
+        rv = ce.CoveredCallExpression()
+        assert rv == mocker.sentinel.cme
+        cceaaah.covering.assert_called_with(e.parse_CallMemberExpression, strict, Yield, Await)
 
 
 ####################################################################################
@@ -1194,8 +1205,6 @@ class Test_StaticSemantics_AssignmentTargetType:
 # 12.3.2.1 | Runtime Semantics: Evaluation
 ####################################################################################
 class Test_PropertyAccessors_Evaluation:
-
-    # 12.3.2.1 Runtime Semantics: Evaluation
     # MemberExpression : MemberExpression [ Expression ]
     #   1. Let baseReference be the result of evaluating MemberExpression.
     #   2. Let baseValue be ? GetValue(baseReference).
@@ -1207,45 +1216,238 @@ class Test_PropertyAccessors_Evaluation:
     #      false.
     #   8. Return a value of type Reference whose base value component is bv, whose referenced name component is
     #      propertyKey, and whose strict reference flag is strict.
+    # CallExpression : CallExpression [ Expression ]
+    #   Is evaluated in exactly the same manner as MemberExpression : MemberExpression [ Expression ] except that
+    #   the contained CallExpression is evaluated in step 1.
+    @pytest.mark.parametrize(
+        "ctor",
+        (
+            e.P2_MemberExpression_MemberExpression_LBRACKET_Expression_RBRACKET,
+            e.P2_CallExpression_CallExpression_LBRACKET_Expression_RBRACKET,
+        ),
+    )
     @strict_params
-    def test_evaluate(self, mocker, context, strict):
-        base_reference = mocker.Mock()
-        base_value = mocker.Mock()
-        property_name_reference = mocker.Mock()
-        property_name_value = mocker.Mock()
-
-        def GetValue_replacement(item):
-            assert item == base_reference or item == property_name_reference
-            if item == base_reference:
-                return base_value
-            return property_name_value
-
-        mocker.patch("ecmascript.ecmascript.GetValue", side_effect=GetValue_replacement)
-        child_memberexpression = mocker.Mock(**{"evaluate.return_value": base_reference})
-        left_bracket = mocker.Mock()
-        right_bracket = mocker.Mock()
-        child_expression = mocker.Mock(**{"evaluate.return_value": property_name_reference})
-        bv = mocker.Mock()
-
-        def RequireObjectCoercible_replacement(item):
-            assert item == base_value
-            return bv
-
-        mocker.patch("ecmascript.ecmascript.RequireObjectCoercible", side_effect=RequireObjectCoercible_replacement)
-        property_key = mocker.Mock()
-
-        def ToPropertyKey_replacement(item):
-            assert item == property_name_value
-            return property_key
-
-        mocker.patch("ecmascript.ecmascript.ToPropertyKey", side_effect=ToPropertyKey_replacement)
-        me = e.P2_MemberExpression_MemberExpression_LBRACKET_Expression_RBRACKET(
-            context, strict, [child_memberexpression, left_bracket, child_expression, right_bracket]
+    def test_evaluate(self, mocker, context, strict, ctor):
+        first_expression = mocker.Mock(**{"evaluate.return_value": mocker.sentinel.base_reference})
+        gv = mocker.patch(
+            "ecmascript.ecmascript.GetValue",
+            side_effect=(mocker.sentinel.base_value, mocker.sentinel.property_name_value),
         )
-
-        rv = me.evaluate()
-
-        assert isinstance(rv, e.Reference)
-        assert rv.base == bv
-        assert rv.name == property_key
+        expression = mocker.Mock(**{"evaluate.return_value": mocker.sentinel.property_name_reference})
+        roc = mocker.patch("ecmascript.ecmascript.RequireObjectCoercible", return_value=mocker.sentinel.bv)
+        tpk = mocker.patch("ecmascript.ecmascript.ToPropertyKey", return_value=mocker.sentinel.property_key)
+        target = ctor(context, strict, [first_expression, mocker.Mock(), expression, mocker.Mock()])
+        rv = target.evaluate()
+        assert all(hasattr(rv, field) for field in ("base", "name", "strict"))
+        assert rv.base == mocker.sentinel.bv
+        assert rv.name == mocker.sentinel.property_key
         assert rv.strict == strict
+        first_expression.evaluate.assert_called_with()
+        assert gv.call_args_list == [
+            mocker.call(mocker.sentinel.base_reference),
+            mocker.call(mocker.sentinel.property_name_reference),
+        ]
+        expression.evaluate.assert_called_with()
+        roc.assert_called_with(mocker.sentinel.base_value)
+        tpk.assert_called_with(mocker.sentinel.property_name_value)
+
+    # MemberExpression : MemberExpression . IdentifierName
+    #   1. Let baseReference be the result of evaluating MemberExpression.
+    #   2. Let baseValue be ? GetValue(baseReference).
+    #   3. Let bv be ? RequireObjectCoercible(baseValue).
+    #   4. Let propertyNameString be StringValue of IdentifierName.
+    #   5. If the code matched by this MemberExpression is strict mode code, let strict be true, else let strict be
+    #      false.
+    #   6. Return a value of type Reference whose base value component is bv, whose referenced name component is
+    #      propertyNameString, and whose strict reference flag is strict.
+    # CallExpression : CallExpression . IdentifierName
+    #   Is evaluated in exactly the same manner as MemberExpression : MemberExpression . IdentifierName except that
+    #   the contained CallExpression is evaluated in step 1.
+    @pytest.mark.parametrize(
+        "ctor",
+        (
+            e.P2_MemberExpression_MemberExpression_PERIOD_IdentifierName,
+            e.P2_CallExpression_CallExpression_PERIOD_IdentifierName,
+        ),
+    )
+    @strict_params
+    def test_dotname(self, context, mocker, strict, ctor):
+        me_child = mocker.Mock(**{"evaluate.return_value": mocker.sentinel.base_reference})
+        gv = mocker.patch("ecmascript.ecmascript.GetValue", return_value=mocker.sentinel.base_value)
+        roc = mocker.patch("ecmascript.ecmascript.RequireObjectCoercible", return_value=mocker.sentinel.bv)
+        ident = mocker.Mock(value="identname")
+        me = ctor(context, strict, [me_child, mocker.Mock(), ident])
+        rv = me.evaluate()
+        assert isinstance(rv, e.Reference)
+        assert rv.base == mocker.sentinel.bv
+        assert rv.name == "identname"
+        assert rv.strict == strict
+        me_child.evaluate.assert_called_with()
+        gv.assert_called_with(mocker.sentinel.base_reference)
+        roc.assert_called_with(mocker.sentinel.base_value)
+
+
+####################################################################################
+#
+#  d888    .d8888b.       .d8888b.       .d8888b.       d888
+# d8888   d88P  Y88b     d88P  Y88b     d88P  Y88b     d8888
+#   888          888          .d88P          .d88P       888
+#   888        .d88P         8888"          8888"        888
+#   888    .od888P"           "Y8b.          "Y8b.       888
+#   888   d88P"          888    888     888    888       888
+#   888   888"       d8b Y88b  d88P d8b Y88b  d88P d8b   888
+# 8888888 888888888  Y8P  "Y8888P"  Y8P  "Y8888P"  Y8P 8888888
+#
+#
+#
+####################################################################################
+# ECMAScript Language: Expressions | Left-Hand-Side Expressions | The new Operator
+# 12.3.3.1 | Runtime Semantics: Evaluation
+####################################################################################
+class Test_NewOperator_Evaluation:
+    # NewExpression : new NewExpression
+    #   1. Return ? EvaluateNew(NewExpression, empty).
+    @strict_params
+    def test_new_expression(self, context, mocker, strict):
+        newexp_child = mocker.sentinel.new_expression
+        newexp = e.P2_NewExpression_NEW_NewExpression(context, strict, [mocker.Mock(), newexp_child])
+        en = mocker.patch("ecmascript.ecmascript.EvaluateNew", return_value=mocker.sentinel.return_value)
+        rv = newexp.evaluate()
+        assert rv == mocker.sentinel.return_value
+        en.assert_called_with(newexp_child, e.EMPTY)
+
+    # MemberExpression : new MemberExpression Arguments
+    #   1. Return ? EvaluateNew(MemberExpression, Arguments).
+    @strict_params
+    def test_new_args(self, context, mocker, strict):
+        memb_child = mocker.sentinel.member_expression
+        args = mocker.sentinel.arguments
+        me = e.P2_MemberExpression_NEW_MemberExpression_Arguments(context, strict, [mocker.Mock(), memb_child, args])
+        en = mocker.patch("ecmascript.ecmascript.EvaluateNew", return_value=mocker.sentinel.return_value)
+        rv = me.evaluate()
+        assert rv == mocker.sentinel.return_value
+        en.assert_called_with(memb_child, args)
+
+    # 12.3.3.1.1: Runtime Semantics: EvaluateNew ( constructExpr, arguments )
+    #   1. Assert: constructExpr is either a NewExpression or a MemberExpression.
+    #   2. Assert: arguments is either empty or an Arguments.
+    #   3. Let ref be the result of evaluating constructExpr.
+    #   4. Let constructor be ? GetValue(ref).
+    #   5. If arguments is empty, let argList be a new empty List.
+    #   6. Else,
+    #      a. Let argList be ArgumentListEvaluation of arguments.
+    #      b. ReturnIfAbrupt(argList).
+    #   7. If IsConstructor(constructor) is false, throw a TypeError exception.
+    #   8. Return ? Construct(constructor, argList).
+    def test_EvaluateNew_01(self, context, mocker):
+        # Arguments object _and_ IsConstructor
+        ce = mocker.Mock(**{"evaluate.return_value": mocker.sentinel.ref})
+        ce.configure_mock(name="NewExpression")
+        args = mocker.Mock(**{"ArgumentListEvaluation.return_value": [mocker.sentinel.argList]})
+        args.configure_mock(name="Arguments")
+        gv = mocker.patch("ecmascript.ecmascript.GetValue", return_value=mocker.sentinel.constructor)
+        ic = mocker.patch("ecmascript.ecmascript.IsConstructor", return_value=True)
+        construct = mocker.patch("ecmascript.ecmascript.Construct", return_value=mocker.sentinel.return_value)
+
+        rv = e.EvaluateNew(ce, args)
+        assert rv == mocker.sentinel.return_value
+        ce.evaluate.assert_called_with()
+        gv.assert_called_with(mocker.sentinel.ref)
+        args.ArgumentListEvaluation.assert_called_with()
+        ic.assert_called_with(mocker.sentinel.constructor)
+        construct.assert_called_with(mocker.sentinel.constructor, [mocker.sentinel.argList])
+
+    def test_EvaluateNew_02(self, context, mocker):
+        # No Arguments object
+        ce = mocker.Mock(**{"evaluate.return_value": mocker.sentinel.ref})
+        ce.configure_mock(name="NewExpression")
+        gv = mocker.patch("ecmascript.ecmascript.GetValue", return_value=mocker.sentinel.constructor)
+        ic = mocker.patch("ecmascript.ecmascript.IsConstructor", return_value=True)
+        construct = mocker.patch("ecmascript.ecmascript.Construct", return_value=mocker.sentinel.return_value)
+
+        rv = e.EvaluateNew(ce, e.EMPTY)
+        assert rv == mocker.sentinel.return_value
+        ce.evaluate.assert_called_with()
+        gv.assert_called_with(mocker.sentinel.ref)
+        ic.assert_called_with(mocker.sentinel.constructor)
+        construct.assert_called_with(mocker.sentinel.constructor, [])
+
+    def test_EvaluateNew_03(self, context, mocker):
+        # Isn't actually a constructor
+        ce = mocker.Mock(**{"evaluate.return_value": mocker.sentinel.ref})
+        ce.configure_mock(name="NewExpression")
+        gv = mocker.patch("ecmascript.ecmascript.GetValue", return_value=mocker.sentinel.constructor)
+        ic = mocker.patch("ecmascript.ecmascript.IsConstructor", return_value=False)
+        grn = mocker.patch("ecmascript.ecmascript.GetReferencedName", return_value="bob")
+
+        with pytest.raises(e.ESTypeError):
+            e.EvaluateNew(ce, e.EMPTY)
+
+        ce.evaluate.assert_called_with()
+        gv.assert_called_with(mocker.sentinel.ref)
+        ic.assert_called_with(mocker.sentinel.constructor)
+        grn.assert_called_with(mocker.sentinel.ref)
+
+
+####################################################################################
+#
+#  d888    .d8888b.       .d8888b.       .d8888b.       d888
+# d8888   d88P  Y88b     d88P  Y88b     d88P  Y88b     d8888
+#   888          888          .d88P          .d88P       888
+#   888        .d88P         8888"          8888"        888
+#   888    .od888P"           "Y8b.          "Y8b.       888
+#   888   d88P"          888    888     888    888       888
+#   888   888"       d8b Y88b  d88P d8b Y88b  d88P d8b   888
+# 8888888 888888888  Y8P  "Y8888P"  Y8P  "Y8888P"  Y8P 8888888
+#
+#
+#
+####################################################################################
+# ECMAScript Language: Expressions | Left-Hand-Side Expressions | Function Calls
+# 12.4.3.1 | Runtime Semantics: Evaluation
+####################################################################################
+class Test_FunctionCalls_Evaluation:
+    # CallExpression : CoverCallExpressionAndAsyncArrowHead
+    #   1. Let expr be CoveredCallExpression of CoverCallExpressionAndAsyncArrowHead.
+    #   2. Let memberExpr be the MemberExpression of expr.
+    #   3. Let arguments be the Arguments of expr.
+    #   4. Let ref be the result of evaluating memberExpr.
+    #   5. Let func be ? GetValue(ref).
+    #   6. If Type(ref) is Reference and IsPropertyReference(ref) is false and GetReferencedName(ref) is "eval",
+    #      then
+    #       a. If SameValue(func, %eval%) is true, then
+    #           i. Let argList be ? ArgumentListEvaluation of arguments.
+    #           ii. If argList has no elements, return undefined.
+    #           iii. Let evalText be the first element of argList.
+    #           iv. If the source code matching this CallExpression is strict mode code, let strictCaller be true.
+    #               Otherwise let strictCaller be false.
+    #           v. Let evalRealm be the current Realm Record.
+    #           vi. Perform ? HostEnsureCanCompileStrings(evalRealm, evalRealm).
+    #           vii. Return ? PerformEval(evalText, evalRealm, strictCaller, true).
+    #   7. Let thisCall be this CallExpression.
+    #   8. Let tailCall be IsInTailPosition(thisCall).
+    #   9. Return ? EvaluateCall(func, ref, arguments, tailCall).
+    @pytest.mark.parametrize("Yield", (False, True))
+    @pytest.mark.parametrize("Await", (False, True))
+    @strict_params
+    def test_covercallexp_noteval(self, context, mocker, strict, Yield, Await):
+        # Not Eval (IsPropertyReference is TRUE)
+        ref = mocker.Mock(spec=e.Reference)
+        memberExpr = mocker.Mock(**{"evaluate.return_value": ref})
+        expr = mocker.Mock(MemberExpression=memberExpr, Arguments=mocker.sentinel.arguments)
+        cceaaah = mocker.sentinel.cceaaah
+        gv = mocker.patch("ecmascript.ecmascript.GetValue", return_value=mocker.sentinel.func)
+        ipr = mocker.patch("ecmascript.ecmascript.IsPropertyReference", return_value=True)
+        iitp = mocker.patch("ecmascript.ecmascript.IsInTailPosition", return_value=mocker.sentinel.tailCall)
+        ec = mocker.patch("ecmascript.ecmascript.EvaluateCall", return_value=mocker.sentinel.return_value)
+        ce = e.P2_CallExpression_CoverCallExpressionAndAsyncArrowHead(context, strict, [cceaaah], Yield, Await)
+        ce.CoveredCallExpression = mocker.Mock(return_value=expr)
+
+        rv = ce.evaluate()
+        assert rv == mocker.sentinel.return_value
+        ce.CoveredCallExpression.assert_called_with()
+        memberExpr.evaluate.assert_called_with()
+        gv.assert_called_with(ref)
+        ipr.assert_called_with(ref)
+        iitp.assert_called_with(ce)
+        ec.assert_called_with(mocker.sentinel.func, ref, mocker.sentinel.arguments, mocker.sentinel.tailCall)
