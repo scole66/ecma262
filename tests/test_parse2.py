@@ -725,8 +725,8 @@ class Test_parse_UpdateExpression(parse_test):
         self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
 
     @syntax_error_test_params(target_argnames, productions)
-    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
-        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class)
 
 
 #### UnaryExpression ######################################################################################################################
@@ -847,8 +847,8 @@ class Test_parse_UnaryExpression(parse_test):
         self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
 
     @syntax_error_test_params(target_argnames, productions)
-    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
-        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class)
 
 
 #### ExponentiationExpression ############################################################################################################################################################################
@@ -912,8 +912,8 @@ class Test_parse_ExponentiationExpression(parse_test):
         self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
 
     @syntax_error_test_params(target_argnames, productions)
-    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
-        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class)
 
 
 #### MultiplicativeExpression ################################################################################################################################################################
@@ -980,8 +980,8 @@ class Test_parse_MultiplicativeExpression(parse_test):
         self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
 
     @syntax_error_test_params(target_argnames, productions)
-    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
-        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class)
 
 
 #### MultiplicativeExpression #################################################################################################################################################
@@ -1041,8 +1041,8 @@ class Test_parse_MultiplicativeOperator(parse_test):
         self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
 
     @syntax_error_test_params(target_argnames, productions)
-    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
-        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class)
 
 
 #### AdditiveExpression ################################################################################################################################
@@ -1118,8 +1118,8 @@ class Test_parse_AdditiveExpression(parse_test):
         self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
 
     @syntax_error_test_params(target_argnames, productions)
-    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
-        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class)
 
 
 #### ShiftExpression #########################################################################################################
@@ -1218,8 +1218,8 @@ class Test_parse_ShiftExpression(parse_test):
         self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
 
     @syntax_error_test_params(target_argnames, productions)
-    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
-        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class)
 
 
 #### RelationalExpression #########################################################################################################################################
@@ -1340,8 +1340,8 @@ class Test_parse_RelationalExpression(parse_test):
         self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
 
     @syntax_error_test_params(target_argnames, productions)
-    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
-        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class)
 
 
 #### EqualityExpression ##############################################################################################################################
@@ -1439,8 +1439,8 @@ class Test_parse_EqualityExpression(parse_test):
         self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
 
     @syntax_error_test_params(target_argnames, productions)
-    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
-        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class)
 
 
 #### BitwiseANDExpression ############################################################################################################################################################
