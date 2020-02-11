@@ -448,30 +448,37 @@ def stream_id(item):
     return " ".join(after or before for before, mark, after in (token.partition("¡") for token in item))
 
 
-def _is_valid_match(testcase, probe):
-    return len(testcase) < len(probe) and all(p == t for p, t in zip(probe, testcase))
-
-
-def _matches_valid(prods, probe):
-    # probe is a "syntax error" stream; the last token is a never match, and all but that one should match the
-    # leading part of one of our productions, but never a whole production. This routine is what's used to validate
-    # the "but never" part of that.
-    return any(_is_valid_match(testcase, probe) for testcase in prods)
+def _errclass(stream, productions):
+    # If stream, not including the final sentinel, matches one of the production streams, return that stream's class.
+    # Else return type(None).
+    seq = stream[0:-1]
+    try:
+        return max(
+            ((x[1], len(x[0])) for x in productions if len(seq) >= len(x[0]) and seq[0 : len(x[0])] == x[0]),
+            key=lambda z: z[1],
+        )[0]
+    except ValueError:
+        return type(None)
 
 
 def synerror2_streams(productions):
-    # Filter out any productions that are prefixes of other productions. They just terminate early, they don't
-    # actually count as syntax errors.
+    # productions is sequnce of pairs. The first item of each pair is a sequence of strings representing the parts
+    # of the production, the second is the class that would be formed by this production.
 
     # Make productions into a sequence we can use multiple times
-    production_texts = tuple(productions)
-    # And then errify them, stripping out the ones that actually are valid
+    prod_data = tuple(productions)
+
+    # And then errify them. Errification makes a sequence of production parts; we then need to add back in the class
+    # that would be formed. (This is often None, but may occasionally be a smaller form.)
     errified = tuple(
-        stream for stream in set(errify_many(production_texts, NOPE)) if not _matches_valid(production_texts, stream)
+        (stream, _errclass(stream, prod_data)) for stream in set(errify_many(map(first, prod_data), NOPE))
     )
 
     # And then make them into pytest parameters
-    return tuple(pytest.param(item, id=stream_id(item)) for item in sorted(errified, key=lambda x: " ".join(x)))
+    return tuple(
+        pytest.param(item, err_class, id=stream_id(item))
+        for item, err_class in sorted(errified, key=lambda x: " ".join(x[0]))
+    )
 
 
 _gp_src = r"(\[(?P<flag>[+~])(?P<name>[A-Z][a-z]+)\])"
@@ -650,7 +657,7 @@ def syntax_error_test_params(target_argnames, productions):
         @pytest.mark.parametrize("strict_flag", (pytest.param(False, id="strict"), pytest.param(True, id="STRICT")))
         @pytest.mark.parametrize("prod_args", prod_args(target_argnames))
         @pytest.mark.parametrize("lex_pos", (0, 10))
-        @pytest.mark.parametrize("token_stream", synerror2_streams(map(first, productions)))
+        @pytest.mark.parametrize("token_stream, error_class", synerror2_streams(productions))
         def wrapped(*args, **kwargs):
             return func(*args, **kwargs)
 
@@ -749,15 +756,9 @@ class parse_test:
         else:
             assert isinstance(rv, _part(1, expected_class))
 
-    def syntax_errors(
-        self, mocker, context, strict_flag, prod_args, token_stream, lex_pos, recursive_expectation=None
-    ):
+    def syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class):
         lexer = lexer_mock(mocker, token_stream, lex_pos)
         self.setup_prod_mocks(mocker, token_stream, lex_pos)
 
         rv = self.target(context, lexer, lex_pos, strict_flag, *prod_args)
-
-        if recursive_expectation and len(token_stream) > 1 and token_stream[0] == recursive_expectation[0]:
-            assert isinstance(rv, recursive_expectation[1])
-        else:
-            assert rv is None
+        assert isinstance(rv, error_class)

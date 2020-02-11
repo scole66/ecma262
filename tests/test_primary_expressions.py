@@ -87,8 +87,8 @@ class Test_parse_Literal(parse_test):
         self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
 
     @syntax_error_test_params(target_argnames, productions)
-    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
-        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class)
 
 
 def test_PrimaryExpression_init(context):
@@ -272,8 +272,8 @@ class Test_parse_PrimaryExpression(parse_test):
         self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
 
     @syntax_error_test_params(target_argnames, productions)
-    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
-        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class)
 
 
 #### CoverParenthesizedExpressionAndArrowParameterList ##################################################################################################################################################################################################################################################################################################################################################################################################
@@ -414,8 +414,8 @@ class Test_parse_CoverParenthesizedExpressionAndArrowParameterList(parse_test):
         self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
 
     @syntax_error_test_params(target_argnames, productions)
-    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
-        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class)
 
 
 #### ParenthesizedExpression ##############################################################################################################################################################################
@@ -466,8 +466,8 @@ class Test_parse_ParenthesizedExpression(parse_test):
         self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
 
     @syntax_error_test_params(target_argnames, productions)
-    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
-        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class)
 
 
 #### Elision ########################################################
@@ -522,8 +522,8 @@ class Test_parse_Elision(parse_test):
         self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
 
     @syntax_error_test_params(target_argnames, productions)
-    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
-        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class)
 
 
 #### ArrayLiteral #################################################################################
@@ -617,8 +617,8 @@ class Test_parse_ArrayLiteral(parse_test):
         self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
 
     @syntax_error_test_params(target_argnames, productions)
-    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
-        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class)
 
 
 #### ElementList #################################################################################
@@ -757,8 +757,8 @@ class Test_parse_ElementList(parse_test):
         self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
 
     @syntax_error_test_params(target_argnames, productions)
-    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
-        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class)
 
 
 #### SpreadElement #########################################################################################################
@@ -809,8 +809,8 @@ class Test_parse_SpreadElement(parse_test):
         self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
 
     @syntax_error_test_params(target_argnames, productions)
-    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
-        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class)
 
 
 #### ObjectLiteral ######################################################################################
@@ -882,8 +882,8 @@ class Test_parse_ObjectLiteral(parse_test):
         self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
 
     @syntax_error_test_params(target_argnames, productions)
-    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
-        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class)
 
 
 #### PropertyDefinitionList ######################################################################################################################################################
@@ -946,8 +946,8 @@ class Test_parse_PropertyDefinitionList(parse_test):
         self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
 
     @syntax_error_test_params(target_argnames, productions)
-    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
-        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class)
 
 
 #### PropertyDefinition #############################################################################################################################
@@ -1047,8 +1047,8 @@ class Test_parse_PropertyDefinition(parse_test):
         self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
 
     @syntax_error_test_params(target_argnames, productions)
-    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
-        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class)
 
 
 #### PropertyName ######################################################################################################
@@ -1103,8 +1103,8 @@ class Test_parse_PropertyName(parse_test):
         self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
 
     @syntax_error_test_params(target_argnames, productions)
-    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
-        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class)
 
 
 #### LiteralPropertyName #################################################################################################################################################
@@ -1167,8 +1167,8 @@ class Test_parse_LiteralPropertyName(parse_test):
         self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
 
     @syntax_error_test_params(target_argnames, productions)
-    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
-        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class)
 
 
 #### ComputedPropertyName #######################################################################################################################################################################
@@ -1220,8 +1220,8 @@ class Test_parse_ComputedPropertyName(parse_test):
         self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
 
     @syntax_error_test_params(target_argnames, productions)
-    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
-        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class)
 
 
 #### CoverInitializedName ##############################################################################################################################################
@@ -1274,8 +1274,8 @@ class Test_parse_CoverInitializedName(parse_test):
         self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
 
     @syntax_error_test_params(target_argnames, productions)
-    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
-        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class)
 
 
 #### Initializer ############################################################
@@ -1326,8 +1326,8 @@ class Test_parse_Initializer(parse_test):
         self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
 
     @syntax_error_test_params(target_argnames, productions)
-    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
-        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class)
 
 
 #### TemplateLiteral ########################################################################################################
@@ -1386,8 +1386,8 @@ class Test_parse_TemplateLiteral(parse_test):
         self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
 
     @syntax_error_test_params(target_argnames, productions)
-    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
-        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class)
 
 
 #### SubstitutionTemplate ###############################################################################################################################################
@@ -1445,8 +1445,8 @@ class Test_parse_SubstitutionTemplate(parse_test):
         self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
 
     @syntax_error_test_params(target_argnames, productions)
-    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
-        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class)
 
 
 #### TemplateSpans #######################################################################################################
@@ -1510,8 +1510,8 @@ class Test_parse_TemplateSpans(parse_test):
         self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
 
     @syntax_error_test_params(target_argnames, productions)
-    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
-        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class)
 
 
 #### TemplateMiddleList #################################################################################################################################
@@ -1590,8 +1590,8 @@ class Test_parse_TemplateMiddleList(parse_test):
         self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
 
     @syntax_error_test_params(target_argnames, productions)
-    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos):
-        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos)
+    def test_syntax_errors(self, mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class):
+        self.syntax_errors(mocker, context, strict_flag, prod_args, token_stream, lex_pos, error_class)
 
 
 ####################################################################################
