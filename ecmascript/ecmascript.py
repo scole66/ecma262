@@ -14553,8 +14553,10 @@ class P2_BitwiseExpression(ParseNode2):
         # 5. Let lnum be ? ToInt32(lval).
         # 6. Let rnum be ? ToInt32(rval).
         # 7+. Defer to subclasses
-        lnum = ToInt32(GetValue(self.children[0].evaluate()))
-        rnum = ToInt32(GetValue(self.children[2].evaluate()))
+        lval = GetValue(self.children[0].evaluate())
+        rval = GetValue(self.children[2].evaluate())
+        lnum = ToInt32(lval)
+        rnum = ToInt32(rval)
         return self.operate(lnum, rnum)
 
 
