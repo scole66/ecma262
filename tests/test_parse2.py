@@ -2183,43 +2183,6 @@ def test_P2_DestructuringAssignmentTarget_LeftHandSideExpression_init(context):
     assert dat.LeftHandSideExpression == "child"
 
 
-#### Expression ########################################################################
-#
-# 8888888888                                                      d8b
-# 888                                                             Y8P
-# 888
-# 8888888    888  888 88888b.  888d888  .d88b.  .d8888b  .d8888b  888  .d88b.  88888b.
-# 888        `Y8bd8P' 888 "88b 888P"   d8P  Y8b 88K      88K      888 d88""88b 888 "88b
-# 888          X88K   888  888 888     88888888 "Y8888b. "Y8888b. 888 888  888 888  888
-# 888        .d8""8b. 888 d88P 888     Y8b.          X88      X88 888 Y88..88P 888  888
-# 8888888888 888  888 88888P"  888      "Y8888   88888P'  88888P' 888  "Y88P"  888  888
-#                     888
-#                     888
-#                     888
-#
-########################################################################################
-def test_P2_Expression_init(context):
-    exp = e.P2_Expression(context, "StrictArg", ["child"])
-    assert exp.name == "Expression"
-    assert exp.context == context
-    assert exp.children == ["child"]
-
-
-def test_P2_Expression_AssignmentExpression_init(context):
-    exp = e.P2_Expression_AssignmentExpression(context, "StrictArg", ["AssignmentExpression"])
-    assert exp.name == "Expression"
-    assert exp.AssignmentExpression == "AssignmentExpression"
-
-
-def test_P2_Expression_Expression_COMMA_AssignmentExpression_init(context):
-    exp = e.P2_Expression_Expression_COMMA_AssignmentExpression(
-        context, "StrictArg", ["Expression", ",", "AssignmentExpression"]
-    )
-    assert exp.name == "Expression"
-    assert exp.Expression == "Expression"
-    assert exp.AssignmentExpression == "AssignmentExpression"
-
-
 #### Statement #####################################################################
 #
 #  .d8888b.  888             888                                             888
