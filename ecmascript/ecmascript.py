@@ -13553,7 +13553,11 @@ def DivideOperation(lval, rval):
     return (
         lnum / rnum
         if rnum != 0.0
-        else (math.nan if lnum == 0.0 else (math.copysign(1.0, lnum) * math.copysign(1.0, rnum)) * math.inf)
+        else (
+            math.nan
+            if (lnum == 0.0 or math.isnan(rnum) or math.isnan(lnum))
+            else (math.copysign(1.0, lnum) * math.copysign(1.0, rnum)) * math.inf
+        )
     )
 
 
