@@ -8202,6 +8202,7 @@ class P2_IdentifierReference_AWAIT(_P2_Common_Identifier_AWAIT, P2_IdentifierRef
         return ResolveBinding("await", self.strict)
 
 
+@lru_cache
 def parse_IdentifierReference(ctx, lexer, pos, strict, Yield, Await):
     # Syntax
     #   IdentifierReference[Yield, Await]:
@@ -8306,6 +8307,7 @@ class P2_Identifier_IdentifierName(P2_Identifier):
         return []
 
 
+@lru_cache
 def parse_Identifier(ctx, lexer, pos, strict):
     ident = lexer.token_if(pos, "IDENTIFIER")
     if ident and ident.src[ident.span.start : ident.span.after] not in lexer.reserved_words:
@@ -8417,6 +8419,7 @@ class P2_BindingIdentifier_AWAIT(_P2_Common_Identifier_AWAIT, P2_BindingIdentifi
         return InitializeBoundName("await", value, environment, self.strict)
 
 
+@lru_cache
 def parse_BindingIdentifier(ctx, lexer, pos, strict, Yield, Await):
     # Syntax
     #   BindingIdentifier[Yield, Await] :
@@ -8470,6 +8473,7 @@ class P2_LabelIdentifier_AWAIT(_P2_Common_Identifier_AWAIT, P2_LabelIdentifier):
     pass
 
 
+@lru_cache
 def parse_LabelIdentifier(ctx, lexer, pos, strict, Yield, Await):
     # Syntax
     #   LabelIdentifier[Yield, Await]:
@@ -8972,6 +8976,7 @@ class P2_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(P2_
         return self.CoverParenthesizedExpressionAndArrowParameterList.CoveredParenthesizedExpression.evaluate()
 
 
+@lru_cache
 def parse_PrimaryExpression(ctx, lexer, pos, strict, Yield, Await):
     # 12.2 Primary Expression
     # Syntax
@@ -9132,6 +9137,7 @@ class P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_COM
         return self.children[4]
 
 
+@lru_cache
 def parse_CoverParenthesizedExpressionAndArrowParameterList(ctx, lexer, pos, strict, Yield, Await):
     # 12.2 Primary Expression
     # Syntax
@@ -9244,6 +9250,7 @@ class P2_ParenthesizedExpression_LPAREN_Expression_RPAREN(P2_ParenthesizedExpres
     # Implementation Note: This is handled correctly by the normal deferred semantics system.
 
 
+@lru_cache
 def parse_ParenthesizedExpression(ctx, lexer, pos, strict, Yield, Await):
     # 12.2 Primary Expression
     # Syntax
@@ -9346,6 +9353,7 @@ Literal_Constructors = {
 }
 
 
+@lru_cache
 def parse_Literal(ctx, lexer, pos, strict):
     # 12.2.4 Literals
     # Syntax
@@ -9477,6 +9485,7 @@ class P2_ArrayLiteral_LBRACKET_ElementList_COMMA_Elision_RBRACKET(P2_ArrayLitera
         return array
 
 
+@lru_cache
 def parse_ArrayLiteral(ctx, lexer, pos, strict, Yield, Await):
     # 12.2.5 Array Initializer
     # Syntax
@@ -9693,6 +9702,7 @@ class P2_ElementList_ElementList_COMMA_Elision_SpreadElement(P2_ElementList_Elem
         return self.children[3]
 
 
+@lru_cache
 def parse_ElementList(ctx, lexer, pos, strict, Yield, Await):
     # 12.2.5 Array Initializer
     # Syntax
@@ -9825,6 +9835,7 @@ class P2_Elision_Elision_COMMA(P2_Elision):
         return EMPTY
 
 
+@lru_cache
 def parse_Elision(ctx, lexer, pos, strict):
     # 12.2.5 Array Initializer
     # Syntax
@@ -9885,6 +9896,7 @@ class P2_SpreadElement_DOTDOTDOT_AssignmentExpression(P2_SpreadElement):
             nextIndex += 1
 
 
+@lru_cache
 def parse_SpreadElement(ctx, lexer, pos, strict, Yield, Await):
     # 12.2.5 Array Initializer
     # Syntax
@@ -9954,6 +9966,7 @@ class P2_ObjectLiteral_LCURLY_PropertyDefinitionList_COMMA_RCURLY(
     pass
 
 
+@lru_cache
 def parse_ObjectLiteral(ctx, lexer, pos, strict, Yield, Await):
     # 12.2.6 Object Initializer
     # Syntax
@@ -10043,6 +10056,7 @@ class P2_PropertyDefinitionList_PropertyDefinitionList_COMMA_PropertyDefinition(
         return self.PropertyDefinition.PropertyDefinitionEvaluation(object, enumerable)
 
 
+@lru_cache
 def parse_PropertyDefinitionList(ctx, lexer, pos, strict, Yield, Await):
     # 12.2.6 Object Initializer
     # Syntax
@@ -10240,6 +10254,7 @@ class P2_PropertyDefinition_DOTDOTDOT_AssignmentExpression(P2_PropertyDefinition
         return CopyDataProperties(object, GetValue(self.AssignmentExpression.evaluate()), [])
 
 
+@lru_cache
 def parse_PropertyDefinition(ctx, lexer, pos, strict, Yield, Await):
     # 12.2.6 Object Initializer
     # Syntax
@@ -10328,6 +10343,7 @@ class P2_PropertyName_ComputedPropertyName(P2_PropertyName):
         return True
 
 
+@lru_cache
 def parse_PropertyName(ctx, lexer, pos, strict, Yield, Await):
     # 12.2.6 Object Initializer
     # Syntax
@@ -10419,6 +10435,7 @@ LiteralPropertyConstructors = {
 }
 
 
+@lru_cache
 def parse_LiteralPropertyName(ctx, lexer, pos, strict):
     # 12.2.6 Object Initializer
     # Syntax
@@ -10458,6 +10475,7 @@ class P2_ComputedPropertyName_LBRACKET_AssignmentExpression_RBRACKET(P2_Computed
         return ToPropertyKey(GetValue(self.AssignmentExpression.evaluate()))
 
 
+@lru_cache
 def parse_ComputedPropertyName(ctx, lexer, pos, strict, Yield, Await):
     # 12.2.6 Object Initializer
     # Syntax
@@ -10490,6 +10508,7 @@ class P2_CoverInitializedName_IdentifierReference_Initializer(P2_CoverInitialize
         return self.children[1]
 
 
+@lru_cache
 def parse_CoverInitializedName(ctx, lexer, pos, strict, Yield, Await):
     # 12.2.6 Object Initializer
     # Syntax
@@ -10516,6 +10535,7 @@ class P2_Initializer_EQUALS_AssignmentExpression(P2_Initializer):
         return self.children[1]
 
 
+@lru_cache
 def parse_Initializer(ctx, lexer, pos, strict, In, Yield, Await):
     # 12.2.6 Object Initializer
     # Syntax
@@ -10621,6 +10641,7 @@ class P2_TemplateLiteral_SubstitutionTemplate(P2_TemplateLiteral):
         ]
 
 
+@lru_cache
 def parse_TemplateLiteral(ctx, lexer, pos, strict, Yield, Await, Tagged):
     # 12.2.9 Template Literals
     # Syntax
@@ -10724,6 +10745,7 @@ class P2_SubstitutionTemplate_TemplateHead_Expression_TemplateSpans(P2_Substitut
         # the + operator.
 
 
+@lru_cache
 def parse_SubstitutionTemplate(ctx, lexer, pos, strict, Yield, Await, Tagged):
     # 12.2.9 Template Literals
     # Syntax
@@ -10836,6 +10858,7 @@ class P2_TemplateSpans_TemplateMiddleList_TemplateTail(P2_TemplateSpans):
         return f"{head}{tail}"
 
 
+@lru_cache
 def parse_TemplateSpans(ctx, lexer, pos, strict, Yield, Await, Tagged):
     # 12.2.9 Template Literals
     # Syntax
@@ -10985,6 +11008,7 @@ class P2_TemplateMiddleList_TemplateMiddleList_TemplateMiddle_Expression(P2_Temp
         # the + operator.
 
 
+@lru_cache
 def parse_TemplateMiddleList(ctx, lexer, pos, strict, Yield, Await, Tagged):
     # 12.2.9 Template Literals
     # Syntax
@@ -11376,6 +11400,7 @@ class P2_MemberExpression_NEW_MemberExpression_Arguments(P2_MemberExpression_bas
         return EvaluateNew(self.MemberExpression, self.Arguments)
 
 
+@lru_cache
 def parse_MemberExpression(ctx, lexer, pos, strict, Yield, Await):
     # 12.3 Left-Hand-Side Expressions
     # Syntax
@@ -11507,6 +11532,7 @@ class P2_SuperProperty_SUPER_PERIOD_IdentifierName(P2_SuperProperty):
         return MakeSuperPropertyReference(actualThis, propertyKey, self.strict)
 
 
+@lru_cache
 def parse_SuperProperty(ctx, lexer, pos, strict, Yield, Await):
     # 12.3 Left-Hand-Side Expressions
     # Syntax
@@ -11549,6 +11575,7 @@ class P2_MetaProperty_NewTarget(P2_MetaProperty):
         return self.children[0]
 
 
+@lru_cache
 def parse_MetaProperty(ctx, lexer, pos, strict):
     # 12.3 Left-Hand-Side Expressions
     # Syntax
@@ -11585,6 +11612,7 @@ class P2_NewTarget_NEW_PERIOD_TARGET(P2_NewTarget):
         return GetNewTarget()
 
 
+@lru_cache
 def parse_NewTarget(ctx, lexer, pos, strict):
     # 12.3 Left-Hand-Side Expressions
     # Syntax
@@ -11662,6 +11690,7 @@ class P2_NewExpression_NEW_NewExpression(P2_NewExpression):
         return EvaluateNew(self.NewExpression, EMPTY)
 
 
+@lru_cache
 def parse_NewExpression(ctx, lexer, pos, strict, Yield, Await):
     # 12.3 Left-Hand-Side Expressions
     # Syntax
@@ -11963,6 +11992,7 @@ class P2_CallExpression_CallExpression_TemplateLiteral(P2_CallExpression):
         return EvaluateCall(tagFunc, tagRef, self.TemplateLiteral, tailCall)
 
 
+@lru_cache
 def parse_CallExpression(ctx, lexer, pos, strict, Yield, Await):
     # 12.3 Left-Hand-Side Expressions
     # Syntax
@@ -12055,6 +12085,7 @@ class P2_SuperCall_SUPER_Arguments(P2_SuperCall):
         return GetThisEnvironment().BindThisValue(result)
 
 
+@lru_cache
 def parse_SuperCall(ctx, lexer, pos, strict, Yield, Await):
     # 12.3 Left-Hand-Side Expressions
     # Syntax
@@ -12145,6 +12176,7 @@ class P2_Arguments_LPAREN_ArgumentList_COMMA_RPAREN(P2_Arguments):
         return self.children[1]
 
 
+@lru_cache
 def parse_Arguments(ctx, lexer, pos, strict, Yield, Await):
     # 12.3 Left-Hand-Side Expressions
     # Syntax
@@ -12278,6 +12310,7 @@ class P2_ArgumentList_ArgumentList_COMMA_DOTDOTDOT_AssignmentExpression(P2_Argum
             precedingArgs.append(IteratorValue(nxt))
 
 
+@lru_cache
 def parse_ArgumentList(ctx, lexer, pos, strict, Yield, Await):
     # 12.3 Left-Hand-Side Expressions
     # Syntax
@@ -12385,6 +12418,7 @@ class P2_LeftHandSideExpression_CallExpression(P2_LeftHandSideExpression):
         return False
 
 
+@lru_cache
 def parse_LeftHandSideExpression(ctx, lexer, pos, strict, Yield, Await):
     # 12.3 Left-Hand-Side Expressions
     # Syntax
@@ -12422,6 +12456,7 @@ class P2_CallMemberExpression_MemberExpression_Arguments(P2_CallMemberExpression
         return self.children[1]
 
 
+@lru_cache
 def parse_CallMemberExpression(ctx, lexer, pos, strict, Yield, Await):
     # 12.3 Left-Hand-Side Expressions
     # Syntax
@@ -12657,6 +12692,7 @@ class P2_UpdateExpression_MINUSMINUS_UnaryExpression(P2_UpdateExpression_Pre):
         return newValue
 
 
+@lru_cache
 def parse_UpdateExpression(ctx, lexer, pos, strict, Yield, Await):
     # 12.4 Update Expressions
     # Syntax
@@ -13031,6 +13067,7 @@ class P2_UnaryExpression_AwaitExpression(P2_UnaryExpression_NotFallThru):
         return self.children[0]
 
 
+@lru_cache
 def parse_UnaryExpression(ctx, lexer, pos, strict, Yield, Await):
     # 12.5 Unary Operators
     # Syntax
@@ -13181,6 +13218,7 @@ class P2_ExponentiationExpression_UpdateExpression_STARSTAR_ExponentiationExpres
         return ExponentiationOperation(leftValue, rightValue)
 
 
+@lru_cache
 def parse_ExponentiationExpression(ctx, lexer, pos, strict, Yield, Await):
     # 12.6 Exponentiation Operator
     # Syntax
@@ -13381,6 +13419,7 @@ class P2_MultiplicativeExpression_MultiplicativeExpression_MultiplicativeOperato
         return self.MultiplicativeOperator.operation(leftValue, rightValue)
 
 
+@lru_cache
 def parse_MultiplicativeExpression(ctx, lexer, pos, strict, Yield, Await):
     # 12.7 Multiplicative Operators
     # Syntax
@@ -13437,6 +13476,7 @@ class P2_MultiplicativeOperator_MOD(P2_MultiplicativeOperator):
         return ModuloOperation(lval, rval)
 
 
+@lru_cache
 def parse_MultiplicativeOperator(context, lexer, pos, strict):
     mult = lexer.token_if(pos, "*", goal=lexer.InputElementDiv)
     if mult:
@@ -13709,6 +13749,7 @@ class P2_AdditiveExpression_AdditiveExpression_MINUS_MultiplicativeExpression(P2
         return lnum - rnum
 
 
+@lru_cache
 def parse_AdditiveExpression(ctx, lexer, pos, strict, Yield, Await):
     # 12.8 Additive Operators
     # Syntax
@@ -13944,6 +13985,7 @@ class P2_ShiftExpression_ShiftExpression_GTGTGT_AdditiveExpression(P2_ShiftExpre
         return lnum >> shiftCount
 
 
+@lru_cache
 def parse_ShiftExpression(context, lexer, pos, strict, Yield, Await):
     # 12.9 Bitwise Shift Operators
     # Syntax
@@ -14177,6 +14219,7 @@ class P2_RelationalExpression_RelationalExpression_IN_ShiftExpression(
         return HasProperty(rval, key)
 
 
+@lru_cache
 def parse_RelationalExpression(context, lexer, pos, strict, In, Yield, Await):
     # 12.10 Relational Operators
     # Syntax
@@ -14396,6 +14439,7 @@ class P2_EqualityExpression_EqualityExpression_BANGEQEQ_RelationalExpression(
         return not StrictEqualityComparison(rval, lval)
 
 
+@lru_cache
 def parse_EqualityExpression(context, lexer, pos, strict, In, Yield, Await):
     # 12.11 Equality Operators
     # Syntax
@@ -14556,6 +14600,7 @@ class P2_BitwiseANDExpression_BitwiseANDExpression_AMP_EqualityExpression(
         return lnum & rnum
 
 
+@lru_cache
 def parse_BitwiseANDExpression(context, lexer, pos, strict, In, Yield, Await):
     # 12.12 Binary Bitwise Operators
     # Syntax
@@ -14626,6 +14671,7 @@ class P2_BitwiseXORExpression_BitwiseXORExpression_CARET_BitwiseANDExpression(
         return lnum ^ rnum
 
 
+@lru_cache
 def parse_BitwiseXORExpression(context, lexer, pos, strict, In, Yield, Await):
     # 12.12 Binary Bitwise Operators
     # Syntax
@@ -14698,6 +14744,7 @@ class P2_BitwiseORExpression_BitwiseORExpression_PIPE_BitwiseXORExpression(
         return lnum | rnum
 
 
+@lru_cache
 def parse_BitwiseORExpression(context, lexer, pos, strict, In, Yield, Await):
     # 12.12 Binary Bitwise Operators
     # Syntax
@@ -14845,6 +14892,7 @@ class P2_LogicalANDExpression_LogicalANDExpression_AMPAMP_BitwiseORExpression(
         return GetValue(rref)
 
 
+@lru_cache
 def parse_LogicalANDExpression(context, lexer, pos, strict, In, Yield, Await):
     # 12.13 Binary Logical Operators
     # Syntax
@@ -14929,6 +14977,7 @@ class P2_LogicalORExpression_LogicalORExpression_PIPEPIPE_LogicalANDExpression(
         return GetValue(rref)
 
 
+@lru_cache
 def parse_LogicalORExpression(context, lexer, pos, strict, In, Yield, Await):
     # 12.13 Binary Logical Operators
     # Syntax
@@ -15079,6 +15128,7 @@ class P2_ConditionalExpression_LogicalORExpression_QUESTION_AssignmentExpression
         return GetValue(falseRef)
 
 
+@lru_cache
 def parse_ConditionalExpression(context, lexer, pos, strict, In, Yield, Await):
     # 12.14 Conditional Operator ( ? : )
     # Syntax
@@ -15405,6 +15455,7 @@ class P2_AssignmentExpression_LeftHandSideExpression_AssignmentOperator_Assignme
         # TypeError exception is thrown.
 
 
+@lru_cache
 def parse_AssignmentExpression(context, lexer, pos, strict, In, Yield, Await):
     #   AssignmentExpression[In, Yield, Await] :
     #       ConditionalExpression[?In, ?Yield, ?Await]
@@ -15465,6 +15516,7 @@ class P2_AssignmentPattern_ArrayAssignmentPattern(P2_AssignmentPattern):
         return self.children[0]
 
 
+@lru_cache
 def parse_AssignmentPattern(context, lexer, pos, strict, Yield, Await):
     # 12.15.5 Destructuring Assignment
     # Syntax
@@ -15563,6 +15615,7 @@ class P2_ObjectAssignmentPattern_AssignmentPropertyList_AssignmentRestProperty(P
         return self.AssignmentRestProperty.RestDestructuringAssignmentEvaluation(value, excludedNames)
 
 
+@lru_cache
 def parse_ObjectAssignmentPattern(context, lexer, pos, strict, Yield, Await):
     # 12.15.5 Destructuring Assignment
     # Syntax
@@ -15805,6 +15858,7 @@ class P2_ArrayAssignmentPattern_AssignmentElementList_AssignmentRestElement(
     Elision = None
 
 
+@lru_cache
 def parse_ArrayAssignmentPattern(context, lexer, pos, strict, Yield, Await):
     # 12.15.5 Destructuring Assignment
     # Syntax
@@ -15900,6 +15954,7 @@ class P2_AssignmentRestProperty_DestructuringAssignmentTarget(P2_AssignmentRestP
         return PutValue(lref, restObj)
 
 
+@lru_cache
 def parse_AssignmentRestProperty(context, lexer, pos, strict, Yield, Await):
     # 12.15.5 Destructuring Assignment
     # Syntax
@@ -15958,6 +16013,7 @@ class P2_AssignmentPropertyList_AssignmentPropertyList_AssignmentProperty(P2_Ass
         return propertyNames
 
 
+@lru_cache
 def parse_AssignmentPropertyList(context, lexer, pos, strict, Yield, Await):
     # 12.15.5 Destructuring Assignment
     # Syntax
@@ -16024,6 +16080,7 @@ class P2_AssignmentElementList_AssignmentElementList_AssignmentElisionElement(P2
         return self.AssignmentElisionElement.IteratorDestructuringAssignmentEvaluation(iteratorRecord)
 
 
+@lru_cache
 def parse_AssignmentElementList(context, lexer, pos, strict, Yield, Await):
     # 12.15.5 Destructuring Assignment
     # Syntax
@@ -16090,6 +16147,7 @@ class P2_AssignmentElisionElement_AssignmentElement(P2_AssignmentElisionElement)
         return self.children[0]
 
 
+@lru_cache
 def parse_AssignmentElisionElement(context, lexer, pos, strict, Yield, Await):
     # 12.15.5 Destructuring Assignment
     # Syntax
@@ -16198,6 +16256,7 @@ class P2_AssignmentProperty_PropertyName_AssignmentElement(P2_AssignmentProperty
         return [name]
 
 
+@lru_cache
 def parse_AssignmentProperty(context, lexer, pos, strict, Yield, Await):
     # 12.15.5 Destructuring Assignment
     # Syntax
@@ -16357,6 +16416,7 @@ class P2_AssignmentElement_DestructuringAssignmentTarget(
     Initializer = None
 
 
+@lru_cache
 def parse_AssignmentElement(context, lexer, pos, strict, Yield, Await):
     # 12.15.5 Destructuring Assignment
     # Syntax
@@ -16439,6 +16499,7 @@ class P2_AssignmentRestElement_DestructuringAssignmentTarget(P2_AssignmentRestEl
         return nestedAssignmentPattern.DestructuringAssignmentEvaluation(A)
 
 
+@lru_cache
 def parse_AssignmentRestElement(context, lexer, pos, strict, Yield, Await):
     # 12.15.5 Destructuring Assignment
     # Syntax
@@ -16491,6 +16552,7 @@ class P2_DestructuringAssignmentTarget_LeftHandSideExpression(P2_DestructuringAs
         )
 
 
+@lru_cache
 def parse_DestructuringAssignmentTarget(context, lexer, pos, strict, Yield, Await):
     # 12.15.5 Destructuring Assignment
     # Syntax
@@ -16601,6 +16663,7 @@ class P2_Expression_Expression_COMMA_AssignmentExpression(P2_Expression):
         #       | side-effects.
 
 
+@lru_cache
 def parse_Expression(ctx, lexer, pos, strict, In, Yield, Await):
     # 12.16 Comma Operator ( , )
     # Syntax
@@ -17041,6 +17104,7 @@ class P2_Statement_DebuggerStatement(
         return self.children[0]
 
 
+@lru_cache
 def parse_Statement(ctx, lexer, pos, strict, Yield, Await, Return):
     # 13 ECMAScript Language: Statements and Declarations
     # Syntax
@@ -17205,6 +17269,7 @@ class P2_Declaration_LexicalDeclaration(P2_Declaration):
         return self.LexicalDeclaration
 
 
+@lru_cache
 def parse_Declaration(context, lexer, pos, strict, Yield, Await):
     # 13 ECMAScript Language: Statements and Declarations
     # Syntax
@@ -17304,6 +17369,7 @@ class P2_HoistableDeclaration_AsyncGeneratorDeclaration(P2_HoistableDeclaration)
         return EMPTY
 
 
+@lru_cache
 def parse_HoistableDeclaration(context, lexer, pos, strict, Yield, Await, Default):
     # 13 ECMAScript Language: Statements and Declarations
     # Syntax
@@ -17411,6 +17477,7 @@ class P2_BreakableStatement_SwitchStatement(P2_BreakableStatement):
         return self.LabelledEvaluation([])
 
 
+@lru_cache
 def parse_BreakableStatement(context, lexer, pos, strict, Yield, Await, Return):
     # 13 ECMAScript Language: Statements and Declarations
     # Syntax
@@ -17477,6 +17544,7 @@ class P2_BlockStatement_Block(P2_BlockStatement):
         return self.children[0]
 
 
+@lru_cache
 def parse_BlockStatement(context, lexer, pos, strict, Yield, Await, Return):
     # 13.2 Block
     # Syntax
@@ -17610,6 +17678,7 @@ class P2_Block_StatementList(P2_Block):
             surrounding_agent.running_ec.lexical_environment = oldEnv
 
 
+@lru_cache
 def parse_Block(context, lexer, pos, strict, Yield, Await, Return):
     # 13.2 Block
     # Syntax
@@ -17780,6 +17849,7 @@ class P2_StatementList_StatementList_StatementListItem(P2_StatementList):
         return (more, strings)
 
 
+@lru_cache
 def parse_StatementList(ctx, lexer, pos, strict, dp_active, Yield, Await, Return):
     # 13.2 Block
     # Syntax
@@ -17991,6 +18061,7 @@ class P2_StatementListItem_Declaration(P2_StatementListItem):
         return self.Declaration.evaluate()
 
 
+@lru_cache
 def parse_StatementListItem(ctx, lexer, pos, strict, Yield, Await, Return):
     # 13.2 Block
     # Syntax
@@ -18194,6 +18265,7 @@ class P2_LexicalDeclaration_LetOrConst_BindingList(P2_LexicalDeclaration):
         return EMPTY
 
 
+@lru_cache
 def parse_LexicalDeclaration(context, lexer, pos, strict, In, Yield, Await):
     # 13.3.1 Let and Const Declarations
     # Syntax
@@ -18237,6 +18309,7 @@ class P2_LetOrConst_Const(P2_LetOrConst):
         return True
 
 
+@lru_cache
 def parse_LetOrConst(context, lexer, pos, strict):
     # 13.3.1 Let and Const Declarations
     # Syntax
@@ -18300,6 +18373,7 @@ class P2_BindingList_BindingList_LexicalBinding(P2_BindingList):
         return self.LexicalBinding.evaluate()
 
 
+@lru_cache
 def parse_BindingList(context, lexer, pos, strict, In, Yield, Await):
     # 13.3.1 Let and Const Declarations
     # Syntax
@@ -18427,6 +18501,7 @@ class P2_LexicalBinding_BindingPattern_Initializer(P2_LexicalBinding):
         return self.BindingPattern.BindingInitialization(value, env)
 
 
+@lru_cache
 def parse_LexicalBinding(context, lexer, pos, strict, In, Yield, Await):
     # 13.3.1 Let and Const Declarations
     # Syntax
@@ -18479,6 +18554,7 @@ class P2_VariableStatement_VariableDeclarationList(P2_VariableStatement):
         return EMPTY
 
 
+@lru_cache
 def parse_VariableStatement(context, lexer, pos, strict, Yield, Await):
     # 13.3.2 Variable Statement
     # Syntax
@@ -18554,6 +18630,7 @@ class P2_VariableDeclarationList_VariableDeclarationList_VariableDeclaration(P2_
         return self.VariableDeclaration.evaluate()
 
 
+@lru_cache
 def parse_VariableDeclarationList(context, lexer, pos, strict, In, Yield, Await):
     # 13.3.2 Variable Statement
     # Syntax
@@ -18672,6 +18749,7 @@ class P2_VariableDeclaration_BindingPattern_Initializer(P2_VariableDeclaration):
         return self.BindingPattern.BindingInitialization(rval, None)
 
 
+@lru_cache
 def parse_VariableDeclaration(context, lexer, pos, strict, In, Yield, Await):
     # 13.3.2 Variable Statement
     # Syntax
@@ -18745,6 +18823,7 @@ class P2_BindingPattern_ArrayBindingPattern(P2_BindingPattern):
         return result
 
 
+@lru_cache
 def parse_BindingPattern(context, lexer, pos, strict, Yield, Await):
     # 13.3.3 Destructuring Binding Patterns
     # Syntax
@@ -18854,6 +18933,7 @@ class P2_ObjectBindingPattern_BindingPropertyList_BindingRestProperty(P2_ObjectB
         return self.BindingPropertyList.ContainsExpression() or self.BindingRestProperty.ContainsExpression()
 
 
+@lru_cache
 def parse_ObjectBindingPattern(context, lexer, pos, strict, Yield, Await):
     # 13.3.3 Destructuring Binding Patterns
     # Syntax
@@ -19080,6 +19160,7 @@ class P2_ArrayBindingPattern_BindingElementList_Elision_BindingRestElement(P2_Ar
         return self.BindingRestElement.IteratorBindingInitialization(iteratorRecord, environment)
 
 
+@lru_cache
 def parse_ArrayBindingPattern(context, lexer, pos, strict, Yield, Await):
     # 13.3.3 Destructuring Binding Patterns
     # Syntax
@@ -19167,6 +19248,7 @@ class P2_BindingRestProperty_BindingIdentifier(P2_BindingRestProperty):
         return InitializeReferencedBinding(lhs, restObj)
 
 
+@lru_cache
 def parse_BindingRestProperty(context, lexer, pos, strict, Yield, Await):
     # 13.3.3 Destructuring Binding Patterns
     # Syntax
@@ -19243,6 +19325,7 @@ class P2_BindingPropertyList_BindingPropertyList_BindingProperty(P2_BindingPrope
         return boundNames + nextNames
 
 
+@lru_cache
 def parse_BindingPropertyList(context, lexer, pos, strict, Yield, Await):
     # 13.3.3 Destructuring Binding Patterns
     # Syntax
@@ -19333,6 +19416,7 @@ class P2_BindingElementList_BindingElementList_BindingElisionElement(P2_BindingE
         return self.BindingElisionElement.IteratorBindingInitialization(iteratorRecord, environment)
 
 
+@lru_cache
 def parse_BindingElementList(context, lexer, pos, strict, Yield, Await):
     # 13.3.3 Destructuring Binding Patterns
     # Syntax
@@ -19417,6 +19501,7 @@ class P2_BindingElisionElement_Elision_BindingElement(P2_BindingElisionElement):
         return self.BindingElement.IteratorBindingInitialization(iteratorRecord, environment)
 
 
+@lru_cache
 def parse_BindingElisionElement(context, lexer, pos, strict, Yield, Await):
     # 13.3.3 Destructuring Binding Patterns
     # Syntax
@@ -19497,6 +19582,7 @@ class P2_BindingProperty_PropertyName_BindingElement(P2_BindingProperty):
         return [P]
 
 
+@lru_cache
 def parse_BindingProperty(context, lexer, pos, strict, Yield, Await):
     # 13.3.3 Destructuring Binding Patterns
     # Syntax
@@ -19714,6 +19800,7 @@ class P2_BindingElement_BindingPattern_Initializer(P2_BindingElement):
         return self.BindingPattern.BindingInitialization(v, environment)
 
 
+@lru_cache
 def parse_BindingElement(context, lexer, pos, strict, Yield, Await):
     # 13.3.3 Destructuring Binding Patterns
     # Syntax
@@ -19936,6 +20023,7 @@ class P2_SingleNameBinding_BindingIdentifier_Initializer(P2_SingleNameBinding):
         return InitializeReferencedBinding(lhs, v) if environment else PutValue(lhs, v)
 
 
+@lru_cache
 def parse_SingleNameBinding(context, lexer, pos, strict, Yield, Await):
     # 13.3.3 Destructuring Binding Patterns
     # Syntax
@@ -20070,6 +20158,7 @@ class P2_BindingRestElement_BindingPattern(P2_BindingRestElement):
             n += 1
 
 
+@lru_cache
 def parse_BindingRestElement(context, lexer, pos, strict, Yield, Await):
     # 13.3.3 Destructuring Binding Patterns
     # Syntax
@@ -20141,6 +20230,7 @@ class P2_EmptyStatement_SEMICOLON(P2_EmptyStatement):
         return EMPTY
 
 
+@lru_cache
 def parse_EmptyStatement(ctx, lexer, pos, strict):
     # 13.4 Empty Statement
     # Syntax
@@ -20230,6 +20320,7 @@ class P2_ExpressionStatement_Expression_SEMICOLON(P2_ExpressionStatement):
         return self.Expression.HasUseStrict
 
 
+@lru_cache
 def parse_ExpressionStatement(ctx, lexer, pos, strict, Yield, Await):
     # 13.5 Expression Statement
     # Syntax
@@ -20450,6 +20541,7 @@ class P2_IfStatement_Expression_Statement(P2_IfStatement):
         return UpdateEmpty(self.Statement.evaluate(), None) if ToBoolean(exprValue) else None
 
 
+@lru_cache
 def parse_IfStatement(context, lexer, pos, strict, Yield, Await, Return):
     # 13.6 The if Statement
     # Syntax
@@ -21351,6 +21443,7 @@ class P2_IterationStatement_FOR_AWAIT_ForDeclaration_OF_AssignmentExpression_Sta
         return self.children[7]
 
 
+@lru_cache
 def parse_IterationStatement(context, lexer, pos, strict, Yield, Await, Return):
     # 13.7 Iteration Statements
     # Syntax
@@ -22091,6 +22184,7 @@ class P2_ForDeclaration_LetOrConst_ForBinding(P2_ForDeclaration):
                 envRec.CreateMutableBinding(name, False)
 
 
+@lru_cache
 def parse_ForDeclaration(context, lexer, pos, strict, Yield, Await):
     # 13.7 Iteration Statements
     # Syntax
@@ -22147,6 +22241,7 @@ class P2_ForBinding_BindingPattern(P2_ForBinding):
         return True
 
 
+@lru_cache
 def parse_ForBinding(context, lexer, pos, strict, Yield, Await):
     # 13.7 Iteration Statements
     # Syntax
@@ -22269,6 +22364,7 @@ class P2_ContinueStatement_CONTINUE_LabelIdentifier(P2_ContinueStatement):
         raise ESContinue(target=self.LabelIdentifier.StringValue)
 
 
+@lru_cache
 def parse_ContinueStatement(context, lexer, pos, strict, Yield, Await):
     # 13.8 The continue Statement
     # Syntax
@@ -22388,6 +22484,7 @@ class P2_BreakStatement_BREAK(P2_BreakStatement):
         raise ESBreak()
 
 
+@lru_cache
 def parse_BreakStatement(context, lexer, pos, strict, Yield, Await):
     # 13.9 The break Statement
     # Sytax
@@ -22485,6 +22582,7 @@ class P2_ReturnStatement_RETURN_Expression(P2_ReturnStatement):
         raise ESReturn(value=exprValue)
 
 
+@lru_cache
 def parse_ReturnStatement(context, lexer, pos, strict, Yield, Await):
     # 13.10 The return Statement
     # Syntax
@@ -22640,6 +22738,7 @@ class P2_WithStatement_WITH_Expression_Statement(P2_WithStatement):
         return UpdateEmpty(C, None)
 
 
+@lru_cache
 def parse_WithStatement(context, lexer, pos, strict, Yield, Await, Return):
     # 13.11 The with Statement
     # Syntax
@@ -22818,6 +22917,7 @@ class P2_SwitchStatement_SWITCH_Expression_CaseBlock(P2_SwitchStatement):
         return R
 
 
+@lru_cache
 def parse_SwitchStatement(context, lexer, pos, strict, Yield, Await, Return):
     # 13.12 The switch Statement
     # Syntax
@@ -23185,6 +23285,7 @@ class P2_CaseBlock_CaseClauses_DefaultClause_CaseClauses(P2_CaseBlock_HasDefault
         return self.children[3]
 
 
+@lru_cache
 def parse_CaseBlock(context, lexer, pos, strict, Yield, Await, Return):
     # 13.12 The switch Statement
     # Syntax
@@ -23316,6 +23417,7 @@ class P2_CaseClauses_CaseClauses_CaseClause(P2_CaseClauses):
         return self.CaseClauses.VarScopedDeclarations() + self.CaseClause.VarScopedDeclarations()
 
 
+@lru_cache
 def parse_CaseClauses(context, lexer, pos, strict, Yield, Await, Return):
     # 13.12 The switch Statement
     # Syntax
@@ -23446,6 +23548,7 @@ class P2_CaseClause_CASE_Expression(P2_CaseClause):
         return EMPTY
 
 
+@lru_cache
 def parse_CaseClause(context, lexer, pos, strict, Yield, Await, Return):
     # 13.12 The switch Statement
     # Syntax
@@ -23554,6 +23657,7 @@ class P2_DefaultClause_DEFAULT_StatementList(P2_DefaultClause):
         return self.StatementList.evaluate()
 
 
+@lru_cache
 def parse_DefaultClause(context, lexer, pos, strict, Yield, Await, Return):
     # 13.12 The switch Statement
     # Syntax
@@ -23746,6 +23850,7 @@ class P2_LabelledStatement_LabelIdentifier_LabelledItem(P2_LabelledStatement):
         return self.LabelledEvaluation([])
 
 
+@lru_cache
 def parse_LabelledStatement(context, lexer, pos, strict, Yield, Await, Return):
     # 13.13 Labelled Statements
     # Syntax
@@ -23897,6 +24002,7 @@ class P2_LabelledItem_FunctionDeclaration(P2_LabelledItem):
         return self.FunctionDeclaration.evaluate()
 
 
+@lru_cache
 def parse_LabelledItem(context, lexer, pos, strict, Yield, Await, Return):
     # 13.13 Labelled Statements
     # Syntax
@@ -23984,6 +24090,7 @@ class P2_ThrowStatement_THROW_Expression(P2_ThrowStatement):
         raise ESError(exprValue)
 
 
+@lru_cache
 def parse_ThrowStatement(context, lexer, pos, strict, Yield, Await):
     # 13.14 The throw Statement
     # Syntax
@@ -24202,6 +24309,7 @@ class P2_TryStatement_TRY_Block_Catch_Finally(P2_TryStatement):
         return UpdateEmpty(C, None)
 
 
+@lru_cache
 def parse_TryStatement(context, lexer, pos, strict, Yield, Await, Return):
     # 13.15 The try Statement
     # Syntax
@@ -24322,6 +24430,7 @@ class P2_Catch_CATCH_Block(P2_Catch):
     CatchParameter = None
 
 
+@lru_cache
 def parse_Catch(context, lexer, pos, strict, Yield, Await, Return):
     # 13.15 The try Statement
     # Syntax
@@ -24363,6 +24472,7 @@ class P2_Finally_FINALLY_Block(P2_Finally):
         return self.children[1]
 
 
+@lru_cache
 def parse_Finally(context, lexer, pos, strict, Yield, Await, Return):
     # 13.15 The try Statement
     #   Finally[Yield, Await, Return] :
@@ -24399,6 +24509,7 @@ class P2_CatchParameter_BindingPattern(P2_CatchParameter):
         return self.children[0]
 
 
+@lru_cache
 def parse_CatchParameter(context, lexer, pos, strict, Yield, Await):
     # 13.15 The try Statement
     # Syntax
@@ -24475,6 +24586,7 @@ class P2_DebuggerStatement_DEBUGGER(P2_DebuggerStatement):
     pass
 
 
+@lru_cache
 def parse_DebuggerStatement(context, lexer, pos, strict):
     # 13.16 The debugger Statement
     # Syntax
@@ -24759,6 +24871,7 @@ class P2_FunctionDeclaration_FUNCTION_FormalParameters_FunctionBody(P2_FunctionD
         return EMPTY
 
 
+@lru_cache
 def parse_FunctionDeclaration(context, lexer, pos, strict, Yield, Await, Default):
     # 14.1 Function Definitions
     # Syntax
@@ -24970,6 +25083,7 @@ class P2_FunctionExpression_FUNCTION_FormalParameters_FunctionBody(P2_FunctionEx
         return closure
 
 
+@lru_cache
 def parse_FunctionExpression(context, lexer, pos, strict):
     # 14.1 Function Definitions
     # Syntax
@@ -25032,6 +25146,7 @@ def UniqueFormalParameters_EarlyErrors(pn):
     return []
 
 
+@lru_cache
 def parse_UniqueFormalParameters(context, lexer, pos, strict, Yield, Await):
     # 14.1 Function Definitions
     # Syntax
@@ -25191,6 +25306,7 @@ class P2_FormalParameters_FormalParameterList_FunctionRestParameter(P2_FormalPar
         return self.FunctionRestParameter.IteratorBindingInitialization(iteratorRecord, environment)
 
 
+@lru_cache
 def parse_FormalParameters(context, lexer, pos, strict, Yield, Await):
     # 14.1 Function Definitions
     # Syntax
@@ -25301,6 +25417,7 @@ class P2_FormalParameterList_FormalParameterList_FormalParameter(P2_FormalParame
         return self.FormalParameter.IteratorBindingInitialization(iteratorRecord, environment)
 
 
+@lru_cache
 def parse_FormalParameterList(context, lexer, pos, strict, Yield, Await):
     # 14.1 Function Definitions
     # Syntax
@@ -25381,6 +25498,7 @@ class P2_FunctionRestParameter_BindingRestElement(P2_FunctionRestParameter):
             currentContext.lexical_environment = originalEnv
 
 
+@lru_cache
 def parse_FunctionRestParameter(context, lexer, pos, strict, Yield, Await):
     # 14.1 Function Definitions
     # Syntax
@@ -25444,6 +25562,7 @@ class P2_FormalParameter_BindingElement(P2_FormalParameter):
             currentContext.lexical_environment = originalEnv
 
 
+@lru_cache
 def parse_FormalParameter(context, lexer, pos, strict, Yield, Await):
     # 14.1 Function Definitions
     # Syntax
@@ -25526,6 +25645,7 @@ class P2_FunctionBody_FunctionStatementList(P2_FunctionBody):
         return self.FunctionStatementList.evaluate()
 
 
+@lru_cache
 def parse_FunctionBody(context, lexer, pos, strict, Yield, Await):
     # 14.1 Function Definitions
     # Syntax
@@ -25628,6 +25748,7 @@ class P2_FunctionStatementList_EMPTY(P2_FunctionStatementList):
         return (False, [])
 
 
+@lru_cache
 def parse_FunctionStatementList(context, lexer, pos, strict, Yield, Await):
     # 14.1 Function Definitions
     # Syntax
@@ -25824,6 +25945,7 @@ class P2_ArrowFunction_ArrowParameters_ConciseBody(P2_ArrowFunction):
         return closure
 
 
+@lru_cache
 def parse_ArrowFunction(context, lexer, pos, strict, In, Yield, Await):
     # 14.2 Arrow Function Definitions
     # Syntax
@@ -25966,6 +26088,7 @@ class P2_ArrowParameters_CoverParenthesizedExpressionAndArrowParameterList(P2_Ar
         return self.CoverParenthesizedExpressionAndArrowParameterList.CoveredFormalsList
 
 
+@lru_cache
 def parse_ArrowParameters(context, lexer, pos, strict, Yield, Await):
     # 14.2 Arrow Function Definitions
     # Syntax
@@ -26046,6 +26169,7 @@ class P2_ConciseBody_FunctionBody(P2_ConciseBody):
         return self.children[1]
 
 
+@lru_cache
 def parse_ConciseBody(context, lexer, pos, strict, In):
     # 14.2 Arrow Function Definitions
     # Syntax
@@ -26083,6 +26207,7 @@ class P2_ArrowFormalParameters_UniqueFormalParameters(P2_ArrowFormalParameters):
         return self.children[1]
 
 
+@lru_cache
 def parse_ArrowFormalParameters(context, lexer, pos, strict, Yield, Await):
     # 14.2 Arrow Function Definitions
     # Syntax
@@ -26412,6 +26537,7 @@ class P2_MethodDefinition_SET_PropertyName_PropertySetParameterList_FunctionBody
         return DefinePropertyOrThrow(object, propKey, desc)
 
 
+@lru_cache
 def parse_MethodDefinition(context, lexer, pos, strict, Yield, Await):
     # 14.3 Method Definitions
     # Syntax
@@ -26512,6 +26638,7 @@ class P2_PropertySetParameterList_FormalParameter(P2_PropertySetParameterList):
         return 0 if self.FormalParameter.HasInitializer() else 1
 
 
+@lru_cache
 def parse_PropertySetParameterList(context, lexer, pos, strict):
     # 14.3 Method Definitions
     # Syntax
@@ -26696,6 +26823,7 @@ class P2_GeneratorMethod_PropertyName_UniqueFormalParameters_GeneratorBody(P2_Ge
         return DefinePropertyOrThrow(object, propKey, desc)
 
 
+@lru_cache
 def parse_GeneratorMethod(context, lexer, pos, strict, Yield, Await):
     # 14.4 Generator Function Definitions
     # Syntax
@@ -26891,6 +27019,7 @@ class P2_GeneratorDeclaration_FUNCTION_FormalParameters_GeneratorBody(P2_Generat
         return F
 
 
+@lru_cache
 def parse_GeneratorDeclaration(context, lexer, pos, strict, Yield, Await, Default):
     # 14.4 Generator Function Definitions
     # Syntax
@@ -27035,6 +27164,7 @@ class P2_GeneratorExpression_FUNCTION_FormalParameters_GeneratorBody(P2_Generato
         return closure
 
 
+@lru_cache
 def parse_GeneratorExpression(context, lexer, pos, strict):
     # 14.4 Generator Function Definitions
     # Syntax
@@ -27099,6 +27229,7 @@ class P2_GeneratorBody_FunctionBody(P2_GeneratorBody):
         raise ESReturn(value=G)
 
 
+@lru_cache
 def parse_GeneratorBody(context, lexer, pos, strict):
     # 14.4 Generator Function Definitions
     # Syntax
@@ -27293,6 +27424,7 @@ class P2_YieldExpression_YIELD_STAR_AssignmentExpression(P2_YieldExpression):
                     received = abrupt.completion
 
 
+@lru_cache
 def parse_YieldExpression(context, lexer, pos, strict, In, Await):
     # 14.4 Generator Function Definitions
     # Syntax
@@ -27428,6 +27560,7 @@ class P2_ClassDeclaration_CLASS_ClassTail(P2_ClassDeclaration):
         return value
 
 
+@lru_cache
 def parse_ClassDeclaration(context, lexer, pos, _, Yield, Await, Default):
     # 14.6 Class Definitions
     #   ClassDeclaration[Yield, Await, Default] :
@@ -27522,6 +27655,7 @@ class P2_ClassExpression_CLASS_ClassTail(P2_ClassExpression):
         return self.ClassTail.ClassDefinitionEvaluation(None, name)
 
 
+@lru_cache
 def parse_ClassExpression(context, lexer, pos, _, Yield, Await):
     # 14.6 Class Definitions
     #   ClassExpression[Yield, Await]:
@@ -27752,6 +27886,7 @@ class P2_ClassTail_ClassHeritage_ClassBody(P2_ClassTail):
         )
 
 
+@lru_cache
 def parse_ClassTail(context, lexer, pos, _, Yield, Await):
     # 14.6 Class Definitions
     #   ClassTail[Yield, Await]:
@@ -27787,6 +27922,7 @@ class P2_ClassHeritage_EXTENDS_LeftHandSideExpression(P2_ClassHeritage):
         return self.children[1]
 
 
+@lru_cache
 def parse_ClassHeritage(context, lexer, pos, _, Yield, Await):
     # 14.6 Class Definitions
     #   ClassHeritage[Yield, Await]:
@@ -27829,6 +27965,7 @@ class P2_ClassBody_ClassElementList(P2_ClassBody):
         )
 
 
+@lru_cache
 def parse_ClassBody(context, lexer, pos, _, Yield, Await):
     # 14.6 Class Definitions
     #   ClassBody[Yield, Await]:
@@ -27942,6 +28079,7 @@ class P2_ClassElementList_ClassElementList_ClassElement(P2_ClassElementList):
         return self.ClassElementList.PrototypePropertyNameList + self.ClassElement.PrototypePropertyNameList
 
 
+@lru_cache
 def parse_ClassElementList(context, lexer, pos, _, Yield, Await):
     # 14.6 Class Definitions
     #   ClassElementList[Yield, Await]:
@@ -28130,6 +28268,7 @@ class P2_ClassElement_EMPTY(P2_ClassElement):
         return EMPTY
 
 
+@lru_cache
 def parse_ClassElement(context, lexer, pos, _, Yield, Await):
     #   ClassElement[Yield, Await]:
     #       MethodDefinition[?Yield, ?Await]
@@ -28183,6 +28322,7 @@ class P2_CoverCallExpressionAndAsyncArrowHead_MemberExpression_Arguments(P2_Cove
         return self.children[1]
 
 
+@lru_cache
 def parse_CoverCallExpressionAndAsyncArrowHead(context, lexer, pos, strict, Yield, Await):
     # 14.8 Async Arrow Function Definitions
     # Syntax
@@ -28199,42 +28339,52 @@ def parse_CoverCallExpressionAndAsyncArrowHead(context, lexer, pos, strict, Yiel
     #       async [no LineTerminator here] ArrowFormalParameters[~Yield, +Await]
 
 
+@lru_cache
 def parse_AwaitExpression(*args):
     return None
 
 
+@lru_cache
 def parse_AsyncArrowFunction(*args):
     return None
 
 
+@lru_cache
 def parse_AsyncFunctionDeclaration(*args):
     return None
 
 
+@lru_cache
 def parse_AsyncGeneratorDeclaration(*args):
     return None
 
 
+@lru_cache
 def parse_AsyncMethod(*args):
     return None
 
 
+@lru_cache
 def parse_AsyncGeneratorMethod(*args):
     return None
 
 
+@lru_cache
 def parse_AsyncFunctionExpression(*args):
     return None
 
 
+@lru_cache
 def parse_AsyncGeneratorExpression(*args):
     return None
 
 
+@lru_cache
 def parse_AsyncFunctionBody(*args):
     return None
 
 
+@lru_cache
 def parse_AsyncGeneratorBody(*args):
     return None
 
@@ -28370,6 +28520,7 @@ class P2_Script_ScriptBody(P2_Script):
         return [self.CreateSyntaxError(msg) for msg in errs]
 
 
+@lru_cache
 def parse_Script(ctx, lexer, pos, strict):
     # 15.1 Scripts
     # Syntax:
@@ -28504,6 +28655,7 @@ class P2_ScriptBody_StatementList(P2_ScriptBody):
         return self.StatementList.TopLevelLexicallyScopedDeclarations()
 
 
+@lru_cache
 def parse_ScriptBody(ctx, lexer, pos, strict):
     # 15.1 Scripts
     # Syntax:
