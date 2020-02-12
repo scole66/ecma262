@@ -11898,9 +11898,9 @@ def EvaluateCall(func, ref, arguments, tailPosition):
         thisValue = None
     argList = arguments.ArgumentListEvaluation()
     if not isObject(func):
-        raise ESTypeError(f"Not a function: {ref.name}")
+        raise ESTypeError(f"Not a function: {ref.name if hasattr(ref, 'name') else ToString(ref)}")
     if not IsCallable(func):
-        raise ESTypeError(f"Not a function: {ref.name}")
+        raise ESTypeError(f"Not a function: {ref.name if hasattr(ref, 'name') else ToString(ref)}")
     if tailPosition:
         PrepareForTailCall()
     result = Call(func, thisValue, argList)
