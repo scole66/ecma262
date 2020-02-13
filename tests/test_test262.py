@@ -33,10 +33,10 @@ from ecmascript.ecmascript import (
 import snoop
 from pprint import pprint
 
-if any(n.startswith("CIRCLE") for n in os.environ):
-    pytest.skip("Skipping Test-262 on Circle.CI", allow_module_level=True)
+# if any(n.startswith("CIRCLE") for n in os.environ):
+#    pytest.skip("Skipping Test-262 on Circle.CI", allow_module_level=True)
 base_paths = tuple(
-    p for p in ("/Users/scole/fun/test262", "/mnt/c/Users/scole/Documents/test262") if os.path.exists(p)
+    p for p in ("/Users/scole/fun/test262", "/mnt/c/Users/scole/Documents/test262", "./test262") if os.path.exists(p)
 )
 if len(base_paths) != 1:
     pytest.skip("Skipping Test-262 because we don't know where the tests are", allow_module_level=True)
@@ -257,7 +257,10 @@ passing = (
     "language/types",
 )
 
-test_passing = False
+is_circle = any(n.startswith("CIRCLE") for n in os.environ)
+
+test_passing = False or is_circle
+run_slow_tests = True and not is_circle
 base_path = base_paths[0]
 test_files = []
 if test_passing:
@@ -333,31 +336,50 @@ features_to_avoid = (
 
 flags_to_avoid = ("module",)
 
+slow_tests = (
+    "/test/built-ins/parseFloat/S15.1.2.3_A6.js",
+    "/test/built-ins/parseInt/S15.1.2.2_A8.js",
+    "/test/language/comments/S7.4_A5.js",
+    "/test/language/comments/S7.4_A6.js",
+)
+
+
+def should_skip(tc, file_id):
+    if not run_slow_tests and file_id in slow_tests:
+        return True
+    test_features = tc.config.get("features", [])
+    if any(feature in test_features for feature in features_to_avoid):
+        return True
+    test_flags = tc.config.get("flags", [])
+    if any(flag in test_flags for flag in flags_to_avoid):
+        return True
+    return False
+
+
 params = []
 for tf in test_files:
     tc = test262_testcase(tf, base_path)
     file_id = tf[len(base_path) :] if tf.startswith(base_path) else tf
-    if not any(feature in tc.config.get("features", []) for feature in features_to_avoid) and not any(
-        flag in tc.config.get("flags", []) for flag in flags_to_avoid
+    skipit = should_skip(tc, file_id)
+    for strict in (
+        val
+        for val, _ in filter(
+            itemgetter(1),
+            (
+                (False, "onlyStrict" not in tc.config["flags"]),
+                (True, all(x not in tc.config["flags"] for x in ("noStrict", "raw"))),
+            ),
+        )
     ):
-        for strict in (
-            val
-            for val, _ in filter(
-                itemgetter(1),
-                (
-                    (False, "onlyStrict" not in tc.config["flags"]),
-                    (True, all(x not in tc.config["flags"] for x in ("noStrict", "raw"))),
-                ),
+        params.append(
+            pytest.param(
+                tc,
+                strict,
+                tf,
+                id=f"{file_id}: {tc.config['description'].strip().splitlines()[0].strip()} [{'strict' if strict else 'loose'}]",
+                marks=pytest.mark.skip if skipit else (),
             )
-        ):
-            params.append(
-                pytest.param(
-                    tc,
-                    strict,
-                    tf,
-                    id=f"{file_id}: {tc.config['description'].strip().splitlines()[0].strip()} [{'strict' if strict else 'loose'}]",
-                )
-            )
+        )
 
 errtype_pattern = regex.compile(r"(?P<name>[^:]*).*")
 
