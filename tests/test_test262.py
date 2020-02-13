@@ -255,6 +255,25 @@ passing = (
     "language/statements/debugger",
     "language/statements/labeled",
     "language/types",
+    "language/expressions/addition",
+    "language/expressions/array",
+    "language/expressions/bitwise-and",
+    "language/expressions/bitwise-not",
+    "language/expressions/bitwise-or",
+    "language/expressions/bitwise-xor",
+    "language/expressions/call",
+    "language/expressions/comma",
+    "language/expressions/concatenation",
+    "language/expressions/conditional",
+    "language/expressions/division",
+    "language/expressions/does-not-equals",
+    "language/expressions/equals",
+    "language/expressions/greater-than",
+    "language/expressions/greater-than-or-equal",
+    "language/expressions/grouping",
+    "language/expressions/in",
+    "language/expressions/instanceof",
+    "language/expressions/void",
 )
 
 is_circle = any(n.startswith("CIRCLE") for n in os.environ)
@@ -274,7 +293,14 @@ if test_passing:
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/Object/**/*.js", recursive=True))
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/Symbol/**/*.js", recursive=True)) # Needs Map
 # test_files.extend(glob.glob(f"{base_path}/test/language/computed-property-names/**/*.js", recursive=True)) # Needs NumberToString accuracy
-# test_files.extend(glob.glob(f"{base_path}/test/language/statements/class/**/*.js", recursive=True))
+# test_files.extend(glob.glob(f"{base_path}/test/language/expressions/assignment/**/*.js", recursive=True)) # Needs Array.prototype.reduce
+# test_files.extend(glob.glob(f"{base_path}/test/language/expressions/arrow-function/**/*.js", recursive=True)) # 109 tests failing
+# test_files.extend(glob.glob(f"{base_path}/test/language/expressions/compound-assignment/**/*.js", recursive=True)) # 78 failing
+# test_files.extend(glob.glob(f"{base_path}/test/language/expressions/delete/**/*.js", recursive=True)) # 4 failing (needs JSON)
+# test_files.extend(glob.glob(f"{base_path}/test/language/expressions/class/**/*.js", recursive=True)) # 38 failing
+# test_files.extend(glob.glob(f"{base_path}/test/language/expressions/exponentiation/**/*.js", recursive=True))  # 6 failing
+# test_files.extend(glob.glob(f"{base_path}/test/language/expressions/function/**/*.js", recursive=True))  # 14 failing
+# test_files.extend(glob.glob(f"{base_path}/test/language/expressions/left-shift/**/*.js", recursive=True))  # 8 failing
 test_files = [fn for fn in test_files if not fn.endswith("_FIXTURE.js")]
 
 features_to_avoid = (
