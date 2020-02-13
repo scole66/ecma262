@@ -395,3 +395,17 @@ def test_ToPropertyDescriptor_17(obj, fields):
         Set(obj, f, None, False)
     with pytest.raises(ESTypeError):
         ToPropertyDescriptor(obj)
+
+
+@pytest.mark.parametrize(
+    "a, b, expected",
+    (
+        ({"configurable": True, "writable": False}, {"configurable": True, "writable": False, "bob": 67}, True),
+        ({"Get": None, "Set": None, "configurable": False}, {"Get": None, "Set": None, "configurable": True}, False),
+        ({"writable": True}, {"Get": None}, False),
+    ),
+)
+def test_PD_equality_01(a, b, expected):
+    pd_a = PropertyDescriptor(**a)
+    pd_b = PropertyDescriptor(**b)
+    assert (pd_a == pd_b) is expected
