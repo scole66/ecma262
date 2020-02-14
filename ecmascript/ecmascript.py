@@ -1457,6 +1457,8 @@ def ToString(arg):
     return ToString(prim_value)
 
 
+_nts_pattern = regex.compile(r"(?P<leading>[1-9])\.(?P<following>[0-9]{15})e(?P<exponent>[-+][0-9]{2,3})")
+
 # 7.1.12.1 NumberToString ( m )
 def NumberToString(m):
     if math.isnan(m):
@@ -1467,7 +1469,25 @@ def NumberToString(m):
         return "-" + NumberToString(-m)
     if m == math.inf:
         return "Infinity"
-    return "{:.21g}".format(m)
+
+    python_exp = f"{m:.15e}"
+    match = _nts_pattern.match(python_exp)
+    assert match, f"Didn't match! ({python_exp})"
+    exponent = int(match.group("exponent"))
+    digits = match.group("leading") + match.group("following")
+    n = exponent + 1
+    while digits[-1] == "0":
+        digits = digits[:-1]
+    k = len(digits)
+    if k <= n <= 21:
+        return digits + ("0" * (n - k))
+    if 0 < n <= 21:
+        return digits[:n] + "." + digits[n:]
+    if -6 < n <= 0:
+        return "0." + ("0" * (-n)) + digits
+    if k == 1:
+        return f"{digits}e{n-1:+}"
+    return f"{digits[0]}.{digits[1:]}e{n-1:+}"
 
 
 # 7.1.13 ToObject ( argument )
@@ -13305,7 +13325,7 @@ def ExponentiationOperation(lval, rval):
                         math.copysign(1.0, lnum) == -1.0
                         and math.isfinite(rnum)
                         and rnum < 0
-                        and not (int(rnum) == rnum and int(rnum) % 2 == 1)
+                        and not ((isinstance(rnum, int) or rnum.is_integer()) and int(rnum) % 2 == 1)
                     )
                 )
             )
@@ -13316,7 +13336,7 @@ def ExponentiationOperation(lval, rval):
                     and math.copysign(1.0, lnum) == -1.0
                     and rnum < 0
                     and math.isfinite(rnum)
-                    and int(rnum) == rnum
+                    and (isinstance(rnum, int) or rnum.is_integer())
                     and int(rnum) % 2 == 1
                 )
                 else lnum ** rnum

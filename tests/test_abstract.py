@@ -520,8 +520,9 @@ def test_ToString_04(obj):
         (5.25, "5.25"),
         (0.00390625, "0.00390625"),
         (5e21, "5e+21"),
-        pytest.param(2 ** -19, "0.0000019073486328125", marks=pytest.mark.xfail),
-        pytest.param(2 ** -20, "9.5367431640625e-7", marks=pytest.mark.xfail),
+        (2 ** -19, "0.0000019073486328125"),
+        (2 ** -20, "9.5367431640625e-7"),
+        (0.1, "0.1"),
     ],
 )
 def test_NumberToString_01(arg, expected):
@@ -538,7 +539,6 @@ def test_NumberToString_01(arg, expected):
     # 8. m = 0.00390625 ::: k=6; s=390625; n=-2 ==> '0.00390625'
     # 9. m = 5e21 ::: k=1, s=5, n=22 ==> '5e+21'
 
-    # we fail on 2**-19. Phooey. (The n==-5 case)
     assert NumberToString(arg) == expected
 
 
