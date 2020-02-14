@@ -335,6 +335,9 @@ class Test_ExponentiationOperator_Application:
             (-0.0, -math.inf, math.inf),
             (4.0, 0.5, 2.0),
             (10.0, 3.0, 1000.0),
+            (3.5, 888, math.inf),
+            (-3.0, 888, math.inf),
+            (-3.0, 887, -math.inf),
         ),
     )
     def test_other(self, base, exponent, expected):
