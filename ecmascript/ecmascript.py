@@ -11758,7 +11758,7 @@ def EvaluateNew(constructExpr, arguments):
     else:
         argList = arguments.ArgumentListEvaluation()
     if not IsConstructor(constructor):
-        raise ESTypeError(f"{GetReferencedName(ref)} is not a constructor")
+        raise ESTypeError(f"«{constructExpr.matched_source()}» is not a constructor")
     return Construct(constructor, argList)
 
 
