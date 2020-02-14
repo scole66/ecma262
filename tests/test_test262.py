@@ -268,6 +268,7 @@ passing = (
     "language/expressions/division",
     "language/expressions/does-not-equals",
     "language/expressions/equals",
+    "language/expressions/exponentiation",
     "language/expressions/greater-than",
     "language/expressions/greater-than-or-equal",
     "language/expressions/grouping",
@@ -298,7 +299,6 @@ if test_passing:
 # test_files.extend(glob.glob(f"{base_path}/test/language/expressions/compound-assignment/**/*.js", recursive=True)) # 78 failing
 # test_files.extend(glob.glob(f"{base_path}/test/language/expressions/delete/**/*.js", recursive=True)) # 4 failing (needs JSON)
 # test_files.extend(glob.glob(f"{base_path}/test/language/expressions/class/**/*.js", recursive=True)) # 38 failing
-# test_files.extend(glob.glob(f"{base_path}/test/language/expressions/exponentiation/**/*.js", recursive=True))  # 6 failing
 # test_files.extend(glob.glob(f"{base_path}/test/language/expressions/function/**/*.js", recursive=True))  # 14 failing
 # test_files.extend(glob.glob(f"{base_path}/test/language/expressions/left-shift/**/*.js", recursive=True))  # 8 failing
 test_files = [fn for fn in test_files if not fn.endswith("_FIXTURE.js")]
