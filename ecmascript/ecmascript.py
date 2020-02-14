@@ -13295,7 +13295,33 @@ def ExponentiationOperation(lval, rval):
             (abs(lnum) == 1.0 and abs(rnum) == math.inf)
             or (lnum < 0.0 and math.isfinite(lnum) and math.isfinite(rnum) and math.floor(rnum) != rnum)
         )
-        else lnum ** rnum
+        else (
+            math.inf
+            if (
+                lnum == 0.0
+                and (
+                    (math.copysign(1.0, lnum) == 1.0 and rnum < 0)
+                    or (
+                        math.copysign(1.0, lnum) == -1.0
+                        and math.isfinite(rnum)
+                        and rnum < 0
+                        and not (int(rnum) == rnum and int(rnum) % 2 == 1)
+                    )
+                )
+            )
+            else (
+                -math.inf
+                if (
+                    lnum == 0.0
+                    and math.copysign(1.0, lnum) == -1.0
+                    and rnum < 0
+                    and math.isfinite(rnum)
+                    and int(rnum) == rnum
+                    and int(rnum) % 2 == 1
+                )
+                else lnum ** rnum
+            )
+        )
     )
 
 
