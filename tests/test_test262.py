@@ -280,6 +280,7 @@ passing = (
     "language/expressions/logical-not",
     "language/expressions/logical-or",
     "language/expressions/multiplication",
+    "language/expressions/new.target",
     "language/expressions/void",
 )
 
@@ -297,7 +298,7 @@ if test_passing:
 #     test_files.extend(glob.glob(f"{base_path}/test/language/{suite}/**/*.js", recursive=True))
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/String/**/*.js", recursive=True))
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/Array/**/*.js", recursive=True))
-# test_files.extend(glob.glob(f"{base_path}/test/built-ins/Object/**/*.js", recursive=True))
+# test_files.extend(glob.glob(f"{base_path}/test/built-ins/Object/**/*.js", recursive=True)) # Needs Proxy
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/Symbol/**/*.js", recursive=True)) # Needs Map
 # test_files.extend(glob.glob(f"{base_path}/test/language/computed-property-names/**/*.js", recursive=True)) # 20 failing
 # test_files.extend(glob.glob(f"{base_path}/test/language/expressions/assignment/**/*.js", recursive=True)) # Needs Array.prototype.reduce
@@ -306,7 +307,7 @@ if test_passing:
 # test_files.extend(glob.glob(f"{base_path}/test/language/expressions/delete/**/*.js", recursive=True)) # 4 failing (needs JSON)
 # test_files.extend(glob.glob(f"{base_path}/test/language/expressions/class/**/*.js", recursive=True)) # 38 failing
 # test_files.extend(glob.glob(f"{base_path}/test/language/expressions/function/**/*.js", recursive=True))  # 14 failing
-# test_files.extend(glob.glob(f"{base_path}/test/language/expressions/left-shift/**/*.js", recursive=True))  # 8 failing
+# test_files.extend(glob.glob(f"{base_path}/test/language/expressions/left-shift/**/*.js", recursive=True))  # 8 failing (Hit python recursion limit)
 # test_files.extend(glob.glob(f"{base_path}/test/language/expressions/modulus/**/*.js", recursive=True))  # 20 failing
 # test_files.extend(glob.glob(f"{base_path}/test/language/expressions/new/**/*.js", recursive=True))  # 16 failing
 # test_files.extend(glob.glob(f"{base_path}/test/language/expressions/object/**/*.js", recursive=True))  # 23 failing

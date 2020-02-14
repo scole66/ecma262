@@ -619,6 +619,8 @@ class Test_ParseNode2:
             "ContainsUseStrict",
             "AssignmentTargetType",
             "evaluate",
+            "HasDirectSuper",
+            "DefineMethod",
         ],
     )
     def test_deferred_calls(self, callname):

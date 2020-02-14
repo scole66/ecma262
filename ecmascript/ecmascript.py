@@ -7998,6 +7998,12 @@ class ParseNode2:
     def LabelledEvaluation(self, *args, **kwargs):
         return self.defer_target().LabelledEvaluation(*args, **kwargs)
 
+    def HasDirectSuper(self, *args, **kwargs):
+        return self.defer_target().HasDirectSuper(*args, **kwargs)
+
+    def DefineMethod(self, *args, **kwargs):
+        return self.defer_target().DefineMethod(*args, **kwargs)
+
     def evaluate(self, *args, **kwargs):
         # Subclasses need to override this, or we'll throw an AttributeError when we hit a terminal.
         rval = self.defer_target().evaluate(*args, **kwargs)
