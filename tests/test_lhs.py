@@ -1358,11 +1358,12 @@ class Test_NewOperator_Evaluation:
 
     def test_EvaluateNew_03(self, context, mocker):
         # Isn't actually a constructor
-        ce = mocker.Mock(**{"evaluate.return_value": mocker.sentinel.ref})
+        ce = mocker.Mock(
+            **{"evaluate.return_value": mocker.sentinel.ref, "matched_source.return_value": "an invalid constructor"}
+        )
         ce.configure_mock(name="NewExpression")
         gv = mocker.patch("ecmascript.ecmascript.GetValue", return_value=mocker.sentinel.constructor)
         ic = mocker.patch("ecmascript.ecmascript.IsConstructor", return_value=False)
-        grn = mocker.patch("ecmascript.ecmascript.GetReferencedName", return_value="bob")
 
         with pytest.raises(e.ESTypeError):
             e.EvaluateNew(ce, e.EMPTY)
@@ -1370,7 +1371,6 @@ class Test_NewOperator_Evaluation:
         ce.evaluate.assert_called_with()
         gv.assert_called_with(mocker.sentinel.ref)
         ic.assert_called_with(mocker.sentinel.constructor)
-        grn.assert_called_with(mocker.sentinel.ref)
 
 
 ####################################################################################
