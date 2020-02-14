@@ -13309,40 +13309,52 @@ def prep_for_math(lval, rval):
 
 def ExponentiationOperation(lval, rval):
     lnum, rnum = prep_for_math(lval, rval)
-    return (
-        math.nan
-        if (
-            (abs(lnum) == 1.0 and abs(rnum) == math.inf)
-            or (lnum < 0.0 and math.isfinite(lnum) and math.isfinite(rnum) and math.floor(rnum) != rnum)
-        )
-        else (
-            math.inf
+    try:
+        return (
+            math.nan
             if (
-                lnum == 0.0
-                and (
-                    (math.copysign(1.0, lnum) == 1.0 and rnum < 0)
-                    or (
-                        math.copysign(1.0, lnum) == -1.0
-                        and math.isfinite(rnum)
-                        and rnum < 0
-                        and not ((isinstance(rnum, int) or rnum.is_integer()) and int(rnum) % 2 == 1)
-                    )
-                )
+                (abs(lnum) == 1.0 and abs(rnum) == math.inf)
+                or (lnum < 0.0 and math.isfinite(lnum) and math.isfinite(rnum) and math.floor(rnum) != rnum)
             )
             else (
-                -math.inf
+                math.inf
                 if (
                     lnum == 0.0
-                    and math.copysign(1.0, lnum) == -1.0
-                    and rnum < 0
-                    and math.isfinite(rnum)
-                    and (isinstance(rnum, int) or rnum.is_integer())
-                    and int(rnum) % 2 == 1
+                    and (
+                        (math.copysign(1.0, lnum) == 1.0 and rnum < 0)
+                        or (
+                            math.copysign(1.0, lnum) == -1.0
+                            and math.isfinite(rnum)
+                            and rnum < 0
+                            and not ((isinstance(rnum, int) or rnum.is_integer()) and int(rnum) % 2 == 1)
+                        )
+                    )
                 )
-                else lnum ** rnum
+                else (
+                    -math.inf
+                    if (
+                        lnum == 0.0
+                        and math.copysign(1.0, lnum) == -1.0
+                        and rnum < 0
+                        and math.isfinite(rnum)
+                        and (isinstance(rnum, int) or rnum.is_integer())
+                        and int(rnum) % 2 == 1
+                    )
+                    else lnum ** rnum
+                )
             )
         )
-    )
+    except OverflowError:
+        return (
+            -math.inf
+            if (
+                lnum < 0
+                and math.isfinite(rnum)
+                and (isinstance(rnum, int) or rnum.is_integer())
+                and int(rnum) % 2 == 1
+            )
+            else math.inf
+        )
 
 
 #######################################################################################################################
