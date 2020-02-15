@@ -33539,6 +33539,7 @@ def CreateStringPrototype(realm):
         string_prototype,
         (
             ("charAt", StringPrototype_charAt, None),
+            ("concat", StringPrototype_concat, None),
             ("indexOf", StringPrototype_indexOf, None),
             ("slice", StringPrototype_slice, None),
             ("split", StringPrototype_split, None),
@@ -33596,6 +33597,39 @@ def StringPrototype_charAt(this_value, new_target, pos=None, *_):
 
 StringPrototype_charAt.name = "charAt"
 StringPrototype_charAt.length = 1
+
+# 21.1.3.4 String.prototype.concat ( ...args )
+def StringPrototype_concat(this_value, new_target, *args):
+    # NOTE 1    | When the concat method is called it returns the String value consisting of the code units of the
+    #           | this object (converted to a String) followed by the code units of each of the arguments converted
+    #           | to a String. The result is a String value, not a String object.
+    #
+    # When the concat method is called with zero or more arguments, the following steps are taken:
+    #
+    #   1. Let O be ? RequireObjectCoercible(this value).
+    #   2. Let S be ? ToString(O).
+    #   3. Let args be a List whose elements are the arguments passed to this function.
+    #   4. Let R be S.
+    #   5. Repeat, while args is not empty
+    #       a. Remove the first element from args and let next be the value of that element.
+    #       b. Let nextString be ? ToString(next).
+    #       c. Set R to the string-concatenation of the previous value of R and nextString.
+    #   6. Return R.
+    # The "length" property of the concat method is 1.
+    #
+    # NOTE 2    | The concat function is intentionally generic; it does not require that its this value be a String
+    #           | object. Therefore it can be transferred to other kinds of objects for use as a method.
+    O = RequireObjectCoercible(this_value)
+    S = ToString(O)
+    R = S
+    for value in args:
+        nextString = ToString(value)
+        R += nextString
+    return R
+
+
+StringPrototype_concat.name = "concat"
+StringPrototype_concat.length = 1
 
 # 21.1.3.8 String.prototype.indexOf ( searchString [ , position ] )
 def StringPrototype_indexOf(this_value, new_target, searchString=None, position=None, *_):
