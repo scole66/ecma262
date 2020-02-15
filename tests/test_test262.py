@@ -230,6 +230,7 @@ passing = (
     "built-ins/Boolean",
     "built-ins/Error",
     "built-ins/Function/prototype/bind",
+    "built-ins/Math/Symbol.toStringTag.js",
     "built-ins/isFinite",
     "built-ins/isNaN",
     "built-ins/parseFloat",
@@ -301,7 +302,10 @@ base_path = base_paths[0]
 test_files = []
 if test_passing:
     for tst in passing:
-        test_files.extend(glob.glob(f"{base_path}/test/{tst}/**.js", recursive=True))
+        if tst.endswith(".js"):
+            test_files.append(f"{base_path}/test/{tst}")
+        else:
+            test_files.extend(glob.glob(f"{base_path}/test/{tst}/**.js", recursive=True))
 # test_files.extend(glob.glob(f"{base_path}/test/harness/*.js"))
 # for suite in lang_tests:
 #     test_files.extend(glob.glob(f"{base_path}/test/language/{suite}/**/*.js", recursive=True))
