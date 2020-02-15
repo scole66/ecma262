@@ -236,6 +236,7 @@ passing = (
     "built-ins/String/prototype/indexOf",
     "built-ins/String/prototype/slice",
     "built-ins/String/prototype/split",
+    "built-ins/String/prototype/substring",
     "built-ins/String/prototype/toString",
     "built-ins/String/prototype/valueOf",
     "built-ins/isFinite",
@@ -403,13 +404,8 @@ slow_tests = (
 )
 
 xfail_tests = (
-    "/test/built-ins/String/prototype/charAt/S15.5.4.4_A4_T1.js",  # Needs String.prototype.substring
-    "/test/built-ins/String/prototype/charAt/S15.5.4.4_A4_T2.js",  # Needs String.prototype.substring
-    "/test/built-ins/String/prototype/charAt/S15.5.4.4_A4_T3.js",  # Needs String.prototype.substring
     "/test/built-ins/String/prototype/indexOf/S15.5.4.7_A1_T12.js",  # Needs Array.prototype.indexOf
     "/test/built-ins/String/prototype/split/S15.5.4.14_A4_T20.js",  # Needs functional regex
-    "/test/built-ins/String/prototype/split/S15.5.4.14_A1_T3.js",  # Needs String.prototype.substring
-    "/test/built-ins/String/prototype/split/S15.5.4.14_A3_T3.js",  # Needs String.prototype.substring
     "/test/built-ins/String/prototype/split/S15.5.4.14_A4_T19.js",  # Needs functional regex
     "/test/built-ins/String/prototype/split/S15.5.4.14_A4_T22.js",  # Needs functional regex
     "/test/built-ins/String/prototype/split/S15.5.4.14_A4_T23.js",  # Needs functional regex
