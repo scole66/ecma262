@@ -31601,7 +31601,7 @@ def CreateMathObject(realm):
             obj, name, PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=False)
         )
     DefinePropertyOrThrow(
-        obj, wks_to_string_tag, PropertyDescriptor(vlaue="Math", writable=False, enumerable=False, configurable=True)
+        obj, wks_to_string_tag, PropertyDescriptor(value="Math", writable=False, enumerable=False, configurable=True)
     )
     BindBuiltinFunctions(
         realm,
