@@ -33540,6 +33540,7 @@ def CreateStringPrototype(realm):
         (
             ("indexOf", StringPrototype_indexOf, None),
             ("slice", StringPrototype_slice, None),
+            ("split", StringPrototype_split, None),
             ("toString", StringPrototype_toString, None),
             ("valueOf", StringPrototype_valueOf, None),
         ),
@@ -33631,6 +33632,145 @@ def StringPrototype_slice(this_value, new_target, start=None, end=None, *_):
 
 StringPrototype_slice.length = 2
 StringPrototype_slice.name = "slice"
+
+
+# 21.1.3.19 String.prototype.split ( separator, limit )
+def StringPrototype_split(this_value, new_target, separator=None, limit=None, *_):
+    # Returns an Array object into which substrings of the result of converting this object to a String have been
+    # stored. The substrings are determined by searching from left to right for occurrences of separator; these
+    # occurrences are not part of any substring in the returned array, but serve to divide up the String value. The
+    # value of separator may be a String of any length or it may be an object, such as a RegExp, that has a @@split
+    # method.
+    #
+    # When the split method is called, the following steps are taken:
+    #
+    #   1. Let O be ? RequireObjectCoercible(this value).
+    #   2. If separator is neither undefined nor null, then
+    #       a. Let splitter be ? GetMethod(separator, @@split).
+    #       b. If splitter is not undefined, then
+    #           i. Return ? Call(splitter, separator, « O, limit »).
+    #   3. Let S be ? ToString(O).
+    #   4. Let A be ! ArrayCreate(0).
+    #   5. Let lengthA be 0.
+    #   6. If limit is undefined, let lim be 2^32 - 1; else let lim be ? ToUint32(limit).
+    #   7. Let s be the length of S.
+    #   8. Let p be 0.
+    #   9. Let R be ? ToString(separator).
+    #   10. If lim = 0, return A.
+    #   11. If separator is undefined, then
+    #       a. Perform ! CreateDataProperty(A, "0", S).
+    #       b. Return A.
+    #   12. If s = 0, then
+    #       a. Let z be SplitMatch(S, 0, R).
+    #       b. If z is not false, return A.
+    #       c. Perform ! CreateDataProperty(A, "0", S).
+    #       d. Return A.
+    #   13. Let q be p.
+    #   14. Repeat, while q ≠ s
+    #       a. Let e be SplitMatch(S, q, R).
+    #       b. If e is false, increase q by 1.
+    #       c. Else e is an integer index ≤ s,
+    #           i. If e = p, increase q by 1.
+    #           ii. Else e ≠ p,
+    #               1. Let T be the String value equal to the substring of S consisting of the code units at indices
+    #                  p (inclusive) through q (exclusive).
+    #               2. Perform ! CreateDataProperty(A, ! ToString(lengthA), T).
+    #               3. Increment lengthA by 1.
+    #               4. If lengthA = lim, return A.
+    #               5. Set p to e.
+    #               6. Set q to p.
+    #   15. Let T be the String value equal to the substring of S consisting of the code units at indices p
+    #       (inclusive) through s (exclusive).
+    #   16. Perform ! CreateDataProperty(A, ! ToString(lengthA), T).
+    #   17. Return A.
+    # NOTE 1    | The value of separator may be an empty String. In this case, separator does not match the empty
+    #           | substring at the beginning or end of the input String, nor does it match the empty substring at
+    #           | the end of the previous separator match. If separator is the empty String, the String is split up
+    #           | into individual code unit elements; the length of the result array equals the length of the
+    #           | String, and each substring contains one code unit.
+    #           |
+    #           | If the this object is (or converts to) the empty String, the result depends on whether separator
+    #           | can match the empty String. If it can, the result array contains no elements. Otherwise, the
+    #           | result array contains one element, which is the empty String.
+    #           |
+    #           | If separator is undefined, then the result array contains just one String, which is the this value
+    #           | (converted to a String). If limit is not undefined, then the output array is truncated so that it
+    #           | contains no more than limit elements.
+    #
+    # NOTE 2    | The split function is intentionally generic; it does not require that its this value be a String
+    #           | object. Therefore, it can be transferred to other kinds of objects for use as a method.
+    O = RequireObjectCoercible(this_value)
+    if not isUndefined(separator) and not isNull(separator):
+        splitter = GetMethod(separator, wks_split)
+        if not isUndefined(splitter):
+            return Call(splitter, separator, [O, limit])
+    S = ToString(O)
+    A = ArrayCreate(0)
+    lengthA = 0
+    if isUndefined(limit):
+        lim = 2 ** 32 - 1
+    else:
+        lim = ToUint32(limit)
+    s = len(S)
+    p = 0
+    R = ToString(separator)
+    if lim == 0:
+        return A
+    if isUndefined(separator):
+        CreateDataProperty(A, "0", S)
+        return A
+    if s == 0:
+        z = SplitMatch(S, 0, R)
+        if z is not False:
+            return A
+        CreateDataProperty(A, "0", S)
+        return A
+    q = p
+    while q != s:
+        e = SplitMatch(S, q, R)
+        if e is False:
+            q += 1
+        else:
+            if e == p:
+                q += 1
+            else:
+                T = S[p:q]
+                CreateDataProperty(A, ToString(lengthA), T)
+                lengthA += 1
+                if lengthA == lim:
+                    return A
+                p = e
+                q = p
+    T = S[p:]
+    CreateDataProperty(A, ToString(lengthA), T)
+    return A
+
+
+StringPrototype_split.length = 2
+StringPrototype_split.name = "split"
+
+
+# 21.1.3.19.1 Runtime Semantics: SplitMatch ( S, q, R )
+def SplitMatch(S, q, R):
+    # The abstract operation SplitMatch takes three parameters, a String S, an integer q, and a String R, and
+    # performs the following steps in order to return either false or the end index of a match:
+    #
+    #   1. Assert: Type(R) is String.
+    #   2. Let r be the number of code units in R.
+    #   3. Let s be the number of code units in S.
+    #   4. If q + r > s, return false.
+    #   5. If there exists an integer i between 0 (inclusive) and r (exclusive) such that the code unit at index
+    #      q + i within S is different from the code unit at index i within R, return false.
+    #   6. Return q + r.
+    assert isinstance(R, str)
+    r = len(R)
+    s = len(S)
+    if q + r > s:
+        return False
+    if any(S[q + i] != R[i] for i in range(0, r)):
+        return False
+    return q + r
+
 
 # ------------------------------------ 𝟐𝟏.𝟏.𝟑.𝟐𝟓 𝑺𝒕𝒓𝒊𝒏𝒈.𝒑𝒓𝒐𝒕𝒐𝒕𝒚𝒑𝒆.𝒕𝒐𝑺𝒕𝒓𝒊𝒏𝒈 ( ) ------------------------------------
 # 21.1.3.25 String.prototype.toString ( )
