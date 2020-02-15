@@ -231,6 +231,7 @@ passing = (
     "built-ins/Error",
     "built-ins/Function/prototype/bind",
     "built-ins/Math/Symbol.toStringTag.js",
+    "built-ins/String/prototype/indexOf",
     "built-ins/String/prototype/split",
     "built-ins/isFinite",
     "built-ins/isNaN",
@@ -397,6 +398,7 @@ slow_tests = (
 )
 
 xfail_tests = (
+    "/test/built-ins/String/prototype/indexOf/S15.5.4.7_A1_T12.js",  # Needs Array.prototype.indexOf
     "/test/built-ins/String/prototype/split/S15.5.4.14_A4_T20.js",  # Needs functional regex
     "/test/built-ins/String/prototype/split/S15.5.4.14_A1_T3.js",  # Needs String.prototype.substring
     "/test/built-ins/String/prototype/split/S15.5.4.14_A2_T20.js",  # Needs String.prototype.charAt
