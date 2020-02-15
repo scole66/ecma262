@@ -226,9 +226,10 @@ lang_tests = (
 )
 
 passing = (
-    # These paths have passed 100%. We shouldn't break them.
+    # These paths have passed (or xfailed, or skipped) 100%. We shouldn't break them.
     "built-ins/Boolean",
     "built-ins/Error",
+    "built-ins/Function/prototype/bind",
     "built-ins/isFinite",
     "built-ins/isNaN",
     "built-ins/parseFloat",
@@ -390,6 +391,11 @@ slow_tests = (
     "/test/language/comments/S7.4_A6.js",
 )
 
+xfail_tests = (
+    "/test/built-ins/Function/prototype/bind/15.3.4.5-2-7.js",  # Needs JSON object
+    "/test/built-ins/Function/prototype/bind/S15.3.4.5_A5.js",  # Needs Array.prototype.concat
+)
+
 
 def should_skip(tc, file_id):
     if not run_slow_tests and file_id in slow_tests:
@@ -401,6 +407,10 @@ def should_skip(tc, file_id):
     if any(flag in test_flags for flag in flags_to_avoid):
         return True
     return False
+
+
+def should_xfail(file_id):
+    return file_id in xfail_tests
 
 
 params = []
@@ -424,7 +434,7 @@ for tf in test_files:
                 strict,
                 tf,
                 id=f"{file_id}: {tc.config['description'].strip().splitlines()[0].strip()} [{'strict' if strict else 'loose'}]",
-                marks=pytest.mark.skip if skipit else (),
+                marks=pytest.mark.skip if skipit else (pytest.mark.xfail if should_xfail(file_id) else ()),
             )
         )
 

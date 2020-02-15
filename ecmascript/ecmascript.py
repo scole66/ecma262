@@ -6511,9 +6511,9 @@ class BoundFunctionObject(JSObject):
         boundArgs = self.BoundArguments
         # 4. Let args be a new list containing the same values as the list boundArgs in the same order followed by the same
         #    values as the list argumentsList in the same order.
-        args = boundArgs + argumentsList
+        args = boundArgs + tuple(argumentsList)
         # 5. Return ? Call(target, boundThis, args).
-        return Call(target, boundThis, *args)
+        return Call(target, boundThis, args)
 
 
 # 9.4.1.2 [[Construct]] ( argumentsList, newTarget )
@@ -6529,7 +6529,7 @@ def BoundFunction_Construct(self, argumentsList, newTarget):
     boundArgs = self.BoundArguments
     # 4. Let args be a new list containing the same values as the list boundArgs in the same order followed by the same values
     #    as the list argumentsList in the same order.
-    args = boundArgs + argumentsList
+    args = boundArgs + tuple(argumentsList)
     # 5. If SameValue(F, newTarget) is true, set newTarget to target.
     if SameValue(self, newTarget):
         newTarget = target
