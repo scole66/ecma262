@@ -33538,6 +33538,7 @@ def CreateStringPrototype(realm):
         realm,
         string_prototype,
         (
+            ("charAt", StringPrototype_charAt, None),
             ("indexOf", StringPrototype_indexOf, None),
             ("slice", StringPrototype_slice, None),
             ("split", StringPrototype_split, None),
@@ -33563,6 +33564,38 @@ def thisStringValue(value):
         return value.StringData
     raise ESTypeError("Not a string value")
 
+
+# 21.1.3.1 String.prototype.charAt ( pos )
+def StringPrototype_charAt(this_value, new_target, pos=None, *_):
+    # NOTE 1    | Returns a single element String containing the code unit at index pos within the String value
+    #           | resulting from converting this object to a String. If there is no element at that index, the
+    #           | result is the empty String. The result is a String value, not a String object.
+    #           |
+    #           | If pos is a value of Number type that is an integer, then the result of x.charAt(pos) is equal to
+    #           | the result of x.substring(pos, pos + 1).
+    #
+    # When the charAt method is called with one argument pos, the following steps are taken:
+    #
+    #   1. Let O be ? RequireObjectCoercible(this value).
+    #   2. Let S be ? ToString(O).
+    #   3. Let position be ? ToInteger(pos).
+    #   4. Let size be the length of S.
+    #   5. If position < 0 or position ≥ size, return the empty String.
+    #   6. Return the String value of length 1, containing one code unit from S, namely the code unit at index
+    #      position.
+    # NOTE 2    | The charAt function is intentionally generic; it does not require that its this value be a String
+    #           | object. Therefore, it can be transferred to other kinds of objects for use as a method.
+    O = RequireObjectCoercible(this_value)
+    S = ToString(O)
+    position = ToInteger(pos)
+    size = len(S)
+    if position < 0 or position >= size:
+        return ""
+    return S[int(position)]
+
+
+StringPrototype_charAt.name = "charAt"
+StringPrototype_charAt.length = 1
 
 # 21.1.3.8 String.prototype.indexOf ( searchString [ , position ] )
 def StringPrototype_indexOf(this_value, new_target, searchString=None, position=None, *_):

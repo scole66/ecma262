@@ -196,7 +196,7 @@ def test_CreateStringPrototype_03(realm):
 @pytest.mark.parametrize(
     "fname, fcn, length",
     [
-        pytest.param("charAt", "StringPrototype_charAt", 1, marks=pytest.mark.xfail),
+        pytest.param("charAt", "StringPrototype_charAt", 1),
         pytest.param("charCodeAt", "StringPrototype_charCodeAt", 1, marks=pytest.mark.xfail),
         pytest.param("codePointAt", "StringPrototype_codePointAt", 1, marks=pytest.mark.xfail),
         pytest.param("concat", "StringPrototype_concat", 1, marks=pytest.mark.xfail),
