@@ -1457,7 +1457,10 @@ def ToString(arg):
     return ToString(prim_value)
 
 
-_nts_pattern = regex.compile(r"(?P<leading>[1-9])\.(?P<following>[0-9]{15})e(?P<exponent>[-+][0-9]{2,3})")
+_nts_pattern = regex.compile(
+    r"(?P<leading>[1-9])\.(?P<following>[0-9]{16})(?P<round>[0-9])e(?P<exponent>[-+][0-9]{2,3})"
+)
+
 
 # 7.1.12.1 NumberToString ( m )
 def NumberToString(m):
@@ -1470,24 +1473,35 @@ def NumberToString(m):
     if m == math.inf:
         return "Infinity"
 
-    python_exp = f"{m:.15e}"
+    python_exp = f"{m:.17e}"
     match = _nts_pattern.match(python_exp)
     assert match, f"Didn't match! ({python_exp})"
     exponent = int(match.group("exponent"))
-    digits = match.group("leading") + match.group("following")
+    S = int(match.group("leading") + match.group("following"))
+    round_digit = int(match.group("round"))
+    if 5 <= round_digit <= 9:
+        S += 1
     n = exponent + 1
-    while digits[-1] == "0":
-        digits = digits[:-1]
-    k = len(digits)
-    if k <= n <= 21:
-        return digits + ("0" * (n - k))
-    if 0 < n <= 21:
-        return digits[:n] + "." + digits[n:]
-    if -6 < n <= 0:
-        return "0." + ("0" * (-n)) + digits
-    if k == 1:
-        return f"{digits}e{n-1:+}"
-    return f"{digits[0]}.{digits[1:]}e{n-1:+}"
+
+    def stringify(SS):
+        digits = f"{SS}".rstrip("0")
+        k = len(digits)
+        if k <= n <= 21:
+            potential = digits + ("0" * (n - k))
+        elif 0 < n <= 21:
+            potential = digits[:n] + "." + digits[n:]
+        elif -6 < n <= 0:
+            potential = "0." + ("0" * (-n)) + digits
+        elif k == 1:
+            potential = f"{digits}e{n-1:+}"
+        else:
+            potential = f"{digits[0]}.{digits[1:]}e{n-1:+}"
+        return potential if float(potential) == float(m) else None
+
+    return min(
+        (x for x in (stringify(S + delta_check) for delta_check in (0, 1, -1)) if x is not None),
+        key=lambda s: len(s),
+    )
 
 
 # 7.1.13 ToObject ( argument )
