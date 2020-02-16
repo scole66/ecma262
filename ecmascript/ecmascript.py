@@ -30506,6 +30506,8 @@ def CreateDynamicFunction(constructor, newTarget, kind, args):
         parameters = param_parse(parameter_context, plexer)
     except ESError as err:
         raise ESSyntaxError(ToString(err.ecma_object))
+    if not plexer.is_done(parameters.after):
+        raise ESSyntaxError(f"«{P}» failed to parse as formal parameters")
 
     body_context = Parse2Context(direct_eval=False, syntax_error_ctor=ESSyntaxError, goal=goal)
     blexer = LexerCore(bodyText, ESSyntaxError)
@@ -30513,6 +30515,8 @@ def CreateDynamicFunction(constructor, newTarget, kind, args):
         body = goal_parse(body_context, blexer)
     except ESError as err:
         raise ESSyntaxError(ToString(err.ecma_object))
+    if not blexer.is_done(body.after):
+        raise ESSyntaxError(f"«{bodyText!r}» failed to parse as a function body")
 
     strict = body.ContainsUseStrict()
     body_early = body.EarlyErrorsScan()
@@ -30622,9 +30626,10 @@ def AttachFunctionPrototypeProperties(proto, realm):
     DefinePropertyOrThrow(
         func,
         "name",
-        PropertyDescriptor(value="[Symbol.hasInstance]", writable=False, enumerable=False, configurable=False),
+        PropertyDescriptor(value="[Symbol.hasInstance]", writable=False, enumerable=False, configurable=True),
     )
-    CreateMethodPropertyOrThrow(proto, wks_has_instance, func)
+    new_desc = PropertyDescriptor(value=func, writable=False, enumerable=False, configurable=False)
+    proto.DefineOwnProperty(wks_has_instance, new_desc)
 
 
 # 19.2.3.1 Function.prototype.apply ( thisArg, argArray )
@@ -30720,7 +30725,7 @@ def FunctionPrototype_call(this_value, new_target, thisArg=None, *args):
     #   4. Perform PrepareForTailCall().
     #   5. Return ? Call(func, thisArg, argList).
     if not IsCallable(this_value):
-        raise TypeError("'call' called from a non-function")
+        raise ESTypeError("'call' called from a non-function")
     PrepareForTailCall()
     return Call(this_value, thisArg, args)
     # NOTE 1
@@ -30774,7 +30779,7 @@ def FunctionPrototype_toString(this_value, new_target, *_):
 
 
 # 19.2.3.6 Function.prototype [ @@hasInstance ] ( V )
-def FunctionPrototype_hasInstance(this_value, new_target, V, *_):
+def FunctionPrototype_hasInstance(this_value, new_target, V=None, *_):
     # When the @@hasInstance method of an object F is called with value V, the following steps are taken:
     #
     #   1. Let F be the this value.
