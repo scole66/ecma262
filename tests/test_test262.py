@@ -231,6 +231,7 @@ passing = (
     "built-ins/Error",
     "built-ins/Function/prototype/bind",
     "built-ins/Math/Symbol.toStringTag.js",
+    "built-ins/Object",
     "built-ins/String/prototype/charAt",
     "built-ins/String/prototype/concat",
     "built-ins/String/prototype/indexOf",
@@ -319,7 +320,6 @@ if test_passing:
 #     test_files.extend(glob.glob(f"{base_path}/test/language/{suite}/**/*.js", recursive=True))
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/String/**/*.js", recursive=True))
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/Array/**/*.js", recursive=True))
-# test_files.extend(glob.glob(f"{base_path}/test/built-ins/Object/**/*.js", recursive=True)) # Needs Proxy
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/Symbol/**/*.js", recursive=True)) # Needs Map
 # test_files.extend(glob.glob(f"{base_path}/test/language/computed-property-names/**/*.js", recursive=True)) # 20 failing
 # test_files.extend(glob.glob(f"{base_path}/test/language/expressions/assignment/**/*.js", recursive=True)) # Needs Array.prototype.reduce
@@ -404,6 +404,8 @@ slow_tests = (
 )
 
 xfail_tests = (
+    "/test/built-ins/Object/prototype/toString/Object.prototype.toString.call-regexp.js",  # Needs functional regex
+    "/test/built-ins/Object/prototype/toString/symbol-tag-override-instances.js",  # Needs functional regex
     "/test/built-ins/String/prototype/indexOf/S15.5.4.7_A1_T12.js",  # Needs Array.prototype.indexOf
     "/test/built-ins/String/prototype/split/S15.5.4.14_A4_T20.js",  # Needs functional regex
     "/test/built-ins/String/prototype/split/S15.5.4.14_A4_T19.js",  # Needs functional regex
@@ -411,6 +413,117 @@ xfail_tests = (
     "/test/built-ins/String/prototype/split/S15.5.4.14_A4_T23.js",  # Needs functional regex
     "/test/built-ins/Function/prototype/bind/15.3.4.5-2-7.js",  # Needs JSON object
     "/test/built-ins/Function/prototype/bind/S15.3.4.5_A5.js",  # Needs Array.prototype.concat
+    "/test/built-ins/Object/create/15.2.3.5-4-120.js",  # Needs JSON object
+    "/test/built-ins/Object/create/15.2.3.5-4-13.js",  # Needs JSON object
+    "/test/built-ins/Object/create/15.2.3.5-4-145.js",  # Needs JSON object
+    "/test/built-ins/Object/create/15.2.3.5-4-173.js",  # Needs JSON object
+    "/test/built-ins/Object/create/15.2.3.5-4-199.js",  # Needs JSON object
+    "/test/built-ins/Object/create/15.2.3.5-4-224.js",  # Needs JSON object
+    "/test/built-ins/Object/create/15.2.3.5-4-252.js",  # Needs JSON object
+    "/test/built-ins/Object/create/15.2.3.5-4-287.js",  # Needs JSON object
+    "/test/built-ins/Object/create/15.2.3.5-4-36.js",  # Needs JSON object
+    "/test/built-ins/Object/create/15.2.3.5-4-67.js",  # Needs JSON object
+    "/test/built-ins/Object/create/15.2.3.5-4-92.js",  # Needs JSON object
+    "/test/built-ins/Object/defineProperties/15.2.3.7-2-14.js",  # Needs JSON object
+    "/test/built-ins/Object/defineProperties/15.2.3.7-5-a-15.js",  # Needs JSON object
+    "/test/built-ins/Object/defineProperties/15.2.3.7-5-b-105.js",  # Needs JSON object
+    "/test/built-ins/Object/defineProperties/15.2.3.7-5-b-133.js",  # Needs JSON object
+    "/test/built-ins/Object/defineProperties/15.2.3.7-5-b-159.js",  # Needs JSON object
+    "/test/built-ins/Object/defineProperties/15.2.3.7-5-b-184.js",  # Needs JSON object
+    "/test/built-ins/Object/defineProperties/15.2.3.7-5-b-212.js",  # Needs JSON object
+    "/test/built-ins/Object/defineProperties/15.2.3.7-5-b-247.js",  # Needs JSON object
+    "/test/built-ins/Object/defineProperties/15.2.3.7-5-b-27.js",  # Needs JSON object
+    "/test/built-ins/Object/defineProperties/15.2.3.7-5-b-52.js",  # Needs JSON object
+    "/test/built-ins/Object/defineProperties/15.2.3.7-5-b-80.js",  # Needs JSON object
+    "/test/built-ins/Object/defineProperties/15.2.3.7-6-a-20.js",  # Needs JSON object
+    "/test/built-ins/Object/defineProperty/15.2.3.6-3-119.js",  # Needs JSON object
+    "/test/built-ins/Object/defineProperty/15.2.3.6-3-147-1.js",  # Needs JSON object
+    "/test/built-ins/Object/defineProperty/15.2.3.6-3-147.js",  # Needs JSON object
+    "/test/built-ins/Object/defineProperty/15.2.3.6-3-173-1.js",  # Needs JSON object
+    "/test/built-ins/Object/defineProperty/15.2.3.6-3-173.js",  # Needs JSON object
+    "/test/built-ins/Object/defineProperty/15.2.3.6-3-198.js",  # Needs JSON object
+    "/test/built-ins/Object/defineProperty/15.2.3.6-3-226-1.js",  # Needs JSON object
+    "/test/built-ins/Object/defineProperty/15.2.3.6-3-226.js",  # Needs JSON object
+    "/test/built-ins/Object/defineProperty/15.2.3.6-3-256-1.js",  # Needs JSON object
+    "/test/built-ins/Object/defineProperty/15.2.3.6-3-256.js",  # Needs JSON object
+    "/test/built-ins/Object/defineProperty/15.2.3.6-3-41-1.js",  # Needs JSON object
+    "/test/built-ins/Object/defineProperty/15.2.3.6-3-41.js",  # Needs JSON object
+    "/test/built-ins/Object/defineProperty/15.2.3.6-3-66.js",  # Needs JSON object
+    "/test/built-ins/Object/defineProperty/15.2.3.6-3-94-1.js",  # Needs JSON object
+    "/test/built-ins/Object/defineProperty/15.2.3.6-3-94.js",  # Needs JSON object
+    "/test/built-ins/Object/defineProperty/15.2.3.6-4-41.js",  # Needs JSON object
+    "/test/built-ins/Object/defineProperty/15.2.3.6-4-410.js",  # Needs JSON object
+    "/test/built-ins/Object/defineProperty/15.2.3.6-4-586.js",  # Needs JSON object
+    "/test/built-ins/Object/defineProperty/15.2.3.6-4-612.js",  # Needs Array.prototype.indexOf
+    "/test/built-ins/Object/defineProperty/15.2.3.6-4-613.js",  # Needs Array.prototype.lastIndexOf
+    "/test/built-ins/Object/defineProperty/15.2.3.6-4-614.js",  # Needs Array.prototype.every
+    "/test/built-ins/Object/defineProperty/15.2.3.6-4-615.js",  # Needs Array.prototype.some
+    "/test/built-ins/Object/defineProperty/15.2.3.6-4-618.js",  # Needs Array.prototype.filter
+    "/test/built-ins/Object/defineProperty/15.2.3.6-4-619.js",  # Needs Array.prototype.reduce
+    "/test/built-ins/Object/defineProperty/15.2.3.6-4-620.js",  # Needs Array.prototype.reduceRight
+    "/test/built-ins/Object/defineProperty/15.2.3.6-4-621.js",  # Needs String.prototype.trim
+    "/test/built-ins/Object/defineProperty/15.2.3.6-4-622.js",  # Needs Date.now
+    "/test/built-ins/Object/freeze/throws-when-false.js",  # Needs Proxy
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-10.js",  # Needs decodeURIComponent
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-11.js",  # Needs encodeURIComponent
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-114.js",  # Needs Date.parse
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-115.js",  # Needs Date.UTC
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-116.js",  # Needs Date.prototype.constructor
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-163.js",  # Needs RegExp.prototype.constructor
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-168.js",  # Needs Error.prototype.constructor
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-170.js",  # Needs EvalError.prototype.constructor
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-171.js",  # Needs RangeError.prototype.constructor
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-172.js",  # Needs ReferenceError.prototype.constructor
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-173.js",  # Needs SyntaxError.prototype.constructor
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-174.js",  # Needs TypeError.prototype.constructor
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-175.js",  # Needs URIError.prototype.constructor
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-176.js",  # Needs JSON
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-177.js",  # Needs JSON
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-27.js",  # Needs Object.prototype.constructor
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-34.js",  # Needs Function.prototype.constructor
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-39.js",  # Needs Array.prototype.constructor
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-40.js",  # Needs Array.prototype.concat
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-42.js",  # Needs Array.prototype.reverse
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-44.js",  # Needs Array.prototype.sort
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-47.js",  # Needs Array.prototype.pop
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-48.js",  # Needs Array.prototype.shift
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-49.js",  # Needs Array.prototype.unshift
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-50.js",  # Needs Array.prototype.splice
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-51.js",  # Needs Array.prototype.toLocaleString
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-52.js",  # Needs Array.prototype.indexOf
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-53.js",  # Needs Array.prototype.lastIndexOf
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-54.js",  # Needs Array.prototype.every
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-55.js",  # Needs Array.prototype.some
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-58.js",  # Needs Array.prototype.filter
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-59.js",  # Needs Array.prototype.reduce
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-60.js",  # Needs Array.prototype.reduceRight
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-62.js",  # Needs String.prototype.constructor
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-64.js",  # Needs String.prototype.charCodeAt
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-67.js",  # Needs String.prototype.lastIndexOf
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-68.js",  # Needs String.prototype.match
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-69.js",  # Needs String.prototype.replace
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-70.js",  # Needs String.prototype.search
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-75.js",  # Needs String.prototype.toLowerCase
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-77.js",  # Needs String.prototype.toUpperCase
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-79.js",  # Needs String.prototype.toLocaleLowerCase
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-80.js",  # Needs String.prototype.toLocaleUpperCase
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-81.js",  # Needs String.prototype.localeCompare
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-82.js",  # Needs String.prototype.trim
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-84.js",  # Needs Boolean.prototype.constructor
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-88.js",  # Needs Number.prototype.constructor
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-9.js",  # Needs decodeURI
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-90.js",  # Needs Number.prototype.toLocaleString
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-91.js",  # Needs Number.prototype.toFixed
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-92.js",  # Needs Number.prototype.toExponential
+    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-93.js",  # Needs Number.prototype.toPrecision
+    "/test/built-ins/Object/getOwnPropertyNames/15.2.3.4-4-1.js",  # Needs all the globals
+    "/test/built-ins/Object/getPrototypeOf/15.2.3.2-2-18.js",  # Needs JSON
+    "/test/built-ins/Object/isExtensible/15.2.3.13-2-12.js",  # Needs JSON
+    "/test/built-ins/Object/isFrozen/15.2.3.12-3-27.js",  # Needs JSON
+    "/test/built-ins/Object/isSealed/15.2.3.11-4-27.js",  # Needs JSON
+    "/test/built-ins/Object/keys/proxy-keys.js",  # Needs Proxy
+    "/test/built-ins/Object/preventExtensions/throws-when-false.js",  # Needs Proxy
+    "/test/built-ins/Object/seal/throws-when-false.js",  # Needs Proxy
 )
 
 
