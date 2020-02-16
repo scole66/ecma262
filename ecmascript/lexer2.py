@@ -715,6 +715,9 @@ class LexerCore:
                 return Token(";", self.src, ";", Span(pos, pos), [])
         return None
 
+    def empty_token(self, pos):
+        return Token("", self.src, "", Span(pos, pos), [])
+
 
 class Lexer(LexerCore):
     # @property
