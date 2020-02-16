@@ -30146,7 +30146,7 @@ def AddObjectPrototypeProps(realm_rec):
     DefinePropertyOrThrow(
         obj,
         "constructor",
-        PropertyDescriptor(value=intrinsics["%Object%"], writable=False, enumerable=False, configurable=False),
+        PropertyDescriptor(value=intrinsics["%Object%"], writable=True, enumerable=False, configurable=True),
     )
     BindBuiltinFunctions(
         realm_rec,
@@ -30590,7 +30590,11 @@ def FunctionFixups(realm):
         "prototype",
         PropertyDescriptor(value=prototype, writable=False, enumerable=False, configurable=False),
     )
-    DefinePropertyOrThrow(prototype, "constructor", PropertyDescriptor(value=constructor))
+    DefinePropertyOrThrow(
+        prototype,
+        "constructor",
+        PropertyDescriptor(value=constructor, writable=True, enumerable=False, configurable=True),
+    )
     return None
 
 
@@ -30858,7 +30862,11 @@ def BooleanFixups(realm):
         "prototype",
         PropertyDescriptor(value=boolean_prototype, writable=False, enumerable=False, configurable=False),
     )
-    DefinePropertyOrThrow(boolean_prototype, "constructor", PropertyDescriptor(value=boolean_constructor))
+    DefinePropertyOrThrow(
+        boolean_prototype,
+        "constructor",
+        PropertyDescriptor(value=boolean_constructor, writable=True, enumerable=False, configurable=True),
+    )
     return None
 
 
@@ -31237,7 +31245,11 @@ def ErrorFixups(realm):
     )
     # 19.5.3.1 Error.prototype.constructor
     # The initial value of Error.prototype.constructor is the intrinsic object %Error%.
-    DefinePropertyOrThrow(error_prototype, "constructor", PropertyDescriptor(value=error_constructor))
+    DefinePropertyOrThrow(
+        error_prototype,
+        "constructor",
+        PropertyDescriptor(value=error_constructor, writable=True, enumerable=False, configurable=True),
+    )
     return None
 
 
@@ -31325,7 +31337,11 @@ def NativeErrorFixups(realm):
             "prototype",
             PropertyDescriptor(value=prototype, writable=False, enumerable=False, configurable=False),
         )
-        DefinePropertyOrThrow(prototype, "constructor", PropertyDescriptor(value=constructor))
+        DefinePropertyOrThrow(
+            prototype,
+            "constructor",
+            PropertyDescriptor(value=constructor, writable=True, enumerable=False, configurable=True),
+        )
     return None
 
 
@@ -31591,7 +31607,11 @@ def NumberFixups(realm):
     number_prototype = realm.intrinsics["%NumberPrototype%"]
     proto_desc = PropertyDescriptor(value=number_prototype, writable=False, enumerable=False, configurable=False)
     DefinePropertyOrThrow(number_constructor, "prototype", proto_desc)
-    DefinePropertyOrThrow(number_prototype, "constructor", PropertyDescriptor(value=number_constructor))
+    DefinePropertyOrThrow(
+        number_prototype,
+        "constructor",
+        PropertyDescriptor(value=number_constructor, writable=True, enumerable=False, configurable=True),
+    )
     return None
 
 
@@ -33341,7 +33361,11 @@ def DateFixups(realm):
     date_prototype = realm.intrinsics["%DatePrototype%"]
     proto_desc = PropertyDescriptor(value=date_prototype, writable=False, enumerable=False, configurable=False)
     DefinePropertyOrThrow(date_constructor, "prototype", proto_desc)
-    DefinePropertyOrThrow(date_prototype, "constructor", PropertyDescriptor(value=date_constructor))
+    DefinePropertyOrThrow(
+        date_prototype,
+        "constructor",
+        PropertyDescriptor(value=date_constructor, writable=True, enumerable=False, configurable=True),
+    )
     return None
 
 
@@ -34218,12 +34242,12 @@ def RegExpFixups(realm: Realm) -> None:
     # 21.2.4.1 RegExp.prototype
     # The initial value of RegExp.prototype is the intrinsic object %RegExpPrototype%.
     # This property has the attributes { [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: false }.
-    proto_desc = PropertyDescriptor(value=regexp_prototype, writable=False, enumerable=False, Configurable=False)
+    proto_desc = PropertyDescriptor(value=regexp_prototype, writable=False, enumerable=False, configurable=False)
     DefinePropertyOrThrow(regexp_constructor, "prototype", proto_desc)
     # 21.2.5.1 RegExp.prototype.constructor
     # The initial value of RegExp.prototype.constructor is the intrinsic object %RegExp%.
     constructor_desc = PropertyDescriptor(
-        value=regexp_constructor, writable=True, enumerable=False, Configurable=True
+        value=regexp_constructor, writable=True, enumerable=False, configurable=True
     )
     DefinePropertyOrThrow(regexp_prototype, "constructor", constructor_desc)
 
@@ -36985,7 +37009,9 @@ def CreateSpecificTypedArrayPrototype(realm: Realm, name: str):
 def SpecificTypedArrayFixups(realm: Realm, name: str):
     proto = realm.intrinsics[f"%{name}Prototype%"]
     cstr = realm.intrinsics[f"%{name}%"]
-    DefinePropertyOrThrow(proto, "constructor", PropertyDescriptor(value=cstr))
+    DefinePropertyOrThrow(
+        proto, "constructor", PropertyDescriptor(value=cstr, writable=True, enumerable=False, configurable=True)
+    )
     DefinePropertyOrThrow(
         cstr, "prototype", PropertyDescriptor(value=proto, writable=False, enumerable=False, configurable=False)
     )
@@ -37483,7 +37509,11 @@ def ArrayBufferFixups(realm):
         "prototype",
         PropertyDescriptor(value=prototype, writable=False, enumerable=False, configurable=False),
     )
-    DefinePropertyOrThrow(prototype, "constructor", PropertyDescriptor(value=constructor))
+    DefinePropertyOrThrow(
+        prototype,
+        "constructor",
+        PropertyDescriptor(value=constructor, writable=True, enumerable=False, configurable=True),
+    )
 
 
 ######################################################################################################################################################################################################################################################################
