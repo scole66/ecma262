@@ -33589,7 +33589,7 @@ def StringPrototype_indexOf(this_value, new_target, searchString=None, position=
     S = ToString(RequireObjectCoercible(this_value))
     searchStr = ToString(searchString)
     pos = ToInteger(position)
-    start = min(max(pos, 0), len(S))
+    start = int(min(max(pos, 0), len(S)))
     try:
         return S.index(searchStr, start)
     except ValueError:
