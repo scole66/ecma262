@@ -229,7 +229,7 @@ passing = (
     # These paths have passed (or xfailed, or skipped) 100%. We shouldn't break them.
     "built-ins/Boolean",
     "built-ins/Error",
-    "built-ins/Function/prototype/bind",
+    "built-ins/Function",
     "built-ins/Math/Symbol.toStringTag.js",
     "built-ins/Object",
     "built-ins/String/prototype/charAt",
@@ -509,6 +509,15 @@ xfail_tests = (
     "/test/built-ins/Object/keys/proxy-keys.js",  # Needs Proxy
     "/test/built-ins/Object/preventExtensions/throws-when-false.js",  # Needs Proxy
     "/test/built-ins/Object/seal/throws-when-false.js",  # Needs Proxy
+    "/test/built-ins/Function/15.3.2.1-11-3-s.js",  # Needs to have arguments parsed after body, so use-strict can be known already. In CreateDynamicFunction.
+    "/test/built-ins/Function/prototype/toString/built-in-function-object.js",  # Needs Generators
+    "/test/built-ins/Function/prototype/toString/generator-function-expression.js",  # Needs Generators
+    "/test/built-ins/Function/prototype/toString/method-computed-property-name.js",  # Needs better Function.prototype.toString
+    "/test/built-ins/Function/prototype/toString/S15.3.4.2_A12.js",  # Needs better Function.prototype.toString
+    "/test/built-ins/Function/prototype/toString/S15.3.4.2_A13.js",  # Needs better Function.prototype.toString
+    "/test/built-ins/Function/prototype/toString/S15.3.4.2_A14.js",  # Needs better Function.prototype.toString
+    "/test/built-ins/Function/prototype/toString/S15.3.4.2_A16.js",  # Needs better Function.prototype.toString
+    "/test/built-ins/Function/prototype/toString/well-known-intrinsic-object-functions.js",  # Needs Generators
 )
 
 
