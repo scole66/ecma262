@@ -468,20 +468,8 @@ xfail_tests = (
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-11.js",  # Needs encodeURIComponent
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-114.js",  # Needs Date.parse
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-115.js",  # Needs Date.UTC
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-116.js",  # Needs Date.prototype.constructor
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-163.js",  # Needs RegExp.prototype.constructor
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-168.js",  # Needs Error.prototype.constructor
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-170.js",  # Needs EvalError.prototype.constructor
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-171.js",  # Needs RangeError.prototype.constructor
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-172.js",  # Needs ReferenceError.prototype.constructor
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-173.js",  # Needs SyntaxError.prototype.constructor
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-174.js",  # Needs TypeError.prototype.constructor
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-175.js",  # Needs URIError.prototype.constructor
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-176.js",  # Needs JSON
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-177.js",  # Needs JSON
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-27.js",  # Needs Object.prototype.constructor
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-34.js",  # Needs Function.prototype.constructor
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-39.js",  # Needs Array.prototype.constructor
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-40.js",  # Needs Array.prototype.concat
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-42.js",  # Needs Array.prototype.reverse
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-44.js",  # Needs Array.prototype.sort
@@ -497,7 +485,6 @@ xfail_tests = (
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-58.js",  # Needs Array.prototype.filter
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-59.js",  # Needs Array.prototype.reduce
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-60.js",  # Needs Array.prototype.reduceRight
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-62.js",  # Needs String.prototype.constructor
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-64.js",  # Needs String.prototype.charCodeAt
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-67.js",  # Needs String.prototype.lastIndexOf
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-68.js",  # Needs String.prototype.match
@@ -509,8 +496,6 @@ xfail_tests = (
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-80.js",  # Needs String.prototype.toLocaleUpperCase
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-81.js",  # Needs String.prototype.localeCompare
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-82.js",  # Needs String.prototype.trim
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-84.js",  # Needs Boolean.prototype.constructor
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-88.js",  # Needs Number.prototype.constructor
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-9.js",  # Needs decodeURI
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-90.js",  # Needs Number.prototype.toLocaleString
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-91.js",  # Needs Number.prototype.toFixed
