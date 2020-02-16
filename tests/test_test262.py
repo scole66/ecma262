@@ -231,8 +231,12 @@ passing = (
     "built-ins/Error",
     "built-ins/Function/prototype/bind",
     "built-ins/Math/Symbol.toStringTag.js",
+    "built-ins/String/prototype/charAt",
     "built-ins/String/prototype/indexOf",
+    "built-ins/String/prototype/slice",
     "built-ins/String/prototype/split",
+    "built-ins/String/prototype/toString",
+    "built-ins/String/prototype/valueOf",
     "built-ins/isFinite",
     "built-ins/isNaN",
     "built-ins/parseFloat",
@@ -398,15 +402,18 @@ slow_tests = (
 )
 
 xfail_tests = (
+    "/test/built-ins/String/prototype/charAt/S15.5.4.4_A4_T1.js",  # Needs String.prototype.substring
+    "/test/built-ins/String/prototype/charAt/S15.5.4.4_A4_T2.js",  # Needs String.prototype.substring
+    "/test/built-ins/String/prototype/charAt/S15.5.4.4_A4_T3.js",  # Needs String.prototype.substring
     "/test/built-ins/String/prototype/indexOf/S15.5.4.7_A1_T12.js",  # Needs Array.prototype.indexOf
     "/test/built-ins/String/prototype/split/S15.5.4.14_A4_T20.js",  # Needs functional regex
     "/test/built-ins/String/prototype/split/S15.5.4.14_A1_T3.js",  # Needs String.prototype.substring
-    "/test/built-ins/String/prototype/split/S15.5.4.14_A2_T20.js",  # Needs String.prototype.charAt
-    "/test/built-ins/String/prototype/split/S15.5.4.14_A2_T6.js",  # Needs String.prototype.charAt
     "/test/built-ins/String/prototype/split/S15.5.4.14_A3_T3.js",  # Needs String.prototype.substring
     "/test/built-ins/String/prototype/split/S15.5.4.14_A4_T19.js",  # Needs functional regex
     "/test/built-ins/String/prototype/split/S15.5.4.14_A4_T22.js",  # Needs functional regex
     "/test/built-ins/String/prototype/split/S15.5.4.14_A4_T23.js",  # Needs functional regex
+    "/test/built-ins/String/prototype/toString/non-generic-realm.js",  # Needs String.prototype.concat
+    "/test/built-ins/String/prototype/toString/string-object.js",  # Needs String.prototype.concat
     "/test/built-ins/Function/prototype/bind/15.3.4.5-2-7.js",  # Needs JSON object
     "/test/built-ins/Function/prototype/bind/S15.3.4.5_A5.js",  # Needs Array.prototype.concat
 )
