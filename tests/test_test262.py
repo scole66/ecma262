@@ -232,6 +232,7 @@ passing = (
     "built-ins/Function/prototype/bind",
     "built-ins/Math/Symbol.toStringTag.js",
     "built-ins/String/prototype/charAt",
+    "built-ins/String/prototype/concat",
     "built-ins/String/prototype/indexOf",
     "built-ins/String/prototype/slice",
     "built-ins/String/prototype/split",
@@ -412,8 +413,6 @@ xfail_tests = (
     "/test/built-ins/String/prototype/split/S15.5.4.14_A4_T19.js",  # Needs functional regex
     "/test/built-ins/String/prototype/split/S15.5.4.14_A4_T22.js",  # Needs functional regex
     "/test/built-ins/String/prototype/split/S15.5.4.14_A4_T23.js",  # Needs functional regex
-    "/test/built-ins/String/prototype/toString/non-generic-realm.js",  # Needs String.prototype.concat
-    "/test/built-ins/String/prototype/toString/string-object.js",  # Needs String.prototype.concat
     "/test/built-ins/Function/prototype/bind/15.3.4.5-2-7.js",  # Needs JSON object
     "/test/built-ins/Function/prototype/bind/S15.3.4.5_A5.js",  # Needs Array.prototype.concat
 )
