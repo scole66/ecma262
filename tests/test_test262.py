@@ -227,6 +227,7 @@ lang_tests = (
 
 passing = (
     # These paths have passed (or xfailed, or skipped) 100%. We shouldn't break them.
+    "harness",
     "built-ins/Boolean",
     "built-ins/Error",
     "built-ins/Function",
@@ -404,15 +405,24 @@ slow_tests = (
 )
 
 xfail_tests = (
-    "/test/built-ins/Object/prototype/toString/Object.prototype.toString.call-regexp.js",  # Needs functional regex
-    "/test/built-ins/Object/prototype/toString/symbol-tag-override-instances.js",  # Needs functional regex
-    "/test/built-ins/String/prototype/indexOf/S15.5.4.7_A1_T12.js",  # Needs Array.prototype.indexOf
-    "/test/built-ins/String/prototype/split/S15.5.4.14_A4_T20.js",  # Needs functional regex
-    "/test/built-ins/String/prototype/split/S15.5.4.14_A4_T19.js",  # Needs functional regex
-    "/test/built-ins/String/prototype/split/S15.5.4.14_A4_T22.js",  # Needs functional regex
-    "/test/built-ins/String/prototype/split/S15.5.4.14_A4_T23.js",  # Needs functional regex
+    "/test/harness/deepEqual-array.js",  # Needs Map
+    "/test/harness/deepEqual-circular.js",  # Needs Map
+    "/test/harness/deepEqual-deep.js",  # Needs Map
+    "/test/harness/deepEqual-mapset.js",  # Needs Set
+    "/test/harness/deepEqual-object.js",  # Needs Map
+    "/test/harness/deepEqual-primitives.js",  # Needs Map
+    "/test/harness/timer.js",  # Needs Promise
+    "/test/built-ins/Function/15.3.2.1-11-3-s.js",  # Needs to have arguments parsed after body, so use-strict can be known already. In CreateDynamicFunction.
     "/test/built-ins/Function/prototype/bind/15.3.4.5-2-7.js",  # Needs JSON object
     "/test/built-ins/Function/prototype/bind/S15.3.4.5_A5.js",  # Needs Array.prototype.concat
+    "/test/built-ins/Function/prototype/toString/built-in-function-object.js",  # Needs Generators
+    "/test/built-ins/Function/prototype/toString/generator-function-expression.js",  # Needs Generators
+    "/test/built-ins/Function/prototype/toString/method-computed-property-name.js",  # Needs better Function.prototype.toString
+    "/test/built-ins/Function/prototype/toString/S15.3.4.2_A12.js",  # Needs better Function.prototype.toString
+    "/test/built-ins/Function/prototype/toString/S15.3.4.2_A13.js",  # Needs better Function.prototype.toString
+    "/test/built-ins/Function/prototype/toString/S15.3.4.2_A14.js",  # Needs better Function.prototype.toString
+    "/test/built-ins/Function/prototype/toString/S15.3.4.2_A16.js",  # Needs better Function.prototype.toString
+    "/test/built-ins/Function/prototype/toString/well-known-intrinsic-object-functions.js",  # Needs Generators
     "/test/built-ins/Object/create/15.2.3.5-4-120.js",  # Needs JSON object
     "/test/built-ins/Object/create/15.2.3.5-4-13.js",  # Needs JSON object
     "/test/built-ins/Object/create/15.2.3.5-4-145.js",  # Needs JSON object
@@ -508,16 +518,14 @@ xfail_tests = (
     "/test/built-ins/Object/isSealed/15.2.3.11-4-27.js",  # Needs JSON
     "/test/built-ins/Object/keys/proxy-keys.js",  # Needs Proxy
     "/test/built-ins/Object/preventExtensions/throws-when-false.js",  # Needs Proxy
+    "/test/built-ins/Object/prototype/toString/Object.prototype.toString.call-regexp.js",  # Needs functional regex
+    "/test/built-ins/Object/prototype/toString/symbol-tag-override-instances.js",  # Needs functional regex
     "/test/built-ins/Object/seal/throws-when-false.js",  # Needs Proxy
-    "/test/built-ins/Function/15.3.2.1-11-3-s.js",  # Needs to have arguments parsed after body, so use-strict can be known already. In CreateDynamicFunction.
-    "/test/built-ins/Function/prototype/toString/built-in-function-object.js",  # Needs Generators
-    "/test/built-ins/Function/prototype/toString/generator-function-expression.js",  # Needs Generators
-    "/test/built-ins/Function/prototype/toString/method-computed-property-name.js",  # Needs better Function.prototype.toString
-    "/test/built-ins/Function/prototype/toString/S15.3.4.2_A12.js",  # Needs better Function.prototype.toString
-    "/test/built-ins/Function/prototype/toString/S15.3.4.2_A13.js",  # Needs better Function.prototype.toString
-    "/test/built-ins/Function/prototype/toString/S15.3.4.2_A14.js",  # Needs better Function.prototype.toString
-    "/test/built-ins/Function/prototype/toString/S15.3.4.2_A16.js",  # Needs better Function.prototype.toString
-    "/test/built-ins/Function/prototype/toString/well-known-intrinsic-object-functions.js",  # Needs Generators
+    "/test/built-ins/String/prototype/indexOf/S15.5.4.7_A1_T12.js",  # Needs Array.prototype.indexOf
+    "/test/built-ins/String/prototype/split/S15.5.4.14_A4_T19.js",  # Needs functional regex
+    "/test/built-ins/String/prototype/split/S15.5.4.14_A4_T20.js",  # Needs functional regex
+    "/test/built-ins/String/prototype/split/S15.5.4.14_A4_T22.js",  # Needs functional regex
+    "/test/built-ins/String/prototype/split/S15.5.4.14_A4_T23.js",  # Needs functional regex
 )
 
 
