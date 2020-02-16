@@ -1483,25 +1483,46 @@ def NumberToString(m):
         S += 1
     n = exponent + 1
 
-    def stringify(SS):
+    def stringify(SS, n_adjust):
         digits = f"{SS}".rstrip("0")
         k = len(digits)
-        if k <= n <= 21:
-            potential = digits + ("0" * (n - k))
-        elif 0 < n <= 21:
-            potential = digits[:n] + "." + digits[n:]
-        elif -6 < n <= 0:
-            potential = "0." + ("0" * (-n)) + digits
+        nn = n + n_adjust
+        if k <= nn <= 21:
+            potential = digits + ("0" * (nn - k))
+        elif 0 < nn <= 21:
+            potential = digits[:nn] + "." + digits[nn:]
+        elif -6 < nn <= 0:
+            potential = "0." + ("0" * (-nn)) + digits
         elif k == 1:
-            potential = f"{digits}e{n-1:+}"
+            potential = f"{digits}e{nn-1:+}"
         else:
-            potential = f"{digits[0]}.{digits[1:]}e{n-1:+}"
+            potential = f"{digits[0]}.{digits[1:]}e{nn-1:+}"
         return potential if float(potential) == float(m) else None
 
-    return min(
-        (x for x in (stringify(S + delta_check) for delta_check in (0, 1, -1)) if x is not None),
-        key=lambda s: len(s),
-    )
+    def check_them(num):
+        yield stringify(num, 0)
+        num_digits = len(f"{num}")
+        updelta = 1
+        downdelta = 1
+        while 0 < updelta or 0 < downdelta < num:
+            if 0 < updelta:
+                val = num + updelta
+                up = stringify(val, len(f"{val}") - num_digits)
+                if up is not None:
+                    yield up
+                    updelta += 1
+                else:
+                    updelta = 0
+            if 0 < downdelta < num:
+                val = num - downdelta
+                down = stringify(val, len(f"{val}") - num_digits)
+                if down is not None:
+                    yield down
+                    downdelta += 1
+                else:
+                    downdelta = 0
+
+    return min(check_them(S), key=lambda s: (len(s.rstrip("0")) - len(s), len(s)))
 
 
 # 7.1.13 ToObject ( argument )
