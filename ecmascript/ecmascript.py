@@ -33543,6 +33543,7 @@ def CreateStringPrototype(realm):
             ("indexOf", StringPrototype_indexOf, None),
             ("slice", StringPrototype_slice, None),
             ("split", StringPrototype_split, None),
+            ("substring", StringPrototype_substring, None),
             ("toString", StringPrototype_toString, None),
             ("valueOf", StringPrototype_valueOf, None),
         ),
@@ -33838,6 +33839,50 @@ def SplitMatch(S, q, R):
         return False
     return q + r
 
+
+# 21.1.3.21 String.prototype.substring ( start, end )
+def StringPrototype_substring(this_value, new_target, start=None, end=None, *_):
+    # The substring method takes two arguments, start and end, and returns a substring of the result of converting
+    # this object to a String, starting from index start and running to, but not including, index end of the String
+    # (or through the end of the String if end is undefined). The result is a String value, not a String object.
+    #
+    # If either argument is NaN or negative, it is replaced with zero; if either argument is larger than the length
+    # of the String, it is replaced with the length of the String.
+    #
+    # If start is larger than end, they are swapped.
+    #
+    # The following steps are taken:
+    #
+    #   1. Let O be ? RequireObjectCoercible(this value).
+    #   2. Let S be ? ToString(O).
+    #   3. Let len be the length of S.
+    #   4. Let intStart be ? ToInteger(start).
+    #   5. If end is undefined, let intEnd be len; else let intEnd be ? ToInteger(end).
+    #   6. Let finalStart be min(max(intStart, 0), len).
+    #   7. Let finalEnd be min(max(intEnd, 0), len).
+    #   8. Let from be min(finalStart, finalEnd).
+    #   9. Let to be max(finalStart, finalEnd).
+    #   10. Return the String value whose length is to - from, containing code units from S, namely the code units
+    #       with indices from through to - 1, in ascending order.
+    # NOTE  | The substring function is intentionally generic; it does not require that its this value be a String
+    #       | object. Therefore, it can be transferred to other kinds of objects for use as a method.
+    O = RequireObjectCoercible(this_value)
+    S = ToString(O)
+    length = len(S)
+    intStart = ToInteger(start)
+    if end is None:
+        intEnd = length
+    else:
+        intEnd = ToInteger(end)
+    finalStart = min(max(intStart, 0), length)
+    finalEnd = min(max(intEnd, 0), length)
+    from_idx = int(min(finalStart, finalEnd))
+    to_idx = int(max(finalStart, finalEnd))
+    return S[from_idx:to_idx]
+
+
+StringPrototype_substring.name = "substring"
+StringPrototype_substring.length = 2
 
 # ------------------------------------ 𝟐𝟏.𝟏.𝟑.𝟐𝟓 𝑺𝒕𝒓𝒊𝒏𝒈.𝒑𝒓𝒐𝒕𝒐𝒕𝒚𝒑𝒆.𝒕𝒐𝑺𝒕𝒓𝒊𝒏𝒈 ( ) ------------------------------------
 # 21.1.3.25 String.prototype.toString ( )
