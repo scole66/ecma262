@@ -641,16 +641,6 @@ def test_parse2context_init():
     assert pc.goal == "goal"
 
 
-def test_empty_node():
-    ctx = e.Parse2Context("source text")
-    en = e.empty_node(ctx)
-
-    assert isinstance(en, e.ParseNode2)
-    assert en.name == "[empty]"
-    assert en.context == ctx
-    assert en.children == []
-
-
 #### UpdateExpression #########################################################################################################################
 #
 # 888     888               888          888             8888888888                                                      d8b

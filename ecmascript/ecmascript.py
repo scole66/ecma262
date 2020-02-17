@@ -8084,10 +8084,6 @@ class Parse2Context:
         self.lexer_interface = lexer
 
 
-def empty_node(ctx):
-    return ParseNode2(ctx, "[empty]", False)
-
-
 """
  d888    .d8888b.       d888       8888888      888                   888    d8b  .d888 d8b
 d8888   d88P  Y88b     d8888         888        888                   888    Y8P d88P"  Y8P
@@ -28633,7 +28629,7 @@ def parse_Script(ctx, lexer, pos, strict):
     #       [empty]
     #       ScriptBody
     if lexer.token(pos) is None:
-        return P2_Script_Empty(ctx, strict, [empty_node(ctx)])
+        return P2_Script_Empty(ctx, strict, [lexer.empty_token(pos)])
     sb = parse_ScriptBody(ctx, lexer, pos, strict)
     if sb:
         return P2_Script_ScriptBody(ctx, strict, [sb])
@@ -28812,7 +28808,7 @@ def ParseScript(sourceText, realm, hostDefined):
     lex = LexerCore(sourceText, ESSyntaxError)
     context = Parse2Context(direct_eval=True, syntax_error_ctor=CreateSyntaxError)
     tree = parse_Script(context, lex, 0, False)
-    after = max((t.span.after for t in tree.terminals()), default=0) if tree else 0
+    after = tree.after if tree else 0
     errs = list(
         chain(
             filter(
