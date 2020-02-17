@@ -33500,6 +33500,7 @@ def String_fromCodePoint(this_value, new_target, *codePoints):
             raise ESRangeError("code points must be integers")
         if nextCP < 0 or nextCP > 0x10FFFF:
             raise ESRangeError("code points must be in the range 0x0..0x10ffff")
+        nextCP = int(nextCP)
         elements.extend(utf_16_encode(chr(nextCP)))
     return "".join(elements)
     # The length property of the fromCodePoint function is 1.
