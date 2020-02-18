@@ -404,7 +404,6 @@ xfail_tests = (
     "/test/harness/deepEqual-object.js",  # Needs Map
     "/test/harness/deepEqual-primitives.js",  # Needs Map
     "/test/harness/timer.js",  # Needs Promise
-    "/test/built-ins/Function/15.3.2.1-11-3-s.js",  # Needs to have arguments parsed after body, so use-strict can be known already. In CreateDynamicFunction.
     "/test/built-ins/Function/prototype/bind/15.3.4.5-2-7.js",  # Needs JSON object
     "/test/built-ins/Function/prototype/bind/S15.3.4.5_A5.js",  # Needs Array.prototype.concat
     "/test/built-ins/Function/prototype/toString/built-in-function-object.js",  # Needs Generators

@@ -30464,26 +30464,26 @@ def CreateDynamicFunction(constructor, newTarget, kind, args):
         goal = "FunctionBody"
         goal_parse = lambda context, lexer: parse_FunctionBody(context, lexer, 0, False, False, False)
         parameterGoal = "FormalParameters"
-        param_parse = lambda context, lexer: parse_FormalParameters(context, lexer, 0, False, False, False)
+        param_parse = lambda context, lexer, strict: parse_FormalParameters(context, lexer, 0, strict, False, False)
         fallbackProto = "%FunctionPrototype%"
     elif kind == "generator":
         goal = "GeneratorBody"
         goal_parse = parse_GeneratorBody
         parameterGoal = "FormalParameters"
-        param_parse = lambda context, lexer: parse_FormalParameters(context, lexer, 0, False, True, False)
+        param_parse = lambda context, lexer, strict: parse_FormalParameters(context, lexer, 0, strict, True, False)
         fallbackProto = "%Generator%"
     elif kind == "async":
         goal = "AsyncFunctionBody"
         goal_parse = parse_AsyncFunctionBody
         parameterGoal = "FormalParameters"
-        param_parse = lambda context, lexer: parse_FormalParameters(context, lexer, 0, False, False, True)
+        param_parse = lambda context, lexer, strict: parse_FormalParameters(context, lexer, 0, strict, False, True)
         fallbackProto = "%AsyncFunctionPrototype%"
     else:
         assert kind == "async generator"
         goal = "AsyncGeneratorBody"
         goal_parse = parse_AsyncGeneratorBody
         parameterGoal = "FormalParameters"
-        param_parse = lambda context, lexer: parse_FormalParameters(context, lexer, 0, False, True, True)
+        param_parse = lambda context, lexer, strict: parse_FormalParameters(context, lexer, 0, strict, True, True)
         fallbackProto = "%AsyncGenerator%"
     argCount = len(args)
     P = ""
@@ -30496,16 +30496,7 @@ def CreateDynamicFunction(constructor, newTarget, kind, args):
         bodyText = args[-1]
     bodyText = ToString(bodyText)
 
-    parameter_context = Parse2Context(direct_eval=False, syntax_error_ctor=ESSyntaxError, goal=parameterGoal)
-    plexer = LexerCore(P, ESSyntaxError)
-    try:
-        parameters = param_parse(parameter_context, plexer)
-    except ESError as err:
-        raise ESSyntaxError(ToString(err.ecma_object))
-    if not plexer.is_done(parameters.after):
-        raise ESSyntaxError(f"«{P}» failed to parse as formal parameters")
-
-    body_context = Parse2Context(direct_eval=False, syntax_error_ctor=ESSyntaxError, goal=goal)
+    body_context = Parse2Context(direct_eval=False, syntax_error_ctor=CreateSyntaxError, goal=goal)
     blexer = LexerCore(bodyText, ESSyntaxError)
     try:
         body = goal_parse(body_context, blexer)
@@ -30515,14 +30506,23 @@ def CreateDynamicFunction(constructor, newTarget, kind, args):
         raise ESSyntaxError(f"«{bodyText!r}» failed to parse as a function body")
 
     strict = body.ContainsUseStrict()
+    parameter_context = Parse2Context(direct_eval=False, syntax_error_ctor=CreateSyntaxError, goal=parameterGoal)
+    plexer = LexerCore(P, ESSyntaxError)
+    try:
+        parameters = param_parse(parameter_context, plexer, strict)
+    except ESError as err:
+        raise ESSyntaxError(ToString(err.ecma_object))
+    if not plexer.is_done(parameters.after):
+        raise ESSyntaxError(f"«{P}» failed to parse as formal parameters")
+
     body_early = body.EarlyErrorsScan()
     if body_early:
-        raise ESError(body_early[0])
+        raise ESSyntaxError(ToString(body_early[0]))
     param_early = parameters.EarlyErrorsScan()
     if strict:
         param_early.extend(UniqueFormalParameters_EarlyErrors(parameters))
     if param_early:
-        raise ESError(param_early[0])
+        raise ESSyntaxError(ToString(param_early[0]))
     if strict and not parameters.IsSimpleParameterList():
         raise ESSyntaxError("Complex parameter lists not allowed in strict mode")
     bn = set(parameters.BoundNames())
@@ -34191,7 +34191,7 @@ def RegExpInitialize(obj, pattern, flags):
         pat = e262_regexp.parse_Pattern(P, 0, True, True)
         if not pat or pat.span.after != len(pat):
             raise ESSyntaxError(f"Bad Regex: {P}")
-        patternCharacters = utf_16_decode(P, throw=True, syntax_error_ctor=ESSyntaxError)
+        patternCharacters = utf_16_decode(P, throw=True, syntax_error_ctor=CreateSyntaxError)
     if pat.earlyerrors:
         raise ESSyntaxError("\n".join(chain((f"Bad Regex: {P}",), pat.earlyerrors)))
 
