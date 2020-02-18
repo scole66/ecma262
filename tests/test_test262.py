@@ -242,6 +242,7 @@ passing = (
     "language/asi",
     "language/block-scope",
     "language/comments",
+    "language/computed-property-names",
     "language/destructuring",
     "language/directive-prologue",
     "language/eval-code",
@@ -315,7 +316,6 @@ if test_passing:
 #     test_files.extend(glob.glob(f"{base_path}/test/language/{suite}/**/*.js", recursive=True))
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/Array/**/*.js", recursive=True))
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/Symbol/**/*.js", recursive=True)) # Needs Map
-# test_files.extend(glob.glob(f"{base_path}/test/language/computed-property-names/**/*.js", recursive=True)) # 20 failing
 # test_files.extend(glob.glob(f"{base_path}/test/language/expressions/assignment/**/*.js", recursive=True)) # Needs Array.prototype.reduce
 # test_files.extend(glob.glob(f"{base_path}/test/language/expressions/arrow-function/**/*.js", recursive=True)) # 109 tests failing
 # test_files.extend(glob.glob(f"{base_path}/test/language/expressions/compound-assignment/**/*.js", recursive=True)) # 78 failing
@@ -1010,6 +1010,9 @@ xfail_tests = (
     "/test/built-ins/String/prototype/trim/15.5.4.20-4-8.js",  # Needs String.prototype.trim
     "/test/built-ins/String/prototype/trim/name.js",  # Needs String.prototype.trim
     "/test/built-ins/String/prototype/trim/u180e.js",  # Needs String.prototype.trim
+    "/test/language/computed-property-names/class/static/method-number.js",  # Test depends on different property initialization order in class definitions
+    "/test/language/computed-property-names/class/static/method-string.js",  # Test depends on different property initialization order in class definitions
+    "/test/language/computed-property-names/class/static/method-symbol.js",  # Test depends on different property initialization order in class definitions
 )
 
 
