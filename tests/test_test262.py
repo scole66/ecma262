@@ -491,7 +491,6 @@ xfail_tests = (
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-68.js",  # Needs String.prototype.match
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-69.js",  # Needs String.prototype.replace
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-70.js",  # Needs String.prototype.search
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-75.js",  # Needs String.prototype.toLowerCase
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-77.js",  # Needs String.prototype.toUpperCase
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-79.js",  # Needs String.prototype.toLocaleLowerCase
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-80.js",  # Needs String.prototype.toLocaleUpperCase
@@ -861,32 +860,6 @@ xfail_tests = (
     "/test/built-ins/String/prototype/toLocaleUpperCase/special_casing.js",  # Needs String.prototype.toLocaleUpperCase
     "/test/built-ins/String/prototype/toLocaleUpperCase/supplementary_plane.js",  # Needs String.prototype.toLocaleUpperCase
     "/test/built-ins/String/prototype/toLocaleUpperCase/this-value-not-obj-coercible.js",  # Needs String.prototype.toLocaleUpperCase
-    "/test/built-ins/String/prototype/toLowerCase/Final_Sigma_U180E.js",  # Needs String.prototype.toLowerCase
-    "/test/built-ins/String/prototype/toLowerCase/name.js",  # Needs String.prototype.toLowerCase
-    "/test/built-ins/String/prototype/toLowerCase/S15.5.4.16_A10.js",  # Needs String.prototype.toLowerCase
-    "/test/built-ins/String/prototype/toLowerCase/S15.5.4.16_A11.js",  # Needs String.prototype.toLowerCase
-    "/test/built-ins/String/prototype/toLowerCase/S15.5.4.16_A1_T1.js",  # Needs String.prototype.toLowerCase
-    "/test/built-ins/String/prototype/toLowerCase/S15.5.4.16_A1_T10.js",  # Needs String.prototype.toLowerCase
-    "/test/built-ins/String/prototype/toLowerCase/S15.5.4.16_A1_T11.js",  # Needs String.prototype.toLowerCase
-    "/test/built-ins/String/prototype/toLowerCase/S15.5.4.16_A1_T12.js",  # Needs String.prototype.toLowerCase
-    "/test/built-ins/String/prototype/toLowerCase/S15.5.4.16_A1_T13.js",  # Needs String.prototype.toLowerCase
-    "/test/built-ins/String/prototype/toLowerCase/S15.5.4.16_A1_T14.js",  # Needs String.prototype.toLowerCase
-    "/test/built-ins/String/prototype/toLowerCase/S15.5.4.16_A1_T2.js",  # Needs String.prototype.toLowerCase
-    "/test/built-ins/String/prototype/toLowerCase/S15.5.4.16_A1_T3.js",  # Needs String.prototype.toLowerCase
-    "/test/built-ins/String/prototype/toLowerCase/S15.5.4.16_A1_T4.js",  # Needs String.prototype.toLowerCase
-    "/test/built-ins/String/prototype/toLowerCase/S15.5.4.16_A1_T5.js",  # Needs String.prototype.toLowerCase
-    "/test/built-ins/String/prototype/toLowerCase/S15.5.4.16_A1_T6.js",  # Needs String.prototype.toLowerCase
-    "/test/built-ins/String/prototype/toLowerCase/S15.5.4.16_A1_T7.js",  # Needs String.prototype.toLowerCase
-    "/test/built-ins/String/prototype/toLowerCase/S15.5.4.16_A1_T8.js",  # Needs String.prototype.toLowerCase
-    "/test/built-ins/String/prototype/toLowerCase/S15.5.4.16_A1_T9.js",  # Needs String.prototype.toLowerCase
-    "/test/built-ins/String/prototype/toLowerCase/S15.5.4.16_A2_T1.js",  # Needs String.prototype.toLowerCase
-    "/test/built-ins/String/prototype/toLowerCase/S15.5.4.16_A6.js",  # Needs String.prototype.toLowerCase
-    "/test/built-ins/String/prototype/toLowerCase/S15.5.4.16_A8.js",  # Needs String.prototype.toLowerCase
-    "/test/built-ins/String/prototype/toLowerCase/S15.5.4.16_A9.js",  # Needs String.prototype.toLowerCase
-    "/test/built-ins/String/prototype/toLowerCase/special_casing.js",  # Needs String.prototype.toLowerCase
-    "/test/built-ins/String/prototype/toLowerCase/special_casing_conditional.js",  # Needs String.prototype.toLowerCase
-    "/test/built-ins/String/prototype/toLowerCase/supplementary_plane.js",  # Needs String.prototype.toLowerCase
-    "/test/built-ins/String/prototype/toLowerCase/this-value-not-obj-coercible.js",  # Needs String.prototype.toLowerCase
     "/test/built-ins/String/prototype/toUpperCase/name.js",  # Needs String.prototype.toUpperCase
     "/test/built-ins/String/prototype/toUpperCase/S15.5.4.18_A10.js",  # Needs String.prototype.toUpperCase
     "/test/built-ins/String/prototype/toUpperCase/S15.5.4.18_A11.js",  # Needs String.prototype.toUpperCase
@@ -1037,7 +1010,6 @@ xfail_tests = (
     "/test/built-ins/String/prototype/trim/15.5.4.20-4-8.js",  # Needs String.prototype.trim
     "/test/built-ins/String/prototype/trim/name.js",  # Needs String.prototype.trim
     "/test/built-ins/String/prototype/trim/u180e.js",  # Needs String.prototype.trim
-    "/test/language/expressions/super/prop-poisoned-underscore-proto.js",  # Needs String.prototype.toLowerCase
 )
 
 

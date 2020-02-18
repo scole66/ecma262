@@ -33591,6 +33591,7 @@ def CreateStringPrototype(realm):
             ("slice", StringPrototype_slice, None),
             ("split", StringPrototype_split, None),
             ("substring", StringPrototype_substring, None),
+            ("toLowerCase", StringPrototype_toLowerCase, None),
             ("toString", StringPrototype_toString, None),
             ("valueOf", StringPrototype_valueOf, None),
         ),
@@ -33930,6 +33931,42 @@ def StringPrototype_substring(this_value, new_target, start=None, end=None, *_):
 
 StringPrototype_substring.name = "substring"
 StringPrototype_substring.length = 2
+
+# 21.1.3.24 String.prototype.toLowerCase ( )
+def StringPrototype_toLowerCase(this_value, new_target, *_):
+    # This function interprets a String value as a sequence of UTF-16 encoded code points, as described in 6.1.4.
+    # The following steps are taken:
+    #
+    #   1. Let O be ? RequireObjectCoercible(this value).
+    #   2. Let S be ? ToString(O).
+    #   3. Let cpList be a List containing in order the code points as defined in 6.1.4 of S, starting at the first
+    #      element of S.
+    #   4. Let cuList be a List where the elements are the result of toLowercase(cpList), according to the Unicode
+    #      Default Case Conversion algorithm.
+    #   5. Let L be the String value whose code units are the UTF16Encoding of the code points of cuList.
+    #   6. Return L.
+    #
+    # The result must be derived according to the locale-insensitive case mappings in the Unicode Character Database
+    # (this explicitly includes not only the UnicodeData.txt file, but also all locale-insensitive mappings in the
+    # SpecialCasings.txt file that accompanies it).
+    #
+    # NOTE 1    | The case mapping of some code points may produce multiple code points. In this case the result
+    #           | String may not be the same length as the source String. Because both toUpperCase and toLowerCase
+    #           | have context-sensitive behaviour, the functions are not symmetrical. In other words,
+    #           | s.toUpperCase().toLowerCase() is not necessarily equal to s.toLowerCase().
+    #
+    # NOTE 2    | The toLowerCase function is intentionally generic; it does not require that its this value be a
+    #           | String object. Therefore, it can be transferred to other kinds of objects for use as a method.
+    O = RequireObjectCoercible(this_value)
+    S = ToString(O)
+    cpList = utf_16_decode(S, throw=False)
+    cuList = cpList.lower()
+    return utf_16_encode(cuList)
+
+
+StringPrototype_toLowerCase.name = "toLowerCase"
+StringPrototype_toLowerCase.length = 0
+
 
 # ------------------------------------ 𝟐𝟏.𝟏.𝟑.𝟐𝟓 𝑺𝒕𝒓𝒊𝒏𝒈.𝒑𝒓𝒐𝒕𝒐𝒕𝒚𝒑𝒆.𝒕𝒐𝑺𝒕𝒓𝒊𝒏𝒈 ( ) ------------------------------------
 # 21.1.3.25 String.prototype.toString ( )
