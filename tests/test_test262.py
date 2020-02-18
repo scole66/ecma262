@@ -294,6 +294,7 @@ passing = (
     "language/expressions/strict-does-not-equals",
     "language/expressions/strict-equals",
     "language/expressions/subtraction",
+    "language/expressions/super",
     "language/expressions/void",
 )
 
@@ -327,7 +328,6 @@ if test_passing:
 # test_files.extend(glob.glob(f"{base_path}/test/language/expressions/object/**/*.js", recursive=True))  # 23 failing
 # test_files.extend(glob.glob(f"{base_path}/test/language/expressions/property-accessors/**/*.js", recursive=True))  # 10 failing
 # test_files.extend(glob.glob(f"{base_path}/test/language/expressions/right-shift/**/*.js", recursive=True)) #  8 failing (Hit python recursion limit)
-# test_files.extend(glob.glob(f"{base_path}/test/language/expressions/super/**/*.js", recursive=True))  # 2 failing (Needs String.toLowerCase)
 test_files = [fn for fn in test_files if not fn.endswith("_FIXTURE.js")]
 
 features_to_avoid = (
@@ -1037,6 +1037,7 @@ xfail_tests = (
     "/test/built-ins/String/prototype/trim/15.5.4.20-4-8.js",  # Needs String.prototype.trim
     "/test/built-ins/String/prototype/trim/name.js",  # Needs String.prototype.trim
     "/test/built-ins/String/prototype/trim/u180e.js",  # Needs String.prototype.trim
+    "/test/language/expressions/super/prop-poisoned-underscore-proto.js",  # Needs String.prototype.toLowerCase
 )
 
 
