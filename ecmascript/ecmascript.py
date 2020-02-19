@@ -27549,7 +27549,7 @@ def parse_YieldExpression(context, lexer, pos, strict, In, Await):
                 else P2_YieldExpression_YIELD_STAR_AssignmentExpression
             )
             children = list(filter(None, [y, star, ae]))
-            return ctor(context, children)
+            return ctor(context, strict, children)
     return None
 
 
