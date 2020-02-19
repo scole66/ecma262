@@ -1018,6 +1018,27 @@ xfail_tests = (
     "/test/language/expressions/assignment/fn-name-lhs-cover.js",  # Wants default anonymous function naming
     "/test/language/expressions/assignment/8.12.5-3-b_1.js",  # Needs Array.prototype.reduce
     "/test/language/expressions/assignment/fn-name-lhs-member.js",  # Wants default anonymous function naming
+    "/test/language/expressions/assignment/dstr/array-elem-iter-thrw-close-err.js",  # Needs a functional IteratorClose
+    "/test/language/expressions/assignment/dstr/array-elem-iter-thrw-close.js",  # Needs a functional IteratorClose
+    "/test/language/expressions/assignment/dstr/array-elem-nested-array-invalid.js",  # Something is Wrong
+    "/test/language/expressions/assignment/dstr/array-elem-nested-obj-invalid.js",  # Something is Wrong
+    "/test/language/expressions/assignment/dstr/array-elem-nested-obj-yield-ident-valid.js",  # ???
+    "/test/language/expressions/assignment/dstr/array-elem-target-simple-strict.js",  # An early error is failing
+    "/test/language/expressions/assignment/dstr/array-elem-trlg-iter-list-thrw-close-err.js",  # Needs a functional IteratorClose
+    "/test/language/expressions/assignment/dstr/array-elem-trlg-iter-list-thrw-close.js",  # Needs a functional IteratorClose
+    "/test/language/expressions/assignment/dstr/array-elem-trlg-iter-rest-thrw-close-err.js",  # Needs a functional IteratorClose
+    "/test/language/expressions/assignment/dstr/array-elem-trlg-iter-rest-thrw-close.js",  # Needs a functional IteratorClose
+    "/test/language/expressions/assignment/dstr/array-elision-val-string.js",  # ???
+    "/test/language/expressions/assignment/dstr/array-empty-val-string.js",  # ???
+    "/test/language/expressions/assignment/dstr/array-rest-iter-thrw-close-err.js",  # IteratorClose
+    "/test/language/expressions/assignment/dstr/array-rest-iter-thrw-close.js",  # IteratorClose
+    "/test/language/expressions/assignment/dstr/array-rest-lref-err.js",  # IteratorClose
+    "/test/language/expressions/assignment/dstr/array-rest-nested-array-invalid.js",  # ???
+    "/test/language/expressions/assignment/dstr/array-rest-nested-array-iter-thrw-close-skip.js",  # IteratorDestructuringAssignmentEvaluation
+    "/test/language/expressions/assignment/dstr/array-rest-nested-array-null.js",  # IteratorDestructuringAssignmentEvaluation
+    "/test/language/expressions/assignment/dstr/array-rest-nested-array-undefined-hole.js",  # IteratorDestructuringAssignmentEvaluation
+    "/test/language/expressions/assignment/dstr/array-rest-nested-array-undefined-own.js",  # IteratorDestructuringAssignmentEvaluation
+    "/test/language/expressions/assignment/dstr/array-rest-nested-array-undefined.js",  # IteratorDestructuringAssignmentEvaluation
 )
 
 
