@@ -8039,6 +8039,12 @@ class ParseNode2:
     def DefineMethod(self, *args, **kwargs):
         return self.defer_target().DefineMethod(*args, **kwargs)
 
+    def IsIdentifierRef(self, *args, **kwargs):
+        return self.defer_target().IsIdentifierRef(*args, **kwargs)
+
+    def PropertyDestructuringAssignmentEvaluation(self, *args, **kwargs):
+        return self.defer_target().PropertyDestructuringAssignmentEvaluation(*args, **kwargs)
+
     def evaluate(self, *args, **kwargs):
         # Subclasses need to override this, or we'll throw an AttributeError when we hit a terminal.
         rval = self.defer_target().evaluate(*args, **kwargs)
@@ -10213,7 +10219,7 @@ class P2_PropertyDefinition_CoverInitializedName(P2_PropertyDefinition):
         #
         # @@@ Need to add some kind of guard like the note says. Not sure how to do that. Maybe. Or maybe since covering
         # generally happens *after* early errors, it doesn't matter?
-        return [self.CreateSyntaxError("Production not allowed in object initializers")]
+        return [self.CreateSyntaxError(f"«{self.matched_source()}» not allowed in object initializers")]
 
 
 class P2_PropertyDefinition_PropertyName_COLON_AssignmentExpression(P2_PropertyDefinition):
@@ -15456,7 +15462,7 @@ class P2_AssignmentExpression_LeftHandSideExpression_EQ_AssignmentExpression(P2_
         if not (self.LeftHandSideExpression.Is("ObjectLiteral") or self.LeftHandSideExpression.Is("ArrayLiteral")):
             lref = self.LeftHandSideExpression.evaluate()
             if (
-                IsAnonymousFunctionDefinition(self.LeftHandSideExpression)
+                IsAnonymousFunctionDefinition(self.AssignmentExpression)
                 and self.LeftHandSideExpression.IsIdentifierRef()
             ):
                 rval = self.AssignmentExpression.NamedEvaluation(GetReferencedName(lref))
@@ -16393,6 +16399,11 @@ class P2_AssignmentElement(ParseNode2):
 
 
 class P2_AssignmentElement_DestructuringAssignmentTarget_Initializer(P2_AssignmentElement):
+    def __init__(self, ctx, strict, children, Yield, Await):
+        super().__init__(ctx, strict, children)
+        self.Yield = Yield
+        self.Await = Await
+
     @property
     def DestructuringAssignmentTarget(self):
         return self.children[0]
@@ -16452,7 +16463,9 @@ class P2_AssignmentElement_DestructuringAssignmentTarget_Initializer(P2_Assignme
         else:
             v = value
         if is_structured_literal:
-            nestedAssignmentPattern = self.DestructuringAssignmentTarget.covering("AssignmentPattern")
+            nestedAssignmentPattern = self.DestructuringAssignmentTarget.covering(
+                parse_AssignmentPattern, self.strict, self.Yield, self.Await
+            )
             return nestedAssignmentPattern.DestructuringAssignmentEvaluation(v)
         if (
             self.Initializer
@@ -16498,7 +16511,9 @@ class P2_AssignmentElement_DestructuringAssignmentTarget_Initializer(P2_Assignme
         else:
             rhsValue = v
         if is_structured_literal:
-            assignmentPattern = self.DestructuringAssignmentTarget.covering("AssignmentPattern")
+            assignmentPattern = self.DestructuringAssignmentTarget.covering(
+                parse_AssignmentPattern, self.strict, self.Yield, self.Await
+            )
             return assignmentPattern.DestructuringAssignmentEvaluation(rhsValue)
         if (
             self.Initializer
@@ -16528,8 +16543,10 @@ def parse_AssignmentElement(context, lexer, pos, strict, Yield, Await):
     if dat:
         init = parse_Initializer(context, lexer, dat.after, strict, True, Yield, Await)
         if init:
-            return P2_AssignmentElement_DestructuringAssignmentTarget_Initializer(context, strict, [dat, init])
-        return P2_AssignmentElement_DestructuringAssignmentTarget(context, strict, [dat])
+            return P2_AssignmentElement_DestructuringAssignmentTarget_Initializer(
+                context, strict, [dat, init], Yield, Await
+            )
+        return P2_AssignmentElement_DestructuringAssignmentTarget(context, strict, [dat], Yield, Await)
     return None
 
 
@@ -16586,8 +16603,8 @@ class P2_AssignmentRestElement_DestructuringAssignmentTarget(P2_AssignmentRestEl
                 next_step = IteratorStep(iteratorRecord)
                 if not next_step:
                     iteratorRecord.Done = True
-                else:
-                    nextValue = IteratorValue(next_step)
+                    break
+                nextValue = IteratorValue(next_step)
             except (ESError, ESAbrupt):
                 iteratorRecord.Done = True
                 raise
@@ -16596,7 +16613,9 @@ class P2_AssignmentRestElement_DestructuringAssignmentTarget(P2_AssignmentRestEl
             n += 1
         if not is_structured_literal:
             return PutValue(lref, A)
-        nestedAssignmentPattern = self.DestructuringAssignmentTarget.covering("AssignmentPattern")
+        nestedAssignmentPattern = self.DestructuringAssignmentTarget.covering(
+            parse_AssignmentPattern, self.strict, self.Yield, self.Await
+        )
         return nestedAssignmentPattern.DestructuringAssignmentEvaluation(A)
 
 

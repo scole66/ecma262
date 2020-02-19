@@ -316,7 +316,9 @@ if test_passing:
 #     test_files.extend(glob.glob(f"{base_path}/test/language/{suite}/**/*.js", recursive=True))
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/Array/**/*.js", recursive=True))
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/Symbol/**/*.js", recursive=True)) # Needs Map
-# test_files.extend(glob.glob(f"{base_path}/test/language/expressions/assignment/**/*.js", recursive=True)) # Needs Array.prototype.reduce
+test_files.extend(
+    glob.glob(f"{base_path}/test/language/expressions/assignment/**/*.js", recursive=True)
+)  # Needs Array.prototype.reduce
 # test_files.extend(glob.glob(f"{base_path}/test/language/expressions/arrow-function/**/*.js", recursive=True)) # 109 tests failing
 # test_files.extend(glob.glob(f"{base_path}/test/language/expressions/compound-assignment/**/*.js", recursive=True)) # 78 failing
 # test_files.extend(glob.glob(f"{base_path}/test/language/expressions/delete/**/*.js", recursive=True)) # 4 failing (needs JSON)
@@ -1010,9 +1012,12 @@ xfail_tests = (
     "/test/built-ins/String/prototype/trim/15.5.4.20-4-8.js",  # Needs String.prototype.trim
     "/test/built-ins/String/prototype/trim/name.js",  # Needs String.prototype.trim
     "/test/built-ins/String/prototype/trim/u180e.js",  # Needs String.prototype.trim
-    "/test/language/computed-property-names/class/static/method-number.js",  # Test depends on different property initialization order in class definitions
-    "/test/language/computed-property-names/class/static/method-string.js",  # Test depends on different property initialization order in class definitions
-    "/test/language/computed-property-names/class/static/method-symbol.js",  # Test depends on different property initialization order in class definitions
+    "/test/language/computed-property-names/class/static/method-number.js",  # Wants default anonymous function naming
+    "/test/language/computed-property-names/class/static/method-string.js",  # Wants default anonymous function naming
+    "/test/language/computed-property-names/class/static/method-symbol.js",  # Wants default anonymous function naming
+    "/test/language/expressions/assignment/fn-name-lhs-cover.js",  # Wants default anonymous function naming
+    "/test/language/expressions/assignment/8.12.5-3-b_1.js",  # Needs Array.prototype.reduce
+    "/test/language/expressions/assignment/fn-name-lhs-member.js",  # Wants default anonymous function naming
 )
 
 
