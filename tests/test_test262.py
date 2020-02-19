@@ -263,6 +263,7 @@ passing = (
     "language/types",
     "language/expressions/addition",
     "language/expressions/array",
+    "language/expressions/assignment",
     "language/expressions/bitwise-and",
     "language/expressions/bitwise-not",
     "language/expressions/bitwise-or",
@@ -316,7 +317,6 @@ if test_passing:
 #     test_files.extend(glob.glob(f"{base_path}/test/language/{suite}/**/*.js", recursive=True))
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/Array/**/*.js", recursive=True))
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/Symbol/**/*.js", recursive=True)) # Needs Map
-# test_files.extend(glob.glob(f"{base_path}/test/language/expressions/assignment/**/*.js", recursive=True)) # Needs Array.prototype.reduce
 # test_files.extend(glob.glob(f"{base_path}/test/language/expressions/arrow-function/**/*.js", recursive=True)) # 109 tests failing
 # test_files.extend(glob.glob(f"{base_path}/test/language/expressions/compound-assignment/**/*.js", recursive=True)) # 78 failing
 # test_files.extend(glob.glob(f"{base_path}/test/language/expressions/delete/**/*.js", recursive=True)) # 4 failing (needs JSON)
@@ -1010,9 +1010,47 @@ xfail_tests = (
     "/test/built-ins/String/prototype/trim/15.5.4.20-4-8.js",  # Needs String.prototype.trim
     "/test/built-ins/String/prototype/trim/name.js",  # Needs String.prototype.trim
     "/test/built-ins/String/prototype/trim/u180e.js",  # Needs String.prototype.trim
-    "/test/language/computed-property-names/class/static/method-number.js",  # Test depends on different property initialization order in class definitions
-    "/test/language/computed-property-names/class/static/method-string.js",  # Test depends on different property initialization order in class definitions
-    "/test/language/computed-property-names/class/static/method-symbol.js",  # Test depends on different property initialization order in class definitions
+    "/test/language/computed-property-names/class/static/method-number.js",  # Wants default anonymous function naming
+    "/test/language/computed-property-names/class/static/method-string.js",  # Wants default anonymous function naming
+    "/test/language/computed-property-names/class/static/method-symbol.js",  # Wants default anonymous function naming
+    "/test/language/expressions/assignment/8.12.5-3-b_1.js",  # Needs Array.prototype.reduce
+    "/test/language/expressions/assignment/dstr/array-elem-iter-thrw-close-err.js",  # Needs a functional IteratorClose
+    "/test/language/expressions/assignment/dstr/array-elem-iter-thrw-close.js",  # Needs a functional IteratorClose
+    "/test/language/expressions/assignment/dstr/array-elem-nested-array-invalid.js",  # Something is Wrong
+    "/test/language/expressions/assignment/dstr/array-elem-nested-obj-invalid.js",  # Something is Wrong
+    "/test/language/expressions/assignment/dstr/array-elem-nested-obj-yield-ident-valid.js",  # ???
+    "/test/language/expressions/assignment/dstr/array-elem-target-simple-strict.js",  # An early error is failing
+    "/test/language/expressions/assignment/dstr/array-elem-trlg-iter-list-thrw-close-err.js",  # Needs a functional IteratorClose
+    "/test/language/expressions/assignment/dstr/array-elem-trlg-iter-list-thrw-close.js",  # Needs a functional IteratorClose
+    "/test/language/expressions/assignment/dstr/array-elem-trlg-iter-rest-thrw-close-err.js",  # Needs a functional IteratorClose
+    "/test/language/expressions/assignment/dstr/array-elem-trlg-iter-rest-thrw-close.js",  # Needs a functional IteratorClose
+    "/test/language/expressions/assignment/dstr/array-elision-val-string.js",  # ???
+    "/test/language/expressions/assignment/dstr/array-empty-val-string.js",  # ???
+    "/test/language/expressions/assignment/dstr/array-rest-iter-thrw-close-err.js",  # IteratorClose
+    "/test/language/expressions/assignment/dstr/array-rest-iter-thrw-close.js",  # IteratorClose
+    "/test/language/expressions/assignment/dstr/array-rest-lref-err.js",  # IteratorClose
+    "/test/language/expressions/assignment/dstr/array-rest-nested-array-invalid.js",  # ???
+    "/test/language/expressions/assignment/dstr/array-rest-nested-array-iter-thrw-close-skip.js",  # IteratorDestructuringAssignmentEvaluation
+    "/test/language/expressions/assignment/dstr/array-rest-nested-array-null.js",  # IteratorDestructuringAssignmentEvaluation
+    "/test/language/expressions/assignment/dstr/array-rest-nested-array-undefined-hole.js",  # IteratorDestructuringAssignmentEvaluation
+    "/test/language/expressions/assignment/dstr/array-rest-nested-array-undefined-own.js",  # IteratorDestructuringAssignmentEvaluation
+    "/test/language/expressions/assignment/dstr/array-rest-nested-array-undefined.js",  # IteratorDestructuringAssignmentEvaluation
+    "/test/language/expressions/assignment/dstr/array-rest-nested-array-yield-ident-valid.js",  # IteratorDestructuringAssignmentEvaluation
+    "/test/language/expressions/assignment/dstr/array-rest-nested-array.js",  # ???
+    "/test/language/expressions/assignment/dstr/array-rest-nested-obj-invalid.js",  # ???
+    "/test/language/expressions/assignment/dstr/array-rest-nested-obj-null.js",  # IteratorDestructuringAssignmentEvaluation
+    "/test/language/expressions/assignment/dstr/array-rest-nested-obj-undefined-hole.js",  # IteratorDestructuringAssignmentEvaluation
+    "/test/language/expressions/assignment/dstr/array-rest-nested-obj-undefined-own.js",  # IteratorDestructuringAssignmentEvaluation
+    "/test/language/expressions/assignment/dstr/array-rest-nested-obj-undefined.js",  # IteratorDestructuringAssignmentEvaluation
+    "/test/language/expressions/assignment/dstr/array-rest-nested-obj-yield-ident-valid.js",  # ???
+    "/test/language/expressions/assignment/dstr/array-rest-nested-obj.js",  # IteratorDestructuringAssignmentEvaluation
+    "/test/language/expressions/assignment/dstr/obj-id-init-simple-strict.js",  # ???
+    "/test/language/expressions/assignment/dstr/obj-id-simple-strict.js",  # ???
+    "/test/language/expressions/assignment/dstr/obj-prop-nested-array-invalid.js",  # ???
+    "/test/language/expressions/assignment/dstr/obj-prop-nested-obj-invalid.js",  # ???
+    "/test/language/expressions/assignment/dstr/obj-prop-nested-obj-yield-ident-valid.js",  # ???
+    "/test/language/expressions/assignment/fn-name-lhs-cover.js",  # Wants default anonymous function naming
+    "/test/language/expressions/assignment/fn-name-lhs-member.js",  # Wants default anonymous function naming
 )
 
 

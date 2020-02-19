@@ -8039,6 +8039,12 @@ class ParseNode2:
     def DefineMethod(self, *args, **kwargs):
         return self.defer_target().DefineMethod(*args, **kwargs)
 
+    def IsIdentifierRef(self, *args, **kwargs):
+        return self.defer_target().IsIdentifierRef(*args, **kwargs)
+
+    def PropertyDestructuringAssignmentEvaluation(self, *args, **kwargs):
+        return self.defer_target().PropertyDestructuringAssignmentEvaluation(*args, **kwargs)
+
     def evaluate(self, *args, **kwargs):
         # Subclasses need to override this, or we'll throw an AttributeError when we hit a terminal.
         rval = self.defer_target().evaluate(*args, **kwargs)
@@ -9034,7 +9040,7 @@ class P2_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(P2_
 
 
 @lru_cache
-def parse_PrimaryExpression(ctx, lexer, pos, strict, Yield, Await):
+def parse_PrimaryExpression(ctx, lexer, pos, strict, cin_is_ok, Yield, Await):
     # 12.2 Primary Expression
     # Syntax
     #   PrimaryExpression[Yield, Await] :
@@ -9064,7 +9070,7 @@ def parse_PrimaryExpression(ctx, lexer, pos, strict, Yield, Await):
     al = parse_ArrayLiteral(ctx, lexer, pos, strict, Yield, Await)
     if al:
         return P2_PrimaryExpression_ArrayLiteral(ctx, strict, [al])
-    ol = parse_ObjectLiteral(ctx, lexer, pos, strict, Yield, Await)
+    ol = parse_ObjectLiteral(ctx, lexer, pos, strict, cin_is_ok, Yield, Await)
     if ol:
         return P2_PrimaryExpression_ObjectLiteral(ctx, strict, [ol])
     fe = parse_FunctionExpression(ctx, lexer, pos, strict)
@@ -10024,7 +10030,7 @@ class P2_ObjectLiteral_LCURLY_PropertyDefinitionList_COMMA_RCURLY(
 
 
 @lru_cache
-def parse_ObjectLiteral(ctx, lexer, pos, strict, Yield, Await):
+def parse_ObjectLiteral(ctx, lexer, pos, strict, cin_is_ok, Yield, Await):
     # 12.2.6 Object Initializer
     # Syntax
     #   ObjectLiteral[Yield, Await] :
@@ -10034,7 +10040,7 @@ def parse_ObjectLiteral(ctx, lexer, pos, strict, Yield, Await):
     #
     lcurly = lexer.token_if(pos, "{")
     if lcurly:
-        pdl = parse_PropertyDefinitionList(ctx, lexer, lcurly.span.after, strict, Yield, Await)
+        pdl = parse_PropertyDefinitionList(ctx, lexer, lcurly.span.after, strict, cin_is_ok, Yield, Await)
         if pdl:
             comma = lexer.token_if(pdl.after, ",")
             if comma:
@@ -10114,7 +10120,7 @@ class P2_PropertyDefinitionList_PropertyDefinitionList_COMMA_PropertyDefinition(
 
 
 @lru_cache
-def parse_PropertyDefinitionList(ctx, lexer, pos, strict, Yield, Await):
+def parse_PropertyDefinitionList(ctx, lexer, pos, strict, cin_is_ok, Yield, Await):
     # 12.2.6 Object Initializer
     # Syntax
     #   PropertyDefinitionList[Yield, Await] :
@@ -10128,7 +10134,9 @@ def parse_PropertyDefinitionList(ctx, lexer, pos, strict, Yield, Await):
                 return previous
         else:
             comma = None
-        pd = parse_PropertyDefinition(ctx, lexer, comma.span.after if comma else pos, strict, Yield, Await)
+        pd = parse_PropertyDefinition(
+            ctx, lexer, comma.span.after if comma else pos, strict, cin_is_ok, Yield, Await
+        )
         if pd:
             if previous is None:
                 return lambda: parse(pd.after, P2_PropertyDefinitionList_PropertyDefinition(ctx, strict, [pd]))
@@ -10189,6 +10197,10 @@ class P2_PropertyDefinition_IdentifierReference(P2_PropertyDefinition):
 
 
 class P2_PropertyDefinition_CoverInitializedName(P2_PropertyDefinition):
+    def __init__(self, context, strict, children, CIN_is_ok):
+        super().__init__(context, strict, children)
+        self.CIN_is_ok = CIN_is_ok
+
     # PropertyDefinition : CoverInitializedName
     @property
     def CoverInitializedName(self):
@@ -10213,7 +10225,9 @@ class P2_PropertyDefinition_CoverInitializedName(P2_PropertyDefinition):
         #
         # @@@ Need to add some kind of guard like the note says. Not sure how to do that. Maybe. Or maybe since covering
         # generally happens *after* early errors, it doesn't matter?
-        return [self.CreateSyntaxError("Production not allowed in object initializers")]
+        if self.CIN_is_ok:
+            return []
+        return [self.CreateSyntaxError(f"«{self.matched_source()}» not allowed in object initializers")]
 
 
 class P2_PropertyDefinition_PropertyName_COLON_AssignmentExpression(P2_PropertyDefinition):
@@ -10312,7 +10326,7 @@ class P2_PropertyDefinition_DOTDOTDOT_AssignmentExpression(P2_PropertyDefinition
 
 
 @lru_cache
-def parse_PropertyDefinition(ctx, lexer, pos, strict, Yield, Await):
+def parse_PropertyDefinition(ctx, lexer, pos, strict, cin_is_ok, Yield, Await):
     # 12.2.6 Object Initializer
     # Syntax
     #   PropertyDefinition[Yield, Await] :
@@ -10325,7 +10339,7 @@ def parse_PropertyDefinition(ctx, lexer, pos, strict, Yield, Await):
     # Note: Have to try IdentifierReference after all the other ones, since it starts off the same as most of the others.
     cin = parse_CoverInitializedName(ctx, lexer, pos, strict, Yield, Await)
     if cin:
-        return P2_PropertyDefinition_CoverInitializedName(ctx, strict, [cin])
+        return P2_PropertyDefinition_CoverInitializedName(ctx, strict, [cin], cin_is_ok)
     pn = parse_PropertyName(ctx, lexer, pos, strict, Yield, Await)
     if pn:
         colon = lexer.token_if(pn.after, ":")
@@ -11458,7 +11472,7 @@ class P2_MemberExpression_NEW_MemberExpression_Arguments(P2_MemberExpression_bas
 
 
 @lru_cache
-def parse_MemberExpression(ctx, lexer, pos, strict, Yield, Await):
+def parse_MemberExpression(ctx, lexer, pos, strict, cin_is_ok, Yield, Await):
     # 12.3 Left-Hand-Side Expressions
     # Syntax
     #   MemberExpression[Yield, Await] :
@@ -11472,7 +11486,7 @@ def parse_MemberExpression(ctx, lexer, pos, strict, Yield, Await):
     #
     def parse(pos, previous=None):
         if previous is None:
-            pe = parse_PrimaryExpression(ctx, lexer, pos, strict, Yield, Await)
+            pe = parse_PrimaryExpression(ctx, lexer, pos, strict, cin_is_ok, Yield, Await)
             if pe:
                 return lambda: parse(pe.after, P2_MemberExpression_PrimaryExpression(ctx, strict, [pe]))
             sp = parse_SuperProperty(ctx, lexer, pos, strict, Yield, Await)
@@ -11483,7 +11497,7 @@ def parse_MemberExpression(ctx, lexer, pos, strict, Yield, Await):
                 return lambda: parse(mp.after, P2_MemberExpression_MetaProperty(ctx, strict, [mp]))
             new_tok = lexer.id_if(pos, "new")
             if new_tok:
-                me = parse_MemberExpression(ctx, lexer, new_tok.span.after, strict, Yield, Await)
+                me = parse_MemberExpression(ctx, lexer, new_tok.span.after, strict, False, Yield, Await)
                 if me:
                     args = parse_Arguments(ctx, lexer, me.after, strict, Yield, Await)
                     if args:
@@ -11748,19 +11762,19 @@ class P2_NewExpression_NEW_NewExpression(P2_NewExpression):
 
 
 @lru_cache
-def parse_NewExpression(ctx, lexer, pos, strict, Yield, Await):
+def parse_NewExpression(ctx, lexer, pos, strict, cin_is_ok, Yield, Await):
     # 12.3 Left-Hand-Side Expressions
     # Syntax
     #   NewExpression[Yield, Await] :
     #       MemberExpression[?Yield, ?Await]
     #       new NewExpression[?Yield, ?Await]
     #
-    me = parse_MemberExpression(ctx, lexer, pos, strict, Yield, Await)
+    me = parse_MemberExpression(ctx, lexer, pos, strict, cin_is_ok, Yield, Await)
     if me:
         return P2_NewExpression_MemberExpression(ctx, strict, [me])
     new_tok = lexer.id_if(pos, "new")
     if new_tok:
-        ne = parse_NewExpression(ctx, lexer, new_tok.span.after, strict, Yield, Await)
+        ne = parse_NewExpression(ctx, lexer, new_tok.span.after, strict, False, Yield, Await)
         if ne:
             return P2_NewExpression_NEW_NewExpression(ctx, strict, [new_tok, ne])
     return None
@@ -11824,7 +11838,7 @@ class P2_CallExpression_CoverCallExpressionAndAsyncArrowHead(P2_CallExpression):
     def CallMemberExpression(self):
         if not hasattr(self, "_call_member_expression"):
             self._call_member_expression = self.CoverCallExpressionAndAsyncArrowHead.covering(
-                parse_CallMemberExpression, self.strict, self.Yield, self.Await
+                parse_CallMemberExpression, self.strict, False, self.Yield, self.Await
             )
         return self._call_member_expression
 
@@ -12476,7 +12490,7 @@ class P2_LeftHandSideExpression_CallExpression(P2_LeftHandSideExpression):
 
 
 @lru_cache
-def parse_LeftHandSideExpression(ctx, lexer, pos, strict, Yield, Await):
+def parse_LeftHandSideExpression(ctx, lexer, pos, strict, cin_is_ok, Yield, Await):
     # 12.3 Left-Hand-Side Expressions
     # Syntax
     #   LeftHandSideExpression[Yield, Await] :
@@ -12486,7 +12500,7 @@ def parse_LeftHandSideExpression(ctx, lexer, pos, strict, Yield, Await):
     ce = parse_CallExpression(ctx, lexer, pos, strict, Yield, Await)
     if ce:
         return P2_LeftHandSideExpression_CallExpression(ctx, strict, [ce], Yield, Await)
-    ne = parse_NewExpression(ctx, lexer, pos, strict, Yield, Await)
+    ne = parse_NewExpression(ctx, lexer, pos, strict, cin_is_ok, Yield, Await)
     if ne:
         return P2_LeftHandSideExpression_NewExpression(ctx, strict, [ne], Yield, Await)
     return None
@@ -12514,13 +12528,13 @@ class P2_CallMemberExpression_MemberExpression_Arguments(P2_CallMemberExpression
 
 
 @lru_cache
-def parse_CallMemberExpression(ctx, lexer, pos, strict, Yield, Await):
+def parse_CallMemberExpression(ctx, lexer, pos, strict, cin_is_ok, Yield, Await):
     # 12.3 Left-Hand-Side Expressions
     # Syntax
     #   CallMemberExpression[Yield, Await] :
     #       MemberExpression[?Yield, ?Await] Arguments[?Yield, ?Await]
     #
-    me = parse_MemberExpression(ctx, lexer, pos, strict, Yield, Await)
+    me = parse_MemberExpression(ctx, lexer, pos, strict, cin_is_ok, Yield, Await)
     if me:
         args = parse_Arguments(ctx, lexer, me.after, strict, Yield, Await)
         if args:
@@ -12760,7 +12774,7 @@ def parse_UpdateExpression(ctx, lexer, pos, strict, Yield, Await):
     #       ++ UnaryExpression[?Yield, ?Await]
     #       -- UnaryExpression[?Yield, ?Await]
     #
-    lhs = parse_LeftHandSideExpression(ctx, lexer, pos, strict, Yield, Await)
+    lhs = parse_LeftHandSideExpression(ctx, lexer, pos, strict, False, Yield, Await)
     if lhs:
         plusplus = lexer.token_if(lhs.after, "++", prior_newline_allowed=False)
         if plusplus:
@@ -15456,7 +15470,7 @@ class P2_AssignmentExpression_LeftHandSideExpression_EQ_AssignmentExpression(P2_
         if not (self.LeftHandSideExpression.Is("ObjectLiteral") or self.LeftHandSideExpression.Is("ArrayLiteral")):
             lref = self.LeftHandSideExpression.evaluate()
             if (
-                IsAnonymousFunctionDefinition(self.LeftHandSideExpression)
+                IsAnonymousFunctionDefinition(self.AssignmentExpression)
                 and self.LeftHandSideExpression.IsIdentifierRef()
             ):
                 rval = self.AssignmentExpression.NamedEvaluation(GetReferencedName(lref))
@@ -15565,7 +15579,7 @@ def parse_AssignmentExpression(context, lexer, pos, strict, In, Yield, Await):
     #       AsyncArrowFunction[?In, ?Yield, ?Await]
     #       LeftHandSideExpression[?Yield, ?Await] = AssignmentExpression[?In, ?Yield, ?Await]
     #       LeftHandSideExpression[?Yield, ?Await] AssignmentOperator AssignmentExpression[?In, ?Yield, ?Await]
-    lhs = parse_LeftHandSideExpression(context, lexer, pos, strict, Yield, Await)
+    lhs = parse_LeftHandSideExpression(context, lexer, pos, strict, True, Yield, Await)
     if lhs:
         # AssignmentOperator: one of  *= /= %= += -= <<= >>= >>>= &= ^= |= **=
         op = lexer.token(lhs.after, goal=lexer.InputElementDiv)
@@ -16393,6 +16407,11 @@ class P2_AssignmentElement(ParseNode2):
 
 
 class P2_AssignmentElement_DestructuringAssignmentTarget_Initializer(P2_AssignmentElement):
+    def __init__(self, ctx, strict, children, Yield, Await):
+        super().__init__(ctx, strict, children)
+        self.Yield = Yield
+        self.Await = Await
+
     @property
     def DestructuringAssignmentTarget(self):
         return self.children[0]
@@ -16452,7 +16471,9 @@ class P2_AssignmentElement_DestructuringAssignmentTarget_Initializer(P2_Assignme
         else:
             v = value
         if is_structured_literal:
-            nestedAssignmentPattern = self.DestructuringAssignmentTarget.covering("AssignmentPattern")
+            nestedAssignmentPattern = self.DestructuringAssignmentTarget.covering(
+                parse_AssignmentPattern, self.strict, self.Yield, self.Await
+            )
             return nestedAssignmentPattern.DestructuringAssignmentEvaluation(v)
         if (
             self.Initializer
@@ -16498,7 +16519,9 @@ class P2_AssignmentElement_DestructuringAssignmentTarget_Initializer(P2_Assignme
         else:
             rhsValue = v
         if is_structured_literal:
-            assignmentPattern = self.DestructuringAssignmentTarget.covering("AssignmentPattern")
+            assignmentPattern = self.DestructuringAssignmentTarget.covering(
+                parse_AssignmentPattern, self.strict, self.Yield, self.Await
+            )
             return assignmentPattern.DestructuringAssignmentEvaluation(rhsValue)
         if (
             self.Initializer
@@ -16528,8 +16551,10 @@ def parse_AssignmentElement(context, lexer, pos, strict, Yield, Await):
     if dat:
         init = parse_Initializer(context, lexer, dat.after, strict, True, Yield, Await)
         if init:
-            return P2_AssignmentElement_DestructuringAssignmentTarget_Initializer(context, strict, [dat, init])
-        return P2_AssignmentElement_DestructuringAssignmentTarget(context, strict, [dat])
+            return P2_AssignmentElement_DestructuringAssignmentTarget_Initializer(
+                context, strict, [dat, init], Yield, Await
+            )
+        return P2_AssignmentElement_DestructuringAssignmentTarget(context, strict, [dat], Yield, Await)
     return None
 
 
@@ -16586,8 +16611,8 @@ class P2_AssignmentRestElement_DestructuringAssignmentTarget(P2_AssignmentRestEl
                 next_step = IteratorStep(iteratorRecord)
                 if not next_step:
                     iteratorRecord.Done = True
-                else:
-                    nextValue = IteratorValue(next_step)
+                    break
+                nextValue = IteratorValue(next_step)
             except (ESError, ESAbrupt):
                 iteratorRecord.Done = True
                 raise
@@ -16596,7 +16621,9 @@ class P2_AssignmentRestElement_DestructuringAssignmentTarget(P2_AssignmentRestEl
             n += 1
         if not is_structured_literal:
             return PutValue(lref, A)
-        nestedAssignmentPattern = self.DestructuringAssignmentTarget.covering("AssignmentPattern")
+        nestedAssignmentPattern = self.DestructuringAssignmentTarget.covering(
+            parse_AssignmentPattern, self.strict, self.Yield, self.Await
+        )
         return nestedAssignmentPattern.DestructuringAssignmentEvaluation(A)
 
 
@@ -16659,7 +16686,7 @@ def parse_DestructuringAssignmentTarget(context, lexer, pos, strict, Yield, Awai
     # Syntax
     #   DestructuringAssignmentTarget[Yield, Await] :
     #       LeftHandSideExpression[?Yield, ?Await]
-    lhs = parse_LeftHandSideExpression(context, lexer, pos, strict, Yield, Await)
+    lhs = parse_LeftHandSideExpression(context, lexer, pos, strict, False, Yield, Await)
     if lhs:
         return P2_DestructuringAssignmentTarget_LeftHandSideExpression(context, strict, [lhs])
     return None
@@ -21678,7 +21705,7 @@ def parse_IterationStatement(context, lexer, pos, strict, Yield, Await, Return):
                 lookahead
                 and (((lookahead.type == "IDENTIFIER") and (lookahead.value == "let")) or (lookahead.type == "["))
             ):
-                lhs = parse_LeftHandSideExpression(context, lexer, lp3.span.after, strict, Yield, Await)
+                lhs = parse_LeftHandSideExpression(context, lexer, lp3.span.after, strict, False, Yield, Await)
                 if lhs:
                     in_token = lexer.id_if(lhs.after, "in")
                     if in_token:
@@ -21735,7 +21762,7 @@ def parse_IterationStatement(context, lexer, pos, strict, Yield, Await, Return):
             # LHS OF Expression style
             lookahead = lexer.token(lp3.span.after)
             if not (lookahead and lookahead.type == "IDENTIFIER" and lookahead.value == "let"):
-                lhs_of = parse_LeftHandSideExpression(context, lexer, lp3.span.after, strict, Yield, Await)
+                lhs_of = parse_LeftHandSideExpression(context, lexer, lp3.span.after, strict, False, Yield, Await)
                 if lhs_of:
                     of_lhs = lexer.id_if(lhs_of.after, "of")
                     if of_lhs:
@@ -21804,7 +21831,9 @@ def parse_IterationStatement(context, lexer, pos, strict, Yield, Await, Return):
                     if not (
                         lookahead_await and lookahead_await.type == "IDENTIFIER" and lookahead_await.value == "let"
                     ):
-                        lhs_await = parse_LeftHandSideExpression(context, lexer, await_paren, strict, Yield, True)
+                        lhs_await = parse_LeftHandSideExpression(
+                            context, lexer, await_paren, strict, False, Yield, True
+                        )
                         if lhs_await:
                             of_lhs_await = lexer.id_if(lhs_await.after, "of")
                             if of_lhs_await:
@@ -28030,7 +28059,7 @@ def parse_ClassHeritage(context, lexer, pos, _, Yield, Await):
     #       extends LeftHandSideExpression[?Yield, ?Await]
     e = lexer.id_if(pos, "extends")
     if e:
-        lhs = parse_LeftHandSideExpression(context, lexer, e.span.after, True, Yield, Await)
+        lhs = parse_LeftHandSideExpression(context, lexer, e.span.after, True, False, Yield, Await)
         if lhs:
             return P2_ClassHeritage_EXTENDS_LeftHandSideExpression(context, [e, lhs])
     return None
@@ -28429,7 +28458,7 @@ def parse_CoverCallExpressionAndAsyncArrowHead(context, lexer, pos, strict, Yiel
     # Syntax
     #   CoverCallExpressionAndAsyncArrowHead[Yield, Await] :
     #       MemberExpression[?Yield, ?Await] Arguments[?Yield, ?Await]
-    me = parse_MemberExpression(context, lexer, pos, strict, Yield, Await)
+    me = parse_MemberExpression(context, lexer, pos, strict, True, Yield, Await)
     if me:
         args = parse_Arguments(context, lexer, me.after, strict, Yield, Await)
         if args:
