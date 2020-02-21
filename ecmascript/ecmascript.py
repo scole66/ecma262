@@ -35456,6 +35456,7 @@ def CreateArrayPrototype(realm):
             ("join", ArrayPrototype_join, None),
             ("map", ArrayPrototype_map, None),
             ("push", ArrayPrototype_push, None),
+            ("reduce", ArrayPrototype_reduce, None),
             ("slice", ArrayPrototype_slice, None),
             ("toString", ArrayPrototype_toString, 0),
             ("values", ArrayPrototype_values, 0),
@@ -35643,6 +35644,90 @@ def ArrayPrototype_push(this_value, new_target, *items):
 
 ArrayPrototype_push.length = 1
 ArrayPrototype_push.name = "push"
+
+# 22.1.3.21 Array.prototype.reduce ( callbackfn [ , initialValue ] )
+def ArrayPrototype_reduce(this_value, new_target, callbackfn=None, initialValue=..., *_):
+    # NOTE 1    | callbackfn should be a function that takes four arguments. reduce calls the callback, as a
+    #           | function, once for each element after the first element present in the array, in ascending order.
+    #           |
+    #           | callbackfn is called with four arguments: the previousValue (value from the previous call to
+    #           | callbackfn), the currentValue (value of the current element), the currentIndex, and the object
+    #           | being traversed. The first time that callback is called, the previousValue and currentValue can be
+    #           | one of two values. If an initialValue was supplied in the call to reduce, then previousValue will
+    #           | be equal to initialValue and currentValue will be equal to the first value in the array. If no
+    #           | initialValue was supplied, then previousValue will be equal to the first value in the array and
+    #           | currentValue will be equal to the second. It is a TypeError if the array contains no elements and
+    #           | initialValue is not provided.
+    #           |
+    #           | reduce does not directly mutate the object on which it is called but the object may be mutated by
+    #           | the calls to callbackfn.
+    #           |
+    #           | The range of elements processed by reduce is set before the first call to callbackfn. Elements
+    #           | that are appended to the array after the call to reduce begins will not be visited by callbackfn.
+    #           | If existing elements of the array are changed, their value as passed to callbackfn will be the
+    #           | value at the time reduce visits them; elements that are deleted after the call to reduce begins
+    #           | and before being visited are not visited.
+    #
+    # When the reduce method is called with one or two arguments, the following steps are taken:
+    #   1. Let O be ? ToObject(this value).
+    #   2. Let len be ? ToLength(? Get(O, "length")).
+    #   3. If IsCallable(callbackfn) is false, throw a TypeError exception.
+    #   4. If len is 0 and initialValue is not present, throw a TypeError exception.
+    #   5. Let k be 0.
+    #   6. Let accumulator be undefined.
+    #   7. If initialValue is present, then
+    #       a. Set accumulator to initialValue.
+    #   8. Else initialValue is not present,
+    #       a. Let kPresent be false.
+    #       b. Repeat, while kPresent is false and k < len
+    #           i. Let Pk be ! ToString(k).
+    #           ii. Set kPresent to ? HasProperty(O, Pk).
+    #           iii. If kPresent is true, then
+    #               1. Set accumulator to ? Get(O, Pk).
+    #           iv. Increase k by 1.
+    #       c. If kPresent is false, throw a TypeError exception.
+    #   9. Repeat, while k < len
+    #       a. Let Pk be ! ToString(k).
+    #       b. Let kPresent be ? HasProperty(O, Pk).
+    #       c. If kPresent is true, then
+    #           i. Let kValue be ? Get(O, Pk).
+    #           ii. Set accumulator to ? Call(callbackfn, undefined, « accumulator, kValue, k, O »).
+    #       d. Increase k by 1.
+    #   10. Return accumulator.
+    O = ToObject(this_value)
+    length = ToLength(Get(O, "length"))
+    if not IsCallable(callbackfn):
+        raise ESTypeError(f"Array.prototype.reduce: {callbackfn!r} must be a function")
+    if length == 0 and initialValue == ...:
+        raise ESTypeError(f"Array.prototype.reduce: {O!r} has no items and initialValue not specified")
+    k = 0
+    accumulator = None
+    if initialValue != ...:
+        accumulator = initialValue
+    else:
+        kPresent = False
+        while not kPresent and k < length:
+            Pk = ToString(k)
+            kPresent = HasProperty(O, Pk)
+            if kPresent:
+                accumulator = Get(O, Pk)
+            k += 1
+        if not kPresent:
+            raise ESTypeError(f"Array.prototype.reduce: {O!r} has no items and initialValue not specified")
+    while k < length:
+        Pk = ToString(k)
+        kPresent = HasProperty(O, Pk)
+        if kPresent:
+            kValue = Get(O, Pk)
+            accumulator = Call(callbackfn, None, [accumulator, kValue, k, O])
+        k += 1
+    return accumulator
+    # NOTE 2    | The reduce function is intentionally generic; it does not require that its this value be an Array
+    #           | object. Therefore it can be transferred to other kinds of objects for use as a method.
+
+
+ArrayPrototype_reduce.name = "reduce"
+ArrayPrototype_reduce.length = 1
 
 # 22.1.3.25 Array.prototype.slice ( start, end )
 def ArrayPrototype_slice(this_value, new_target, start=None, end=None, *_):
