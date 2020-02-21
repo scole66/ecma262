@@ -37727,7 +37727,10 @@ def IsSharedArrayBuffer(obj):
 
 def CreateJSONObject(realm):
     obj = ObjectCreate(realm.intrinsics["%ObjectPrototype%"])
-    BindBuiltinFunctions(realm, obj, [("parse", JSON_parse, None),])
+    BindBuiltinFunctions(realm, obj, [("parse", JSON_parse, None), ("stringify", JSON_stringify, None)])
+    DefinePropertyOrThrow(
+        obj, wks_to_string_tag, PropertyDescriptor(value="JSON", writable=False, enumerable=False, configurable=True)
+    )
     return obj
 
 
@@ -37850,6 +37853,430 @@ def InternalizeJSONProperty(holder, name, reviver):
                 else:
                     CreateDataProperty(val, P, newElement)
     return Call(reviver, holder, [name, val])
+
+
+# 24.5.2 JSON.stringify ( value [ , replacer [ , space ] ] )
+def JSON_stringify(this_value, new_target, value=None, replacer=None, space=None, *_):
+    # The stringify function returns a String in UTF-16 encoded JSON format representing an ECMAScript value, or
+    # undefined. It can take three parameters. The value parameter is an ECMAScript value, which is usually an
+    # object or array, although it can also be a String, Boolean, Number or null. The optional replacer parameter is
+    # either a function that alters the way objects and arrays are stringified, or an array of Strings and Numbers
+    # that acts as an inclusion list for selecting the object properties that will be stringified. The optional
+    # space parameter is a String or Number that allows the result to have white space injected into it to improve
+    # human readability.
+    #
+    # These are the steps in stringifying an object:
+    #
+    #   9. Let wrapper be ObjectCreate(%ObjectPrototype%).
+    #   10. Let status be CreateDataProperty(wrapper, the empty String, value).
+    #   11. Assert: status is true.
+    #   12. Return ? SerializeJSONProperty(the empty String, wrapper).
+    #
+    # The "length" property of the stringify function is 3.
+    #
+    # NOTE 1    | JSON structures are allowed to be nested to any depth, but they must be acyclic. If value is or
+    #           | contains a cyclic structure, then the stringify function must throw a TypeError exception. This is
+    #           | an example of a value that cannot be stringified:
+    #           |
+    #           |   a = [];
+    #           |   a[0] = a;
+    #           |   my_text = JSON.stringify(a); // This must throw a TypeError.
+    #
+    # NOTE 2    | Symbolic primitive values are rendered as follows:
+    #           |
+    #           |   * The null value is rendered in JSON text as the String null.
+    #           |   * The undefined value is not rendered.
+    #           |   * The true value is rendered in JSON text as the String true.
+    #           |   * The false value is rendered in JSON text as the String false.
+    #
+    # NOTE 3    | String values are wrapped in QUOTATION MARK (") code units. The code units " and \ are escaped
+    #           | with \ prefixes. Control characters code units are replaced with escape sequences \uHHHH, or with
+    #           | the shorter forms, \b (BACKSPACE), \f (FORM FEED), \n (LINE FEED), \r (CARRIAGE RETURN), \t
+    #           | (CHARACTER TABULATION).
+    #
+    # NOTE 4    | Finite numbers are stringified as if by calling ToString(number). NaN and Infinity regardless of
+    #           | sign are represented as the String null.
+    #
+    # NOTE 5    | Values that do not have a JSON representation (such as undefined and functions) do not produce a
+    #           | String. Instead they produce the undefined value. In arrays these values are represented as the
+    #           | String null. In objects an unrepresentable value causes the property to be excluded from
+    #           | stringification.
+    #
+    # NOTE 6    | An object is rendered as U+007B (LEFT CURLY BRACKET) followed by zero or more properties,
+    #           | separated with a U+002C (COMMA), closed with a U+007D (RIGHT CURLY BRACKET). A property is a
+    #           | quoted String representing the key or property name, a U+003A (COLON), and then the stringified
+    #           | property value. An array is rendered as an opening U+005B (LEFT SQUARE BRACKET followed by zero or
+    #           | more values, separated with a U+002C (COMMA), closed with a U+005D (RIGHT SQUARE BRACKET).
+    #
+    serializer = JSONSerializer(replacer, space)
+    wrapper = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics["%ObjectPrototype%"])
+    status = CreateDataProperty(wrapper, "", value)
+    assert status
+    return serializer.SerializeJSONProperty("", wrapper)
+
+
+JSON_stringify.length = 3
+JSON_stringify.name = "stringify"
+
+
+class JSONSerializer:
+    def __init__(self, replacer, space):
+        #   1. Let stack be a new empty List.
+        #   2. Let indent be the empty String.
+        #   3. Let PropertyList and ReplacerFunction be undefined.
+        #   4. If Type(replacer) is Object, then
+        #       a. If IsCallable(replacer) is true, then
+        #           i. Set ReplacerFunction to replacer.
+        #       b. Else,
+        #           i. Let isArray be ? IsArray(replacer).
+        #           ii. If isArray is true, then
+        #               1. Set PropertyList to a new empty List.
+        #               2. Let len be ? ToLength(? Get(replacer, "length")).
+        #               3. Let k be 0.
+        #               4. Repeat, while k < len,
+        #                   a. Let v be ? Get(replacer, ! ToString(k)).
+        #                   b. Let item be undefined.
+        #                   c. If Type(v) is String, set item to v.
+        #                   d. Else if Type(v) is Number, set item to ! ToString(v).
+        #                   e. Else if Type(v) is Object, then
+        #                       i. If v has a [[StringData]] or [[NumberData]] internal slot, set item to ? ToString(v).
+        #                   f. If item is not undefined and item is not currently an element of PropertyList, then
+        #                       i. Append item to the end of PropertyList.
+        #                   g. Increase k by 1.
+        #   5. If Type(space) is Object, then
+        #       a. If space has a [[NumberData]] internal slot, then
+        #           i. Set space to ? ToNumber(space).
+        #       b. Else if space has a [[StringData]] internal slot, then
+        #           i. Set space to ? ToString(space).
+        #   6. If Type(space) is Number, then
+        #       a. Set space to min(10, ! ToInteger(space)).
+        #       b. Let gap be the String value containing space occurrences of the code unit 0x0020 (SPACE). This will
+        #          be the empty String if space is less than 1.
+        #   7. Else if Type(space) is String, then
+        #       a. If the length of space is 10 or less, let gap be space; otherwise let gap be the String value
+        #          consisting of the first 10 code units of space.
+        #   8. Else,
+        #       a. Let gap be the empty String.
+        self.stack = []
+        self.indent = ""
+        self.PropertyList = None
+        self.ReplacerFunction = None
+        if isObject(replacer):
+            if IsCallable(replacer):
+                self.ReplacerFunction = replacer
+            else:
+                isArray = IsArray(replacer)
+                if isArray:
+                    self.PropertyList = []
+                    length = ToLength(Get(replacer, "length"))
+                    k = 0
+                    while k < length:
+                        v = Get(replacer, ToString(k))
+                        item = None
+                        if isString(v):
+                            item = v
+                        elif isNumber(v):
+                            item = ToString(v)
+                        elif isObject(v):
+                            if any(hasattr(v, fieldname) for fieldname in ("StringData", "NumberData")):
+                                item = ToString(v)
+                        if item is not None and item not in self.PropertyList:
+                            self.PropertyList.append(item)
+                        k += 1
+        if isObject(space):
+            if hasattr(space, "NumberData"):
+                space = ToNumber(space)
+            elif hasattr(space, "StringData"):
+                space = ToString(space)
+        if isNumber(space):
+            space = min(10, ToInteger(space))
+            self.gap = "" if space <= 0 else " " * int(space)
+        elif isString(space):
+            self.gap = space[:10]
+        else:
+            self.gap = ""
+
+    # 24.5.2.1 Runtime Semantics: SerializeJSONProperty ( key, holder )
+    def SerializeJSONProperty(self, key, holder):
+        # The abstract operation SerializeJSONProperty with arguments key, and holder has access to ReplacerFunction
+        # from the invocation of the stringify method. Its algorithm is as follows:
+        #
+        #   1. Let value be ? Get(holder, key).
+        #   2. If Type(value) is Object, then
+        #       a. Let toJSON be ? Get(value, "toJSON").
+        #       b. If IsCallable(toJSON) is true, then
+        #           i. Set value to ? Call(toJSON, value, « key »).
+        #   3. If ReplacerFunction is not undefined, then
+        #       a. Set value to ? Call(ReplacerFunction, holder, « key, value »).
+        #   4. If Type(value) is Object, then
+        #       a. If value has a [[NumberData]] internal slot, then
+        #           i. Set value to ? ToNumber(value).
+        #       b. Else if value has a [[StringData]] internal slot, then
+        #           i. Set value to ? ToString(value).
+        #       c. Else if value has a [[BooleanData]] internal slot, then
+        #           i. Set value to value.[[BooleanData]].
+        #   5. If value is null, return "null".
+        #   6. If value is true, return "true".
+        #   7. If value is false, return "false".
+        #   8. If Type(value) is String, return QuoteJSONString(value).
+        #   9. If Type(value) is Number, then
+        #       a. If value is finite, return ! ToString(value).
+        #       b. Return "null".
+        #   10. If Type(value) is Object and IsCallable(value) is false, then
+        #       a. Let isArray be ? IsArray(value).
+        #       b. If isArray is true, return ? SerializeJSONArray(value).
+        #       c. Return ? SerializeJSONObject(value).
+        #   11. Return undefined.
+        value = Get(holder, key)
+        if isObject(value):
+            toJSON = Get(value, "toJSON")
+            if IsCallable(toJSON):
+                value = Call(toJSON, value, [key])
+        if self.ReplacerFunction is not None:
+            value = Call(self.ReplacerFunction, holder, [key, value])
+        if isObject(value):
+            if hasattr(value, "NumberData"):
+                value = ToNumber(value)
+            elif hasattr(value, "StringData"):
+                value = ToString(value)
+            elif hasattr(value, "BooleanData"):
+                value = value.BooleanData
+        if isNull(value):
+            return "null"
+        if value is True:
+            return "true"
+        if value is False:
+            return "false"
+        if isString(value):
+            return self.QuoteJSONString(value)
+        if isNumber(value):
+            if math.isfinite(value):
+                return ToString(value)
+            return "null"
+        if isObject(value) and not IsCallable(value):
+            isArray = IsArray(value)
+            if isArray:
+                return self.SerializeJSONArray(value)
+            return self.SerializeJSONObject(value)
+        return None
+
+    # 24.5.2.2 Runtime Semantics: QuoteJSONString ( value )
+    @classmethod
+    def QuoteJSONString(cls, value):
+        # The abstract operation QuoteJSONString with argument value wraps a String value in QUOTATION MARK code units
+        # and escapes certain other code units within it.
+        #
+        # This operation interprets a String value as a sequence of UTF-16 encoded code points, as described in 6.1.4.
+        #
+        #   1. Let product be the String value consisting solely of the code unit 0x0022 (QUOTATION MARK).
+        #   2. Let cpList be a List containing in order the code points of value when interpreted as a sequence of
+        #      UTF-16 encoded code points as described in 6.1.4.
+        #   3. For each code point C in cpList, do
+        #       a. If C is listed in the Code Point column of Table 62, then
+        #           i. Set product to the string-concatenation of product and the Escape Sequence for C as specified in
+        #              Table 62.
+        #       b. Else if C has a numeric value less than 0x0020 (SPACE), or if C has the same numeric value as a
+        #          leading surrogate or trailing surrogate, then
+        #           i. Let unit be the code unit whose numeric value is that of C.
+        #           ii. Set product to the string-concatenation of product and UnicodeEscape(unit).
+        #       c. Else,
+        #           i. Set product to the string-concatenation of product and the UTF16Encoding of C.
+        #   4. Set product to the string-concatenation of product and the code unit 0x0022 (QUOTATION MARK).
+        #   5. Return product.
+        #
+        # Table 62: JSON Single Character Escape Sequences
+        # +------------+------------------------+-----------------+
+        # | Code Point | Unicode Character Name | Escape Sequence |
+        # +------------+------------------------+-----------------+
+        # | U+0008     | BACKSPACE              | \b              |
+        # | U+0009     | CHARACTER TABULATION   | \t              |
+        # | U+000A     | LINE FEED (LF)         | \n              |
+        # | U+000C     | FORM FEED (FF)         | \f              |
+        # | U+000D     | CARRIAGE RETURN (CR)   | \r              |
+        # | U+0022     | QUOTATION MARK         | \"              |
+        # | U+005C     | REVERSE SOLIDUS        | \\              |
+        # +------------+------------------------+-----------------+
+        json_char_escape = {
+            "\u0008": "\\b",
+            "\u0009": "\\t",
+            "\u000a": "\\n",
+            "\u000c": "\\f",
+            "\u000d": "\\r",
+            "\u0022": '\\"',
+            "\u005c": "\\\\",
+        }
+
+        def quoted_js(ch):
+            if ch in json_char_escape:
+                return json_char_escape[ch]
+            if ord(ch) < 0x20 or 0xD800 <= ord(ch) <= 0xDFFF:
+                return cls.UnicodeEscape(ord(ch))
+            return utf_16_encode(ch)
+
+        cpList = utf_16_decode(value, throw=False)
+        return f'"{"".join(quoted_js(x) for x in cpList)}"'
+
+    # 24.5.2.3 Runtime Semantics: UnicodeEscape ( C )
+    @staticmethod
+    def UnicodeEscape(ch):
+        # The abstract operation UnicodeEscape takes a code unit argument C and represents it as a Unicode escape
+        # sequence.
+        #
+        #   1. Let n be the numeric value of C.
+        #   2. Assert: n ≤ 0xFFFF.
+        #   3. Return the string-concatenation of:
+        #       * the code unit 0x005C (REVERSE SOLIDUS)
+        #       * "u"
+        #       * the String representation of n, formatted as a four-digit lowercase hexadecimal number, padded to the
+        #         left with zeroes if necessary
+        assert ch <= 0xFFFF
+        return f"\\u{ch:04x}"
+
+    # 24.5.2.4 Runtime Semantics: SerializeJSONObject ( value )
+    def SerializeJSONObject(self, value):
+        # The abstract operation SerializeJSONObject with argument value serializes an object. It has access to the
+        # stack, indent, gap, and PropertyList values of the current invocation of the stringify method.
+        #
+        #   1. If stack contains value, throw a TypeError exception because the structure is cyclical.
+        #   2. Append value to stack.
+        #   3. Let stepback be indent.
+        #   4. Set indent to the string-concatenation of indent and gap.
+        #   5. If PropertyList is not undefined, then
+        #       a. Let K be PropertyList.
+        #   6. Else,
+        #       a. Let K be ? EnumerableOwnPropertyNames(value, "key").
+        #   7. Let partial be a new empty List.
+        #   8. For each element P of K, do
+        #       a. Let strP be ? SerializeJSONProperty(P, value).
+        #       b. If strP is not undefined, then
+        #           i. Let member be QuoteJSONString(P).
+        #           ii. Set member to the string-concatenation of member and ":".
+        #           iii. If gap is not the empty String, then
+        #               1. Set member to the string-concatenation of member and the code unit 0x0020 (SPACE).
+        #           iv. Set member to the string-concatenation of member and strP.
+        #           v. Append member to partial.
+        #   9. If partial is empty, then
+        #       a. Let final be "{}".
+        #   10. Else,
+        #       a. If gap is the empty String, then
+        #           i. Let properties be the String value formed by concatenating all the element Strings of partial
+        #              with each adjacent pair of Strings separated with the code unit 0x002C (COMMA). A comma is not
+        #              inserted either before the first String or after the last String.
+        #           ii. Let final be the string-concatenation of "{", properties, and "}".
+        #       b. Else gap is not the empty String,
+        #           i. Let separator be the string-concatenation of the code unit 0x002C (COMMA), the code unit 0x000A
+        #              (LINE FEED), and indent.
+        #           ii. Let properties be the String value formed by concatenating all the element Strings of partial
+        #               with each adjacent pair of Strings separated with separator. The separator String is not
+        #               inserted either before the first String or after the last String.
+        #           iii. Let final be the string-concatenation of "{", the code unit 0x000A (LINE FEED), indent,
+        #                properties, the code unit 0x000A (LINE FEED), stepback, and "}".
+        #   11. Remove the last element of stack.
+        #   12. Set indent to stepback.
+        #   13. Return final.
+        if value in self.stack:
+            raise ESTypeError("JSON.stringify: cyclical structure detected")
+        self.stack.append(value)
+        stepback = self.indent
+        self.indent = f"{self.indent}{self.gap}"
+        if self.PropertyList is not None:
+            K = self.PropertyList
+        else:
+            K = EnumerableOwnPropertyNames(value, "key")
+        partial = []
+        for P in K:
+            strP = self.SerializeJSONProperty(P, value)
+            if strP is not None:
+                member = self.QuoteJSONString(P)
+                member += ":"
+                if self.gap != "":
+                    member += " "
+                member += strP
+                partial.append(member)
+        if len(partial) == 0:
+            final = "{}"
+        else:
+            if self.gap == "":
+                final = "{" + ",".join(partial) + "}"
+            else:
+                separator = f",\n{self.indent}"
+                properties = separator.join(partial)
+                final = "{\n" + self.indent + properties + "\n" + stepback + "}"
+        self.stack.pop()
+        self.indent = stepback
+        return final
+
+    # 24.5.2.5 Runtime Semantics: SerializeJSONArray ( value )
+    def SerializeJSONArray(self, value):
+        # The abstract operation SerializeJSONArray with argument value serializes an array. It has access to the
+        # stack, indent, and gap values of the current invocation of the stringify method.
+        #
+        #   1. If stack contains value, throw a TypeError exception because the structure is cyclical.
+        #   2. Append value to stack.
+        #   3. Let stepback be indent.
+        #   4. Set indent to the string-concatenation of indent and gap.
+        #   5. Let partial be a new empty List.
+        #   6. Let len be ? ToLength(? Get(value, "length")).
+        #   7. Let index be 0.
+        #   8. Repeat, while index < len
+        #       a. Let strP be ? SerializeJSONProperty(! ToString(index), value).
+        #       b. If strP is undefined, then
+        #           i. Append "null" to partial.
+        #       c. Else,
+        #           i. Append strP to partial.
+        #       d. Increment index by 1.
+        #   9. If partial is empty, then
+        #       a. Let final be "[]".
+        #   10. Else,
+        #       a. If gap is the empty String, then
+        #           i. Let properties be the String value formed by concatenating all the element Strings of partial
+        #              with each adjacent pair of Strings separated with the code unit 0x002C (COMMA). A comma is
+        #              not inserted either before the first String or after the last String.
+        #           ii. Let final be the string-concatenation of "[", properties, and "]".
+        #       b. Else,
+        #           i. Let separator be the string-concatenation of the code unit 0x002C (COMMA), the code unit
+        #              0x000A (LINE FEED), and indent.
+        #           ii. Let properties be the String value formed by concatenating all the element Strings of
+        #               partial with each adjacent pair of Strings separated with separator. The separator String is
+        #               not inserted either before the first String or after the last String.
+        #           iii. Let final be the string-concatenation of "[", the code unit 0x000A (LINE FEED), indent,
+        #                properties, the code unit 0x000A (LINE FEED), stepback, and "]".
+        #   11. Remove the last element of stack.
+        #   12. Set indent to stepback.
+        #   13. Return final.
+        #
+        # NOTE  | The representation of arrays includes only the elements between zero and array.length - 1
+        #       | inclusive. Properties whose keys are not array indexes are excluded from the stringification. An
+        #       | array is stringified as an opening LEFT SQUARE BRACKET, elements separated by COMMA, and a closing
+        #       | RIGHT SQUARE BRACKET.
+        if value in self.stack:
+            raise ESTypeError("JSON.stringify: cyclical structure detected")
+        self.stack.append(value)
+        stepback = self.indent
+        self.indent = self.indent + self.gap
+        partial = []
+        length = ToLength(Get(value, "length"))
+        index = 0
+        while index < length:
+            strP = self.SerializeJSONProperty(ToString(index), value)
+            if strP is None:
+                partial.append("null")
+            else:
+                partial.append(strP)
+            index += 1
+        if len(partial) == 0:
+            final = "[]"
+        else:
+            if self.gap == "":
+                properties = ",".join(partial)
+                final = f"[{properties}]"
+            else:
+                separator = f",\n{self.indent}"
+                properties = separator.join(partial)
+                final = f"[\n{self.indent}{properties}\n{stepback}]"
+        self.stack.pop()
+        self.indent = stepback
+        return final
 
 
 """
