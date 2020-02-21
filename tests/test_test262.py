@@ -228,6 +228,7 @@ lang_tests = (
 passing = (
     # These paths have passed (or xfailed, or skipped) 100%. We shouldn't break them.
     "harness",
+    "built-ins/Array/prototype/reduce",
     "built-ins/Boolean",
     "built-ins/Error",
     "built-ins/Function",
@@ -404,6 +405,8 @@ xfail_tests = (
     "/test/harness/deepEqual-object.js",  # Needs Map
     "/test/harness/deepEqual-primitives.js",  # Needs Map
     "/test/harness/timer.js",  # Needs Promise
+    "/test/built-ins/Array/prototype/reduce/15.4.4.21-9-c-ii-33.js",  # Needs JSON object
+    "/test/built-ins/Array/prototype/reduce/15.4.4.21-1-13.js",  # Needs JSON object
     "/test/built-ins/Function/prototype/bind/15.3.4.5-2-7.js",  # Needs JSON object
     "/test/built-ins/Function/prototype/bind/S15.3.4.5_A5.js",  # Needs Array.prototype.concat
     "/test/built-ins/Function/prototype/toString/built-in-function-object.js",  # Needs Generators
@@ -460,7 +463,6 @@ xfail_tests = (
     "/test/built-ins/Object/defineProperty/15.2.3.6-4-614.js",  # Needs Array.prototype.every
     "/test/built-ins/Object/defineProperty/15.2.3.6-4-615.js",  # Needs Array.prototype.some
     "/test/built-ins/Object/defineProperty/15.2.3.6-4-618.js",  # Needs Array.prototype.filter
-    "/test/built-ins/Object/defineProperty/15.2.3.6-4-619.js",  # Needs Array.prototype.reduce
     "/test/built-ins/Object/defineProperty/15.2.3.6-4-620.js",  # Needs Array.prototype.reduceRight
     "/test/built-ins/Object/defineProperty/15.2.3.6-4-621.js",  # Needs String.prototype.trim
     "/test/built-ins/Object/defineProperty/15.2.3.6-4-622.js",  # Needs Date.now
@@ -484,7 +486,6 @@ xfail_tests = (
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-54.js",  # Needs Array.prototype.every
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-55.js",  # Needs Array.prototype.some
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-58.js",  # Needs Array.prototype.filter
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-59.js",  # Needs Array.prototype.reduce
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-60.js",  # Needs Array.prototype.reduceRight
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-64.js",  # Needs String.prototype.charCodeAt
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-67.js",  # Needs String.prototype.lastIndexOf
