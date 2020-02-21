@@ -17,6 +17,7 @@ import random
 import uuid
 import struct
 import operator
+import json
 
 import snoop
 
@@ -4206,6 +4207,8 @@ def CreateIntrinsics(realm_rec):
         intrinsics[f"%{name}%"] = CreateSpecificTypedArrayConstructor(realm_rec, name)
         intrinsics[f"%{name}Prototype%"] = CreateSpecificTypedArrayPrototype(realm_rec, name)
         SpecificTypedArrayFixups(realm_rec, name)
+    intrinsics["%JSON%"] = CreateJSONObject(realm_rec)
+    intrinsics["%JSONParse%"] = Get(intrinsics["%JSON%"], "parse")
 
     # 14. Return intrinsics.
     return intrinsics
@@ -37676,6 +37679,177 @@ def IsSharedArrayBuffer(obj):
         return False
     assert "bufferData is a Shared Data Block"
     return True
+
+
+####################################################################################################################
+#
+#  .d8888b.      d8888      888888888      88888888888 888
+# d88P  Y88b    d8P888      888                888     888
+#        888   d8P 888      888                888     888
+#      .d88P  d8P  888      8888888b.          888     88888b.   .d88b.
+#  .od888P"  d88   888           "Y88b         888     888 "88b d8P  Y8b
+# d88P"      8888888888            888         888     888  888 88888888
+# 888"             888  d8b Y88b  d88P         888     888  888 Y8b.
+# 888888888        888  Y8P  "Y8888P"          888     888  888  "Y8888
+#
+#
+#
+#   888888  .d8888b.   .d88888b.  888b    888      .d88888b.  888         d8b                   888
+#     "88b d88P  Y88b d88P" "Y88b 8888b   888     d88P" "Y88b 888         Y8P                   888
+#      888 Y88b.      888     888 88888b  888     888     888 888                               888
+#      888  "Y888b.   888     888 888Y88b 888     888     888 88888b.    8888  .d88b.   .d8888b 888888
+#      888     "Y88b. 888     888 888 Y88b888     888     888 888 "88b   "888 d8P  Y8b d88P"    888
+#      888       "888 888     888 888  Y88888     888     888 888  888    888 88888888 888      888
+#      88P Y88b  d88P Y88b. .d88P 888   Y8888     Y88b. .d88P 888 d88P    888 Y8b.     Y88b.    Y88b.
+#      888  "Y8888P"   "Y88888P"  888    Y888      "Y88888P"  88888P"     888  "Y8888   "Y8888P  "Y888
+#    .d88P                                                                888
+#  .d88P"                                                                d88P
+# 888P"                                                                888P"
+#
+####################################################################################################################
+# 24.5 The JSON Object
+
+# The JSON object:
+#
+#   * is the intrinsic object %JSON%.
+#   * is the initial value of the JSON property of the global object.
+#   * is an ordinary object.
+#   * contains two functions, parse and stringify, that are used to parse and construct JSON texts.
+#   * has a [[Prototype]] internal slot whose value is the intrinsic object %ObjectPrototype%.
+#   * does not have a [[Construct]] internal method; it cannot be used as a constructor with the new operator.
+#   * does not have a [[Call]] internal method; it cannot be invoked as a function.
+#
+# The JSON Data Interchange Format is defined in ECMA-404. The JSON interchange format used in this specification is
+# exactly that described by ECMA-404. Conforming implementations of JSON.parse and JSON.stringify must support the
+# exact interchange format described in the ECMA-404 specification without any deletions or extensions to the
+# format.
+
+
+def CreateJSONObject(realm):
+    obj = ObjectCreate(realm.intrinsics["%ObjectPrototype%"])
+    BindBuiltinFunctions(realm, obj, [("parse", JSON_parse, None),])
+    return obj
+
+
+# 24.5.1 JSON.parse ( text [ , reviver ] )
+def JSON_parse(this_value, new_target, text=None, reviver=None, *_):
+    # The parse function parses a JSON text (a JSON-formatted String) and produces an ECMAScript value. The JSON
+    # format represents literals, arrays, and objects with a syntax similar to the syntax for ECMAScript literals,
+    # Array Initializers, and Object Initializers. After parsing, JSON objects are realized as ECMAScript objects.
+    # JSON arrays are realized as ECMAScript Array instances. JSON strings, numbers, booleans, and null are realized
+    # as ECMAScript Strings, Numbers, Booleans, and null.
+    #
+    # The optional reviver parameter is a function that takes two parameters, key and value. It can filter and
+    # transform the results. It is called with each of the key/value pairs produced by the parse, and its return
+    # value is used instead of the original value. If it returns what it received, the structure is not modified. If
+    # it returns undefined then the property is deleted from the result.
+    #
+    #   1. Let JText be ? ToString(text).
+    #   2. Parse JText interpreted as UTF-16 encoded Unicode points (6.1.4) as a JSON text as specified in ECMA-404.
+    #      Throw a SyntaxError exception if JText is not a valid JSON text as defined in that specification.
+    #   3. Let scriptText be the string-concatenation of "(", JText, and ");".
+    #   4. Let completion be the result of parsing and evaluating scriptText as if it was the source text of an
+    #      ECMAScript Script. The extended PropertyDefinitionEvaluation semantics defined in B.3.1 must not be used
+    #      during the evaluation.
+    #   5. Let unfiltered be completion.[[Value]].
+    #   6. Assert: unfiltered is either a String, Number, Boolean, Null, or an Object that is defined by either an
+    #      ArrayLiteral or an ObjectLiteral.
+    #   7. If IsCallable(reviver) is true, then
+    #       a. Let root be ObjectCreate(%ObjectPrototype%).
+    #       b. Let rootName be the empty String.
+    #       c. Let status be CreateDataProperty(root, rootName, unfiltered).
+    #       d. Assert: status is true.
+    #       e. Return ? InternalizeJSONProperty(root, rootName).
+    #   8. Else,
+    #       a. Return unfiltered.
+    # This function is the %JSONParse% intrinsic object.
+    #
+    # The "length" property of the parse function is 2.
+    #
+    # NOTE  | Valid JSON text is a subset of the ECMAScript PrimaryExpression syntax as modified by Step 4 above.
+    #       | Step 2 verifies that JText conforms to that subset, and step 6 verifies that that parsing and
+    #       | evaluation returns a value of an appropriate type.
+    JText = ToString(text)
+    try:
+        json.loads(JText)
+    except json.decoder.JSONDecodeError as err:
+        raise ESSyntaxError(f"JSON Decode: {err.msg}")
+    scriptText = f"({JText});"
+    unfiltered = ScriptEvaluationJob(scriptText, None)
+    if IsCallable(reviver):
+        root = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics["%ObjectPrototype%"])
+        rootName = ""
+        status = CreateDataProperty(root, rootName, unfiltered)
+        assert status
+        return InternalizeJSONProperty(root, rootName, reviver)
+    return unfiltered
+
+
+JSON_parse.length = 2
+JSON_parse.name = "parse"
+
+# 24.5.1.1 Runtime Semantics: InternalizeJSONProperty ( holder, name )
+def InternalizeJSONProperty(holder, name, reviver):
+    # The abstract operation InternalizeJSONProperty is a recursive abstract operation that takes two parameters: a
+    # holder object and the String name of a property in that object. InternalizeJSONProperty uses the value of
+    # reviver that was originally passed to the above parse function.
+    #
+    #   1. Let val be ? Get(holder, name).
+    #   2. If Type(val) is Object, then
+    #       a. Let isArray be ? IsArray(val).
+    #       b. If isArray is true, then
+    #           i. Let I be 0.
+    #           ii. Let len be ? ToLength(? Get(val, "length")).
+    #           iii. Repeat, while I < len,
+    #               1. Let newElement be ? InternalizeJSONProperty(val, ! ToString(I)).
+    #               2. If newElement is undefined, then
+    #                   a. Perform ? val.[[Delete]](! ToString(I)).
+    #               3. Else,
+    #                   a. Perform ? CreateDataProperty(val, ! ToString(I), newElement).
+    #                   b. NOTE: This algorithm intentionally does not throw an exception if CreateDataProperty
+    #                      returns false.
+    #               4. Add 1 to I.
+    #       c. Else,
+    #           i. Let keys be ? EnumerableOwnPropertyNames(val, "key").
+    #           ii. For each String P in keys, do
+    #               1. Let newElement be ? InternalizeJSONProperty(val, P).
+    #               2. If newElement is undefined, then
+    #                   a. Perform ? val.[[Delete]](P).
+    #               3. Else,
+    #                   a. Perform ? CreateDataProperty(val, P, newElement).
+    #                   b. NOTE: This algorithm intentionally does not throw an exception if CreateDataProperty
+    #                      returns false.
+    #   3. Return ? Call(reviver, holder, « name, val »).
+    #
+    # It is not permitted for a conforming implementation of JSON.parse to extend the JSON grammars. If an
+    # implementation wishes to support a modified or extended JSON interchange format it must do so by defining a
+    # different parse function.
+    #
+    # NOTE  | In the case where there are duplicate name Strings within an object, lexically preceding values for
+    #       | the same key shall be overwritten.
+    val = Get(holder, name)
+    if isObject(val):
+        isArray = IsArray(val)
+        if isArray:
+            I = 0
+            length = ToLength(Get(val, "length"))
+            while I < length:
+                Pi = ToString(I)
+                newElement = InternalizeJSONProperty(val, Pi, reviver)
+                if newElement is None:
+                    val.Delete(Pi)
+                else:
+                    CreateDataProperty(val, Pi, newElement)
+                I += 1
+        else:
+            keys = EnumerableOwnPropertyNames(val, "key")
+            for P in keys:
+                newElement = InternalizeJSONProperty(val, P, reviver)
+                if newElement is None:
+                    val.Delete(P)
+                else:
+                    CreateDataProperty(val, P, newElement)
+    return Call(reviver, holder, [name, val])
 
 
 """
