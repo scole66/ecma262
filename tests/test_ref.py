@@ -104,8 +104,7 @@ def test_GetValue_03(obj):
     assert rval == "elephant"
 
 
-@pytest.mark.xfail(reason="Needs String Object support")
-def test_GetValue_04():
+def test_GetValue_04(realm):
     # Now, the case where the base is a common object, and we try and get a property from that. One example is the 'length'
     # property of strings. This will fail for now, because I don't have string objects implemented.
     rval = GetValue(Reference("short", "length", False))
