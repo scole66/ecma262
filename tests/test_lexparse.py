@@ -178,6 +178,7 @@ class Test_WithStatement:
 
 
 def test_callexpression_in_lhs():
+    parsefcn = lambda ctx, lex, pos, strict, *args: parse2.parse_LeftHandSideExpression(ctx, lex, pos, strict, False, *args)
     run_test(
-        "test()", parse2.P2_LeftHandSideExpression_CallExpression, parse2.parse_LeftHandSideExpression, False, False
+        "test()", parse2.P2_LeftHandSideExpression_CallExpression, parsefcn, False, False
     )

@@ -103,7 +103,6 @@ class Test_P2_MemberExpression_MemberExpression_LBRACKET_Expression_RBRACKET:
         assert me.MemberExpression == "MemberExpression"
         assert me.Expression == "Expression"
 
-
 class Test_parse_MemberExpression(parse_test):
     # Syntax
     #   MemberExpression[Yield, Await] :
@@ -134,17 +133,26 @@ class Test_parse_MemberExpression(parse_test):
         (("new", "PrimaryExpression", "Arguments"), ME_new_ME_Args),
     )
     target = staticmethod(e.parse_MemberExpression)
-    target_argnames = ("Yield", "Await")
+    target_argnames = ("Cin_is_ok", "Yield", "Await")
     called_argnames = {
-        "PrimaryExpression": ("?Yield", "?Await"),
+        "PrimaryExpression": ("????~Cin_is_ok", "?Yield", "?Await"),
         "Expression": ("+In", "?Yield", "?Await"),
         "TemplateLiteral": ("?Yield", "?Await", "+Tagged"),
         "SuperProperty": ("?Yield", "?Await"),
         "MetaProperty": (),
         "Arguments": ("?Yield", "?Await"),
     }
+    productions2 = (
+        ((NT("PrimaryExpression", "?Cin_is_ok", "?Yield", "?Await"),), ME_PE),
+        ((NT("PrimaryExpression", "?Cin_is_ok", "?Yield", "?Await"), T("["), NT("Expression", "+In", "?Yield", "?Await"), T("]")), ME_ME_Exp),
+        ((NT("PrimaryExpression", "?Cin_is_ok", "?Yield", "?Await"), T("."), T("IDENTIFIER¡bob")), ME_ME_Ident),
+        ((NT("PrimaryExpression", "?Cin_is_ok", "?Yield", "?Await"), NT("TemplateLiteral", "?Yield", "?Await", "+Tagged")), ME_ME_TL),
+        ((NT("SuperProperty", "?Yield", "?Await"),), ME_SP),
+        ((NT("MetaProperty"),), ME_MP),
+        ((T("new"), NT("PrimaryExpression", "~Cin_is_ok", "?Yield", "?Await"), NT("Arguments", "?Yield", "?Await")), ME_new_ME_Args),
+    )
 
-    @ordinary_test_params(target_argnames, productions)
+    @ordinary_test_params(target_argnames, productions2)
     def test_ordinary(self, context, mocker, token_stream, expected_class, guard, lex_pos, strict_flag, prod_args):
         self.ordinary(mocker, context, token_stream, expected_class, guard, lex_pos, prod_args, strict_flag)
 

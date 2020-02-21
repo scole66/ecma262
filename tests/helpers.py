@@ -614,6 +614,16 @@ def lexer_mock(mocker, token_stream, lex_pos):
     )
 
 
+class NT:
+    # Non-terminal
+    def __init__(self, name, *args):
+        self.name = name
+        self.args = args
+class T:
+    # Terminal
+    def __init__(self, tok):
+        self.token = tok
+
 def prod_mocks(mocker, token_stream, lex_pos, pn_ctor, identifiers):
     parse_mock = lambda name: mocker.patch(
         f"ecmascript.ecmascript.parse_{name}", side_effect=parse_se(token_stream, lex_pos, name, mocker, pn_ctor)
@@ -635,7 +645,6 @@ def prod_args(argnames):
         for val in values
     )
 
-
 def ordinary_test_params(target_argnames, productions):
     def decorator(func):
         @wraps(func)
@@ -649,6 +658,7 @@ def ordinary_test_params(target_argnames, productions):
         return wrapped
 
     return decorator
+
 
 
 def syntax_error_test_params(target_argnames, productions):
