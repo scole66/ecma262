@@ -232,7 +232,7 @@ passing = (
     "built-ins/Boolean",
     "built-ins/Error",
     "built-ins/Function",
-    "built-ins/JSON/parse",
+    "built-ins/JSON",
     "built-ins/Math/Symbol.toStringTag.js",
     "built-ins/Object",
     "built-ins/String",
@@ -406,7 +406,6 @@ xfail_tests = (
     "/test/harness/deepEqual-object.js",  # Needs Map
     "/test/harness/deepEqual-primitives.js",  # Needs Map
     "/test/harness/timer.js",  # Needs Promise
-    "/test/built-ins/Array/prototype/reduce/15.4.4.21-1-13.js",  # Needs JSON.@@toStringTag
     "/test/built-ins/Function/prototype/bind/S15.3.4.5_A5.js",  # Needs Array.prototype.concat
     "/test/built-ins/Function/prototype/toString/built-in-function-object.js",  # Needs Generators
     "/test/built-ins/Function/prototype/toString/generator-function-expression.js",  # Needs Generators
@@ -416,6 +415,7 @@ xfail_tests = (
     "/test/built-ins/Function/prototype/toString/S15.3.4.2_A14.js",  # Needs better Function.prototype.toString
     "/test/built-ins/Function/prototype/toString/S15.3.4.2_A16.js",  # Needs better Function.prototype.toString
     "/test/built-ins/Function/prototype/toString/well-known-intrinsic-object-functions.js",  # Needs Generators
+    "/test/built-ins/JSON/stringify/value-string-escape-ascii.js",  # Needs Array.prototype.reverse
     "/test/built-ins/Object/defineProperty/15.2.3.6-4-612.js",  # Needs Array.prototype.indexOf
     "/test/built-ins/Object/defineProperty/15.2.3.6-4-613.js",  # Needs Array.prototype.lastIndexOf
     "/test/built-ins/Object/defineProperty/15.2.3.6-4-614.js",  # Needs Array.prototype.every
@@ -429,7 +429,6 @@ xfail_tests = (
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-11.js",  # Needs encodeURIComponent
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-114.js",  # Needs Date.parse
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-115.js",  # Needs Date.UTC
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-176.js",  # Needs JSON.stringify
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-40.js",  # Needs Array.prototype.concat
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-42.js",  # Needs Array.prototype.reverse
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-44.js",  # Needs Array.prototype.sort
