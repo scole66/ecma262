@@ -233,7 +233,7 @@ passing = (
     "built-ins/Error",
     "built-ins/Function",
     "built-ins/JSON",
-    "built-ins/Math/Symbol.toStringTag.js",
+    "built-ins/Math",
     "built-ins/Object",
     "built-ins/String",
     "built-ins/isFinite",

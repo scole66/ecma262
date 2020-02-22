@@ -31739,7 +31739,9 @@ def Math_atan2(this_value, new_target, y=None, x=None, *_):
 
 def Math_cbrt(this_value, new_target, x=None, *_):
     arg = ToNumber(x)
-    return -math.inf if arg == -math.inf else arg ** (1 / 3)
+    if math.copysign(1.0, arg) == 1.0:
+        return arg ** (1 / 3)
+    return -((-arg) ** (1 / 3))
 
 
 def Math_ceil(this_value, new_target, x=None, *_):
@@ -31800,12 +31802,34 @@ def Math_floor(this_value, new_target, x=None, *_):
     )
 
 
+_fround_pat = re.compile(r"(.*\.)([0-9a-f]{13})(p.*)")
+
+
 def Math_fround(this_value, new_target, x=None, *_):
-    # No clue how python handles IEEE rounding.
     arg = ToNumber(x)
-    if arg == 0:
-        return arg  # To preserve -0
-    return float(arg)
+
+    if not math.isfinite(arg) or arg == 0:
+        return arg
+
+    # So all the work here uses Python's "hex" format floats (which are precise) to convert from 64-bit
+    # floats to 32-bit floats by just doing bitwise logic. There's a bit of effort to get the rounding
+    # and overflow correct, but boy howdy it's nice to be able to work with the actual bits of a float.
+    parts = _fround_pat.match(arg.hex())
+    assert parts
+    exponent_string = parts.group(3)
+    mantissa = int("1" + parts.group(2), 16)
+    fraction = mantissa & 0x1FFFFFFF
+    rounded = (mantissa + 0x10000000) & ~0x1FFFFFFF
+    if fraction == 0x10000000:
+        # halfway between. should round to even; so:
+        rounded = rounded & ~0x20000000
+    if rounded & 0x20000000000000:
+        # rounded up and overflowed. we need to shift right & increase our exponent.
+        rounded >>= 1
+        exponent_string = f"p{int(exponent_string[1:])+1:+d}"
+    rounded = rounded & ~0x10000000000000  # Remove the leading '1'
+    newhexpattern = f"{parts.group(1)}{rounded:013x}{exponent_string}"
+    return float.fromhex(newhexpattern)
 
 
 def Math_hypot(this_value, new_target, *args):
@@ -31867,7 +31891,17 @@ def Math_log2(this_value, new_target, x=None, *_):
 
 
 def Math_max(this_value, new_target, *args):
-    return max((ToNumber(x) for x in args), default=-math.inf)
+    values = tuple(ToNumber(x) for x in args)
+    if any(math.isnan(arg) for arg in values):
+        return math.nan
+    biggest = -math.inf
+    for val in values:
+        if val > biggest:
+            biggest = val
+        elif biggest == 0 and math.copysign(1.0, biggest) == -1.0 and val >= biggest:
+            biggest = val
+
+    return biggest
 
 
 Math_max.length = 2
@@ -31875,7 +31909,16 @@ Math_max.name = "max"
 
 
 def Math_min(this_value, new_target, *args):
-    return min((ToNumber(x) for x in args), default=math.inf)
+    values = tuple(ToNumber(x) for x in args)
+    if any(math.isnan(arg) for arg in values):
+        return math.nan
+    smallest = math.inf
+    for val in values:
+        if val < smallest:
+            smallest = val
+        elif smallest == 0 and math.copysign(1.0, smallest) == 1.0 and val <= smallest:
+            smallest = val
+    return smallest
 
 
 Math_min.length = 2
@@ -31892,14 +31935,13 @@ def Math_random(this_value, new_target, *_):
 
 def Math_round(this_value, new_target, x=None, *_):
     arg = ToNumber(x)
+    if not math.isfinite(arg) or abs(arg) >= 4503599627370496.0:
+        return arg
     if arg >= -0.5 and (arg < 0 or arg == 0 and math.copysign(1.0, arg) == -1.0):
         return -0.0
-    try:
-        return math.floor(arg + 0.5)
-    except ValueError:
-        return math.nan
-    except OverflowError:
-        return math.copysign(math.inf, arg)
+    if 0.0 <= arg < 0.5:
+        return 0.0
+    return math.floor(arg + 0.5)
 
 
 def Math_sign(this_value, new_target, x=None, *_):
