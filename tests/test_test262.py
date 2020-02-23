@@ -966,10 +966,6 @@ xfail_tests = (
     "/test/language/computed-property-names/class/static/method-symbol.js",  # Wants default anonymous function naming
     "/test/language/expressions/assignment/destructuring/keyed-destructuring-property-reference-target-evaluation-order.js",  # Fix pending
     "/test/language/expressions/assignment/destructuring/obj-prop-__proto__dup.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/array-elem-init-fn-name-arrow.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/array-elem-init-fn-name-class.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/array-elem-init-fn-name-cover.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/array-elem-init-fn-name-fn.js",  # Fix pending
     "/test/language/expressions/assignment/dstr/array-elem-iter-thrw-close-err.js",  # Needs a functional IteratorClose
     "/test/language/expressions/assignment/dstr/array-elem-iter-thrw-close.js",  # Needs a functional IteratorClose
     "/test/language/expressions/assignment/dstr/array-elem-nested-array-invalid.js",  # Something is Wrong
@@ -1088,7 +1084,6 @@ xfail_tests = (
     "/test/language/expressions/assignment/dstr/obj-id-init-let.js",  # Fix pending
     "/test/language/expressions/assignment/dstr/obj-id-init-order.js",  # Fix pending
     "/test/language/expressions/assignment/dstr/obj-id-init-simple-no-strict.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-id-init-simple-strict.js",  # ???
     "/test/language/expressions/assignment/dstr/obj-id-init-yield-ident-valid.js",  # Fix pending
     "/test/language/expressions/assignment/dstr/obj-id-put-const.js",  # Fix pending
     "/test/language/expressions/assignment/dstr/obj-id-put-let.js",  # Fix pending
