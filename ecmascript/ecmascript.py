@@ -35569,7 +35569,7 @@ ArrayPrototype_forEach.length = 1
 ArrayPrototype_forEach.name = "forEach"
 
 # 22.1.3.15 Array.prototype.join ( separator )
-def ArrayPrototype_join(this_value, new_target, separator=",", *_):
+def ArrayPrototype_join(this_value, new_target, separator=None, *_):
     # NOTE 1
     # The elements of the array are converted to Strings, and these Strings are then concatenated, separated by
     # occurrences of the separator. If no separator is provided, a single comma is used as the separator.
@@ -35595,7 +35595,7 @@ def ArrayPrototype_join(this_value, new_target, separator=",", *_):
     # Therefore, it can be transferred to other kinds of objects for use as a method.
     O = ToObject(this_value)
     length = ToLength(Get(O, "length"))
-    sep = ToString(separator)
+    sep = ToString(separator) if separator is not None else ","
     return sep.join(
         ToString(element) if not (isUndefined(element) or isNull(element)) else ""
         for element in (Get(O, ToString(k)) for k in range(length))

@@ -411,8 +411,6 @@ xfail_tests = (
     "/test/harness/deepEqual-object.js",  # Needs Map
     "/test/harness/deepEqual-primitives.js",  # Needs Map
     "/test/harness/timer.js",  # Needs Promise
-    "/test/built-ins/Array/prototype/join/S15.4.4.5_A1.2_T2.js",  # Bug in join
-    "/test/built-ins/Array/prototype/join/S15.4.4.5_A3.1_T1.js",  # Bug in join
     "/test/built-ins/Array/prototype/map/create-proto-from-ctor-realm-array.js",  # Bug in map
     "/test/built-ins/Array/prototype/slice/create-proto-from-ctor-realm-array.js",  # Bug in slice
     "/test/built-ins/Array/prototype/slice/length-exceeding-integer-limit-proxied-array.js",  # Bug in slice
