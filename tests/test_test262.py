@@ -226,6 +226,7 @@ lang_tests = (
 passing = (
     # These paths have passed (or xfailed, or skipped) 100%. We shouldn't break them.
     "harness",
+    "built-ins/Array/prototype/concat",
     "built-ins/Array/prototype/forEach",
     "built-ins/Array/prototype/join",
     "built-ins/Array/prototype/map",
@@ -411,10 +412,13 @@ xfail_tests = (
     "/test/harness/deepEqual-object.js",  # Needs Map
     "/test/harness/deepEqual-primitives.js",  # Needs Map
     "/test/harness/timer.js",  # Needs Promise
-    "/test/built-ins/Array/prototype/map/create-proto-from-ctor-realm-array.js",  # Bug in map
-    "/test/built-ins/Array/prototype/slice/create-proto-from-ctor-realm-array.js",  # Bug in slice
-    "/test/built-ins/Array/prototype/slice/length-exceeding-integer-limit-proxied-array.js",  # Bug in slice
-    "/test/built-ins/Function/prototype/bind/S15.3.4.5_A5.js",  # Needs Array.prototype.concat
+    "/test/built-ins/Array/prototype/concat/Array.prototype.concat_large-typed-array.js",  # Needs TypedArrays to have a working length
+    "/test/built-ins/Array/prototype/concat/Array.prototype.concat_small-typed-array.js",  # Needs TypedArrays to have a working length
+    "/test/built-ins/Array/prototype/concat/create-proto-from-ctor-realm-array.js",  # Alternate Realm stuff
+    "/test/built-ins/Array/prototype/map/create-proto-from-ctor-realm-array.js",  # Alternate Realm stuff
+    "/test/built-ins/Array/prototype/slice/create-proto-from-ctor-realm-array.js",  # Alternate Realm stuff
+    "/test/built-ins/Array/prototype/slice/length-exceeding-integer-limit-proxied-array.js",  # Needs Proxy
+    "/test/built-ins/Function/prototype/bind/S15.3.4.5_A5.js",  # Needs better handling of Dates (1957?)
     "/test/built-ins/Function/prototype/toString/built-in-function-object.js",  # Needs Generators
     "/test/built-ins/Function/prototype/toString/generator-function-expression.js",  # Needs Generators
     "/test/built-ins/Function/prototype/toString/method-computed-property-name.js",  # Needs better Function.prototype.toString
