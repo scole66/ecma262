@@ -29636,7 +29636,8 @@ def BindBuiltinFunctions(realm, obj, details):
     for key, fcn, length in details:
         func_obj = CreateBuiltinFunction(fcn, [], realm)
         # Check a bunch of things. We need to make our bindable functions in a particular way...
-        argspec = inspect.getfullargspec(fcn)
+        # (The bit about "__wrapped__" is so that these checks work even if a function has been snooped)
+        argspec = inspect.getfullargspec(getattr(fcn, "__wrapped__", fcn))
         # function arity must be at least 2: (an empty arg list still has a this pointer and a new target).
         assert len(argspec.args) >= 2
         # All but the first two positional args must have default values:
