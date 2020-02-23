@@ -8045,6 +8045,9 @@ class ParseNode2:
     def IsIdentifierRef(self, *args, **kwargs):
         return self.defer_target().IsIdentifierRef(*args, **kwargs)
 
+    def PropertyDestructuringAssignmentEvaluation(self, *args, **kwargs):
+        return self.defer_target().PropertyDestructuringAssignmentEvaluation(*args, **kwargs)
+
     def evaluate(self, *args, **kwargs):
         # Subclasses need to override this, or we'll throw an AttributeError when we hit a terminal.
         rval = self.defer_target().evaluate(*args, **kwargs)
