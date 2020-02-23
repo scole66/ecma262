@@ -964,8 +964,6 @@ xfail_tests = (
     "/test/language/computed-property-names/class/static/method-number.js",  # Wants default anonymous function naming
     "/test/language/computed-property-names/class/static/method-string.js",  # Wants default anonymous function naming
     "/test/language/computed-property-names/class/static/method-symbol.js",  # Wants default anonymous function naming
-    "/test/language/expressions/assignment/destructuring/keyed-destructuring-property-reference-target-evaluation-order.js",  # Fix pending
-    "/test/language/expressions/assignment/destructuring/obj-prop-__proto__dup.js",  # Fix pending
     "/test/language/expressions/assignment/dstr/array-elem-iter-thrw-close-err.js",  # Needs a functional IteratorClose
     "/test/language/expressions/assignment/dstr/array-elem-iter-thrw-close.js",  # Needs a functional IteratorClose
     "/test/language/expressions/assignment/dstr/array-elem-nested-array-invalid.js",  # Something is Wrong
@@ -1020,57 +1018,6 @@ xfail_tests = (
     "/test/language/expressions/assignment/dstr/array-rest-put-unresolvable-no-strict.js",  # Fix pending
     "/test/language/expressions/assignment/dstr/array-rest-put-unresolvable-strict.js",  # Fix pending
     "/test/language/expressions/assignment/dstr/array-rest-yield-ident-valid.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-break-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-case-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-catch-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-class-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-const-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-continue-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-debugger-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-default-escaped-ext.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-default-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-default.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-delete-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-do-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-else-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-enum-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-export-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-extends-escaped-ext.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-extends-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-extends.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-finally-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-for-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-function-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-if-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-implements-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-import-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-in-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-instanceof-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-interface-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-let-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-new-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-package-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-private-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-protected-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-public-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-return-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-static-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-super-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-switch-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-this-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-throw-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-try-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-typeof-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-var-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-void-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-while-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/ident-name-prop-name-literal-with-escaped.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-id-identifier-resolution-first.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-id-identifier-resolution-last.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-id-identifier-resolution-lone.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-id-identifier-resolution-middle.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-id-identifier-resolution-trlng.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-id-identifier-yield-ident-valid.js",  # Fix pending
     "/test/language/expressions/assignment/dstr/obj-id-init-assignment-missing.js",  # Fix pending
     "/test/language/expressions/assignment/dstr/obj-id-init-assignment-null.js",  # Fix pending
     "/test/language/expressions/assignment/dstr/obj-id-init-assignment-truthy.js",  # Fix pending
@@ -1085,35 +1032,7 @@ xfail_tests = (
     "/test/language/expressions/assignment/dstr/obj-id-init-order.js",  # Fix pending
     "/test/language/expressions/assignment/dstr/obj-id-init-simple-no-strict.js",  # Fix pending
     "/test/language/expressions/assignment/dstr/obj-id-init-yield-ident-valid.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-id-put-const.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-id-put-let.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-id-put-unresolvable-no-strict.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-id-put-unresolvable-strict.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-id-simple-no-strict.js",  # Fix pending
     "/test/language/expressions/assignment/dstr/obj-id-simple-strict.js",  # ???
-    "/test/language/expressions/assignment/dstr/obj-prop-elem-init-assignment-missing.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-elem-init-assignment-null.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-elem-init-assignment-truthy.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-elem-init-assignment-undef.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-elem-init-evaluation.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-elem-init-fn-name-arrow.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-elem-init-fn-name-class.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-elem-init-fn-name-cover.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-elem-init-fn-name-fn.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-elem-init-in.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-elem-init-let.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-elem-init-yield-ident-valid.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-elem-target-obj-literal-prop-ref-init-active.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-elem-target-obj-literal-prop-ref-init.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-elem-target-obj-literal-prop-ref.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-elem-target-yield-ident-valid.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-identifier-resolution-first.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-identifier-resolution-last.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-identifier-resolution-lone.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-identifier-resolution-middle.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-identifier-resolution-trlng.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-name-evaluation-error.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-name-evaluation.js",  # Fix pending
     "/test/language/expressions/assignment/dstr/obj-prop-nested-array-invalid.js",  # ???
     "/test/language/expressions/assignment/dstr/obj-prop-nested-array-null.js",  # Fix pending
     "/test/language/expressions/assignment/dstr/obj-prop-nested-array-undefined-own.js",  # Fix pending
@@ -1126,18 +1045,6 @@ xfail_tests = (
     "/test/language/expressions/assignment/dstr/obj-prop-nested-obj-undefined.js",  # Fix pending
     "/test/language/expressions/assignment/dstr/obj-prop-nested-obj-yield-ident-valid.js",  # ???
     "/test/language/expressions/assignment/dstr/obj-prop-nested-obj.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-put-const.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-put-let.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-put-order.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-put-prop-ref-no-get.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-put-prop-ref-user-err.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-put-prop-ref.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-put-unresolvable-no-strict.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-put-unresolvable-strict.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-rest-computed-property-no-strict.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-rest-computed-property.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-rest-same-name.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-rest-valid-object.js",  # Fix pending
     "/test/language/expressions/assignment/fn-name-arrow.js",  # Fix pending
     "/test/language/expressions/assignment/fn-name-class.js",  # Fix pending
     "/test/language/expressions/assignment/fn-name-cover.js",  # Fix pending

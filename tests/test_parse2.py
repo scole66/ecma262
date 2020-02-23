@@ -622,6 +622,7 @@ class Test_ParseNode2:
             "HasDirectSuper",
             "DefineMethod",
             "IsIdentifierRef",
+            "PropertyDestructuringAssignmentEvaluation",
         ],
     )
     def test_deferred_calls(self, callname):
