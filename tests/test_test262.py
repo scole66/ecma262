@@ -419,7 +419,6 @@ xfail_tests = (
     "/test/built-ins/Array/prototype/map/create-proto-from-ctor-realm-array.js",  # Alternate Realm stuff
     "/test/built-ins/Array/prototype/slice/create-proto-from-ctor-realm-array.js",  # Alternate Realm stuff
     "/test/built-ins/Array/prototype/slice/length-exceeding-integer-limit-proxied-array.js",  # Needs Proxy
-    "/test/built-ins/Date/15.9.1.15-1.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/S15.9.3.1_A1_T1.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/S15.9.3.1_A1_T2.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/S15.9.3.1_A1_T3.js",  # Failed test run; error not investigated
@@ -521,12 +520,8 @@ xfail_tests = (
     "/test/built-ins/Date/prototype/toString/negative-year.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/toString/non-date-receiver.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/toTimeString/format.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/prototype/toUTCString/day-names.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/toUTCString/format.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/prototype/toUTCString/month-names.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/toUTCString/negative-year.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/value-symbol-to-prim-return-prim.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/value-to-primitive-result-string.js",  # Failed test run; error not investigated
     "/test/built-ins/Function/prototype/bind/S15.3.4.5_A5.js",  # Needs better handling of Dates (1957?)
     "/test/built-ins/Function/prototype/toString/built-in-function-object.js",  # Needs Generators
     "/test/built-ins/Function/prototype/toString/generator-function-expression.js",  # Needs Generators
