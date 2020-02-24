@@ -32383,7 +32383,7 @@ def date_parse(sval):
     if not m:
         return math.nan
     year = int(m["year"])
-    month = int(m["month"] or 1)
+    month = int(m["month"] or 1) - 1
     day = int(m["day"] or 1)
     hour = int(m["hour"] or 0)
     minute = int(m["minute"] or 0)
