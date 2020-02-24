@@ -419,40 +419,6 @@ xfail_tests = (
     "/test/built-ins/Array/prototype/map/create-proto-from-ctor-realm-array.js",  # Alternate Realm stuff
     "/test/built-ins/Array/prototype/slice/create-proto-from-ctor-realm-array.js",  # Alternate Realm stuff
     "/test/built-ins/Array/prototype/slice/length-exceeding-integer-limit-proxied-array.js",  # Needs Proxy
-    "/test/built-ins/Date/S15.9.3.1_A1_T1.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/S15.9.3.1_A1_T2.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/S15.9.3.1_A1_T3.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/S15.9.3.1_A1_T4.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/S15.9.3.1_A1_T5.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/S15.9.3.1_A1_T6.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/S15.9.3.1_A2_T1.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/S15.9.3.1_A2_T2.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/S15.9.3.1_A2_T3.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/S15.9.3.1_A2_T4.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/S15.9.3.1_A2_T5.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/S15.9.3.1_A2_T6.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/S15.9.3.1_A3_T1.1.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/S15.9.3.1_A3_T1.2.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/S15.9.3.1_A3_T2.1.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/S15.9.3.1_A3_T2.2.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/S15.9.3.1_A3_T3.1.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/S15.9.3.1_A3_T3.2.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/S15.9.3.1_A3_T4.1.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/S15.9.3.1_A3_T4.2.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/S15.9.3.1_A3_T5.1.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/S15.9.3.1_A3_T5.2.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/S15.9.3.1_A3_T6.1.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/S15.9.3.1_A3_T6.2.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/S15.9.3.1_A5_T1.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/S15.9.3.1_A5_T2.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/S15.9.3.1_A5_T3.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/S15.9.3.1_A5_T4.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/S15.9.3.1_A5_T5.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/S15.9.3.1_A5_T6.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/S15.9.3.1_A6_T2.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/S15.9.3.1_A6_T3.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/S15.9.3.1_A6_T4.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/S15.9.3.1_A6_T5.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/S15.9.4_A2.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/S15.9.4_A3.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/UTC/S15.9.4.3_A2_T1.js",  # Failed test run; error not investigated
@@ -472,7 +438,6 @@ xfail_tests = (
     "/test/built-ins/Date/UTC/return-value.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/UTC/time-clip.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/UTC/year-offset.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/coercion-order.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/now/15.9.4.4-0-1.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/now/15.9.4.4-0-2.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/now/15.9.4.4-0-3.js",  # Failed test run; error not investigated
@@ -494,7 +459,6 @@ xfail_tests = (
     "/test/built-ins/Date/prototype/setFullYear/15.9.5.40_1.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/setFullYear/arg-year-to-number.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/setFullYear/new-value-time-clip.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/prototype/setFullYear/this-value-valid-date-month.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/setHours/new-value-time-clip.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/setHours/this-value-invalid-date.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/setMilliseconds/new-value-time-clip.js",  # Failed test run; error not investigated
@@ -503,7 +467,6 @@ xfail_tests = (
     "/test/built-ins/Date/prototype/setMinutes/this-value-invalid-date.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/setMonth/new-value-time-clip.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/setMonth/this-value-invalid-date.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/prototype/setMonth/this-value-valid-date-month.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/setSeconds/new-value-time-clip.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/setSeconds/this-value-invalid-date.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/toDateString/format.js",  # Failed test run; error not investigated
@@ -520,9 +483,7 @@ xfail_tests = (
     "/test/built-ins/Date/prototype/toString/negative-year.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/toString/non-date-receiver.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/toTimeString/format.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/prototype/toUTCString/format.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/toUTCString/negative-year.js",  # Failed test run; error not investigated
-    "/test/built-ins/Function/prototype/bind/S15.3.4.5_A5.js",  # Needs better handling of Dates (1957?)
     "/test/built-ins/Function/prototype/toString/built-in-function-object.js",  # Needs Generators
     "/test/built-ins/Function/prototype/toString/generator-function-expression.js",  # Needs Generators
     "/test/built-ins/Function/prototype/toString/method-computed-property-name.js",  # Needs better Function.prototype.toString

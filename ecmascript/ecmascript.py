@@ -32059,11 +32059,11 @@ def TimeFromYear(y):
 
 
 def YearFromTime(t):
-    year = math.floor(1970 + t / 365 / msPerDay)  # First guess. Should only be wrong on the high side
-    assert TimeFromYear(year) > t or TimeFromYear(year + 1) > t
-    while TimeFromYear(year) > t:
-        year -= 1
-    return year
+    year = math.floor(1970 + t / 365 / msPerDay)  # First guess.
+    maybe_years = tuple(year + delta for delta in (-2, -1, 0, 1, 2))
+    years_n_deltas = tuple((year, t - TimeFromYear(year)) for year in maybe_years)
+    filtered_years = tuple(filter(lambda tpl: 0 <= tpl[1] < 366 * msPerDay, years_n_deltas))
+    return min(filtered_years, key=lambda tpl: tpl[1])[0]
 
 
 def InLeapYear(t):
@@ -32273,7 +32273,7 @@ def MakeDay(year, month, date):
     dt = ToInteger(date)
     ym = y + math.floor(m / 12)
     mn = round(m % 12)
-    t = TimeFromYear(y)
+    t = TimeFromYear(ym)
     days_to_start_of_month = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]
     days_to_start_of_month_leap = [0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335]
     t += msPerDay * (days_to_start_of_month_leap if InLeapYear(t) else days_to_start_of_month)[mn]
