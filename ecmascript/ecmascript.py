@@ -35503,6 +35503,7 @@ def CreateArrayPrototype(realm):
         realm,
         proto,
         [
+            ("concat", ArrayPrototype_concat, None),
             ("forEach", ArrayPrototype_forEach, None),
             ("join", ArrayPrototype_join, None),
             ("map", ArrayPrototype_map, None),
@@ -35519,6 +35520,94 @@ def CreateArrayPrototype(realm):
         PropertyDescriptor(value=Get(proto, "values"), writable=True, enumerable=False, configurable=True),
     )
     return proto
+
+
+# 22.1.3.1 Array.prototype.concat ( ...arguments )
+def ArrayPrototype_concat(this_value, new_target, *arguments):
+    # When the concat method is called with zero or more arguments, it returns an array containing the array
+    # elements of the object followed by the array elements of each argument in order.
+    #
+    # The following steps are taken:
+    #
+    #   1. Let O be ? ToObject(this value).
+    #   2. Let A be ? ArraySpeciesCreate(O, 0).
+    #   3. Let n be 0.
+    #   4. Let items be a List whose first element is O and whose subsequent elements are, in left to right order,
+    #      the arguments that were passed to this function invocation.
+    #   5. Repeat, while items is not empty
+    #       a. Remove the first element from items and let E be the value of the element.
+    #       b. Let spreadable be ? IsConcatSpreadable(E).
+    #       c. If spreadable is true, then
+    #           i. Let k be 0.
+    #           ii. Let len be ? ToLength(? Get(E, "length")).
+    #           iii. If n + len > 2^53 - 1, throw a TypeError exception.
+    #           iv. Repeat, while k < len
+    #               1. Let P be ! ToString(k).
+    #               2. Let exists be ? HasProperty(E, P).
+    #               3. If exists is true, then
+    #                   a. Let subElement be ? Get(E, P).
+    #                   b. Perform ? CreateDataPropertyOrThrow(A, ! ToString(n), subElement).
+    #               4. Increase n by 1.
+    #               5. Increase k by 1.
+    #       d. Else E is added as a single item rather than spread,
+    #           i. If n ≥ 2^53 - 1, throw a TypeError exception.
+    #           ii. Perform ? CreateDataPropertyOrThrow(A, ! ToString(n), E).
+    #           iii. Increase n by 1.
+    #   6. Perform ? Set(A, "length", n, true).
+    #   7. Return A.
+    #
+    # The "length" property of the concat method is 1.
+    #
+    # NOTE 1    | The explicit setting of the "length" property in step 6 is necessary to ensure that its value is
+    #           | correct in situations where the trailing elements of the result Array are not present.
+    #
+    # NOTE 2    | The concat function is intentionally generic; it does not require that its this value be an Array
+    #           | object. Therefore it can be transferred to other kinds of objects for use as a method.
+    O = ToObject(this_value)
+    A = ArraySpeciesCreate(O, 0)
+    n = 0
+    items = [O, *arguments]
+    for E in items:
+        spreadable = IsConcatSpreadable(E)
+        if spreadable:
+            k = 0
+            length = ToLength(Get(E, "length"))
+            if n + length > 2 ** 52 - 1:
+                raise ESTypeError("Array.prototype.concat: length too large")
+            while k < length:
+                P = ToString(k)
+                exists = HasProperty(E, P)
+                if exists:
+                    subElement = Get(E, P)
+                    CreateDataPropertyOrThrow(A, ToString(n), subElement)
+                n += 1
+                k += 1
+        else:
+            if n >= 2 ** 53 - 1:
+                raise ESTypeError("Array.prototype.concat: length too large")
+            CreateDataPropertyOrThrow(A, ToString(n), E)
+            n += 1
+    Set(A, "length", n, True)
+    return A
+
+
+ArrayPrototype_concat.length = 1
+ArrayPrototype_concat.name = "concat"
+
+# 22.1.3.1.1 Runtime Semantics: IsConcatSpreadable ( O )
+def IsConcatSpreadable(O):
+    # The abstract operation IsConcatSpreadable with argument O performs the following steps:
+    #
+    #   1. If Type(O) is not Object, return false.
+    #   2. Let spreadable be ? Get(O, @@isConcatSpreadable).
+    #   3. If spreadable is not undefined, return ToBoolean(spreadable).
+    #   4. Return ? IsArray(O).
+    if not isObject(O):
+        return False
+    spreadable = Get(O, wks_is_concat_spreadable)
+    if spreadable is not None:
+        return ToBoolean(spreadable)
+    return IsArray(O)
 
 
 # 22.1.3.12 Array.prototype.forEach ( callbackfn [ , thisArg ] )
