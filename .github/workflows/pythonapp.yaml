@@ -1,0 +1,30 @@
+name: Python application
+
+on: [push]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python 3.8
+      uses: actions/setup-python@v1
+      with:
+        python-version: 3.8
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install --upgrade pip-tools
+        pip-sync
+        git clone https://github.com/tc39/test262.git
+        pushd test262
+        git checkout 505949357bfc9c9dc374460d9b33951448c14066
+        popd
+    - name: Validate with Black
+      run: |
+        black -l 117 --check ecmascript/*.py tests/*.py
+    - name: Test with pytest
+      run: |
+        pytest
