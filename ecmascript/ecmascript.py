@@ -32008,10 +32008,14 @@ msPerDay = 86400000
 
 
 def Day(t):
+    if not math.isfinite(t):
+        return t
     return math.floor(t / msPerDay)
 
 
 def TimeWithinDay(t):
+    if not math.isfinite(t):
+        return math.nan
     return t % msPerDay
 
 
@@ -32045,10 +32049,14 @@ def TimeWithinDay(t):
 #       = 0 if DaysInYear(YearFromTime(t)) = 365
 #       = 1 if DaysInYear(YearFromTime(t)) = 366
 def DaysInYear(y):
+    if not math.isfinite(y):
+        return math.nan
     return 365 if y % 4 != 0 else 366 if y % 100 != 0 else 365 if y % 400 != 0 else 366
 
 
 def DayFromYear(y):
+    if not math.isfinite(y):
+        return y
     return (
         365 * (y - 1970) + math.floor((y - 1969) / 4) - math.floor((y - 1901) / 100) + math.floor((y - 1601) / 400)
     )
@@ -32059,6 +32067,8 @@ def TimeFromYear(y):
 
 
 def YearFromTime(t):
+    if not math.isfinite(t):
+        return t
     year = math.floor(1970 + t / 365 / msPerDay)  # First guess.
     maybe_years = tuple(year + delta for delta in (-2, -1, 0, 1, 2))
     years_n_deltas = tuple((year, t - TimeFromYear(year)) for year in maybe_years)
