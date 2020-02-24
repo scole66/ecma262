@@ -338,6 +338,7 @@ if test_passing:
 # test_files.extend(glob.glob(f"{base_path}/test/language/expressions/property-accessors/**/*.js", recursive=True))  # 10 failing
 # test_files.extend(glob.glob(f"{base_path}/test/language/expressions/right-shift/**/*.js", recursive=True)) #  8 failing (Hit python recursion limit)
 test_files = [fn for fn in test_files if not fn.endswith("_FIXTURE.js")]
+test_files.sort()
 
 features_to_avoid = (
     # won't ever support
@@ -443,11 +444,6 @@ xfail_tests = (
     "/test/built-ins/Date/UTC/return-value.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/UTC/time-clip.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/UTC/year-offset.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/now/15.9.4.4-0-1.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/now/15.9.4.4-0-2.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/now/15.9.4.4-0-3.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/now/15.9.4.4-0-4.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/now/name.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/parse/S15.9.4.2_A2_T1.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/parse/S15.9.4.2_A3_T1.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/parse/S15.9.4.2_A3_T2.js",  # Failed test run; error not investigated
