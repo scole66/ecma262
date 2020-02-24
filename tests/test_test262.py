@@ -310,10 +310,10 @@ passing = (
     "language/expressions/void",
 )
 
-is_circle = any(n.startswith("CIRCLE") for n in os.environ)
+is_ci = any(n.startswith("CIRCLE") or n == "GITHUB_ACTIONS" for n in os.environ)
 
-test_passing = False or is_circle
-run_slow_tests = True and not is_circle
+test_passing = False or is_ci
+run_slow_tests = True and not is_ci
 base_path = base_paths[0]
 test_files = []
 if test_passing:
