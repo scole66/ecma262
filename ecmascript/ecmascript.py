@@ -32651,18 +32651,9 @@ def CreateDatePrototype(realm):
             ("toTimeString", DatePrototype_toTimeString, 0),
             ("toUTCString", DatePrototype_toUTCString, 0),
             ("valueOf", DatePrototype_valueOf, 0),
+            (wks_to_primitive, DatePrototype_toPrimitive, None),
         ],
     )
-    func_obj = CreateBuiltinFunction(DatePrototype_toPrimitive, [], realm)
-    DefinePropertyOrThrow(
-        func_obj, "length", PropertyDescriptor(value=1, writable=False, enumerable=False, configurable=True)
-    )
-    DefinePropertyOrThrow(
-        func_obj,
-        "name",
-        PropertyDescriptor(value="[Symbol.toPrimitive]", writable=False, enumerable=False, configurable=False),
-    )
-    CreateMethodPropertyOrThrow(date_prototype, wks_to_primitive, func_obj)
     return date_prototype
 
 
@@ -33430,6 +33421,11 @@ def DatePrototype_toPrimitive(this_value, new_target, hint=None, *_):
     # The value of the name property of this function is "[Symbol.toPrimitive]".
     #
     # This property has the attributes { [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true }.
+
+
+DatePrototype_toPrimitive.name = "[Symbol.toPrimitive]"
+DatePrototype_toPrimitive.length = 1
+DatePrototype_toPrimitive.attributes = PropertyDescriptor(writable=False, enumerable=False, configurable=True)
 
 
 def DateFixups(realm):
