@@ -321,7 +321,7 @@ if test_passing:
         if tst.endswith(".js"):
             test_files.append(f"{base_path}/test/{tst}")
         else:
-            test_files.extend(glob.glob(f"{base_path}/test/{tst}/**.js", recursive=True))
+            test_files.extend(glob.glob(f"{base_path}/test/{tst}/**/*.js", recursive=True))
 # test_files.extend(glob.glob(f"{base_path}/test/harness/*.js"))
 # for suite in lang_tests:
 #     test_files.extend(glob.glob(f"{base_path}/test/language/{suite}/**/*.js", recursive=True))
