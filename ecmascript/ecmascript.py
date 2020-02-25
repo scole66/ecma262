@@ -32328,6 +32328,7 @@ def CreateDateConstructor(realm):
     for key, value in (("length", 7), ("name", "Date")):
         desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)
         DefinePropertyOrThrow(obj, key, desc)
+    BindBuiltinFunctions(realm, obj, (("now", Date_now, None),))
     return obj
 
 
@@ -32461,6 +32462,18 @@ def DateFunction(this_value, new_target, *args):
     if len(args) == 1:
         return Date_Function_1arg(this_value, new_target, *args)
     return Date_Function_2plus(this_value, new_target, *args)
+
+
+# 20.3.3 Properties of the Date Constructor
+# 20.3.3.1 Date.now ( )
+def Date_now(this_value, new_target, *_):
+    # The now function returns a Number value that is the time value designating the UTC date and time of the
+    # occurrence of the call to now.
+    return datetime.datetime.now(datetime.timezone.utc).timestamp() * 1000
+
+
+Date_now.name = "now"
+Date_now.length = 0
 
 
 # 20.3.4.41.4 Runtime Semantics: ToDateString ( tv )
