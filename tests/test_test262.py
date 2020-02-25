@@ -491,7 +491,6 @@ xfail_tests = (
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-55.js",  # Needs Array.prototype.some
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-58.js",  # Needs Array.prototype.filter
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-60.js",  # Needs Array.prototype.reduceRight
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-64.js",  # Needs String.prototype.charCodeAt
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-67.js",  # Needs String.prototype.lastIndexOf
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-68.js",  # Needs String.prototype.match
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-69.js",  # Needs String.prototype.replace
@@ -512,36 +511,6 @@ xfail_tests = (
     "/test/built-ins/Object/prototype/toString/Object.prototype.toString.call-regexp.js",  # Needs functional regex
     "/test/built-ins/Object/prototype/toString/symbol-tag-override-instances.js",  # Needs functional regex
     "/test/built-ins/Object/seal/throws-when-false.js",  # Needs Proxy
-    "/test/built-ins/String/fromCharCode/S9.7_A1.js",  # Needs String.prototype.charCodeAt
-    "/test/built-ins/String/fromCharCode/S9.7_A2.1.js",  # Needs String.prototype.charCodeAt
-    "/test/built-ins/String/fromCharCode/S9.7_A2.2.js",  # Needs String.prototype.charCodeAt
-    "/test/built-ins/String/fromCharCode/S9.7_A3.1_T1.js",  # Needs String.prototype.charCodeAt
-    "/test/built-ins/String/fromCharCode/S9.7_A3.1_T2.js",  # Needs String.prototype.charCodeAt
-    "/test/built-ins/String/fromCharCode/S9.7_A3.1_T3.js",  # Needs String.prototype.charCodeAt
-    "/test/built-ins/String/fromCharCode/S9.7_A3.1_T4.js",  # Needs String.prototype.charCodeAt
-    "/test/built-ins/String/fromCharCode/S9.7_A3.2_T1.js",  # Needs String.prototype.charCodeAt
-    "/test/built-ins/String/prototype/charCodeAt/name.js",  # Needs String.prototype.charCodeAt
-    "/test/built-ins/String/prototype/charCodeAt/pos-coerce-string.js",  # Needs String.prototype.charCodeAt
-    "/test/built-ins/String/prototype/charCodeAt/pos-rounding.js",  # Needs String.prototype.charCodeAt
-    "/test/built-ins/String/prototype/charCodeAt/S15.5.4.5_A1_T1.js",  # Needs String.prototype.charCodeAt
-    "/test/built-ins/String/prototype/charCodeAt/S15.5.4.5_A1_T10.js",  # Needs String.prototype.charCodeAt
-    "/test/built-ins/String/prototype/charCodeAt/S15.5.4.5_A1_T2.js",  # Needs String.prototype.charCodeAt
-    "/test/built-ins/String/prototype/charCodeAt/S15.5.4.5_A1_T4.js",  # Needs String.prototype.charCodeAt
-    "/test/built-ins/String/prototype/charCodeAt/S15.5.4.5_A1_T5.js",  # Needs String.prototype.charCodeAt
-    "/test/built-ins/String/prototype/charCodeAt/S15.5.4.5_A1_T6.js",  # Needs String.prototype.charCodeAt
-    "/test/built-ins/String/prototype/charCodeAt/S15.5.4.5_A1_T7.js",  # Needs String.prototype.charCodeAt
-    "/test/built-ins/String/prototype/charCodeAt/S15.5.4.5_A1_T8.js",  # Needs String.prototype.charCodeAt
-    "/test/built-ins/String/prototype/charCodeAt/S15.5.4.5_A1_T9.js",  # Needs String.prototype.charCodeAt
-    "/test/built-ins/String/prototype/charCodeAt/S15.5.4.5_A1.1.js",  # Needs String.prototype.charCodeAt
-    "/test/built-ins/String/prototype/charCodeAt/S15.5.4.5_A10.js",  # Needs String.prototype.charCodeAt
-    "/test/built-ins/String/prototype/charCodeAt/S15.5.4.5_A11.js",  # Needs String.prototype.charCodeAt
-    "/test/built-ins/String/prototype/charCodeAt/S15.5.4.5_A2.js",  # Needs String.prototype.charCodeAt
-    "/test/built-ins/String/prototype/charCodeAt/S15.5.4.5_A3.js",  # Needs String.prototype.charCodeAt
-    "/test/built-ins/String/prototype/charCodeAt/S15.5.4.5_A4.js",  # Needs String.prototype.charCodeAt
-    "/test/built-ins/String/prototype/charCodeAt/S15.5.4.5_A6.js",  # Needs String.prototype.charCodeAt
-    "/test/built-ins/String/prototype/charCodeAt/S15.5.4.5_A8.js",  # Needs String.prototype.charCodeAt
-    "/test/built-ins/String/prototype/charCodeAt/S15.5.4.5_A9.js",  # Needs String.prototype.charCodeAt
-    "/test/built-ins/String/prototype/charCodeAt/this-value-not-obj-coercible.js",  # Needs String.prototype.charCodeAt
     "/test/built-ins/String/prototype/codePointAt/codePointAt.js",  # Needs String.prototype.codePointAt
     "/test/built-ins/String/prototype/codePointAt/length.js",  # Needs String.prototype.codePointAt
     "/test/built-ins/String/prototype/codePointAt/name.js",  # Needs String.prototype.codePointAt
