@@ -425,7 +425,6 @@ xfail_tests = (
     "/test/built-ins/Array/prototype/map/create-proto-from-ctor-realm-array.js",  # Alternate Realm stuff
     "/test/built-ins/Array/prototype/slice/create-proto-from-ctor-realm-array.js",  # Alternate Realm stuff
     "/test/built-ins/Array/prototype/slice/length-exceeding-integer-limit-proxied-array.js",  # Needs Proxy
-    "/test/built-ins/Date/parse/time-value-maximum-range.js",  # Bug in negative years in Date.prototype.toISOString
     "/test/built-ins/Date/parse/without-utc-offset.js",  # Needs time zone handling
     "/test/built-ins/Date/parse/zero.js",  # Wants a bit more flexible Date.parse
     "/test/built-ins/Date/prototype/getTimezoneOffset/this-value-valid-date.js",  # Overflow in LocalTZA
@@ -445,12 +444,11 @@ xfail_tests = (
     "/test/built-ins/Date/prototype/setSeconds/this-value-invalid-date.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/toDateString/format.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/toDateString/negative-year.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/prototype/toISOString/15.9.5.43-0-10.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/prototype/toISOString/15.9.5.43-0-11.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/prototype/toISOString/15.9.5.43-0-12.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/prototype/toISOString/15.9.5.43-0-5.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/prototype/toISOString/15.9.5.43-0-8.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/prototype/toISOString/15.9.5.43-0-9.js",  # Failed test run; error not investigated
+    "/test/built-ins/Date/prototype/toISOString/15.9.5.43-0-10.js",  # Out of range for python dates
+    "/test/built-ins/Date/prototype/toISOString/15.9.5.43-0-11.js",  # Out of range for python dates
+    "/test/built-ins/Date/prototype/toISOString/15.9.5.43-0-12.js",  # Out of range for python dates
+    "/test/built-ins/Date/prototype/toISOString/15.9.5.43-0-8.js",  # Out of range for python dates
+    "/test/built-ins/Date/prototype/toISOString/15.9.5.43-0-9.js",  # Out of range for python dates
     "/test/built-ins/Date/prototype/toJSON/invoke-result.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/toLocaleString/name.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/toString/format.js",  # Failed test run; error not investigated
