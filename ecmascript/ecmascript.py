@@ -32337,7 +32337,7 @@ def CreateDateConstructor(realm):
     for key, value in (("length", 7), ("name", "Date")):
         desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)
         DefinePropertyOrThrow(obj, key, desc)
-    BindBuiltinFunctions(realm, obj, (("now", Date_now, None), ("UTC", Date_UTC, None),))
+    BindBuiltinFunctions(realm, obj, (("now", Date_now, None), ("UTC", Date_UTC, None), ("parse", Date_parse, None)))
     return obj
 
 
@@ -32483,6 +32483,41 @@ def Date_now(this_value, new_target, *_):
 
 Date_now.name = "now"
 Date_now.length = 0
+
+# 20.3.3.2 Date.parse ( string )
+def Date_parse(this_value, new_target, string=None, *_):
+    # The parse function applies the ToString operator to its argument. If ToString results in an abrupt completion
+    # the Completion Record is immediately returned. Otherwise, parse interprets the resulting String as a date and
+    # time; it returns a Number, the UTC time value corresponding to the date and time. The String may be
+    # interpreted as a local time, a UTC time, or a time in some other time zone, depending on the contents of the
+    # String. The function first attempts to parse the String according to the format described in Date Time String
+    # Format (20.3.1.15), including expanded years. If the String does not conform to that format the function may
+    # fall back to any implementation-specific heuristics or implementation-specific date formats. Strings that are
+    # unrecognizable or contain out-of-bounds format field values shall cause Date.parse to return NaN.
+    #
+    # If x is any Date object whose milliseconds amount is zero within a particular implementation of ECMAScript,
+    # then all of the following expressions should produce the same numeric value in that implementation, if all the
+    # properties referenced have their initial values:
+    #
+    #   x.valueOf()
+    #   Date.parse(x.toString())
+    #   Date.parse(x.toUTCString())
+    #   Date.parse(x.toISOString())
+    #
+    # However, the expression
+    #
+    #   Date.parse(x.toLocaleString())
+    #
+    # is not required to produce the same Number value as the preceding three expressions and, in general, the value
+    # produced by Date.parse is implementation-dependent when given any String value that does not conform to the
+    # Date Time String Format (20.3.1.15) and that could not be produced in that implementation by the toString or
+    # toUTCString method.
+    return date_parse(ToString(string))
+
+
+Date_parse.name = "parse"
+Date_parse.length = 1
+
 
 # 20.3.3.4 Date.UTC ( year [ , month [ , date [ , hours [ , minutes [ , seconds [ , ms ] ] ] ] ] ] )
 def Date_UTC(
