@@ -405,6 +405,11 @@ slow_tests = (
     "/test/language/comments/S7.4_A6.js",
 )
 
+skip_tests = (
+    # Flaky tests that pass or fail, depending on things out of our control, like OS or geography
+    "/test/built-ins/Date/S15.9.2.1_A2.js",  # Something to do with localtime
+)
+
 xfail_tests = (
     "/test/harness/deepEqual-array.js",  # Needs Map
     "/test/harness/deepEqual-circular.js",  # Needs Map
@@ -1134,6 +1139,8 @@ xfail_tests = (
 
 
 def should_skip(tc, file_id):
+    if file_id in skip_tests:
+        return True
     if not run_slow_tests and file_id in slow_tests:
         return True
     test_features = tc.config.get("features", [])
