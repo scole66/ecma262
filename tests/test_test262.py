@@ -409,6 +409,7 @@ slow_tests = (
 skip_tests = (
     # Flaky tests that pass or fail, depending on things out of our control, like OS or geography
     "/test/built-ins/Date/S15.9.2.1_A2.js",  # Something to do with localtime
+    "/test/built-ins/Date/parse/without-utc-offset.js",  # Needs time zone handling
 )
 
 xfail_tests = (
@@ -425,7 +426,6 @@ xfail_tests = (
     "/test/built-ins/Array/prototype/map/create-proto-from-ctor-realm-array.js",  # Alternate Realm stuff
     "/test/built-ins/Array/prototype/slice/create-proto-from-ctor-realm-array.js",  # Alternate Realm stuff
     "/test/built-ins/Array/prototype/slice/length-exceeding-integer-limit-proxied-array.js",  # Needs Proxy
-    "/test/built-ins/Date/parse/without-utc-offset.js",  # Needs time zone handling
     "/test/built-ins/Date/parse/zero.js",  # Wants a bit more flexible Date.parse
     "/test/built-ins/Date/prototype/getTimezoneOffset/this-value-valid-date.js",  # Overflow in LocalTZA
     "/test/built-ins/Date/prototype/setDate/new-value-time-clip.js",  # Overflow in LocalTZA
@@ -449,7 +449,6 @@ xfail_tests = (
     "/test/built-ins/Date/prototype/toISOString/15.9.5.43-0-12.js",  # Out of range for python dates
     "/test/built-ins/Date/prototype/toISOString/15.9.5.43-0-8.js",  # Out of range for python dates
     "/test/built-ins/Date/prototype/toISOString/15.9.5.43-0-9.js",  # Out of range for python dates
-    "/test/built-ins/Date/prototype/toJSON/invoke-result.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/toLocaleString/name.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/toString/format.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/toString/negative-year.js",  # Failed test run; error not investigated
@@ -472,13 +471,9 @@ xfail_tests = (
     "/test/built-ins/Object/defineProperty/15.2.3.6-4-618.js",  # Needs Array.prototype.filter
     "/test/built-ins/Object/defineProperty/15.2.3.6-4-620.js",  # Needs Array.prototype.reduceRight
     "/test/built-ins/Object/defineProperty/15.2.3.6-4-621.js",  # Needs String.prototype.trim
-    "/test/built-ins/Object/defineProperty/15.2.3.6-4-622.js",  # Needs Date.now
     "/test/built-ins/Object/freeze/throws-when-false.js",  # Needs Proxy
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-10.js",  # Needs decodeURIComponent
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-11.js",  # Needs encodeURIComponent
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-114.js",  # Needs Date.parse
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-115.js",  # Needs Date.UTC
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-40.js",  # Needs Array.prototype.concat
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-42.js",  # Needs Array.prototype.reverse
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-44.js",  # Needs Array.prototype.sort
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-47.js",  # Needs Array.prototype.pop
@@ -681,7 +676,6 @@ xfail_tests = (
     "/test/built-ins/String/prototype/normalize/return-normalized-string-from-coerced-form.js",  # Needs String.prototype.normalize
     "/test/built-ins/String/prototype/normalize/return-normalized-string-using-default-parameter.js",  # Needs String.prototype.normalize
     "/test/built-ins/String/prototype/normalize/return-normalized-string.js",  # Needs String.prototype.normalize
-    "/test/built-ins/String/prototype/padEnd/exception-fill-string-symbol.js",  # Needs String.prototype.padEnd
     "/test/built-ins/String/prototype/padEnd/exception-not-object-coercible.js",  # Needs String.prototype.padEnd
     "/test/built-ins/String/prototype/padEnd/fill-string-empty.js",  # Needs String.prototype.padEnd
     "/test/built-ins/String/prototype/padEnd/fill-string-non-strings.js",  # Needs String.prototype.padEnd
@@ -692,7 +686,6 @@ xfail_tests = (
     "/test/built-ins/String/prototype/padEnd/max-length-not-greater-than-string.js",  # Needs String.prototype.padEnd
     "/test/built-ins/String/prototype/padEnd/normal-operation.js",  # Needs String.prototype.padEnd
     "/test/built-ins/String/prototype/padEnd/observable-operations.js",  # Needs String.prototype.padEnd
-    "/test/built-ins/String/prototype/padStart/exception-fill-string-symbol.js",  # Needs String.prototype.padStart
     "/test/built-ins/String/prototype/padStart/exception-not-object-coercible.js",  # Needs String.prototype.padStart
     "/test/built-ins/String/prototype/padStart/fill-string-empty.js",  # Needs String.prototype.padStart
     "/test/built-ins/String/prototype/padStart/fill-string-non-strings.js",  # Needs String.prototype.padStart
