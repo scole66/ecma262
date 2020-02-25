@@ -505,17 +505,6 @@ xfail_tests = (
     "/test/built-ins/Object/prototype/toString/Object.prototype.toString.call-regexp.js",  # Needs functional regex
     "/test/built-ins/Object/prototype/toString/symbol-tag-override-instances.js",  # Needs functional regex
     "/test/built-ins/Object/seal/throws-when-false.js",  # Needs Proxy
-    "/test/built-ins/String/prototype/codePointAt/codePointAt.js",  # Needs String.prototype.codePointAt
-    "/test/built-ins/String/prototype/codePointAt/length.js",  # Needs String.prototype.codePointAt
-    "/test/built-ins/String/prototype/codePointAt/name.js",  # Needs String.prototype.codePointAt
-    "/test/built-ins/String/prototype/codePointAt/return-abrupt-from-object-pos-to-integer.js",  # Needs String.prototype.codePointAt
-    "/test/built-ins/String/prototype/codePointAt/return-abrupt-from-this.js",  # Needs String.prototype.codePointAt
-    "/test/built-ins/String/prototype/codePointAt/return-code-unit-coerced-position.js",  # Needs String.prototype.codePointAt
-    "/test/built-ins/String/prototype/codePointAt/return-first-code-unit.js",  # Needs String.prototype.codePointAt
-    "/test/built-ins/String/prototype/codePointAt/return-single-code-unit.js",  # Needs String.prototype.codePointAt
-    "/test/built-ins/String/prototype/codePointAt/return-utf16-decode.js",  # Needs String.prototype.codePointAt
-    "/test/built-ins/String/prototype/codePointAt/returns-undefined-on-position-equal-or-more-than-size.js",  # Needs String.prototype.codePointAt
-    "/test/built-ins/String/prototype/codePointAt/returns-undefined-on-position-less-than-zero.js",  # Needs String.prototype.codePointAt
     "/test/built-ins/String/prototype/endsWith/coerced-values-of-position.js",  # Needs String.prototype.endsWith
     "/test/built-ins/String/prototype/endsWith/endsWith.js",  # Needs String.prototype.endsWith
     "/test/built-ins/String/prototype/endsWith/length.js",  # Needs String.prototype.endsWith
