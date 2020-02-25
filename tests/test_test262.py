@@ -425,35 +425,9 @@ xfail_tests = (
     "/test/built-ins/Array/prototype/map/create-proto-from-ctor-realm-array.js",  # Alternate Realm stuff
     "/test/built-ins/Array/prototype/slice/create-proto-from-ctor-realm-array.js",  # Alternate Realm stuff
     "/test/built-ins/Array/prototype/slice/length-exceeding-integer-limit-proxied-array.js",  # Needs Proxy
-    "/test/built-ins/Date/S15.9.4_A2.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/S15.9.4_A3.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/UTC/S15.9.4.3_A2_T1.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/UTC/S15.9.4.3_A3_T1.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/UTC/S15.9.4.3_A3_T2.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/UTC/S15.9.4.3_A3_T3.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/UTC/coercion-errors.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/UTC/coercion-order.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/UTC/infinity-make-day.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/UTC/infinity-make-time.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/UTC/name.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/UTC/nans.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/UTC/no-arg.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/UTC/non-integer-values.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/UTC/overflow-make-day.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/UTC/overflow-make-time.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/UTC/return-value.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/UTC/time-clip.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/UTC/year-offset.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/parse/S15.9.4.2_A2_T1.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/parse/S15.9.4.2_A3_T1.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/parse/S15.9.4.2_A3_T2.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/parse/S15.9.4.2_A3_T3.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/parse/name.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/parse/time-value-maximum-range.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/parse/without-utc-offset.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/parse/zero.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/prototype/Symbol.toPrimitive/name.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/prototype/Symbol.toPrimitive/prop-desc.js",  # Failed test run; error not investigated
+    "/test/built-ins/Date/parse/time-value-maximum-range.js",  # Bug in negative years in Date.prototype.toISOString
+    "/test/built-ins/Date/parse/without-utc-offset.js",  # Needs time zone handling
+    "/test/built-ins/Date/parse/zero.js",  # Wants a bit more flexible Date.parse
     "/test/built-ins/Date/prototype/getTimezoneOffset/this-value-valid-date.js",  # Overflow in LocalTZA
     "/test/built-ins/Date/prototype/setDate/new-value-time-clip.js",  # Overflow in LocalTZA
     "/test/built-ins/Date/prototype/setFullYear/15.9.5.40_1.js",  # Failed test run; error not investigated
