@@ -32008,10 +32008,14 @@ msPerDay = 86400000
 
 
 def Day(t):
+    if not math.isfinite(t):
+        return t
     return math.floor(t / msPerDay)
 
 
 def TimeWithinDay(t):
+    if not math.isfinite(t):
+        return math.nan
     return t % msPerDay
 
 
@@ -32045,10 +32049,14 @@ def TimeWithinDay(t):
 #       = 0 if DaysInYear(YearFromTime(t)) = 365
 #       = 1 if DaysInYear(YearFromTime(t)) = 366
 def DaysInYear(y):
+    if not math.isfinite(y):
+        return math.nan
     return 365 if y % 4 != 0 else 366 if y % 100 != 0 else 365 if y % 400 != 0 else 366
 
 
 def DayFromYear(y):
+    if not math.isfinite(y):
+        return y
     return (
         365 * (y - 1970) + math.floor((y - 1969) / 4) - math.floor((y - 1901) / 100) + math.floor((y - 1601) / 400)
     )
@@ -32059,7 +32067,9 @@ def TimeFromYear(y):
 
 
 def YearFromTime(t):
-    year = math.floor(1970 + t / 365 / msPerDay)  # First guess.
+    if not math.isfinite(t):
+        return t
+    year = math.floor(1970 + t / 365.2425 / msPerDay)  # First guess.
     maybe_years = tuple(year + delta for delta in (-2, -1, 0, 1, 2))
     years_n_deltas = tuple((year, t - TimeFromYear(year)) for year in maybe_years)
     filtered_years = tuple(filter(lambda tpl: 0 <= tpl[1] < 366 * msPerDay, years_n_deltas))
@@ -32277,7 +32287,6 @@ def MakeDay(year, month, date):
     days_to_start_of_month = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]
     days_to_start_of_month_leap = [0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335]
     t += msPerDay * (days_to_start_of_month_leap if InLeapYear(t) else days_to_start_of_month)[mn]
-    assert YearFromTime(t) == ym and MonthFromTime(t) == mn and DateFromTime(t) == 1
     return Day(t) + dt - 1
 
 
@@ -32328,7 +32337,7 @@ def CreateDateConstructor(realm):
     for key, value in (("length", 7), ("name", "Date")):
         desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)
         DefinePropertyOrThrow(obj, key, desc)
-    BindBuiltinFunctions(realm, obj, (("now", Date_now, None),))
+    BindBuiltinFunctions(realm, obj, (("now", Date_now, None), ("UTC", Date_UTC, None),))
     return obj
 
 
@@ -32474,6 +32483,50 @@ def Date_now(this_value, new_target, *_):
 
 Date_now.name = "now"
 Date_now.length = 0
+
+# 20.3.3.4 Date.UTC ( year [ , month [ , date [ , hours [ , minutes [ , seconds [ , ms ] ] ] ] ] ] )
+def Date_UTC(
+    this_value, new_target, year=None, month=..., date=..., hours=..., minutes=..., seconds=..., ms=..., *_
+):
+    # When the UTC function is called, the following steps are taken:
+    #
+    #   1. Let y be ? ToNumber(year).
+    #   2. If month is present, let m be ? ToNumber(month); else let m be 0.
+    #   3. If date is present, let dt be ? ToNumber(date); else let dt be 1.
+    #   4. If hours is present, let h be ? ToNumber(hours); else let h be 0.
+    #   5. If minutes is present, let min be ? ToNumber(minutes); else let min be 0.
+    #   6. If seconds is present, let s be ? ToNumber(seconds); else let s be 0.
+    #   7. If ms is present, let milli be ? ToNumber(ms); else let milli be 0.
+    #   8. If y is NaN, let yr be NaN.
+    #   9. Else,
+    #       a. Let yi be ! ToInteger(y).
+    #       b. If 0 ≤ yi ≤ 99, let yr be 1900 + yi; otherwise, let yr be y.
+    #   10. Return TimeClip(MakeDate(MakeDay(yr, m, dt), MakeTime(h, min, s, milli))).
+    #
+    # The "length" property of the UTC function is 7.
+    #
+    # NOTE  | The UTC function differs from the Date constructor in two ways: it returns a time value as a Number,
+    #       | rather than creating a Date object, and it interprets the arguments in UTC rather than as local time.
+    y = ToNumber(year)
+    m = 0 if month == ... else ToNumber(month)
+    dt = 1 if date == ... else ToNumber(date)
+    h = 0 if hours == ... else ToNumber(hours)
+    mins = 0 if minutes == ... else ToNumber(minutes)
+    s = 0 if seconds == ... else ToNumber(seconds)
+    milli = 0 if ms == ... else ToNumber(ms)
+    if math.isnan(y):
+        yr = math.nan
+    else:
+        yi = ToInteger(y)
+        if 0 <= yi <= 99:
+            yr = 1900 + yi
+        else:
+            yr = y
+    return TimeClip(MakeDate(MakeDay(yr, m, dt), MakeTime(h, mins, s, milli)))
+
+
+Date_UTC.name = "UTC"
+Date_UTC.length = 7
 
 
 # 20.3.4.41.4 Runtime Semantics: ToDateString ( tv )
@@ -32641,18 +32694,9 @@ def CreateDatePrototype(realm):
             ("toTimeString", DatePrototype_toTimeString, 0),
             ("toUTCString", DatePrototype_toUTCString, 0),
             ("valueOf", DatePrototype_valueOf, 0),
+            (wks_to_primitive, DatePrototype_toPrimitive, None),
         ],
     )
-    func_obj = CreateBuiltinFunction(DatePrototype_toPrimitive, [], realm)
-    DefinePropertyOrThrow(
-        func_obj, "length", PropertyDescriptor(value=1, writable=False, enumerable=False, configurable=True)
-    )
-    DefinePropertyOrThrow(
-        func_obj,
-        "name",
-        PropertyDescriptor(value="[Symbol.toPrimitive]", writable=False, enumerable=False, configurable=False),
-    )
-    CreateMethodPropertyOrThrow(date_prototype, wks_to_primitive, func_obj)
     return date_prototype
 
 
@@ -33420,6 +33464,11 @@ def DatePrototype_toPrimitive(this_value, new_target, hint=None, *_):
     # The value of the name property of this function is "[Symbol.toPrimitive]".
     #
     # This property has the attributes { [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true }.
+
+
+DatePrototype_toPrimitive.name = "[Symbol.toPrimitive]"
+DatePrototype_toPrimitive.length = 1
+DatePrototype_toPrimitive.attributes = PropertyDescriptor(writable=False, enumerable=False, configurable=True)
 
 
 def DateFixups(realm):
