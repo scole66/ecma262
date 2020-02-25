@@ -33288,18 +33288,18 @@ def DatePrototype_toISOString(this_value, new_target, *_):
     tv = thisTimeValue(this_value)
     if math.isnan(tv) or abs(YearFromTime(tv)) >= 1000000:
         raise ESRangeError("Invalid time value")
-    year = YearFromTime(tv)
-    month = MonthFromTime(tv) + 1
-    day = DateFromTime(tv)
-    time = TimeWithinDay(tv)
-    hours = HourFromTime(time)
-    minutes = MinFromTime(time)
-    secs = SecFromTime(time)
+    year = int(YearFromTime(tv))
+    month = int(MonthFromTime(tv) + 1)
+    day = int(DateFromTime(tv))
+    time = int(TimeWithinDay(tv))
+    hours = int(HourFromTime(time))
+    minutes = int(MinFromTime(time))
+    secs = int(SecFromTime(time))
     ms = msFromTime(time)
     if year >= 0 and year <= 9999:
         year_str = f"{year:04d}"
     else:
-        year_str = f"{('-','+')[year >= 0]}{year:06d}"
+        year_str = f"{year:+06d}"
     return f"{year_str}-{month:02d}-{day:02d}T{hours:02d}:{minutes:02d}:{secs:02d}.{ms:03d}Z"
 
 
