@@ -32677,7 +32677,7 @@ def TimeZoneString(tv):
 def thisTimeValue(obj):
     if isObject(obj) and hasattr(obj, "DateValue"):
         return obj.DateValue
-    raise ESTypeError(f"{ToString(obj)}: not a date object")
+    raise ESTypeError(f"{obj!r}: not a date object")
 
 
 def CreateDatePrototype(realm):
