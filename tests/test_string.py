@@ -197,7 +197,7 @@ def test_CreateStringPrototype_03(realm):
     "fname, fcn, length",
     [
         ("charAt", "StringPrototype_charAt", 1),
-        pytest.param("charCodeAt", "StringPrototype_charCodeAt", 1, marks=pytest.mark.xfail),
+        ("charCodeAt", "StringPrototype_charCodeAt", 1),
         pytest.param("codePointAt", "StringPrototype_codePointAt", 1, marks=pytest.mark.xfail),
         ("concat", "StringPrototype_concat", 1),
         pytest.param("endsWith", "StringPrototype_endsWith", 1, marks=pytest.mark.xfail),

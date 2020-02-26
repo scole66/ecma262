@@ -33735,6 +33735,7 @@ def CreateStringPrototype(realm):
         string_prototype,
         (
             ("charAt", StringPrototype_charAt, None),
+            ("charCodeAt", StringPrototype_charCodeAt, None),
             ("concat", StringPrototype_concat, None),
             ("indexOf", StringPrototype_indexOf, None),
             ("slice", StringPrototype_slice, None),
@@ -33795,6 +33796,37 @@ def StringPrototype_charAt(this_value, new_target, pos=None, *_):
 
 StringPrototype_charAt.name = "charAt"
 StringPrototype_charAt.length = 1
+
+# 21.1.3.2 String.prototype.charCodeAt ( pos )
+def StringPrototype_charCodeAt(this_value, new_target, pos=None, *_):
+    # NOTE 1    | Returns a Number (a nonnegative integer less than 2^16) that is the numeric value of the code unit
+    #           | at index pos within the String resulting from converting this object to a String. If there is no
+    #           | element at that index, the result is NaN.
+    #
+    # When the charCodeAt method is called with one argument pos, the following steps are taken:
+    #
+    #   1. Let O be ? RequireObjectCoercible(this value).
+    #   2. Let S be ? ToString(O).
+    #   3. Let position be ? ToInteger(pos).
+    #   4. Let size be the length of S.
+    #   5. If position < 0 or position ≥ size, return NaN.
+    #   6. Return a value of Number type, whose value is the numeric value of the code unit at index position within
+    #      the String S.
+    #
+    # NOTE 2    | The charCodeAt function is intentionally generic; it does not require that its this value be a
+    #           | String object. Therefore it can be transferred to other kinds of objects for use as a method.
+    O = RequireObjectCoercible(this_value)
+    S = ToString(O)
+    position = ToInteger(pos)
+    size = len(S)
+    if 0 <= position < size:
+        return ord(S[int(position)])
+    return math.nan
+
+
+StringPrototype_charCodeAt.name = "charCodeAt"
+StringPrototype_charCodeAt.length = 1
+
 
 # 21.1.3.4 String.prototype.concat ( ...args )
 def StringPrototype_concat(this_value, new_target, *args):
