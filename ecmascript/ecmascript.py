@@ -33741,6 +33741,7 @@ def CreateStringPrototype(realm):
             ("endsWith", StringPrototype_endsWith, None),
             ("includes", StringPrototype_includes, None),
             ("indexOf", StringPrototype_indexOf, None),
+            ("lastIndexOf", StringPrototype_lastIndexOf, None),
             ("slice", StringPrototype_slice, None),
             ("split", StringPrototype_split, None),
             ("substring", StringPrototype_substring, None),
@@ -34034,6 +34035,48 @@ def StringPrototype_indexOf(this_value, new_target, searchString=None, position=
 
 StringPrototype_indexOf.length = 1
 StringPrototype_indexOf.name = "indexOf"
+
+# 21.1.3.9 String.prototype.lastIndexOf ( searchString [ , position ] )
+@snoop
+def StringPrototype_lastIndexOf(this_value, new_target, searchString=None, position=None, *_):
+    # NOTE 1    | If searchString appears as a substring of the result of converting this object to a String at one
+    #           | or more indices that are smaller than or equal to position, then the greatest such index is
+    #           | returned; otherwise, -1 is returned. If position is undefined, the length of the String value is
+    #           | assumed, so as to search all of the String.
+    #
+    # The lastIndexOf method takes two arguments, searchString and position, and performs the following steps:
+    #
+    #   1. Let O be ? RequireObjectCoercible(this value).
+    #   2. Let S be ? ToString(O).
+    #   3. Let searchStr be ? ToString(searchString).
+    #   4. Let numPos be ? ToNumber(position).
+    #   5. Assert: If position is undefined, then numPos is NaN.
+    #   6. If numPos is NaN, let pos be +∞; otherwise, let pos be ! ToInteger(numPos).
+    #   7. Let len be the length of S.
+    #   8. Let start be min(max(pos, 0), len).
+    #   9. Let searchLen be the length of searchStr.
+    #   10. Return the largest possible nonnegative integer k not larger than start such that k + searchLen is not
+    #       greater than len, and for all nonnegative integers j less than searchLen, the code unit at index k + j
+    #       within S is the same as the code unit at index j within searchStr; but if there is no such integer k,
+    #       return the value -1.
+    #
+    # NOTE 2    | The lastIndexOf function is intentionally generic; it does not require that its this value be a
+    #           | String object. Therefore, it can be transferred to other kinds of objects for use as a method.
+    O = RequireObjectCoercible(this_value)
+    S = ToString(O)
+    searchStr = ToString(searchString)
+    numPos = ToNumber(position)
+    if math.isnan(numPos):
+        pos = math.inf
+    else:
+        pos = ToInteger(numPos)
+    length = len(S)
+    start = int(min(max(pos, 0), length))
+    return S.rfind(searchStr, 0, start + len(searchStr))
+
+
+StringPrototype_lastIndexOf.name = "lastIndexOf"
+StringPrototype_lastIndexOf.length = 1
 
 # 21.1.3.18 String.prototype.slice ( start, end )
 def StringPrototype_slice(this_value, new_target, start=None, end=None, *_):
