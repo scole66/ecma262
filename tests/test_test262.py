@@ -485,7 +485,6 @@ xfail_tests = (
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-55.js",  # Needs Array.prototype.some
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-58.js",  # Needs Array.prototype.filter
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-60.js",  # Needs Array.prototype.reduceRight
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-68.js",  # Needs String.prototype.match
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-69.js",  # Needs String.prototype.replace
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-70.js",  # Needs String.prototype.search
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-77.js",  # Needs String.prototype.toUpperCase
@@ -505,47 +504,12 @@ xfail_tests = (
     "/test/built-ins/Object/seal/throws-when-false.js",  # Needs Proxy
     "/test/built-ins/String/prototype/indexOf/S15.5.4.7_A1_T12.js",  # Needs Array.prototype.indexOf
     "/test/built-ins/String/prototype/lastIndexOf/S15.5.4.8_A1_T12.js",  # Needs Array.prototype.lastIndexOf
-    "/test/built-ins/String/prototype/match/cstm-matcher-get-err.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/cstm-matcher-invocation.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/invoke-builtin-match.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/length.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/name.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A1_T10.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A1_T11.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A1_T12.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A1_T13.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A1_T14.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A1_T3.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A1_T4.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A1_T5.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A1_T6.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A1_T7.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A1_T8.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A1_T9.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T1.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T10.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T11.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T12.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T13.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T14.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T15.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T16.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T17.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T18.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T2.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T3.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T4.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T5.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T6.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T7.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T8.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T9.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A6.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A8.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A9.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/this-val-bool.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/this-val-obj.js",  # Needs String.prototype.match
-    "/test/built-ins/String/prototype/match/this-value-not-obj-coercible.js",  # Needs String.prototype.match
+    "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T17.js",  # Needs regex character class
+    "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T18.js",  # Needs regex character class
+    "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T3.js",  # Needs regex character class
+    "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T4.js",  # Needs regex character class
+    "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T5.js",  # Needs regex character class
+    "/test/built-ins/String/prototype/match/this-value-not-obj-coercible.js",  # Needs regex character class
     "/test/built-ins/String/prototype/normalize/form-is-not-valid-throws.js",  # Needs String.prototype.normalize
     "/test/built-ins/String/prototype/normalize/length.js",  # Needs String.prototype.normalize
     "/test/built-ins/String/prototype/normalize/name.js",  # Needs String.prototype.normalize

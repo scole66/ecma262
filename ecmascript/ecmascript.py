@@ -33746,6 +33746,7 @@ def CreateStringPrototype(realm):
             ("indexOf", StringPrototype_indexOf, None),
             ("lastIndexOf", StringPrototype_lastIndexOf, None),
             ("localeCompare", StringPrototype_localeCompare, None),
+            ("match", StringPrototype_match, None),
             ("slice", StringPrototype_slice, None),
             ("split", StringPrototype_split, None),
             ("substring", StringPrototype_substring, None),
@@ -34137,6 +34138,35 @@ def StringPrototype_localeCompare(this_value, new_target, that=None, reserved1=.
 
 StringPrototype_localeCompare.name = "localeCompare"
 StringPrototype_localeCompare.length = 1
+
+# 21.1.3.11 String.prototype.match ( regexp )
+def StringPrototype_match(this_value, new_target, regexp=None, *_):
+    # When the match method is called with argument regexp, the following steps are taken:
+    #
+    #   1. Let O be ? RequireObjectCoercible(this value).
+    #   2. If regexp is neither undefined nor null, then
+    #       a. Let matcher be ? GetMethod(regexp, @@match).
+    #       b. If matcher is not undefined, then
+    #           i. Return ? Call(matcher, regexp, « O »).
+    #   3. Let S be ? ToString(O).
+    #   4. Let rx be ? RegExpCreate(regexp, undefined).
+    #   5. Return ? Invoke(rx, @@match, « S »).
+    #
+    # NOTE  | The match function is intentionally generic; it does not require that its this value be a String
+    #       | object. Therefore, it can be transferred to other kinds of objects for use as a method.
+    O = RequireObjectCoercible(this_value)
+    if regexp is not None and not isNull(regexp):
+        matcher = GetMethod(regexp, wks_match)
+        if matcher is not None:
+            return Call(matcher, regexp, [O])
+    S = ToString(O)
+    rx = RegExpCreate(regexp, None)
+    return Invoke(rx, wks_match, [S])
+
+
+StringPrototype_match.name = "match"
+StringPrototype_match.length = 1
+
 
 # 21.1.3.18 String.prototype.slice ( start, end )
 def StringPrototype_slice(this_value, new_target, start=None, end=None, *_):
