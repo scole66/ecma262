@@ -429,9 +429,8 @@ xfail_tests = (
     "/test/built-ins/Date/parse/zero.js",  # Wants a bit more flexible Date.parse
     "/test/built-ins/Date/prototype/getTimezoneOffset/this-value-valid-date.js",  # Overflow in LocalTZA
     "/test/built-ins/Date/prototype/setDate/new-value-time-clip.js",  # Overflow in LocalTZA
-    "/test/built-ins/Date/prototype/setFullYear/15.9.5.40_1.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/prototype/setFullYear/arg-year-to-number.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/prototype/setFullYear/new-value-time-clip.js",  # Failed test run; error not investigated
+    "/test/built-ins/Date/prototype/setFullYear/arg-year-to-number.js",  # Overflow in LocalTZA
+    "/test/built-ins/Date/prototype/setFullYear/new-value-time-clip.js",  # Overflow in LocalTZA
     "/test/built-ins/Date/prototype/setHours/new-value-time-clip.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/setHours/this-value-invalid-date.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/setMilliseconds/new-value-time-clip.js",  # Failed test run; error not investigated
