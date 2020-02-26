@@ -451,7 +451,6 @@ xfail_tests = (
     "/test/built-ins/Date/prototype/toLocaleString/name.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/toString/format.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/toString/negative-year.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/prototype/toString/non-date-receiver.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/toTimeString/format.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/toUTCString/negative-year.js",  # Failed test run; error not investigated
     "/test/built-ins/Function/prototype/toString/built-in-function-object.js",  # Needs Generators
