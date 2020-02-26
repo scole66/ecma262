@@ -33738,6 +33738,7 @@ def CreateStringPrototype(realm):
             ("charCodeAt", StringPrototype_charCodeAt, None),
             ("codePointAt", StringPrototype_codePointAt, None),
             ("concat", StringPrototype_concat, None),
+            ("endsWith", StringPrototype_endsWith, None),
             ("indexOf", StringPrototype_indexOf, None),
             ("slice", StringPrototype_slice, None),
             ("split", StringPrototype_split, None),
@@ -33903,6 +33904,57 @@ def StringPrototype_concat(this_value, new_target, *args):
 
 StringPrototype_concat.name = "concat"
 StringPrototype_concat.length = 1
+
+# 21.1.3.6 String.prototype.endsWith ( searchString [ , endPosition ] )
+def StringPrototype_endsWith(this_value, new_target, searchString=None, endPosition=None, *_):
+    # The following steps are taken:
+    #
+    #   1. Let O be ? RequireObjectCoercible(this value).
+    #   2. Let S be ? ToString(O).
+    #   3. Let isRegExp be ? IsRegExp(searchString).
+    #   4. If isRegExp is true, throw a TypeError exception.
+    #   5. Let searchStr be ? ToString(searchString).
+    #   6. Let len be the length of S.
+    #   7. If endPosition is undefined, let pos be len, else let pos be ? ToInteger(endPosition).
+    #   8. Let end be min(max(pos, 0), len).
+    #   9. Let searchLength be the length of searchStr.
+    #   10. Let start be end - searchLength.
+    #   11. If start is less than 0, return false.
+    #   12. If the sequence of code units of S starting at start of length searchLength is the same as the full code
+    #       unit sequence of searchStr, return true.
+    #   13. Otherwise, return false.
+    #
+    # NOTE 1    | Returns true if the sequence of code units of searchString converted to a String is the same as
+    #           | the corresponding code units of this object (converted to a String) starting at
+    #           | endPosition - length(this). Otherwise returns false.
+    #
+    # NOTE 2    | Throwing an exception if the first argument is a RegExp is specified in order to allow future
+    #           | editions to define extensions that allow such argument values.
+    #
+    # NOTE 3    | The endsWith function is intentionally generic; it does not require that its this value be a
+    #           | String object. Therefore, it can be transferred to other kinds of objects for use as a method.
+    O = RequireObjectCoercible(this_value)
+    S = ToString(O)
+    isRegExp = IsRegExp(searchString)
+    if isRegExp:
+        raise ESTypeError("String.prototype.endsWith: searchString may not be a RegExp")
+    searchStr = ToString(searchString)
+    length = len(S)
+    if endPosition is None:
+        pos = length
+    else:
+        pos = ToInteger(endPosition)
+    end = int(min(max(pos, 0), length))
+    searchLength = len(searchStr)
+    start = end - searchLength
+    if start < 0:
+        return False
+    return S[start : start + searchLength] == searchStr
+
+
+StringPrototype_endsWith.name = "endsWith"
+StringPrototype_endsWith.length = 1
+
 
 # 21.1.3.8 String.prototype.indexOf ( searchString [ , position ] )
 def StringPrototype_indexOf(this_value, new_target, searchString=None, position=None, *_):

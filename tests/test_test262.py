@@ -505,27 +505,6 @@ xfail_tests = (
     "/test/built-ins/Object/prototype/toString/Object.prototype.toString.call-regexp.js",  # Needs functional regex
     "/test/built-ins/Object/prototype/toString/symbol-tag-override-instances.js",  # Needs functional regex
     "/test/built-ins/Object/seal/throws-when-false.js",  # Needs Proxy
-    "/test/built-ins/String/prototype/endsWith/coerced-values-of-position.js",  # Needs String.prototype.endsWith
-    "/test/built-ins/String/prototype/endsWith/endsWith.js",  # Needs String.prototype.endsWith
-    "/test/built-ins/String/prototype/endsWith/length.js",  # Needs String.prototype.endsWith
-    "/test/built-ins/String/prototype/endsWith/name.js",  # Needs String.prototype.endsWith
-    "/test/built-ins/String/prototype/endsWith/return-abrupt-from-position.js",  # Needs String.prototype.endsWith
-    "/test/built-ins/String/prototype/endsWith/return-abrupt-from-searchstring-regexp-test.js",  # Needs String.prototype.endsWith
-    "/test/built-ins/String/prototype/endsWith/return-abrupt-from-searchstring.js",  # Needs String.prototype.endsWith
-    "/test/built-ins/String/prototype/endsWith/return-abrupt-from-this.js",  # Needs String.prototype.endsWith
-    "/test/built-ins/String/prototype/endsWith/return-false-if-search-start-is-less-than-zero.js",  # Needs String.prototype.endsWith
-    "/test/built-ins/String/prototype/endsWith/return-true-if-searchstring-is-empty.js",  # Needs String.prototype.endsWith
-    "/test/built-ins/String/prototype/endsWith/searchstring-found-with-position.js",  # Needs String.prototype.endsWith
-    "/test/built-ins/String/prototype/endsWith/searchstring-found-without-position.js",  # Needs String.prototype.endsWith
-    "/test/built-ins/String/prototype/endsWith/searchstring-is-regexp-throws.js",  # Needs String.prototype.endsWith
-    "/test/built-ins/String/prototype/endsWith/searchstring-not-found-with-position.js",  # Needs String.prototype.endsWith
-    "/test/built-ins/String/prototype/endsWith/searchstring-not-found-without-position.js",  # Needs String.prototype.endsWith
-    "/test/built-ins/String/prototype/endsWith/String.prototype.endsWith_Fail_2.js",  # Needs String.prototype.endsWith
-    "/test/built-ins/String/prototype/endsWith/String.prototype.endsWith_Fail.js",  # Needs String.prototype.endsWith
-    "/test/built-ins/String/prototype/endsWith/String.prototype.endsWith_Success_2.js",  # Needs String.prototype.endsWith
-    "/test/built-ins/String/prototype/endsWith/String.prototype.endsWith_Success_3.js",  # Needs String.prototype.endsWith
-    "/test/built-ins/String/prototype/endsWith/String.prototype.endsWith_Success_4.js",  # Needs String.prototype.endsWith
-    "/test/built-ins/String/prototype/endsWith/String.prototype.endsWith_Success.js",  # Needs String.prototype.endsWith
     "/test/built-ins/String/prototype/includes/coerced-values-of-position.js",  # Needs String.prototype.includes
     "/test/built-ins/String/prototype/includes/includes.js",  # Needs String.prototype.includes
     "/test/built-ins/String/prototype/includes/length.js",  # Needs String.prototype.includes
