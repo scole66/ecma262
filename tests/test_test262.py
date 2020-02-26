@@ -491,7 +491,6 @@ xfail_tests = (
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-77.js",  # Needs String.prototype.toUpperCase
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-79.js",  # Needs String.prototype.toLocaleLowerCase
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-80.js",  # Needs String.prototype.toLocaleUpperCase
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-81.js",  # Needs String.prototype.localeCompare
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-82.js",  # Needs String.prototype.trim
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-9.js",  # Needs decodeURI
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-90.js",  # Needs Number.prototype.toLocaleString
@@ -506,18 +505,6 @@ xfail_tests = (
     "/test/built-ins/Object/seal/throws-when-false.js",  # Needs Proxy
     "/test/built-ins/String/prototype/indexOf/S15.5.4.7_A1_T12.js",  # Needs Array.prototype.indexOf
     "/test/built-ins/String/prototype/lastIndexOf/S15.5.4.8_A1_T12.js",  # Needs Array.prototype.lastIndexOf
-    "/test/built-ins/String/prototype/localeCompare/15.5.4.9_3.js",  # Needs String.prototype.localeCompare
-    "/test/built-ins/String/prototype/localeCompare/15.5.4.9_CE.js",  # Needs String.prototype.charCodeAt
-    "/test/built-ins/String/prototype/localeCompare/15.5.4.9_CE.js",  # Needs String.prototype.localeCompare
-    "/test/built-ins/String/prototype/localeCompare/name.js",  # Needs String.prototype.localeCompare
-    "/test/built-ins/String/prototype/localeCompare/S15.5.4.9_A1_T1.js",  # Needs String.prototype.localeCompare
-    "/test/built-ins/String/prototype/localeCompare/S15.5.4.9_A1_T2.js",  # Needs String.prototype.localeCompare
-    "/test/built-ins/String/prototype/localeCompare/S15.5.4.9_A10.js",  # Needs String.prototype.localeCompare
-    "/test/built-ins/String/prototype/localeCompare/S15.5.4.9_A11.js",  # Needs String.prototype.localeCompare
-    "/test/built-ins/String/prototype/localeCompare/S15.5.4.9_A6.js",  # Needs String.prototype.localeCompare
-    "/test/built-ins/String/prototype/localeCompare/S15.5.4.9_A8.js",  # Needs String.prototype.localeCompare
-    "/test/built-ins/String/prototype/localeCompare/S15.5.4.9_A9.js",  # Needs String.prototype.localeCompare
-    "/test/built-ins/String/prototype/localeCompare/this-value-not-obj-coercible.js",  # Needs String.prototype.localeCompare
     "/test/built-ins/String/prototype/match/cstm-matcher-get-err.js",  # Needs String.prototype.match
     "/test/built-ins/String/prototype/match/cstm-matcher-invocation.js",  # Needs String.prototype.match
     "/test/built-ins/String/prototype/match/invoke-builtin-match.js",  # Needs String.prototype.match
