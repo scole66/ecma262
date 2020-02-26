@@ -505,27 +505,6 @@ xfail_tests = (
     "/test/built-ins/Object/prototype/toString/Object.prototype.toString.call-regexp.js",  # Needs functional regex
     "/test/built-ins/Object/prototype/toString/symbol-tag-override-instances.js",  # Needs functional regex
     "/test/built-ins/Object/seal/throws-when-false.js",  # Needs Proxy
-    "/test/built-ins/String/prototype/includes/coerced-values-of-position.js",  # Needs String.prototype.includes
-    "/test/built-ins/String/prototype/includes/includes.js",  # Needs String.prototype.includes
-    "/test/built-ins/String/prototype/includes/length.js",  # Needs String.prototype.includes
-    "/test/built-ins/String/prototype/includes/name.js",  # Needs String.prototype.includes
-    "/test/built-ins/String/prototype/includes/return-abrupt-from-position.js",  # Needs String.prototype.includes
-    "/test/built-ins/String/prototype/includes/return-abrupt-from-searchstring-regexp-test.js",  # Needs String.prototype.includes
-    "/test/built-ins/String/prototype/includes/return-abrupt-from-searchstring.js",  # Needs String.prototype.includes
-    "/test/built-ins/String/prototype/includes/return-abrupt-from-this.js",  # Needs String.prototype.includes
-    "/test/built-ins/String/prototype/includes/return-false-with-out-of-bounds-position.js",  # Needs String.prototype.includes
-    "/test/built-ins/String/prototype/includes/return-true-if-searchstring-is-empty.js",  # Needs String.prototype.includes
-    "/test/built-ins/String/prototype/includes/searchstring-found-with-position.js",  # Needs String.prototype.includes
-    "/test/built-ins/String/prototype/includes/searchstring-found-without-position.js",  # Needs String.prototype.includes
-    "/test/built-ins/String/prototype/includes/searchstring-is-regexp-throws.js",  # Needs String.prototype.includes
-    "/test/built-ins/String/prototype/includes/searchstring-not-found-with-position.js",  # Needs String.prototype.includes
-    "/test/built-ins/String/prototype/includes/searchstring-not-found-without-position.js",  # Needs String.prototype.includes
-    "/test/built-ins/String/prototype/includes/String.prototype.includes_FailBadLocation.js",  # Needs String.prototype.includes
-    "/test/built-ins/String/prototype/includes/String.prototype.includes_FailLocation.js",  # Needs String.prototype.includes
-    "/test/built-ins/String/prototype/includes/String.prototype.includes_FailMissingLetter.js",  # Needs String.prototype.includes
-    "/test/built-ins/String/prototype/includes/String.prototype.includes_lengthProp.js",  # Needs String.prototype.includes
-    "/test/built-ins/String/prototype/includes/String.prototype.includes_Success.js",  # Needs String.prototype.includes
-    "/test/built-ins/String/prototype/includes/String.prototype.includes_SuccessNoLocation.js",  # Needs String.prototype.includes
     "/test/built-ins/String/prototype/indexOf/S15.5.4.7_A1_T12.js",  # Needs Array.prototype.indexOf
     "/test/built-ins/String/prototype/lastIndexOf/name.js",  # Needs String.prototype.lastIndexOf
     "/test/built-ins/String/prototype/lastIndexOf/S15.5.4.8_A1_T1.js",  # Needs String.prototype.lastIndexOf
