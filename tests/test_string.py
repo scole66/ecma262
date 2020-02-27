@@ -200,7 +200,7 @@ def test_CreateStringPrototype_03(realm):
         ("charCodeAt", "StringPrototype_charCodeAt", 1),
         ("codePointAt", "StringPrototype_codePointAt", 1),
         ("concat", "StringPrototype_concat", 1),
-        pytest.param("endsWith", "StringPrototype_endsWith", 1, marks=pytest.mark.xfail),
+        ("endsWith", "StringPrototype_endsWith", 1),
         pytest.param("includes", "StringPrototype_includes", 1, marks=pytest.mark.xfail),
         pytest.param("indexOf", "StringPrototype_indexOf", 1),
         pytest.param("lastIndexOf", "StringPrototype_lastIndexOf", 1, marks=pytest.mark.xfail),
