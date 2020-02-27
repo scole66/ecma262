@@ -210,7 +210,7 @@ def test_CreateStringPrototype_03(realm):
         ("padEnd", "StringPrototype_padEnd", 1),
         ("padStart", "StringPrototype_padStart", 1),
         ("repeat", "StringPrototype_repeat", 1),
-        pytest.param("replace", "StringPrototype_replace", 2, marks=pytest.mark.xfail),
+        ("replace", "StringPrototype_replace", 2),
         pytest.param("search", "StringPrototype_search", 1, marks=pytest.mark.xfail),
         ("slice", "StringPrototype_slice", 2),
         ("split", "StringPrototype_split", 2),

@@ -510,47 +510,10 @@ xfail_tests = (
     "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T4.js",  # Needs regex character class
     "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T5.js",  # Needs regex character class
     "/test/built-ins/String/prototype/match/this-value-not-obj-coercible.js",  # Needs regex character class
-    "/test/built-ins/String/prototype/replace/15.5.4.11-1.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/cstm-replace-get-err.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/cstm-replace-invocation.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/length.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/name.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/replaceValue-evaluation-order.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A1_T1.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A1_T10.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A1_T11.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A1_T12.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A1_T13.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A1_T14.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A1_T17.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A1_T2.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A1_T4.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A1_T5.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A1_T6.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A1_T7.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A1_T8.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A1_T9.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A12.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A2_T1.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A2_T10.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A2_T2.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A2_T3.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A2_T4.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A2_T5.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A2_T6.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A2_T7.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A2_T8.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A2_T9.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A3_T1.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A3_T2.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A3_T3.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A4_T1.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A4_T2.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A4_T3.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A4_T4.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A5_T1.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A6.js",  # Needs String.prototype.replace
-    "/test/built-ins/String/prototype/replace/this-value-not-obj-coercible.js",  # Needs String.prototype.replace
+    "/test/built-ins/String/prototype/replace/S15.5.4.11_A5_T1.js",  # Needs Regex Decimal Backrefrence
+    "/test/built-ins/String/prototype/replace/S15.5.4.11_A3_T1.js",  # Needs Regex Character Class Escape
+    "/test/built-ins/String/prototype/replace/S15.5.4.11_A3_T2.js",  # Needs Regex Character Class Escape
+    "/test/built-ins/String/prototype/replace/S15.5.4.11_A3_T3.js",  # Needs Regex Character Class Escape
     "/test/built-ins/String/prototype/search/cstm-search-get-err.js",  # Needs String.prototype.search
     "/test/built-ins/String/prototype/search/cstm-search-invocation.js",  # Needs String.prototype.search
     "/test/built-ins/String/prototype/search/invoke-builtin-search-searcher-undef.js",  # Needs String.prototype.search
