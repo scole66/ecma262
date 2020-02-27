@@ -33736,6 +33736,7 @@ def CreateStringPrototype(realm):
         (
             ("charAt", StringPrototype_charAt, None),
             ("charCodeAt", StringPrototype_charCodeAt, None),
+            ("codePointAt", StringPrototype_codePointAt, None),
             ("concat", StringPrototype_concat, None),
             ("indexOf", StringPrototype_indexOf, None),
             ("slice", StringPrototype_slice, None),
@@ -33826,6 +33827,48 @@ def StringPrototype_charCodeAt(this_value, new_target, pos=None, *_):
 
 StringPrototype_charCodeAt.name = "charCodeAt"
 StringPrototype_charCodeAt.length = 1
+
+# 21.1.3.3 String.prototype.codePointAt ( pos )
+def StringPrototype_codePointAt(this_value, new_target, pos=None, *_):
+    # NOTE 1    | Returns a nonnegative integer Number less than 0x110000 that is the code point value of the UTF-16
+    #           | encoded code point (6.1.4) starting at the string element at index pos within the String resulting
+    #           | from converting this object to a String. If there is no element at that index, the result is
+    #           | undefined. If a valid UTF-16 surrogate pair does not begin at pos, the result is the code unit at
+    #           | pos.
+    #
+    # When the codePointAt method is called with one argument pos, the following steps are taken:
+    #
+    #   1. Let O be ? RequireObjectCoercible(this value).
+    #   2. Let S be ? ToString(O).
+    #   3. Let position be ? ToInteger(pos).
+    #   4. Let size be the length of S.
+    #   5. If position < 0 or position ≥ size, return undefined.
+    #   6. Let first be the numeric value of the code unit at index position within the String S.
+    #   7. If first < 0xD800 or first > 0xDBFF or position + 1 = size, return first.
+    #   8. Let second be the numeric value of the code unit at index position + 1 within the String S.
+    #   9. If second < 0xDC00 or second > 0xDFFF, return first.
+    #   10. Return UTF16Decode(first, second).
+    #
+    # NOTE 2    | The codePointAt function is intentionally generic; it does not require that its this value be a
+    #           | String object. Therefore it can be transferred to other kinds of objects for use as a method.
+    O = RequireObjectCoercible(this_value)
+    S = ToString(O)
+    position = ToInteger(pos)
+    size = len(S)
+    if 0 <= position < size:
+        ipos = int(position)
+        first = ord(S[ipos])
+        if first < 0xD800 or first > 0xDBFF or ipos == size - 1:
+            return first
+        second = ord(S[ipos + 1])
+        if second < 0xDC00 or second > 0xDFFF:
+            return first
+        return ((first - 0xD800) << 10) + second - 0xDC00 + 0x10000
+    return None
+
+
+StringPrototype_codePointAt.name = "codePointAt"
+StringPrototype_codePointAt.length = 1
 
 
 # 21.1.3.4 String.prototype.concat ( ...args )
