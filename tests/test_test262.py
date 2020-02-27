@@ -243,6 +243,7 @@ passing = (
     "built-ins/Map",
     "built-ins/Math",
     "built-ins/Object",
+    "built-ins/RegExp",
     "built-ins/String",
     "built-ins/isFinite",
     "built-ins/isNaN",
@@ -261,8 +262,9 @@ passing = (
     "language/line-terminators",
     "language/literals/boolean",
     "language/literals/null",
-    "language/literals/string",
     "language/literals/numeric",
+    "language/literals/regexp",
+    "language/literals/string",
     "language/statementList",
     "language/statements/block",
     "language/statements/break",
@@ -313,8 +315,8 @@ passing = (
 
 is_ci = any(n.startswith("CIRCLE") or n == "GITHUB_ACTIONS" for n in os.environ)
 
-test_passing = False or is_ci
-run_slow_tests = True and not is_ci
+test_passing = True or is_ci
+run_slow_tests = False and not is_ci
 base_path = base_paths[0]
 test_files = []
 if test_passing:
@@ -402,12 +404,423 @@ slow_tests = (
     "/test/built-ins/parseInt/S15.1.2.2_A8.js",
     "/test/language/comments/S7.4_A5.js",
     "/test/language/comments/S7.4_A6.js",
+    "/test/built-ins/RegExp/CharacterClassEscapes/character-class-non-digit-class-escape-flags-u.js",
+    "/test/built-ins/RegExp/CharacterClassEscapes/character-class-non-digit-class-escape-plus-quantifier-flags-u.js",
+    "/test/built-ins/RegExp/CharacterClassEscapes/character-class-non-digit-class-escape-plus-quantifier.js",
+    "/test/built-ins/RegExp/CharacterClassEscapes/character-class-non-digit-class-escape.js",
+    "/test/built-ins/RegExp/CharacterClassEscapes/character-class-non-whitespace-class-escape-flags-u.js",
+    "/test/built-ins/RegExp/CharacterClassEscapes/character-class-non-whitespace-class-escape-plus-quantifier-flags-u.js",
+    "/test/built-ins/RegExp/CharacterClassEscapes/character-class-non-whitespace-class-escape-plus-quantifier.js",
+    "/test/built-ins/RegExp/CharacterClassEscapes/character-class-non-whitespace-class-escape.js",
+    "/test/built-ins/RegExp/CharacterClassEscapes/character-class-non-word-class-escape-flags-u.js",
+    "/test/built-ins/RegExp/CharacterClassEscapes/character-class-non-word-class-escape-plus-quantifier-flags-u.js",
+    "/test/built-ins/RegExp/CharacterClassEscapes/character-class-non-word-class-escape-plus-quantifier.js",
+    "/test/built-ins/RegExp/CharacterClassEscapes/character-class-non-word-class-escape.js",
+    "/test/built-ins/RegExp/property-escapes/generated/ASCII.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/ASCII_Hex_Digit.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Alphabetic.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Any.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Assigned.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Bidi_Control.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Bidi_Mirrored.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Case_Ignorable.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Cased.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Changes_When_Casefolded.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Changes_When_Casemapped.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Changes_When_Lowercased.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Changes_When_NFKC_Casefolded.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Changes_When_Titlecased.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Changes_When_Uppercased.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Dash.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Default_Ignorable_Code_Point.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Deprecated.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Diacritic.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Emoji.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Emoji_Component.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Emoji_Modifier.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Emoji_Modifier_Base.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Emoji_Presentation.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Extended_Pictographic.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Extender.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Cased_Letter.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Close_Punctuation.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Connector_Punctuation.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Control.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Currency_Symbol.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Dash_Punctuation.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Decimal_Number.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Enclosing_Mark.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Final_Punctuation.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Format.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Initial_Punctuation.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Letter.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Letter_Number.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Line_Separator.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Lowercase_Letter.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Mark.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Math_Symbol.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Modifier_Letter.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Modifier_Symbol.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Nonspacing_Mark.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Number.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Open_Punctuation.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Other_Number.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Other_Punctuation.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Other_Symbol.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Paragraph_Separator.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Private_Use.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Punctuation.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Separator.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Space_Separator.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Spacing_Mark.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Surrogate.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Symbol.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Titlecase_Letter.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Unassigned.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Uppercase_Letter.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Grapheme_Base.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Grapheme_Extend.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Hex_Digit.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/IDS_Binary_Operator.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/IDS_Trinary_Operator.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/ID_Continue.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/ID_Start.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Ideographic.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Join_Control.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Logical_Order_Exception.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Lowercase.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Math.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Noncharacter_Code_Point.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Pattern_Syntax.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Pattern_White_Space.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Quotation_Mark.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Radical.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Regional_Indicator.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Adlam.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Ahom.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Anatolian_Hieroglyphs.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Arabic.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Armenian.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Avestan.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Balinese.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Bamum.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Bassa_Vah.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Batak.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Bengali.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Bhaiksuki.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Bopomofo.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Brahmi.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Braille.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Buginese.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Buhid.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Canadian_Aboriginal.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Carian.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Caucasian_Albanian.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Chakma.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Cham.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Cherokee.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Common.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Coptic.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Cuneiform.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Cypriot.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Cyrillic.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Deseret.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Devanagari.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Dogra.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Duployan.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Egyptian_Hieroglyphs.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Elbasan.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Elymaic.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Ethiopic.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Georgian.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Glagolitic.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Gothic.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Grantha.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Greek.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Gujarati.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Gunjala_Gondi.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Gurmukhi.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Han.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Hangul.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Hanifi_Rohingya.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Hanunoo.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Hatran.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Hebrew.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Hiragana.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Imperial_Aramaic.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Inherited.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Inscriptional_Pahlavi.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Inscriptional_Parthian.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Javanese.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Kaithi.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Kannada.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Katakana.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Kayah_Li.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Kharoshthi.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Khmer.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Khojki.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Khudawadi.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Lao.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Latin.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Lepcha.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Limbu.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Linear_A.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Linear_B.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Lisu.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Lycian.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Lydian.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Mahajani.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Makasar.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Malayalam.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Mandaic.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Manichaean.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Marchen.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Masaram_Gondi.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Medefaidrin.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Meetei_Mayek.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Mende_Kikakui.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Meroitic_Cursive.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Meroitic_Hieroglyphs.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Miao.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Modi.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Mongolian.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Mro.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Multani.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Myanmar.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Nabataean.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Nandinagari.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_New_Tai_Lue.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Newa.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Nko.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Nushu.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Nyiakeng_Puachue_Hmong.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Ogham.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Ol_Chiki.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Old_Hungarian.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Old_Italic.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Old_North_Arabian.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Old_Permic.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Old_Persian.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Old_Sogdian.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Old_South_Arabian.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Old_Turkic.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Oriya.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Osage.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Osmanya.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Pahawh_Hmong.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Palmyrene.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Pau_Cin_Hau.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Phags_Pa.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Phoenician.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Psalter_Pahlavi.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Rejang.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Runic.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Samaritan.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Saurashtra.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Sharada.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Shavian.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Siddham.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_SignWriting.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Sinhala.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Sogdian.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Sora_Sompeng.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Soyombo.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Sundanese.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Syloti_Nagri.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Syriac.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Tagalog.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Tagbanwa.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Tai_Le.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Tai_Tham.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Tai_Viet.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Takri.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Tamil.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Tangut.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Telugu.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Thaana.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Thai.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Tibetan.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Tifinagh.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Tirhuta.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Ugaritic.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Vai.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Wancho.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Warang_Citi.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Yi.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_-_Zanabazar_Square.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Adlam.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Ahom.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Anatolian_Hieroglyphs.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Arabic.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Armenian.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Avestan.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Balinese.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Bamum.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Bassa_Vah.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Batak.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Bengali.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Bhaiksuki.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Bopomofo.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Brahmi.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Braille.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Buginese.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Buhid.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Canadian_Aboriginal.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Carian.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Caucasian_Albanian.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Chakma.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Cham.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Cherokee.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Common.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Coptic.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Cuneiform.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Cypriot.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Cyrillic.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Deseret.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Devanagari.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Dogra.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Duployan.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Egyptian_Hieroglyphs.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Elbasan.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Elymaic.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Ethiopic.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Georgian.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Glagolitic.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Gothic.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Grantha.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Greek.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Gujarati.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Gunjala_Gondi.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Gurmukhi.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Han.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Hangul.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Hanifi_Rohingya.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Hanunoo.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Hatran.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Hebrew.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Hiragana.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Imperial_Aramaic.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Inherited.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Inscriptional_Pahlavi.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Inscriptional_Parthian.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Javanese.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Kaithi.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Kannada.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Katakana.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Kayah_Li.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Kharoshthi.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Khmer.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Khojki.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Khudawadi.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Lao.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Latin.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Lepcha.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Limbu.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Linear_A.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Linear_B.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Lisu.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Lycian.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Lydian.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Mahajani.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Makasar.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Malayalam.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Mandaic.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Manichaean.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Marchen.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Masaram_Gondi.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Medefaidrin.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Meetei_Mayek.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Mende_Kikakui.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Meroitic_Cursive.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Meroitic_Hieroglyphs.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Miao.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Modi.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Mongolian.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Mro.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Multani.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Myanmar.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Nabataean.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Nandinagari.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_New_Tai_Lue.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Newa.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Nko.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Nushu.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Nyiakeng_Puachue_Hmong.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Ogham.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Ol_Chiki.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Old_Hungarian.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Old_Italic.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Old_North_Arabian.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Old_Permic.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Old_Persian.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Old_Sogdian.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Old_South_Arabian.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Old_Turkic.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Oriya.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Osage.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Osmanya.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Pahawh_Hmong.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Palmyrene.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Pau_Cin_Hau.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Phags_Pa.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Phoenician.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Psalter_Pahlavi.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Rejang.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Runic.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Samaritan.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Saurashtra.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Sharada.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Shavian.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Siddham.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_SignWriting.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Sinhala.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Sogdian.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Sora_Sompeng.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Soyombo.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Sundanese.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Syloti_Nagri.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Syriac.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Tagalog.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Tagbanwa.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Tai_Le.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Tai_Tham.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Tai_Viet.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Takri.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Tamil.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Tangut.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Telugu.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Thaana.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Thai.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Tibetan.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Tifinagh.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Tirhuta.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Ugaritic.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Vai.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Wancho.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Warang_Citi.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Yi.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Zanabazar_Square.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Sentence_Terminal.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Soft_Dotted.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Terminal_Punctuation.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Unified_Ideograph.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Uppercase.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/Variation_Selector.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/White_Space.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/XID_Continue.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/generated/XID_Start.js",  # Not checked
 )
 
 skip_tests = (
     # Flaky tests that pass or fail, depending on things out of our control, like OS or geography
     "/test/built-ins/Date/S15.9.2.1_A2.js",  # Something to do with localtime
     "/test/built-ins/Date/parse/without-utc-offset.js",  # Needs time zone handling
+    "/test/built-ins/Date/S15.9.3.1_A5_T1.js",  # Not sure
+    "/test/built-ins/Date/S15.9.3.1_A5_T2.js",  # Not sure
+    "/test/built-ins/Date/S15.9.3.1_A5_T3.js",  # Not sure
+    "/test/built-ins/Date/S15.9.3.1_A5_T4.js",  # Not sure
+    "/test/built-ins/Date/S15.9.3.1_A5_T5.js",  # Not sure
+    "/test/built-ins/Date/S15.9.3.1_A5_T6.js",  # Not sure
 )
 
 xfail_tests = (
@@ -437,7 +850,6 @@ xfail_tests = (
     "/test/built-ins/Date/prototype/setMonth/this-value-invalid-date.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/setSeconds/new-value-time-clip.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/setSeconds/this-value-invalid-date.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/prototype/toDateString/format.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/toDateString/negative-year.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/toISOString/15.9.5.43-0-10.js",  # Out of range for python dates
     "/test/built-ins/Date/prototype/toISOString/15.9.5.43-0-11.js",  # Out of range for python dates
@@ -445,9 +857,7 @@ xfail_tests = (
     "/test/built-ins/Date/prototype/toISOString/15.9.5.43-0-8.js",  # Out of range for python dates
     "/test/built-ins/Date/prototype/toISOString/15.9.5.43-0-9.js",  # Out of range for python dates
     "/test/built-ins/Date/prototype/toLocaleString/name.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/prototype/toString/format.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/toString/negative-year.js",  # Failed test run; error not investigated
-    "/test/built-ins/Date/prototype/toTimeString/format.js",  # Failed test run; error not investigated
     "/test/built-ins/Date/prototype/toUTCString/negative-year.js",  # Failed test run; error not investigated
     "/test/built-ins/Function/prototype/toString/built-in-function-object.js",  # Needs Generators
     "/test/built-ins/Function/prototype/toString/generator-function-expression.js",  # Needs Generators
@@ -509,32 +919,21 @@ xfail_tests = (
     "/test/built-ins/Object/getOwnPropertyNames/15.2.3.4-4-1.js",  # Needs all the globals
     "/test/built-ins/Object/keys/proxy-keys.js",  # Needs Proxy
     "/test/built-ins/Object/preventExtensions/throws-when-false.js",  # Needs Proxy
-    "/test/built-ins/Object/prototype/toString/Object.prototype.toString.call-regexp.js",  # Needs functional regex
-    "/test/built-ins/Object/prototype/toString/symbol-tag-override-instances.js",  # Needs functional regex
     "/test/built-ins/Object/seal/throws-when-false.js",  # Needs Proxy
-    "/test/built-ins/String/prototype/endsWith/return-abrupt-from-searchstring-regexp-test.js",  # Needs Regex
-    "/test/built-ins/String/prototype/endsWith/searchstring-is-regexp-throws.js",  # Needs Regex
-    "/test/built-ins/String/prototype/includes/return-abrupt-from-searchstring-regexp-test.js",  # Needs Regex
-    "/test/built-ins/String/prototype/includes/searchstring-is-regexp-throws.js",  # Needs Regex
+    "/test/built-ins/RegExp/S15.10.2.8_A3_T15.js",  # Recursion Limit
+    "/test/built-ins/RegExp/S15.10.2.8_A3_T16.js",  # Recursion Limit
+    "/test/built-ins/RegExp/S15.10.2.8_A3_T18.js",  # Recursion Limit
+    "/test/built-ins/RegExp/S15.10.2_A1_T1.js",  # Recursion Limit
+    "/test/built-ins/RegExp/character-class-escape-non-whitespace.js",  # Needs Unicode class tables
+    "/test/built-ins/RegExp/lookBehind/sliced-strings.js",  # Needs String.prototype.substr
+    "/test/built-ins/RegExp/property-escapes/character-class.js",  # Needs Unicode class tables
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Other.js",  # Recursion Limit
+    "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Other_Letter.js",  # Recursion Limit
     "/test/built-ins/String/prototype/indexOf/S15.5.4.7_A1_T12.js",  # Needs Array.prototype.indexOf
     "/test/built-ins/String/prototype/lastIndexOf/S15.5.4.8_A1_T12.js",  # Needs Array.prototype.lastIndexOf
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T17.js",  # Needs regex character class
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T18.js",  # Needs regex character class
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T3.js",  # Needs regex character class
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T4.js",  # Needs regex character class
-    "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T5.js",  # Needs regex character class
-    "/test/built-ins/String/prototype/match/this-value-not-obj-coercible.js",  # Needs regex character class
-    "/test/built-ins/String/prototype/replace/S15.5.4.11_A5_T1.js",  # Needs Regex Decimal Backrefrence
     "/test/built-ins/String/prototype/replace/S15.5.4.11_A3_T1.js",  # Needs Regex Character Class Escape
     "/test/built-ins/String/prototype/replace/S15.5.4.11_A3_T2.js",  # Needs Regex Character Class Escape
     "/test/built-ins/String/prototype/replace/S15.5.4.11_A3_T3.js",  # Needs Regex Character Class Escape
-    "/test/built-ins/String/prototype/search/this-value-not-obj-coercible.js",  # Needs Regex Atom_dot
-    "/test/built-ins/String/prototype/split/S15.5.4.14_A4_T19.js",  # Needs functional regex
-    "/test/built-ins/String/prototype/split/S15.5.4.14_A4_T20.js",  # Needs functional regex
-    "/test/built-ins/String/prototype/split/S15.5.4.14_A4_T22.js",  # Needs functional regex
-    "/test/built-ins/String/prototype/split/S15.5.4.14_A4_T23.js",  # Needs functional regex
-    "/test/built-ins/String/prototype/startsWith/return-abrupt-from-searchstring-regexp-test.js",  # Needs Regex Atom_dot
-    "/test/built-ins/String/prototype/startsWith/searchstring-is-regexp-throws.js",  # Needs Regex Atom_dot
     "/test/built-ins/String/prototype/Symbol.iterator/length.js",  # Needs String.prototype.@@iterator
     "/test/built-ins/String/prototype/Symbol.iterator/name.js",  # Needs String.prototype.@@iterator
     "/test/built-ins/String/prototype/Symbol.iterator/prop-desc.js",  # Needs String.prototype.@@iterator
@@ -620,6 +1019,43 @@ xfail_tests = (
     "/test/language/expressions/assignment/fn-name-fn.js",  # Fix pending
     "/test/language/expressions/assignment/fn-name-lhs-cover.js",  # Wants default anonymous function naming
     "/test/language/expressions/assignment/fn-name-lhs-member.js",  # Wants default anonymous function naming
+    "/test/built-ins/RegExp/named-groups/groups-object-subclass-sans.js",  # Not checked
+    "/test/built-ins/RegExp/named-groups/groups-object-subclass.js",  # Not checked
+    "/test/built-ins/RegExp/named-groups/string-replace-nocaptures.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/grammar-extension-empty-negated.js",  # Not checked
+    "/test/built-ins/RegExp/property-escapes/grammar-extension-empty.js",  # Not checked
+    "/test/built-ins/RegExp/prototype/Symbol.match/exec-return-type-invalid.js",  # Not checked
+    "/test/built-ins/RegExp/prototype/Symbol.replace/result-coerce-capture.js",  # Not checked
+    "/test/built-ins/RegExp/prototype/Symbol.replace/result-coerce-matched.js",  # Not checked
+    "/test/built-ins/RegExp/prototype/Symbol.replace/subst-after.js",  # Not checked
+    "/test/built-ins/RegExp/prototype/Symbol.replace/subst-before.js",  # Not checked
+    "/test/built-ins/RegExp/prototype/Symbol.replace/subst-capture-idx-1.js",  # Not checked
+    "/test/built-ins/RegExp/prototype/Symbol.replace/subst-capture-idx-2.js",  # Not checked
+    "/test/built-ins/RegExp/prototype/Symbol.replace/subst-matched.js",  # Not checked
+    "/test/built-ins/RegExp/prototype/Symbol.search/cstm-exec-return-invalid.js",  # Not checked
+    "/test/built-ins/RegExp/prototype/source/value-empty.js",  # Not checked
+    "/test/built-ins/RegExp/prototype/source/value-line-terminator.js",  # Not checked
+    "/test/built-ins/RegExp/prototype/source/value-slash.js",  # Not checked
+    "/test/built-ins/RegExp/unicode_identity_escape.js",  # Not checked
+    "/test/built-ins/RegExp/unicode_restricted_identity_escape.js",  # Not checked
+    "/test/built-ins/RegExp/unicode_restricted_identity_escape_alpha.js",  # Not checked
+    "/test/built-ins/RegExp/unicode_restricted_identity_escape_c.js",  # Not checked
+    "/test/built-ins/RegExp/unicode_restricted_identity_escape_u.js",  # Not checked
+    "/test/built-ins/RegExp/unicode_restricted_identity_escape_x.js",  # Not checked
+    "/test/built-ins/RegExp/unicode_restricted_octal_escape.js",  # Not checked
+    "/test/built-ins/String/prototype/replace/S15.5.4.11_A3_T1.js",  # Not checked
+    "/test/built-ins/String/prototype/replace/S15.5.4.11_A3_T2.js",  # Not checked
+    "/test/built-ins/String/prototype/replace/S15.5.4.11_A3_T3.js",  # Not checked
+    "/test/language/literals/regexp/S7.8.5_A1.1_T2.js",  # Not checked
+    "/test/language/literals/regexp/S7.8.5_A1.4_T2.js",  # Not checked
+    "/test/language/literals/regexp/S7.8.5_A2.1_T2.js",  # Not checked
+    "/test/language/literals/regexp/S7.8.5_A2.4_T2.js",  # Not checked
+    "/test/language/literals/regexp/named-groups/invalid-incomplete-groupname-2.js",  # Not checked
+    "/test/language/literals/regexp/named-groups/invalid-incomplete-groupname-3.js",  # Not checked
+    "/test/language/literals/regexp/named-groups/invalid-incomplete-groupname-4.js",  # Not checked
+    "/test/language/literals/regexp/named-groups/invalid-incomplete-groupname-5.js",  # Not checked
+    "/test/language/literals/regexp/named-groups/invalid-incomplete-groupname-6.js",  # Not checked
+    "/test/language/literals/regexp/named-groups/invalid-incomplete-groupname.js",  # Not checked
 )
 
 

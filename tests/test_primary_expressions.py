@@ -2911,28 +2911,29 @@ class Test_RegularExpressionLiterals_EarlyErrors:
         pe = ecmascript.ecmascript.P2_PrimaryExpression_RegularExpressionLiteral(context, strict, [rel])
         rv = pe.EarlyErrors()
         assert [type(err) for err in rv] == [Expected_Exception]
-        assert rv[0].args[0] == "Bad Regular Expression"
+        assert rv[0].args[0].startswith("Bad Regex")
         matcher.assert_called_with(mocker.sentinel.body, 0, False, False)
 
     @pytest.mark.parametrize("badflags", ("mss", "8"))
     @strict_params
     def test_bad_flags(self, context, mocker, strict, badflags):
-        matcher = mocker.patch("ecmascript.e262_regexp.parse_Pattern", return_value=mocker.sentinel.match)
         rel = mocker.Mock(value=mocker.Mock(body=mocker.sentinel.body, flags=badflags))
         pe = ecmascript.ecmascript.P2_PrimaryExpression_RegularExpressionLiteral(context, strict, [rel])
         rv = pe.EarlyErrors()
         assert [type(err) for err in rv] == [Expected_Exception]
-        assert rv[0].args[0] == "Bad Regular Expression Flags"
-        matcher.assert_called_with(mocker.sentinel.body, 0, False, False)
+        assert rv[0].args[0] == f"Bad flags for regex: {badflags}"
 
     @strict_params
     def test_is_ok(self, context, mocker, strict):
-        matcher = mocker.patch("ecmascript.e262_regexp.parse_Pattern", return_value=mocker.sentinel.match)
-        rel = mocker.Mock(value=mocker.Mock(body=mocker.sentinel.body, flags="gm"))
+        matcher = mocker.patch(
+            "ecmascript.e262_regexp.parse_Pattern",
+            return_value=mocker.Mock(group_names=[], span=mocker.Mock(start=0, after=13), earlyerrors=None),
+        )
+        rel = mocker.Mock(value=mocker.Mock(body="sentinel.body", flags="gm"))
         pe = ecmascript.ecmascript.P2_PrimaryExpression_RegularExpressionLiteral(context, strict, [rel])
         rv = pe.EarlyErrors()
         assert rv == []
-        matcher.assert_called_with(mocker.sentinel.body, 0, False, False)
+        matcher.assert_called_with("sentinel.body", 0, False, False)
 
 
 ####################################################################################
