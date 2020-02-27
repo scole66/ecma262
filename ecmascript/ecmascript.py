@@ -18,6 +18,7 @@ import uuid
 import struct
 import operator
 import json
+import unicodedata
 import locale
 
 locale.setlocale(locale.LC_ALL, "")
@@ -33747,6 +33748,7 @@ def CreateStringPrototype(realm):
             ("lastIndexOf", StringPrototype_lastIndexOf, None),
             ("localeCompare", StringPrototype_localeCompare, None),
             ("match", StringPrototype_match, None),
+            ("normalize", StringPrototype_normalize, None),
             ("slice", StringPrototype_slice, None),
             ("split", StringPrototype_split, None),
             ("substring", StringPrototype_substring, None),
@@ -34167,6 +34169,33 @@ def StringPrototype_match(this_value, new_target, regexp=None, *_):
 StringPrototype_match.name = "match"
 StringPrototype_match.length = 1
 
+# 21.1.3.12 String.prototype.normalize ( [ form ] )
+def StringPrototype_normalize(this_value, new_target, form=None, *_):
+    # When the normalize method is called with one argument form, the following steps are taken:
+    #
+    #   1. Let O be ? RequireObjectCoercible(this value).
+    #   2. Let S be ? ToString(O).
+    #   3. If form is not present or form is undefined, set form to "NFC".
+    #   4. Let f be ? ToString(form).
+    #   5. If f is not one of "NFC", "NFD", "NFKC", or "NFKD", throw a RangeError exception.
+    #   6. Let ns be the String value that is the result of normalizing S into the normalization form named by f as
+    #      specified in https://unicode.org/reports/tr15/.
+    #   7. Return ns.
+    # NOTE  | The normalize function is intentionally generic; it does not require that its this value be a String
+    #       | object. Therefore it can be transferred to other kinds of objects for use as a method.
+    O = RequireObjectCoercible(this_value)
+    S = ToString(O)
+    if form is None:
+        form = "NFC"
+    f = ToString(form)
+    if f not in ("NFC", "NFD", "NFKC", "NFKD"):
+        raise ESRangeError(f'String.prototype.normalize: "form" ({f}) must be one of NFC, NFD, NFKC, or NFKD')
+    ns = utf_16_encode(unicodedata.normalize(f, utf_16_decode(S, False)))
+    return ns
+
+
+StringPrototype_normalize.name = "normalize"
+StringPrototype_normalize.length = 0
 
 # 21.1.3.18 String.prototype.slice ( start, end )
 def StringPrototype_slice(this_value, new_target, start=None, end=None, *_):

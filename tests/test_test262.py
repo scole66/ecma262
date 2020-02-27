@@ -510,15 +510,6 @@ xfail_tests = (
     "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T4.js",  # Needs regex character class
     "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T5.js",  # Needs regex character class
     "/test/built-ins/String/prototype/match/this-value-not-obj-coercible.js",  # Needs regex character class
-    "/test/built-ins/String/prototype/normalize/form-is-not-valid-throws.js",  # Needs String.prototype.normalize
-    "/test/built-ins/String/prototype/normalize/length.js",  # Needs String.prototype.normalize
-    "/test/built-ins/String/prototype/normalize/name.js",  # Needs String.prototype.normalize
-    "/test/built-ins/String/prototype/normalize/normalize.js",  # Needs String.prototype.normalize
-    "/test/built-ins/String/prototype/normalize/return-abrupt-from-form.js",  # Needs String.prototype.normalize
-    "/test/built-ins/String/prototype/normalize/return-abrupt-from-this.js",  # Needs String.prototype.normalize
-    "/test/built-ins/String/prototype/normalize/return-normalized-string-from-coerced-form.js",  # Needs String.prototype.normalize
-    "/test/built-ins/String/prototype/normalize/return-normalized-string-using-default-parameter.js",  # Needs String.prototype.normalize
-    "/test/built-ins/String/prototype/normalize/return-normalized-string.js",  # Needs String.prototype.normalize
     "/test/built-ins/String/prototype/padEnd/exception-not-object-coercible.js",  # Needs String.prototype.padEnd
     "/test/built-ins/String/prototype/padEnd/fill-string-empty.js",  # Needs String.prototype.padEnd
     "/test/built-ins/String/prototype/padEnd/fill-string-non-strings.js",  # Needs String.prototype.padEnd
