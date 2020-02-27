@@ -510,16 +510,6 @@ xfail_tests = (
     "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T4.js",  # Needs regex character class
     "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T5.js",  # Needs regex character class
     "/test/built-ins/String/prototype/match/this-value-not-obj-coercible.js",  # Needs regex character class
-    "/test/built-ins/String/prototype/padStart/exception-not-object-coercible.js",  # Needs String.prototype.padStart
-    "/test/built-ins/String/prototype/padStart/fill-string-empty.js",  # Needs String.prototype.padStart
-    "/test/built-ins/String/prototype/padStart/fill-string-non-strings.js",  # Needs String.prototype.padStart
-    "/test/built-ins/String/prototype/padStart/fill-string-omitted.js",  # Needs String.prototype.padStart
-    "/test/built-ins/String/prototype/padStart/function-length.js",  # Needs String.prototype.padStart
-    "/test/built-ins/String/prototype/padStart/function-name.js",  # Needs String.prototype.padStart
-    "/test/built-ins/String/prototype/padStart/function-property-descriptor.js",  # Needs String.prototype.padStart
-    "/test/built-ins/String/prototype/padStart/max-length-not-greater-than-string.js",  # Needs String.prototype.padStart
-    "/test/built-ins/String/prototype/padStart/normal-operation.js",  # Needs String.prototype.padStart
-    "/test/built-ins/String/prototype/padStart/observable-operations.js",  # Needs String.prototype.padStart
     "/test/built-ins/String/prototype/repeat/count-coerced-to-zero-returns-empty-string.js",  # Needs String.prototype.repeat
     "/test/built-ins/String/prototype/repeat/count-is-infinity-throws.js",  # Needs String.prototype.repeat
     "/test/built-ins/String/prototype/repeat/count-is-zero-returns-empty-string.js",  # Needs String.prototype.repeat

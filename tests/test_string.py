@@ -208,7 +208,7 @@ def test_CreateStringPrototype_03(realm):
         ("match", "StringPrototype_match", 1),
         ("normalize", "StringPrototype_normalize", 0),
         ("padEnd", "StringPrototype_padEnd", 1),
-        pytest.param("padStart", "StringPrototype_padStart", 1, marks=pytest.mark.xfail),
+        ("padStart", "StringPrototype_padStart", 1),
         pytest.param("repeat", "StringPrototype_repeat", 1, marks=pytest.mark.xfail),
         pytest.param("replace", "StringPrototype_replace", 2, marks=pytest.mark.xfail),
         pytest.param("search", "StringPrototype_search", 1, marks=pytest.mark.xfail),
