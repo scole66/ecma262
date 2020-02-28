@@ -485,7 +485,6 @@ xfail_tests = (
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-55.js",  # Needs Array.prototype.some
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-58.js",  # Needs Array.prototype.filter
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-60.js",  # Needs Array.prototype.reduceRight
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-69.js",  # Needs String.prototype.replace
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-70.js",  # Needs String.prototype.search
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-77.js",  # Needs String.prototype.toUpperCase
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-79.js",  # Needs String.prototype.toLocaleLowerCase
