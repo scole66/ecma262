@@ -521,21 +521,8 @@ xfail_tests = (
     "/test/built-ins/String/prototype/split/S15.5.4.14_A4_T20.js",  # Needs functional regex
     "/test/built-ins/String/prototype/split/S15.5.4.14_A4_T22.js",  # Needs functional regex
     "/test/built-ins/String/prototype/split/S15.5.4.14_A4_T23.js",  # Needs functional regex
-    "/test/built-ins/String/prototype/startsWith/coerced-values-of-position.js",  # Needs String.prototype.startsWith
-    "/test/built-ins/String/prototype/startsWith/length.js",  # Needs String.prototype.startsWith
-    "/test/built-ins/String/prototype/startsWith/name.js",  # Needs String.prototype.startsWith
-    "/test/built-ins/String/prototype/startsWith/out-of-bounds-position.js",  # Needs String.prototype.startsWith
-    "/test/built-ins/String/prototype/startsWith/return-abrupt-from-position.js",  # Needs String.prototype.startsWith
-    "/test/built-ins/String/prototype/startsWith/return-abrupt-from-searchstring-regexp-test.js",  # Needs String.prototype.startsWith
-    "/test/built-ins/String/prototype/startsWith/return-abrupt-from-searchstring.js",  # Needs String.prototype.startsWith
-    "/test/built-ins/String/prototype/startsWith/return-abrupt-from-this.js",  # Needs String.prototype.startsWith
-    "/test/built-ins/String/prototype/startsWith/return-true-if-searchstring-is-empty.js",  # Needs String.prototype.startsWith
-    "/test/built-ins/String/prototype/startsWith/searchstring-found-with-position.js",  # Needs String.prototype.startsWith
-    "/test/built-ins/String/prototype/startsWith/searchstring-found-without-position.js",  # Needs String.prototype.startsWith
-    "/test/built-ins/String/prototype/startsWith/searchstring-is-regexp-throws.js",  # Needs String.prototype.startsWith
-    "/test/built-ins/String/prototype/startsWith/searchstring-not-found-with-position.js",  # Needs String.prototype.startsWith
-    "/test/built-ins/String/prototype/startsWith/searchstring-not-found-without-position.js",  # Needs String.prototype.startsWith
-    "/test/built-ins/String/prototype/startsWith/startsWith.js",  # Needs String.prototype.startsWith
+    "/test/built-ins/String/prototype/startsWith/return-abrupt-from-searchstring-regexp-test.js",  # Needs Regex Atom_dot
+    "/test/built-ins/String/prototype/startsWith/searchstring-is-regexp-throws.js",  # Needs Regex Atom_dot
     "/test/built-ins/String/prototype/Symbol.iterator/length.js",  # Needs String.prototype.@@iterator
     "/test/built-ins/String/prototype/Symbol.iterator/name.js",  # Needs String.prototype.@@iterator
     "/test/built-ins/String/prototype/Symbol.iterator/prop-desc.js",  # Needs String.prototype.@@iterator

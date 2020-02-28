@@ -214,7 +214,7 @@ def test_CreateStringPrototype_03(realm):
         ("search", "StringPrototype_search", 1),
         ("slice", "StringPrototype_slice", 2),
         ("split", "StringPrototype_split", 2),
-        pytest.param("startsWith", "StringPrototype_startsWith", 1, marks=pytest.mark.xfail),
+        ("startsWith", "StringPrototype_startsWith", 1),
         ("substring", "StringPrototype_substring", 2),
         pytest.param("toLocaleLowerCase", "StringPrototype_toLocaleLowerCase", 0, marks=pytest.mark.xfail),
         pytest.param("toLocaleUpperCase", "StringPrototype_toLocaleUpperCase", 0, marks=pytest.mark.xfail),
