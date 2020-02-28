@@ -485,7 +485,6 @@ xfail_tests = (
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-55.js",  # Needs Array.prototype.some
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-58.js",  # Needs Array.prototype.filter
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-60.js",  # Needs Array.prototype.reduceRight
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-70.js",  # Needs String.prototype.search
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-77.js",  # Needs String.prototype.toUpperCase
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-79.js",  # Needs String.prototype.toLocaleLowerCase
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-80.js",  # Needs String.prototype.toLocaleUpperCase
@@ -517,40 +516,7 @@ xfail_tests = (
     "/test/built-ins/String/prototype/replace/S15.5.4.11_A3_T1.js",  # Needs Regex Character Class Escape
     "/test/built-ins/String/prototype/replace/S15.5.4.11_A3_T2.js",  # Needs Regex Character Class Escape
     "/test/built-ins/String/prototype/replace/S15.5.4.11_A3_T3.js",  # Needs Regex Character Class Escape
-    "/test/built-ins/String/prototype/search/cstm-search-get-err.js",  # Needs String.prototype.search
-    "/test/built-ins/String/prototype/search/cstm-search-invocation.js",  # Needs String.prototype.search
-    "/test/built-ins/String/prototype/search/invoke-builtin-search-searcher-undef.js",  # Needs String.prototype.search
-    "/test/built-ins/String/prototype/search/invoke-builtin-search.js",  # Needs String.prototype.search
-    "/test/built-ins/String/prototype/search/name.js",  # Needs String.prototype.search
-    "/test/built-ins/String/prototype/search/S15.5.4.12_A1.1_T1.js",  # Needs String.prototype.search
-    "/test/built-ins/String/prototype/search/S15.5.4.12_A10.js",  # Needs String.prototype.search
-    "/test/built-ins/String/prototype/search/S15.5.4.12_A11.js",  # Needs String.prototype.search
-    "/test/built-ins/String/prototype/search/S15.5.4.12_A1_T1.js",  # Needs String.prototype.search
-    "/test/built-ins/String/prototype/search/S15.5.4.12_A1_T10.js",  # Needs String.prototype.search
-    "/test/built-ins/String/prototype/search/S15.5.4.12_A1_T11.js",  # Needs String.prototype.search
-    "/test/built-ins/String/prototype/search/S15.5.4.12_A1_T12.js",  # Needs String.prototype.search
-    "/test/built-ins/String/prototype/search/S15.5.4.12_A1_T13.js",  # Needs String.prototype.search
-    "/test/built-ins/String/prototype/search/S15.5.4.12_A1_T14.js",  # Needs String.prototype.search
-    "/test/built-ins/String/prototype/search/S15.5.4.12_A1_T2.js",  # Needs String.prototype.search
-    "/test/built-ins/String/prototype/search/S15.5.4.12_A1_T4.js",  # Needs String.prototype.search
-    "/test/built-ins/String/prototype/search/S15.5.4.12_A1_T5.js",  # Needs String.prototype.search
-    "/test/built-ins/String/prototype/search/S15.5.4.12_A1_T6.js",  # Needs String.prototype.search
-    "/test/built-ins/String/prototype/search/S15.5.4.12_A1_T7.js",  # Needs String.prototype.search
-    "/test/built-ins/String/prototype/search/S15.5.4.12_A1_T8.js",  # Needs String.prototype.search
-    "/test/built-ins/String/prototype/search/S15.5.4.12_A1_T9.js",  # Needs String.prototype.search
-    "/test/built-ins/String/prototype/search/S15.5.4.12_A2_T1.js",  # Needs String.prototype.search
-    "/test/built-ins/String/prototype/search/S15.5.4.12_A2_T2.js",  # Needs String.prototype.search
-    "/test/built-ins/String/prototype/search/S15.5.4.12_A2_T3.js",  # Needs String.prototype.search
-    "/test/built-ins/String/prototype/search/S15.5.4.12_A2_T4.js",  # Needs String.prototype.search
-    "/test/built-ins/String/prototype/search/S15.5.4.12_A2_T5.js",  # Needs String.prototype.search
-    "/test/built-ins/String/prototype/search/S15.5.4.12_A2_T6.js",  # Needs String.prototype.search
-    "/test/built-ins/String/prototype/search/S15.5.4.12_A2_T7.js",  # Needs String.prototype.search
-    "/test/built-ins/String/prototype/search/S15.5.4.12_A3_T1.js",  # Needs String.prototype.search
-    "/test/built-ins/String/prototype/search/S15.5.4.12_A3_T2.js",  # Needs String.prototype.search
-    "/test/built-ins/String/prototype/search/S15.5.4.12_A6.js",  # Needs String.prototype.search
-    "/test/built-ins/String/prototype/search/S15.5.4.12_A8.js",  # Needs String.prototype.search
-    "/test/built-ins/String/prototype/search/S15.5.4.12_A9.js",  # Needs String.prototype.search
-    "/test/built-ins/String/prototype/search/this-value-not-obj-coercible.js",  # Needs String.prototype.search
+    "/test/built-ins/String/prototype/search/this-value-not-obj-coercible.js",  # Needs Regex Atom_dot
     "/test/built-ins/String/prototype/split/S15.5.4.14_A4_T19.js",  # Needs functional regex
     "/test/built-ins/String/prototype/split/S15.5.4.14_A4_T20.js",  # Needs functional regex
     "/test/built-ins/String/prototype/split/S15.5.4.14_A4_T22.js",  # Needs functional regex
