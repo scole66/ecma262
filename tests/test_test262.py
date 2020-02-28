@@ -504,6 +504,10 @@ xfail_tests = (
     "/test/built-ins/Object/prototype/toString/Object.prototype.toString.call-regexp.js",  # Needs functional regex
     "/test/built-ins/Object/prototype/toString/symbol-tag-override-instances.js",  # Needs functional regex
     "/test/built-ins/Object/seal/throws-when-false.js",  # Needs Proxy
+    "/test/built-ins/String/prototype/endsWith/return-abrupt-from-searchstring-regexp-test.js",  # Needs Regex
+    "/test/built-ins/String/prototype/endsWith/searchstring-is-regexp-throws.js",  # Needs Regex
+    "/test/built-ins/String/prototype/includes/return-abrupt-from-searchstring-regexp-test.js",  # Needs Regex
+    "/test/built-ins/String/prototype/includes/searchstring-is-regexp-throws.js",  # Needs Regex
     "/test/built-ins/String/prototype/indexOf/S15.5.4.7_A1_T12.js",  # Needs Array.prototype.indexOf
     "/test/built-ins/String/prototype/lastIndexOf/S15.5.4.8_A1_T12.js",  # Needs Array.prototype.lastIndexOf
     "/test/built-ins/String/prototype/localeCompare/15.5.4.9_3.js",  # Needs String.prototype.localeCompare
