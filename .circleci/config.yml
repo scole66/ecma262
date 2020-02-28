@@ -56,7 +56,7 @@ jobs:
             . venv/bin/activate
             mkdir test-reports
             black -l 117 --check ecmascript/*.py tests/*.py
-            pytest -v --junitxml=test-reports/junit.xml
+            pytest -n 2 -v --junitxml=test-reports/junit.xml
 
       - store_test_results:
           path: test-reports
