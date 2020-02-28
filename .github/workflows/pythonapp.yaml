@@ -27,4 +27,4 @@ jobs:
         black -l 117 --check ecmascript/*.py tests/*.py
     - name: Test with pytest
       run: |
-        pytest
+        pytest -n 2
