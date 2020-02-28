@@ -2,6 +2,7 @@ pytest
 pylint
 pytest-cov
 pytest-mock
+pytest-xdist
 pyyaml
 black
 snoop
