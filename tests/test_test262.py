@@ -485,7 +485,6 @@ xfail_tests = (
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-55.js",  # Needs Array.prototype.some
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-58.js",  # Needs Array.prototype.filter
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-60.js",  # Needs Array.prototype.reduceRight
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-67.js",  # Needs String.prototype.lastIndexOf
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-68.js",  # Needs String.prototype.match
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-69.js",  # Needs String.prototype.replace
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-70.js",  # Needs String.prototype.search
@@ -510,28 +509,7 @@ xfail_tests = (
     "/test/built-ins/String/prototype/includes/return-abrupt-from-searchstring-regexp-test.js",  # Needs Regex
     "/test/built-ins/String/prototype/includes/searchstring-is-regexp-throws.js",  # Needs Regex
     "/test/built-ins/String/prototype/indexOf/S15.5.4.7_A1_T12.js",  # Needs Array.prototype.indexOf
-    "/test/built-ins/String/prototype/lastIndexOf/name.js",  # Needs String.prototype.lastIndexOf
-    "/test/built-ins/String/prototype/lastIndexOf/S15.5.4.8_A1_T1.js",  # Needs String.prototype.lastIndexOf
-    "/test/built-ins/String/prototype/lastIndexOf/S15.5.4.8_A1_T10.js",  # Needs String.prototype.lastIndexOf
-    "/test/built-ins/String/prototype/lastIndexOf/S15.5.4.8_A1_T12.js",  # Needs String.prototype.lastIndexOf
-    "/test/built-ins/String/prototype/lastIndexOf/S15.5.4.8_A1_T2.js",  # Needs String.prototype.lastIndexOf
-    "/test/built-ins/String/prototype/lastIndexOf/S15.5.4.8_A1_T4.js",  # Needs String.prototype.lastIndexOf
-    "/test/built-ins/String/prototype/lastIndexOf/S15.5.4.8_A1_T5.js",  # Needs String.prototype.lastIndexOf
-    "/test/built-ins/String/prototype/lastIndexOf/S15.5.4.8_A1_T6.js",  # Needs String.prototype.lastIndexOf
-    "/test/built-ins/String/prototype/lastIndexOf/S15.5.4.8_A1_T7.js",  # Needs String.prototype.lastIndexOf
-    "/test/built-ins/String/prototype/lastIndexOf/S15.5.4.8_A1_T8.js",  # Needs String.prototype.lastIndexOf
-    "/test/built-ins/String/prototype/lastIndexOf/S15.5.4.8_A1_T9.js",  # Needs String.prototype.lastIndexOf
-    "/test/built-ins/String/prototype/lastIndexOf/S15.5.4.8_A10.js",  # Needs String.prototype.lastIndexOf
-    "/test/built-ins/String/prototype/lastIndexOf/S15.5.4.8_A11.js",  # Needs String.prototype.lastIndexOf
-    "/test/built-ins/String/prototype/lastIndexOf/S15.5.4.8_A4_T1.js",  # Needs String.prototype.lastIndexOf
-    "/test/built-ins/String/prototype/lastIndexOf/S15.5.4.8_A4_T2.js",  # Needs String.prototype.lastIndexOf
-    "/test/built-ins/String/prototype/lastIndexOf/S15.5.4.8_A4_T3.js",  # Needs String.prototype.lastIndexOf
-    "/test/built-ins/String/prototype/lastIndexOf/S15.5.4.8_A4_T4.js",  # Needs String.prototype.lastIndexOf
-    "/test/built-ins/String/prototype/lastIndexOf/S15.5.4.8_A4_T5.js",  # Needs String.prototype.lastIndexOf
-    "/test/built-ins/String/prototype/lastIndexOf/S15.5.4.8_A6.js",  # Needs String.prototype.lastIndexOf
-    "/test/built-ins/String/prototype/lastIndexOf/S15.5.4.8_A8.js",  # Needs String.prototype.lastIndexOf
-    "/test/built-ins/String/prototype/lastIndexOf/S15.5.4.8_A9.js",  # Needs String.prototype.lastIndexOf
-    "/test/built-ins/String/prototype/lastIndexOf/this-value-not-obj-coercible.js",  # Needs String.prototype.lastIndexOf
+    "/test/built-ins/String/prototype/lastIndexOf/S15.5.4.8_A1_T12.js",  # Needs Array.prototype.lastIndexOf
     "/test/built-ins/String/prototype/localeCompare/15.5.4.9_3.js",  # Needs String.prototype.localeCompare
     "/test/built-ins/String/prototype/localeCompare/15.5.4.9_CE.js",  # Needs String.prototype.charCodeAt
     "/test/built-ins/String/prototype/localeCompare/15.5.4.9_CE.js",  # Needs String.prototype.localeCompare
