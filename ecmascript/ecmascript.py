@@ -33739,6 +33739,7 @@ def CreateStringPrototype(realm):
             ("codePointAt", StringPrototype_codePointAt, None),
             ("concat", StringPrototype_concat, None),
             ("endsWith", StringPrototype_endsWith, None),
+            ("includes", StringPrototype_includes, None),
             ("indexOf", StringPrototype_indexOf, None),
             ("slice", StringPrototype_slice, None),
             ("split", StringPrototype_split, None),
@@ -33954,6 +33955,49 @@ def StringPrototype_endsWith(this_value, new_target, searchString=None, endPosit
 
 StringPrototype_endsWith.name = "endsWith"
 StringPrototype_endsWith.length = 1
+
+
+# 21.1.3.7 String.prototype.includes ( searchString [ , position ] )
+def StringPrototype_includes(this_value, new_target, searchString=None, position=None, *_):
+    # The includes method takes two arguments, searchString and position, and performs the following steps:
+    #
+    #   1. Let O be ? RequireObjectCoercible(this value).
+    #   2. Let S be ? ToString(O).
+    #   3. Let isRegExp be ? IsRegExp(searchString).
+    #   4. If isRegExp is true, throw a TypeError exception.
+    #   5. Let searchStr be ? ToString(searchString).
+    #   6. Let pos be ? ToInteger(position).
+    #   7. Assert: If position is undefined, then pos is 0.
+    #   8. Let len be the length of S.
+    #   9. Let start be min(max(pos, 0), len).
+    #   10. Let searchLen be the length of searchStr.
+    #   11. If there exists any integer k not smaller than start such that k + searchLen is not greater than len,
+    #       and for all nonnegative integers j less than searchLen, the code unit at index k + j within S is the
+    #       same as the code unit at index j within searchStr, return true; but if there is no such integer k,
+    #       return false.
+    #
+    # NOTE 1    | If searchString appears as a substring of the result of converting this object to a String, at one
+    #           | or more indices that are greater than or equal to position, return true; otherwise, returns false.
+    #           | If position is undefined, 0 is assumed, so as to search all of the String.
+    #
+    # NOTE 2    | Throwing an exception if the first argument is a RegExp is specified in order to allow future
+    #           | editions to define extensions that allow such argument values.
+    #
+    # NOTE 3    | The includes function is intentionally generic; it does not require that its this value be a
+    #           | String object. Therefore, it can be transferred to other kinds of objects for use as a method.
+    O = RequireObjectCoercible(this_value)
+    S = ToString(O)
+    if IsRegExp(searchString):
+        raise ESTypeError("String.prototype.includes: searchString may not be a RegExp")
+    searchStr = ToString(searchString)
+    pos = ToInteger(position)
+    length = len(S)
+    start = int(min(max(pos, 0), length))
+    return searchStr in S[start:]
+
+
+StringPrototype_includes.name = "includes"
+StringPrototype_includes.length = 1
 
 
 # 21.1.3.8 String.prototype.indexOf ( searchString [ , position ] )
