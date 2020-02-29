@@ -18,6 +18,9 @@ import uuid
 import struct
 import operator
 import json
+import locale
+
+locale.setlocale(locale.LC_ALL, "")
 
 import snoop
 
@@ -33742,6 +33745,7 @@ def CreateStringPrototype(realm):
             ("includes", StringPrototype_includes, None),
             ("indexOf", StringPrototype_indexOf, None),
             ("lastIndexOf", StringPrototype_lastIndexOf, None),
+            ("localeCompare", StringPrototype_localeCompare, None),
             ("slice", StringPrototype_slice, None),
             ("split", StringPrototype_split, None),
             ("substring", StringPrototype_substring, None),
@@ -34077,6 +34081,62 @@ def StringPrototype_lastIndexOf(this_value, new_target, searchString=None, posit
 
 StringPrototype_lastIndexOf.name = "lastIndexOf"
 StringPrototype_lastIndexOf.length = 1
+
+# 21.1.3.10 String.prototype.localeCompare ( that [ , reserved1 [ , reserved2 ] ] )
+def StringPrototype_localeCompare(this_value, new_target, that=None, reserved1=..., reserved2=..., *_):
+    # An ECMAScript implementation that includes the ECMA-402 Internationalization API must implement the
+    # localeCompare method as specified in the ECMA-402 specification. If an ECMAScript implementation does not
+    # include the ECMA-402 API the following specification of the localeCompare method is used.
+    #
+    # When the localeCompare method is called with argument that, it returns a Number other than NaN that represents
+    # the result of a locale-sensitive String comparison of the this value (converted to a String) with that
+    # (converted to a String). The two Strings are S and That. The two Strings are compared in an
+    # implementation-defined fashion. The result is intended to order String values in the sort order specified by a
+    # host default locale, and will be negative, zero, or positive, depending on whether S comes before That in the
+    # sort order, the Strings are equal, or S comes after That in the sort order, respectively.
+    #
+    # Before performing the comparisons, the following steps are performed to prepare the Strings:
+    #
+    #   1. Let O be ? RequireObjectCoercible(this value).
+    #   2. Let S be ? ToString(O).
+    #   3. Let That be ? ToString(that).
+    #
+    # The meaning of the optional second and third parameters to this method are defined in the ECMA-402
+    # specification; implementations that do not include ECMA-402 support must not assign any other interpretation
+    # to those parameter positions.
+    #
+    # The localeCompare method, if considered as a function of two arguments this and that, is a consistent
+    # comparison function (as defined in 22.1.3.27) on the set of all Strings.
+    #
+    # The actual return values are implementation-defined to permit implementers to encode additional information in
+    # the value, but the function is required to define a total ordering on all Strings. This function must treat
+    # Strings that are canonically equivalent according to the Unicode standard as identical and must return 0 when
+    # comparing Strings that are considered canonically equivalent.
+    #
+    # NOTE 1    | The localeCompare method itself is not directly suitable as an argument to Array.prototype.sort
+    #           | because the latter requires a function of two arguments.
+    #
+    # NOTE 2    | This function is intended to rely on whatever language-sensitive comparison functionality is
+    #           | available to the ECMAScript environment from the host environment, and to compare according to the
+    #           | rules of the host environment's current locale. However, regardless of the host provided
+    #           | comparison capabilities, this function must treat Strings that are canonically equivalent
+    #           | according to the Unicode standard as identical. It is recommended that this function should not
+    #           | honour Unicode compatibility equivalences or decompositions. For a definition and discussion of
+    #           | canonical equivalence see the Unicode Standard, chapters 2 and 3, as well as Unicode Standard
+    #           | Annex #15, Unicode Normalization Forms (https://unicode.org/reports/tr15/) and Unicode Technical
+    #           | Note #5, Canonical Equivalence in Applications (https://www.unicode.org/notes/tn5/). Also see
+    #           | Unicode Technical Standard #10, Unicode Collation Algorithm (https://unicode.org/reports/tr10/).
+    #
+    # NOTE 3    | The localeCompare function is intentionally generic; it does not require that its this value be a
+    #           | String object. Therefore, it can be transferred to other kinds of objects for use as a method.
+    O = RequireObjectCoercible(this_value)
+    S = ToString(O)
+    That = ToString(that)
+    return locale.strcoll(utf_16_decode(S, False), utf_16_decode(That, False))
+
+
+StringPrototype_localeCompare.name = "localeCompare"
+StringPrototype_localeCompare.length = 1
 
 # 21.1.3.18 String.prototype.slice ( start, end )
 def StringPrototype_slice(this_value, new_target, start=None, end=None, *_):
