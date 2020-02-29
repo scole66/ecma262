@@ -514,16 +514,6 @@ xfail_tests = (
     "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T4.js",  # Needs regex character class
     "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T5.js",  # Needs regex character class
     "/test/built-ins/String/prototype/match/this-value-not-obj-coercible.js",  # Needs regex character class
-    "/test/built-ins/String/prototype/padEnd/exception-not-object-coercible.js",  # Needs String.prototype.padEnd
-    "/test/built-ins/String/prototype/padEnd/fill-string-empty.js",  # Needs String.prototype.padEnd
-    "/test/built-ins/String/prototype/padEnd/fill-string-non-strings.js",  # Needs String.prototype.padEnd
-    "/test/built-ins/String/prototype/padEnd/fill-string-omitted.js",  # Needs String.prototype.padEnd
-    "/test/built-ins/String/prototype/padEnd/function-length.js",  # Needs String.prototype.padEnd
-    "/test/built-ins/String/prototype/padEnd/function-name.js",  # Needs String.prototype.padEnd
-    "/test/built-ins/String/prototype/padEnd/function-property-descriptor.js",  # Needs String.prototype.padEnd
-    "/test/built-ins/String/prototype/padEnd/max-length-not-greater-than-string.js",  # Needs String.prototype.padEnd
-    "/test/built-ins/String/prototype/padEnd/normal-operation.js",  # Needs String.prototype.padEnd
-    "/test/built-ins/String/prototype/padEnd/observable-operations.js",  # Needs String.prototype.padEnd
     "/test/built-ins/String/prototype/padStart/exception-not-object-coercible.js",  # Needs String.prototype.padStart
     "/test/built-ins/String/prototype/padStart/fill-string-empty.js",  # Needs String.prototype.padStart
     "/test/built-ins/String/prototype/padStart/fill-string-non-strings.js",  # Needs String.prototype.padStart

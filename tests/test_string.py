@@ -207,7 +207,7 @@ def test_CreateStringPrototype_03(realm):
         ("localeCompare", "StringPrototype_localeCompare", 1),
         ("match", "StringPrototype_match", 1),
         ("normalize", "StringPrototype_normalize", 0),
-        pytest.param("padEnd", "StringPrototype_padEnd", 1, marks=pytest.mark.xfail),
+        ("padEnd", "StringPrototype_padEnd", 1),
         pytest.param("padStart", "StringPrototype_padStart", 1, marks=pytest.mark.xfail),
         pytest.param("repeat", "StringPrototype_repeat", 1, marks=pytest.mark.xfail),
         pytest.param("replace", "StringPrototype_replace", 2, marks=pytest.mark.xfail),
