@@ -205,7 +205,7 @@ def test_CreateStringPrototype_03(realm):
         pytest.param("indexOf", "StringPrototype_indexOf", 1),
         ("lastIndexOf", "StringPrototype_lastIndexOf", 1),
         ("localeCompare", "StringPrototype_localeCompare", 1),
-        pytest.param("match", "StringPrototype_match", 1, marks=pytest.mark.xfail),
+        ("match", "StringPrototype_match", 1),
         pytest.param("normalize", "StringPrototype_normalize", 0, marks=pytest.mark.xfail),
         pytest.param("padEnd", "StringPrototype_padEnd", 1, marks=pytest.mark.xfail),
         pytest.param("padStart", "StringPrototype_padStart", 1, marks=pytest.mark.xfail),
