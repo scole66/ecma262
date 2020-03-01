@@ -514,17 +514,6 @@ xfail_tests = (
     "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T4.js",  # Needs regex character class
     "/test/built-ins/String/prototype/match/S15.5.4.10_A2_T5.js",  # Needs regex character class
     "/test/built-ins/String/prototype/match/this-value-not-obj-coercible.js",  # Needs regex character class
-    "/test/built-ins/String/prototype/repeat/count-coerced-to-zero-returns-empty-string.js",  # Needs String.prototype.repeat
-    "/test/built-ins/String/prototype/repeat/count-is-infinity-throws.js",  # Needs String.prototype.repeat
-    "/test/built-ins/String/prototype/repeat/count-is-zero-returns-empty-string.js",  # Needs String.prototype.repeat
-    "/test/built-ins/String/prototype/repeat/count-less-than-zero-throws.js",  # Needs String.prototype.repeat
-    "/test/built-ins/String/prototype/repeat/empty-string-returns-empty.js",  # Needs String.prototype.repeat
-    "/test/built-ins/String/prototype/repeat/length.js",  # Needs String.prototype.repeat
-    "/test/built-ins/String/prototype/repeat/name.js",  # Needs String.prototype.repeat
-    "/test/built-ins/String/prototype/repeat/repeat-string-n-times.js",  # Needs String.prototype.repeat
-    "/test/built-ins/String/prototype/repeat/repeat.js",  # Needs String.prototype.repeat
-    "/test/built-ins/String/prototype/repeat/return-abrupt-from-count.js",  # Needs String.prototype.repeat
-    "/test/built-ins/String/prototype/repeat/return-abrupt-from-this.js",  # Needs String.prototype.repeat
     "/test/built-ins/String/prototype/replace/15.5.4.11-1.js",  # Needs String.prototype.replace
     "/test/built-ins/String/prototype/replace/cstm-replace-get-err.js",  # Needs String.prototype.replace
     "/test/built-ins/String/prototype/replace/cstm-replace-invocation.js",  # Needs String.prototype.replace

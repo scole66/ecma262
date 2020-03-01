@@ -33751,6 +33751,7 @@ def CreateStringPrototype(realm):
             ("normalize", StringPrototype_normalize, None),
             ("padEnd", StringPrototype_padEnd, None),
             ("padStart", StringPrototype_padStart, None),
+            ("repeat", StringPrototype_repeat, None),
             ("slice", StringPrototype_slice, None),
             ("split", StringPrototype_split, None),
             ("substring", StringPrototype_substring, None),
@@ -34318,6 +34319,38 @@ def StringPrototype_slice(this_value, new_target, start=None, end=None, *_):
 
 StringPrototype_slice.length = 2
 StringPrototype_slice.name = "slice"
+
+# 21.1.3.15 String.prototype.repeat ( count )
+def StringPrototype_repeat(this_value, new_target, count=None, *_):
+    # The following steps are taken:
+    #
+    #   1. Let O be ? RequireObjectCoercible(this value).
+    #   2. Let S be ? ToString(O).
+    #   3. Let n be ? ToInteger(count).
+    #   4. If n < 0, throw a RangeError exception.
+    #   5. If n is +∞, throw a RangeError exception.
+    #   6. If n is 0, return the empty String.
+    #   7. Return the String value that is made from n copies of S appended together.
+    #
+    # NOTE 1    | This method creates the String value consisting of the code units of the this object (converted to
+    #           | String) repeated count times.
+    #
+    # NOTE 2    | The repeat function is intentionally generic; it does not require that its this value be a String
+    #           | object. Therefore, it can be transferred to other kinds of objects for use as a method.
+    O = RequireObjectCoercible(this_value)
+    S = ToString(O)
+    n = ToInteger(count)
+    if n < 0 or not math.isfinite(n):
+        raise ESRangeError(
+            f'String.prototype.repeat: "count" argument must be a finite, non-negative number. (Got {ToString(n)}.)'
+        )
+    if n == 0:
+        return ""
+    return S * n
+
+
+StringPrototype_repeat.name = "repeat"
+StringPrototype_repeat.legnth = 1
 
 
 # 21.1.3.19 String.prototype.split ( separator, limit )
