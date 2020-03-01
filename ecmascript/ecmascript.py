@@ -33752,6 +33752,7 @@ def CreateStringPrototype(realm):
             ("padEnd", StringPrototype_padEnd, None),
             ("padStart", StringPrototype_padStart, None),
             ("repeat", StringPrototype_repeat, None),
+            ("replace", StringPrototype_replace, None),
             ("slice", StringPrototype_slice, None),
             ("split", StringPrototype_split, None),
             ("substring", StringPrototype_substring, None),
@@ -34047,7 +34048,6 @@ StringPrototype_indexOf.length = 1
 StringPrototype_indexOf.name = "indexOf"
 
 # 21.1.3.9 String.prototype.lastIndexOf ( searchString [ , position ] )
-@snoop
 def StringPrototype_lastIndexOf(this_value, new_target, searchString=None, position=None, *_):
     # NOTE 1    | If searchString appears as a substring of the result of converting this object to a String at one
     #           | or more indices that are smaller than or equal to position, then the greatest such index is
@@ -34351,6 +34351,210 @@ def StringPrototype_repeat(this_value, new_target, count=None, *_):
 
 StringPrototype_repeat.name = "repeat"
 StringPrototype_repeat.legnth = 1
+
+# 21.1.3.16 String.prototype.replace ( searchValue, replaceValue )
+def StringPrototype_replace(this_value, new_target, searchValue=None, replaceValue=None, *_):
+    # When the replace method is called with arguments searchValue and replaceValue, the following steps are taken:
+    #
+    #   1. Let O be ? RequireObjectCoercible(this value).
+    #   2. If searchValue is neither undefined nor null, then
+    #       a. Let replacer be ? GetMethod(searchValue, @@replace).
+    #       b. If replacer is not undefined, then
+    #           i. Return ? Call(replacer, searchValue, « O, replaceValue »).
+    #   3. Let string be ? ToString(O).
+    #   4. Let searchString be ? ToString(searchValue).
+    #   5. Let functionalReplace be IsCallable(replaceValue).
+    #   6. If functionalReplace is false, then
+    #       a. Set replaceValue to ? ToString(replaceValue).
+    #   7. Search string for the first occurrence of searchString and let pos be the index within string of the
+    #      first code unit of the matched substring and let matched be searchString. If no occurrences of
+    #      searchString were found, return string.
+    #   8. If functionalReplace is true, then
+    #       a. Let replValue be ? Call(replaceValue, undefined, « matched, pos, string »).
+    #       b. Let replStr be ? ToString(replValue).
+    #   9. Else,
+    #       a. Let captures be a new empty List.
+    #       b. Let replStr be GetSubstitution(matched, string, pos, captures, undefined, replaceValue).
+    #   10. Let tailPos be pos + the number of code units in matched.
+    #   11. Let newString be the string-concatenation of the first pos code units of string, replStr, and the
+    #       trailing substring of string starting at index tailPos. If pos is 0, the first element of the
+    #       concatenation will be the empty String.
+    #   12. Return newString.
+    #
+    # NOTE  | The replace function is intentionally generic; it does not require that its this value be a String
+    #       | object. Therefore, it can be transferred to other kinds of objects for use as a method.
+    O = RequireObjectCoercible(this_value)
+    if searchValue is not None and not isNull(searchValue):
+        replacer = GetMethod(searchValue, wks_replace)
+        if replacer is not None:
+            return Call(replacer, searchValue, [O, replaceValue])
+    string = ToString(O)
+    searchString = ToString(searchValue)
+    functionalReplace = IsCallable(replaceValue)
+    if not functionalReplace:
+        replaceValue = ToString(replaceValue)
+    pos = string.find(searchString)
+    if pos < 0:
+        return string
+    matched = searchString
+    if functionalReplace:
+        replValue = Call(replaceValue, None, [matched, pos, string])
+        replStr = ToString(replValue)
+    else:
+        captures = []
+        replStr = GetSubstitution(matched, string, pos, captures, None, replaceValue)
+    tailPos = pos + len(matched)
+    newString = string[:pos] + replStr + string[tailPos:]
+    return newString
+
+
+StringPrototype_replace.name = "replace"
+StringPrototype_replace.length = 2
+
+
+# 21.1.3.16.1 Runtime Semantics: GetSubstitution ( matched, str, position, captures, namedCaptures, replacement )
+def GetSubstitution(matched, string, position, captures, namedCaptures, replacement):
+    # The abstract operation GetSubstitution performs the following steps:
+    #
+    #   1. Assert: Type(matched) is String.
+    #   2. Let matchLength be the number of code units in matched.
+    #   3. Assert: Type(str) is String.
+    #   4. Let stringLength be the number of code units in str.
+    #   5. Assert: position is a nonnegative integer.
+    #   6. Assert: position ≤ stringLength.
+    #   7. Assert: captures is a possibly empty List of Strings.
+    #   8. Assert: Type(replacement) is String.
+    #   9. Let tailPos be position + matchLength.
+    #   10. Let m be the number of elements in captures.
+    #   11. If namedCaptures is not undefined, then
+    #       a. Set namedCaptures to ? ToObject(namedCaptures).
+    #   12. Let result be the String value derived from replacement by copying code unit elements from replacement
+    #       to result while performing replacements as specified in Table 51. These $ replacements are done
+    #       left-to-right, and, once such a replacement is performed, the new replacement text is not subject to
+    #       further replacements.
+    #   13. Return result.
+    matchLength = len(matched)
+    stringLength = len(string)
+    tailPos = position + matchLength
+    m = len(captures)
+    if namedCaptures is not None:
+        namedCaptures = ToObject(namedCaptures)
+    result = ""
+    rep_len = len(replacement)
+    rep_start = 0
+    while rep_start < rep_len:
+        rep_pos = replacement.find("$", rep_start)
+        if rep_pos < 0:
+            return f"{result}{replacement[rep_start:]}"
+        result = f"{result}{replacement[rep_start:rep_pos]}"
+        if rep_pos == rep_len - 1:
+            return f"{result}$"
+        if replacement[rep_pos + 1] == "$":
+            result += "$"
+            rep_start += 2
+            continue
+        if replacement[rep_pos + 1] == "&":
+            result += matched
+            rep_start += 2
+            continue
+        if replacement[rep_pos + 1] == "`":
+            result += string[:position]
+            rep_start += 2
+            continue
+        if replacement[rep_pos + 1] == "'":
+            result += string[tailPos:]
+            rep_start += 2
+            continue
+        if replacement[rep_pos + 1] in "123456789" and (
+            rep_pos + 2 == rep_len or replacement[rep_pos + 2] not in "0123456789"
+        ):
+            n = int(replacement[rep_pos + 1])
+            if n <= m:
+                cap = captures[n - 1]
+                if cap is not None:
+                    result += cap
+            else:
+                result += replacement[rep_pos : rep_pos + 2]
+            rep_start += 2
+            continue
+        if (
+            replacement[rep_pos + 1] in "0123456789"
+            and rep_pos + 2 < rep_len
+            and replacement[rep_pos + 2] in "0123456789"
+        ):
+            n = int(replacement[rep_pos + 1 : rep_pos + 3])
+            if 0 < n <= m:
+                cap = captures[n - 1]
+                if cap is not None:
+                    result += cap
+            else:
+                result += replacement[rep_pos : rep_pos + 3]
+            rep_start += 3
+            continue
+        if replacement[rep_pos + 1] == "<":
+            if namedCaptures is None:
+                result += "$<"
+                rep_start += 2
+                continue
+            gt = replacement.find(">", rep_start + 2)
+            if gt < 0:
+                result += "$<"
+                rep_start += 2
+                continue
+            group_name = replacement[rep_pos + 2 : gt]
+            capture = Get(namedCaptures, group_name)
+            if capture is not None:
+                result += ToString(capture)
+            rep_start = gt + 1
+            continue
+        result += "$"
+        rep_start += 1
+    return result
+
+
+# Table 51: Replacement Text Symbol Substitutions
+# +----------------+--------------------+---------------------------------------------------------------------------
+# | Code units     | Unicode Characters | Replacement text
+# +----------------+--------------------+---------------------------------------------------------------------------
+# | 0x0024, 0x0024 | $$                 | $
+# +----------------+--------------------+---------------------------------------------------------------------------
+# | 0x0024, 0x0026 | $&                 | matched
+# +----------------+--------------------+---------------------------------------------------------------------------
+# | 0x0024, 0x0060 | $`                 | If position is 0, the replacement is the empty String. Otherwise the
+# |                |                    | replacement is the substring of str that starts at index 0 and whose last
+# |                |                    | code unit is at index position - 1.
+# +----------------+--------------------+---------------------------------------------------------------------------
+# | 0x0024, 0x0027 | $'                 | If tailPos ≥ stringLength, the replacement is the empty String. Otherwise
+# |                |                    | the replacement is the substring of str that starts at index tailPos and
+# |                |                    | continues to the end of str.
+# +----------------+--------------------+---------------------------------------------------------------------------
+# | 0x0024, N      | $n where n is one  | The nth element of captures, where n is a single digit in the range 1 to
+# | Where          | of 1 2 3 4 5 6 7 8 | 9. If n ≤ m and the nth element of captures is undefined, use the empty
+# | 0x0031 ≤ N ≤   | 9 and $n is not    | String instead. If n > m, no replacement is done.
+# | 0x0039         | followed by a      |
+# |                | decimal digit      |
+# +----------------+--------------------+---------------------------------------------------------------------------
+# | 0x0024, N, N   | $nn where n is one | The nnth element of captures, where nn is a two-digit decimal number in
+# | Where 0x0030 ≤ | of 0 1 2 3 4 5 6 7 | the range 01 to 99. If nn ≤ m and the nnth element of captures is
+# | N ≤ 0x0039     | 8 9                | undefined, use the empty String instead. If nn is 00 or nn > m, no
+# |                |                    | replacement is done.
+# +----------------+--------------------+---------------------------------------------------------------------------
+# | 0x0024, 0x003C | $<                 | 1. If namedCaptures is undefined, the replacement text is the String "$<".
+# |                |                    | 2. Else,
+# |                |                    |   a. Scan until the next > U+003E (GREATER-THAN SIGN).
+# |                |                    |   b. If none is found, the replacement text is the String "$<".
+# |                |                    |   c. Else,
+# |                |                    |       i. Let groupName be the enclosed substring.
+# |                |                    |       ii. Let capture be ? Get(namedCaptures, groupName).
+# |                |                    |       iii. If capture is undefined, replace the text through > with the
+# |                |                    |            empty string.
+# |                |                    |       iv. Otherwise, replace the text through > with ? ToString(capture).
+# +----------------+--------------------+---------------------------------------------------------------------------
+# | 0x0024         | $ in any context   | $
+# |                | that does not      |
+# |                | match any of the   |
+# |                | above.             |
+# +----------------+--------------------+---------------------------------------------------------------------------
 
 
 # 21.1.3.19 String.prototype.split ( separator, limit )
@@ -35353,6 +35557,7 @@ def RegExpPrototype_getMultiline(this_value, new_target, *_):
 
 RegExpPrototype_getMultiline.length = 0
 RegExpPrototype_getMultiline.name = "get multiline"
+
 
 # 21.2.5.9 RegExp.prototype [ @@replace ] ( string, replaceValue )
 def RegExpPrototype_replace(this_value, new_target, string=None, replaceValue=None, *_):
