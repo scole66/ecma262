@@ -33753,8 +33753,10 @@ def CreateStringPrototype(realm):
             ("padStart", StringPrototype_padStart, None),
             ("repeat", StringPrototype_repeat, None),
             ("replace", StringPrototype_replace, None),
+            ("search", StringPrototype_search, None),
             ("slice", StringPrototype_slice, None),
             ("split", StringPrototype_split, None),
+            ("startsWith", StringPrototype_startsWith, None),
             ("substring", StringPrototype_substring, None),
             ("toLowerCase", StringPrototype_toLowerCase, None),
             ("toString", StringPrototype_toString, None),
@@ -34556,6 +34558,31 @@ def GetSubstitution(matched, string, position, captures, namedCaptures, replacem
 # |                | above.             |
 # +----------------+--------------------+---------------------------------------------------------------------------
 
+# 21.1.3.17 String.prototype.search ( regexp )
+def StringPrototype_search(this_value, new_target, regexp=None, *_):
+    # When the search method is called with argument regexp, the following steps are taken:
+    #   1. Let O be ? RequireObjectCoercible(this value).
+    #   2. If regexp is neither undefined nor null, then
+    #       a. Let searcher be ? GetMethod(regexp, @@search).
+    #       b. If searcher is not undefined, then
+    #           i. Return ? Call(searcher, regexp, « O »).
+    #   3. Let string be ? ToString(O).
+    #   4. Let rx be ? RegExpCreate(regexp, undefined).
+    #   5. Return ? Invoke(rx, @@search, « string »).
+    # NOTE  | The search function is intentionally generic; it does not require that its this value be a String
+    #       | object. Therefore, it can be transferred to other kinds of objects for use as a method.
+    O = RequireObjectCoercible(this_value)
+    if regexp is not None and not isNull(regexp):
+        searcher = GetMethod(regexp, wks_search)
+        if searcher is not None:
+            return Call(searcher, regexp, [O])
+    string = ToString(O)
+    rx = RegExpCreate(regexp, None)
+    return Invoke(rx, wks_search, [string])
+
+
+StringPrototype_search.name = "search"
+StringPrototype_search.length = 1
 
 # 21.1.3.19 String.prototype.split ( separator, limit )
 def StringPrototype_split(this_value, new_target, separator=None, limit=None, *_):
@@ -34694,6 +34721,46 @@ def SplitMatch(S, q, R):
         return False
     return q + r
 
+
+# 21.1.3.20 String.prototype.startsWith ( searchString [ , position ] )
+def StringPrototype_startsWith(this_value, new_target, searchString=None, position=None, *_):
+    # The following steps are taken:
+    #   1. Let O be ? RequireObjectCoercible(this value).
+    #   2. Let S be ? ToString(O).
+    #   3. Let isRegExp be ? IsRegExp(searchString).
+    #   4. If isRegExp is true, throw a TypeError exception.
+    #   5. Let searchStr be ? ToString(searchString).
+    #   6. Let pos be ? ToInteger(position).
+    #   7. Assert: If position is undefined, then pos is 0.
+    #   8. Let len be the length of S.
+    #   9. Let start be min(max(pos, 0), len).
+    #   10. Let searchLength be the length of searchStr.
+    #   11. If searchLength + start is greater than len, return false.
+    #   12. If the sequence of code units of S starting at start of length searchLength is the same as the full code
+    #       unit sequence of searchStr, return true.
+    #   13. Otherwise, return false.
+    # NOTE 1    | This method returns true if the sequence of code units of searchString converted to a String is
+    #           | the same as the corresponding code units of this object (converted to a String) starting at index
+    #           | position. Otherwise returns false.
+    # NOTE 2    | Throwing an exception if the first argument is a RegExp is specified in order to allow future
+    #           | editions to define extensions that allow such argument values.
+    # NOTE 3    | The startsWith function is intentionally generic; it does not require that its this value be a
+    #           | String object. Therefore, it can be transferred to other kinds of objects for use as a method.
+    O = RequireObjectCoercible(this_value)
+    S = ToString(O)
+    if IsRegExp(searchString):
+        raise ESTypeError(
+            'String.prototype.startsWith: Regular Expressions not allowed for "searchString" parameter.'
+        )
+    searchStr = ToString(searchString)
+    pos = ToInteger(position)
+    length = len(S)
+    start = int(min(max(pos, 0), length))
+    return S.startswith(searchStr, start)
+
+
+StringPrototype_startsWith.name = "startsWith"
+StringPrototype_startsWith.length = 1
 
 # 21.1.3.21 String.prototype.substring ( start, end )
 def StringPrototype_substring(this_value, new_target, start=None, end=None, *_):
