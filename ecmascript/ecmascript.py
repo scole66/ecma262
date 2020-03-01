@@ -33750,6 +33750,7 @@ def CreateStringPrototype(realm):
             ("match", StringPrototype_match, None),
             ("normalize", StringPrototype_normalize, None),
             ("padEnd", StringPrototype_padEnd, None),
+            ("padStart", StringPrototype_padStart, None),
             ("slice", StringPrototype_slice, None),
             ("split", StringPrototype_split, None),
             ("substring", StringPrototype_substring, None),
@@ -34240,6 +34241,49 @@ def StringPrototype_padEnd(this_value, new_target, maxLength=None, fillString=No
 
 StringPrototype_padEnd.name = "padEnd"
 StringPrototype_padEnd.length = 1
+
+# 21.1.3.14 String.prototype.padStart ( maxLength [ , fillString ] )
+def StringPrototype_padStart(this_value, new_target, maxLength=None, fillString=None, *_):
+    # When the padStart method is called, the following steps are taken:
+    #
+    #   1. Let O be ? RequireObjectCoercible(this value).
+    #   2. Let S be ? ToString(O).
+    #   3. Let intMaxLength be ? ToLength(maxLength).
+    #   4. Let stringLength be the length of S.
+    #   5. If intMaxLength is not greater than stringLength, return S.
+    #   6. If fillString is undefined, let filler be the String value consisting solely of the code unit 0x0020
+    #      (SPACE).
+    #   7. Else, let filler be ? ToString(fillString).
+    #   8. If filler is the empty String, return S.
+    #   9. Let fillLen be intMaxLength - stringLength.
+    #   10. Let truncatedStringFiller be the String value consisting of repeated concatenations of filler truncated
+    #       to length fillLen.
+    #   11. Return the string-concatenation of truncatedStringFiller and S.
+    #
+    # NOTE 1    | The first argument maxLength will be clamped such that it can be no smaller than the length of the
+    #           | this value.
+    #
+    # NOTE 2    | The optional second argument fillString defaults to " " (the String value consisting of the code
+    #           | unit 0x0020 SPACE).
+    O = RequireObjectCoercible(this_value)
+    S = ToString(O)
+    intMaxLength = int(ToLength(maxLength))
+    stringLength = len(S)
+    if intMaxLength <= stringLength:
+        return S
+    if fillString is None:
+        filler = " "
+    else:
+        filler = ToString(fillString)
+        if filler == "":
+            return S
+    fillLen = intMaxLength - stringLength
+    truncatedStringFiller = (filler * int((fillLen + len(filler) - 1) / len(filler)))[:fillLen]
+    return f"{truncatedStringFiller}{S}"
+
+
+StringPrototype_padStart.name = "padStart"
+StringPrototype_padStart.length = 1
 
 # 21.1.3.18 String.prototype.slice ( start, end )
 def StringPrototype_slice(this_value, new_target, start=None, end=None, *_):
