@@ -485,9 +485,6 @@ xfail_tests = (
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-55.js",  # Needs Array.prototype.some
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-58.js",  # Needs Array.prototype.filter
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-60.js",  # Needs Array.prototype.reduceRight
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-77.js",  # Needs String.prototype.toUpperCase
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-79.js",  # Needs String.prototype.toLocaleLowerCase
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-80.js",  # Needs String.prototype.toLocaleUpperCase
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-82.js",  # Needs String.prototype.trim
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-9.js",  # Needs decodeURI
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-90.js",  # Needs Number.prototype.toLocaleString
@@ -527,80 +524,6 @@ xfail_tests = (
     "/test/built-ins/String/prototype/Symbol.iterator/name.js",  # Needs String.prototype.@@iterator
     "/test/built-ins/String/prototype/Symbol.iterator/prop-desc.js",  # Needs String.prototype.@@iterator
     "/test/built-ins/String/prototype/Symbol.iterator/this-val-to-str-err.js",  # Needs String.prototype.@@iterator
-    "/test/built-ins/String/prototype/toLocaleLowerCase/Final_Sigma_U180E.js",  # Needs String.prototype.toLocaleLowerCase
-    "/test/built-ins/String/prototype/toLocaleLowerCase/name.js",  # Needs String.prototype.toLocaleLowerCase
-    "/test/built-ins/String/prototype/toLocaleLowerCase/S15.5.4.17_A10.js",  # Needs String.prototype.toLocaleLowerCase
-    "/test/built-ins/String/prototype/toLocaleLowerCase/S15.5.4.17_A11.js",  # Needs String.prototype.toLocaleLowerCase
-    "/test/built-ins/String/prototype/toLocaleLowerCase/S15.5.4.17_A1_T1.js",  # Needs String.prototype.toLocaleLowerCase
-    "/test/built-ins/String/prototype/toLocaleLowerCase/S15.5.4.17_A1_T10.js",  # Needs String.prototype.toLocaleLowerCase
-    "/test/built-ins/String/prototype/toLocaleLowerCase/S15.5.4.17_A1_T11.js",  # Needs String.prototype.toLocaleLowerCase
-    "/test/built-ins/String/prototype/toLocaleLowerCase/S15.5.4.17_A1_T12.js",  # Needs String.prototype.toLocaleLowerCase
-    "/test/built-ins/String/prototype/toLocaleLowerCase/S15.5.4.17_A1_T13.js",  # Needs String.prototype.toLocaleLowerCase
-    "/test/built-ins/String/prototype/toLocaleLowerCase/S15.5.4.17_A1_T14.js",  # Needs String.prototype.toLocaleLowerCase
-    "/test/built-ins/String/prototype/toLocaleLowerCase/S15.5.4.17_A1_T2.js",  # Needs String.prototype.toLocaleLowerCase
-    "/test/built-ins/String/prototype/toLocaleLowerCase/S15.5.4.17_A1_T3.js",  # Needs String.prototype.toLocaleLowerCase
-    "/test/built-ins/String/prototype/toLocaleLowerCase/S15.5.4.17_A1_T4.js",  # Needs String.prototype.toLocaleLowerCase
-    "/test/built-ins/String/prototype/toLocaleLowerCase/S15.5.4.17_A1_T5.js",  # Needs String.prototype.toLocaleLowerCase
-    "/test/built-ins/String/prototype/toLocaleLowerCase/S15.5.4.17_A1_T6.js",  # Needs String.prototype.toLocaleLowerCase
-    "/test/built-ins/String/prototype/toLocaleLowerCase/S15.5.4.17_A1_T7.js",  # Needs String.prototype.toLocaleLowerCase
-    "/test/built-ins/String/prototype/toLocaleLowerCase/S15.5.4.17_A1_T8.js",  # Needs String.prototype.toLocaleLowerCase
-    "/test/built-ins/String/prototype/toLocaleLowerCase/S15.5.4.17_A1_T9.js",  # Needs String.prototype.toLocaleLowerCase
-    "/test/built-ins/String/prototype/toLocaleLowerCase/S15.5.4.17_A2_T1.js",  # Needs String.prototype.toLocaleLowerCase
-    "/test/built-ins/String/prototype/toLocaleLowerCase/S15.5.4.17_A6.js",  # Needs String.prototype.toLocaleLowerCase
-    "/test/built-ins/String/prototype/toLocaleLowerCase/S15.5.4.17_A8.js",  # Needs String.prototype.toLocaleLowerCase
-    "/test/built-ins/String/prototype/toLocaleLowerCase/S15.5.4.17_A9.js",  # Needs String.prototype.toLocaleLowerCase
-    "/test/built-ins/String/prototype/toLocaleLowerCase/special_casing.js",  # Needs String.prototype.toLocaleLowerCase
-    "/test/built-ins/String/prototype/toLocaleLowerCase/special_casing_conditional.js",  # Needs String.prototype.toLocaleLowerCase
-    "/test/built-ins/String/prototype/toLocaleLowerCase/supplementary_plane.js",  # Needs String.prototype.toLocaleLowerCase
-    "/test/built-ins/String/prototype/toLocaleLowerCase/this-value-not-obj-coercible.js",  # Needs String.prototype.toLocaleLowerCase
-    "/test/built-ins/String/prototype/toLocaleUpperCase/name.js",  # Needs String.prototype.toLocaleUpperCase
-    "/test/built-ins/String/prototype/toLocaleUpperCase/S15.5.4.19_A10.js",  # Needs String.prototype.toLocaleUpperCase
-    "/test/built-ins/String/prototype/toLocaleUpperCase/S15.5.4.19_A11.js",  # Needs String.prototype.toLocaleUpperCase
-    "/test/built-ins/String/prototype/toLocaleUpperCase/S15.5.4.19_A1_T1.js",  # Needs String.prototype.toLocaleUpperCase
-    "/test/built-ins/String/prototype/toLocaleUpperCase/S15.5.4.19_A1_T10.js",  # Needs String.prototype.toLocaleUpperCase
-    "/test/built-ins/String/prototype/toLocaleUpperCase/S15.5.4.19_A1_T11.js",  # Needs String.prototype.toLocaleUpperCase
-    "/test/built-ins/String/prototype/toLocaleUpperCase/S15.5.4.19_A1_T12.js",  # Needs String.prototype.toLocaleUpperCase
-    "/test/built-ins/String/prototype/toLocaleUpperCase/S15.5.4.19_A1_T13.js",  # Needs String.prototype.toLocaleUpperCase
-    "/test/built-ins/String/prototype/toLocaleUpperCase/S15.5.4.19_A1_T14.js",  # Needs String.prototype.toLocaleUpperCase
-    "/test/built-ins/String/prototype/toLocaleUpperCase/S15.5.4.19_A1_T2.js",  # Needs String.prototype.toLocaleUpperCase
-    "/test/built-ins/String/prototype/toLocaleUpperCase/S15.5.4.19_A1_T3.js",  # Needs String.prototype.toLocaleUpperCase
-    "/test/built-ins/String/prototype/toLocaleUpperCase/S15.5.4.19_A1_T4.js",  # Needs String.prototype.toLocaleUpperCase
-    "/test/built-ins/String/prototype/toLocaleUpperCase/S15.5.4.19_A1_T5.js",  # Needs String.prototype.toLocaleUpperCase
-    "/test/built-ins/String/prototype/toLocaleUpperCase/S15.5.4.19_A1_T6.js",  # Needs String.prototype.toLocaleUpperCase
-    "/test/built-ins/String/prototype/toLocaleUpperCase/S15.5.4.19_A1_T7.js",  # Needs String.prototype.toLocaleUpperCase
-    "/test/built-ins/String/prototype/toLocaleUpperCase/S15.5.4.19_A1_T8.js",  # Needs String.prototype.toLocaleUpperCase
-    "/test/built-ins/String/prototype/toLocaleUpperCase/S15.5.4.19_A1_T9.js",  # Needs String.prototype.toLocaleUpperCase
-    "/test/built-ins/String/prototype/toLocaleUpperCase/S15.5.4.19_A2_T1.js",  # Needs String.prototype.toLocaleUpperCase
-    "/test/built-ins/String/prototype/toLocaleUpperCase/S15.5.4.19_A6.js",  # Needs String.prototype.toLocaleUpperCase
-    "/test/built-ins/String/prototype/toLocaleUpperCase/S15.5.4.19_A8.js",  # Needs String.prototype.toLocaleUpperCase
-    "/test/built-ins/String/prototype/toLocaleUpperCase/S15.5.4.19_A9.js",  # Needs String.prototype.toLocaleUpperCase
-    "/test/built-ins/String/prototype/toLocaleUpperCase/special_casing.js",  # Needs String.prototype.toLocaleUpperCase
-    "/test/built-ins/String/prototype/toLocaleUpperCase/supplementary_plane.js",  # Needs String.prototype.toLocaleUpperCase
-    "/test/built-ins/String/prototype/toLocaleUpperCase/this-value-not-obj-coercible.js",  # Needs String.prototype.toLocaleUpperCase
-    "/test/built-ins/String/prototype/toUpperCase/name.js",  # Needs String.prototype.toUpperCase
-    "/test/built-ins/String/prototype/toUpperCase/S15.5.4.18_A10.js",  # Needs String.prototype.toUpperCase
-    "/test/built-ins/String/prototype/toUpperCase/S15.5.4.18_A11.js",  # Needs String.prototype.toUpperCase
-    "/test/built-ins/String/prototype/toUpperCase/S15.5.4.18_A1_T1.js",  # Needs String.prototype.toUpperCase
-    "/test/built-ins/String/prototype/toUpperCase/S15.5.4.18_A1_T10.js",  # Needs String.prototype.toUpperCase
-    "/test/built-ins/String/prototype/toUpperCase/S15.5.4.18_A1_T11.js",  # Needs String.prototype.toUpperCase
-    "/test/built-ins/String/prototype/toUpperCase/S15.5.4.18_A1_T12.js",  # Needs String.prototype.toUpperCase
-    "/test/built-ins/String/prototype/toUpperCase/S15.5.4.18_A1_T13.js",  # Needs String.prototype.toUpperCase
-    "/test/built-ins/String/prototype/toUpperCase/S15.5.4.18_A1_T14.js",  # Needs String.prototype.toUpperCase
-    "/test/built-ins/String/prototype/toUpperCase/S15.5.4.18_A1_T2.js",  # Needs String.prototype.toUpperCase
-    "/test/built-ins/String/prototype/toUpperCase/S15.5.4.18_A1_T3.js",  # Needs String.prototype.toUpperCase
-    "/test/built-ins/String/prototype/toUpperCase/S15.5.4.18_A1_T4.js",  # Needs String.prototype.toUpperCase
-    "/test/built-ins/String/prototype/toUpperCase/S15.5.4.18_A1_T5.js",  # Needs String.prototype.toUpperCase
-    "/test/built-ins/String/prototype/toUpperCase/S15.5.4.18_A1_T6.js",  # Needs String.prototype.toUpperCase
-    "/test/built-ins/String/prototype/toUpperCase/S15.5.4.18_A1_T7.js",  # Needs String.prototype.toUpperCase
-    "/test/built-ins/String/prototype/toUpperCase/S15.5.4.18_A1_T8.js",  # Needs String.prototype.toUpperCase
-    "/test/built-ins/String/prototype/toUpperCase/S15.5.4.18_A1_T9.js",  # Needs String.prototype.toUpperCase
-    "/test/built-ins/String/prototype/toUpperCase/S15.5.4.18_A2_T1.js",  # Needs String.prototype.toUpperCase
-    "/test/built-ins/String/prototype/toUpperCase/S15.5.4.18_A6.js",  # Needs String.prototype.toUpperCase
-    "/test/built-ins/String/prototype/toUpperCase/S15.5.4.18_A8.js",  # Needs String.prototype.toUpperCase
-    "/test/built-ins/String/prototype/toUpperCase/S15.5.4.18_A9.js",  # Needs String.prototype.toUpperCase
-    "/test/built-ins/String/prototype/toUpperCase/special_casing.js",  # Needs String.prototype.toUpperCase
-    "/test/built-ins/String/prototype/toUpperCase/supplementary_plane.js",  # Needs String.prototype.toUpperCase
-    "/test/built-ins/String/prototype/toUpperCase/this-value-not-obj-coercible.js",  # Needs String.prototype.toUpperCase
     "/test/built-ins/String/prototype/trim/15.5.4.20-0-1.js",  # Needs String.prototype.trim
     "/test/built-ins/String/prototype/trim/15.5.4.20-0-2.js",  # Needs String.prototype.trim
     "/test/built-ins/String/prototype/trim/15.5.4.20-1-3.js",  # Needs String.prototype.trim
