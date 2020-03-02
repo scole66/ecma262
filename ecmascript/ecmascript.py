@@ -33758,8 +33758,11 @@ def CreateStringPrototype(realm):
             ("split", StringPrototype_split, None),
             ("startsWith", StringPrototype_startsWith, None),
             ("substring", StringPrototype_substring, None),
+            ("toLocaleLowerCase", StringPrototype_toLocaleLowerCase, None),
+            ("toLocaleUpperCase", StringPrototype_toLocaleUpperCase, None),
             ("toLowerCase", StringPrototype_toLowerCase, None),
             ("toString", StringPrototype_toString, None),
+            ("toUpperCase", StringPrototype_toUpperCase, None),
             ("valueOf", StringPrototype_valueOf, None),
         ),
     )
@@ -34806,6 +34809,56 @@ def StringPrototype_substring(this_value, new_target, start=None, end=None, *_):
 StringPrototype_substring.name = "substring"
 StringPrototype_substring.length = 2
 
+# 21.1.3.22 String.prototype.toLocaleLowerCase ( [ reserved1 [ , reserved2 ] ] )
+def StringPrototype_toLocaleLowerCase(this_value, new_target, *args):
+    # An ECMAScript implementation that includes the ECMA-402 Internationalization API must implement the
+    # toLocaleLowerCase method as specified in the ECMA-402 specification. If an ECMAScript implementation does not
+    # include the ECMA-402 API the following specification of the toLocaleLowerCase method is used.
+    #
+    # This function interprets a String value as a sequence of UTF-16 encoded code points, as described in 6.1.4.
+    #
+    # This function works exactly the same as toLowerCase except that its result is intended to yield the correct
+    # result for the host environment's current locale, rather than a locale-independent result. There will only be
+    # a difference in the few cases (such as Turkish) where the rules for that language conflict with the regular
+    # Unicode case mappings.
+    #
+    # The meaning of the optional parameters to this method are defined in the ECMA-402 specification;
+    # implementations that do not include ECMA-402 support must not use those parameter positions for anything else.
+    #
+    # NOTE  | The toLocaleLowerCase function is intentionally generic; it does not require that its this value be a
+    #       | String object. Therefore, it can be transferred to other kinds of objects for use as a method.
+
+    # Python toLower already takes current locale into account, so just defer to that
+    return StringPrototype_toLowerCase(this_value, new_target, *args)
+
+
+StringPrototype_toLocaleLowerCase.name = "toLocaleLowerCase"
+StringPrototype_toLocaleLowerCase.length = 0
+
+# 21.1.3.23 String.prototype.toLocaleUpperCase ( [ reserved1 [ , reserved2 ] ] )
+def StringPrototype_toLocaleUpperCase(this_value, new_target, *args):
+    # An ECMAScript implementation that includes the ECMA-402 Internationalization API must implement the
+    # toLocaleUpperCase method as specified in the ECMA-402 specification. If an ECMAScript implementation does not
+    # include the ECMA-402 API the following specification of the toLocaleUpperCase method is used.
+    #
+    # This function interprets a String value as a sequence of UTF-16 encoded code points, as described in 6.1.4.
+    #
+    # This function works exactly the same as toUpperCase except that its result is intended to yield the correct
+    # result for the host environment's current locale, rather than a locale-independent result. There will only be
+    # a difference in the few cases (such as Turkish) where the rules for that language conflict with the regular
+    # Unicode case mappings.
+    #
+    # The meaning of the optional parameters to this method are defined in the ECMA-402 specification;
+    # implementations that do not include ECMA-402 support must not use those parameter positions for anything else.
+    #
+    # NOTE  | The toLocaleUpperCase function is intentionally generic; it does not require that its this value be a
+    #       | String object. Therefore, it can be transferred to other kinds of objects for use as a method.
+    return StringPrototype_toUpperCase(this_value, new_target, *args)
+
+
+StringPrototype_toLocaleUpperCase.name = "toLocaleUpperCase"
+StringPrototype_toLocaleUpperCase.length = 0
+
 # 21.1.3.24 String.prototype.toLowerCase ( )
 def StringPrototype_toLowerCase(this_value, new_target, *_):
     # This function interprets a String value as a sequence of UTF-16 encoded code points, as described in 6.1.4.
@@ -34855,6 +34908,25 @@ def StringPrototype_toString(this_value, new_target, *_):
 
 StringPrototype_toString.length = 0
 StringPrototype_toString.name = "toString"
+
+# 21.1.3.26 String.prototype.toUpperCase ( )
+def StringPrototype_toUpperCase(this_value, new_target, *_):
+    # This function interprets a String value as a sequence of UTF-16 encoded code points, as described in 6.1.4.
+    #
+    # This function behaves in exactly the same way as String.prototype.toLowerCase, except that the String is
+    # mapped using the toUppercase algorithm of the Unicode Default Case Conversion.
+    #
+    # NOTE  | The toUpperCase function is intentionally generic; it does not require that its this value be a String
+    #       | object. Therefore, it can be transferred to other kinds of objects for use as a method.
+    O = RequireObjectCoercible(this_value)
+    S = ToString(O)
+    cpList = utf_16_decode(S, throw=False)
+    cuList = cpList.upper()
+    return utf_16_encode(cuList)
+
+
+StringPrototype_toUpperCase.name = "toUpperCase"
+StringPrototype_toUpperCase.length = 0
 
 # ------------------------------------ 𝟐𝟏.𝟏.𝟑.𝟐𝟖 𝑺𝒕𝒓𝒊𝒏𝒈.𝒑𝒓𝒐𝒕𝒐𝒕𝒚𝒑𝒆.𝒗𝒂𝒍𝒖𝒆𝑶𝒇 ( ) ------------------------------------
 # 21.1.3.28 String.prototype.valueOf ( )
