@@ -364,9 +364,6 @@ features_to_avoid = (
     "dynamic-import",
     "Array.prototype.flat",
     "Array.prototype.flatMap",
-    "string-trimming",
-    "String.prototype.trimEnd",
-    "String.prototype.trimStart",
     "numeric-separator-literal",
     "String.prototype.matchAll",
     "Symbol.matchAll",
@@ -468,7 +465,6 @@ xfail_tests = (
     "/test/built-ins/Object/defineProperty/15.2.3.6-4-615.js",  # Needs Array.prototype.some
     "/test/built-ins/Object/defineProperty/15.2.3.6-4-618.js",  # Needs Array.prototype.filter
     "/test/built-ins/Object/defineProperty/15.2.3.6-4-620.js",  # Needs Array.prototype.reduceRight
-    "/test/built-ins/Object/defineProperty/15.2.3.6-4-621.js",  # Needs String.prototype.trim
     "/test/built-ins/Object/freeze/throws-when-false.js",  # Needs Proxy
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-10.js",  # Needs decodeURIComponent
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-11.js",  # Needs encodeURIComponent
@@ -485,7 +481,6 @@ xfail_tests = (
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-55.js",  # Needs Array.prototype.some
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-58.js",  # Needs Array.prototype.filter
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-60.js",  # Needs Array.prototype.reduceRight
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-82.js",  # Needs String.prototype.trim
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-9.js",  # Needs decodeURI
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-90.js",  # Needs Number.prototype.toLocaleString
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-91.js",  # Needs Number.prototype.toFixed
@@ -524,132 +519,6 @@ xfail_tests = (
     "/test/built-ins/String/prototype/Symbol.iterator/name.js",  # Needs String.prototype.@@iterator
     "/test/built-ins/String/prototype/Symbol.iterator/prop-desc.js",  # Needs String.prototype.@@iterator
     "/test/built-ins/String/prototype/Symbol.iterator/this-val-to-str-err.js",  # Needs String.prototype.@@iterator
-    "/test/built-ins/String/prototype/trim/15.5.4.20-0-1.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-0-2.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-1-3.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-1-4.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-1-5.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-1-6.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-1-7.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-1-8.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-1-9.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-1.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-10.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-11.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-12.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-13.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-14.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-15.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-16.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-17.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-18.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-19.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-2.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-20.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-21.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-22.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-23.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-24.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-25.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-26.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-27.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-28.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-29.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-3.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-30.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-31.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-32.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-33.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-34.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-35.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-36.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-37.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-38.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-39.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-4.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-40.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-41.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-42.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-43.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-44.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-45.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-46.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-47.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-49.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-5.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-50.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-51.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-6.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-7.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-8.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-2-9.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-3-1.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-3-10.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-3-11.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-3-12.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-3-13.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-3-14.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-3-2.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-3-3.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-3-4.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-3-5.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-3-6.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-3-7.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-3-8.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-3-9.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-1.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-10.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-11.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-12.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-13.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-14.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-16.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-18.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-19.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-2.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-20.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-21.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-22.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-24.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-27.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-28.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-29.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-3.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-30.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-32.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-34.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-35.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-36.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-37.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-38.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-39.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-4.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-40.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-41.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-42.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-43.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-44.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-45.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-46.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-47.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-48.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-49.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-5.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-50.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-51.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-52.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-53.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-54.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-55.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-56.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-57.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-58.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-59.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-6.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-60.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/15.5.4.20-4-8.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/name.js",  # Needs String.prototype.trim
-    "/test/built-ins/String/prototype/trim/u180e.js",  # Needs String.prototype.trim
     "/test/language/computed-property-names/class/static/method-number.js",  # Wants default anonymous function naming
     "/test/language/computed-property-names/class/static/method-string.js",  # Wants default anonymous function naming
     "/test/language/computed-property-names/class/static/method-symbol.js",  # Wants default anonymous function naming
