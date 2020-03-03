@@ -261,7 +261,7 @@ passing = (
     "language/literals/boolean",
     "language/literals/null",
     "language/literals/string",
-    "language/literas/numeric",
+    "language/literals/numeric",
     "language/statementList",
     "language/statements/block",
     "language/statements/break",
