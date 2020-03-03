@@ -33763,6 +33763,9 @@ def CreateStringPrototype(realm):
             ("toLowerCase", StringPrototype_toLowerCase, None),
             ("toString", StringPrototype_toString, None),
             ("toUpperCase", StringPrototype_toUpperCase, None),
+            ("trim", StringPrototype_trim, None),
+            ("trimEnd", StringPrototype_trimEnd, None),
+            ("trimStart", StringPrototype_trimStart, None),
             ("valueOf", StringPrototype_valueOf, None),
         ),
     )
@@ -34927,6 +34930,84 @@ def StringPrototype_toUpperCase(this_value, new_target, *_):
 
 StringPrototype_toUpperCase.name = "toUpperCase"
 StringPrototype_toUpperCase.length = 0
+
+# 21.1.3.27 String.prototype.trim ( )
+def StringPrototype_trim(this_value, new_target, *_):
+    # This function interprets a String value as a sequence of UTF-16 encoded code points, as described in 6.1.4.
+    #
+    # The following steps are taken:
+    #
+    #   1. Let S be this value.
+    #   2. Return ? TrimString(S, "start+end").
+    # NOTE  | The trim function is intentionally generic; it does not require that its this value be a String
+    #       | object. Therefore, it can be transferred to other kinds of objects for use as a method.
+    return TrimString(this_value, "start+end")
+
+
+StringPrototype_trim.name = "trim"
+StringPrototype_trim.length = 0
+
+_trimmable = f"(?:{LexerCore.WhiteSpace}|{LexerCore.LineTerminator})"
+_trim_patterns = {
+    "start": regex.compile(f"^{_trimmable}*(?P<result>.*)$", regex.DOTALL),
+    "end": regex.compile(f"^(?P<result>.*?){_trimmable}*$", regex.DOTALL),
+    "start+end": regex.compile(f"^{_trimmable}*(?P<result>.*?){_trimmable}*$", regex.DOTALL),
+}
+# 21.1.3.27.1 Runtime Semantics: TrimString ( string, where )
+def TrimString(string, where):
+    # The abstract operation TrimString is called with arguments string and where, and interprets the String value
+    # string as a sequence of UTF-16 encoded code points, as described in 6.1.4. It performs the following steps:
+    #
+    #   1. Let str be ? RequireObjectCoercible(string).
+    #   2. Let S be ? ToString(str).
+    #   3. If where is "start", let T be the String value that is a copy of S with leading white space removed.
+    #   4. Else if where is "end", let T be the String value that is a copy of S with trailing white space removed.
+    #   5. Else,
+    #       a. Assert: where is "start+end".
+    #       b. Let T be the String value that is a copy of S with both leading and trailing white space removed.
+    #   6. Return T.
+    #
+    # The definition of white space is the union of WhiteSpace and LineTerminator. When determining whether a
+    # Unicode code point is in Unicode general category “Space_Separator” (“Zs”), code unit sequences are
+    # interpreted as UTF-16 encoded code point sequences as specified in 6.1.4.
+    assert where in _trim_patterns, f'Parameter "where" ({where}) must be one of "start", "end", or "start+end"'
+    return utf_16_encode(
+        _trim_patterns[where].match(utf_16_decode(ToString(RequireObjectCoercible(string)))).group("result")
+    )
+
+
+# 21.1.3.28 String.prototype.trimEnd ( )
+def StringPrototype_trimEnd(this_value, new_target, *_):
+    # This function interprets a String value as a sequence of UTF-16 encoded code points, as described in 6.1.4.
+    #
+    # The following steps are taken:
+    #
+    #   1. Let S be this value.
+    #   2. Return ? TrimString(S, "end").
+    # NOTE  | The trimEnd function is intentionally generic; it does not require that its this value be a String
+    #       | object. Therefore, it can be transferred to other kinds of objects for use as a method.
+    return TrimString(this_value, "end")
+
+
+StringPrototype_trimEnd.name = "trimEnd"
+StringPrototype_trimEnd.length = 0
+
+# 21.1.3.29 String.prototype.trimStart ( )
+def StringPrototype_trimStart(this_value, new_target, *_):
+    # This function interprets a String value as a sequence of UTF-16 encoded code points, as described in 6.1.4.
+    #
+    # The following steps are taken:
+    #
+    #   1. Let S be this value.
+    #   2. Return ? TrimString(S, "start").
+    # NOTE  | The trimStart function is intentionally generic; it does not require that its this value be a String
+    #       | object. Therefore, it can be transferred to other kinds of objects for use as a method.
+    return TrimString(this_value, "start")
+
+
+StringPrototype_trimStart.name = "trimStart"
+StringPrototype_trimStart.length = 0
+
 
 # ------------------------------------ 𝟐𝟏.𝟏.𝟑.𝟐𝟖 𝑺𝒕𝒓𝒊𝒏𝒈.𝒑𝒓𝒐𝒕𝒐𝒕𝒚𝒑𝒆.𝒗𝒂𝒍𝒖𝒆𝑶𝒇 ( ) ------------------------------------
 # 21.1.3.28 String.prototype.valueOf ( )
