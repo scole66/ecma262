@@ -1490,6 +1490,10 @@ def NumberToString(m):
     if m == math.inf:
         return "Infinity"
 
+    if float(m).hex().startswith("0x0"):
+        # Denormalized.
+        return f"{m}"
+
     python_exp = f"{m:.17e}"
     match = _nts_pattern.match(python_exp)
     assert match, f"Didn't match! ({python_exp})"
