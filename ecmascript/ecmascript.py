@@ -55,6 +55,8 @@ class ECMAScriptEnum(Enum):
     MISSING = auto()
     LEXICAL = auto()
     GLOBAL = auto()
+    TRUE = auto()  # Used when python would otherwise convert bools to ints
+    FALSE = auto()  # Used when python would otherwise convert bools to ints
 
 
 ENUMERATE = ECMAScriptEnum.ENUMERATE
@@ -74,6 +76,8 @@ MISSING = ECMAScriptEnum.MISSING
 LEXICAL = ECMAScriptEnum.LEXICAL
 GLOBAL = ECMAScriptEnum.GLOBAL
 FAILURE = e262_regexp.FAILURE
+TRUE = ECMAScriptEnum.TRUE
+FALSE = ECMAScriptEnum.FALSE
 
 # 6.1 ECMAScript Language Types
 ##############################################################################################################################
@@ -1097,24 +1101,28 @@ class ESReferenceError(ESError):
     def __init__(self, msg=""):
         obj = msg if isinstance(msg, JSObject) else CreateReferenceError(msg)
         super().__init__(obj)
+        print(f"REFERENCE_ERROR: {msg}")
 
 
 class ESTypeError(ESError):
     def __init__(self, msg=""):
         obj = msg if isinstance(msg, JSObject) else CreateTypeError(msg)
         super().__init__(obj)
+        print(f"TYPE_ERROR: {msg}")
 
 
 class ESSyntaxError(ESError):
     def __init__(self, msg=""):
         obj = msg if isinstance(msg, JSObject) else CreateSyntaxError(msg)
         super().__init__(obj)
+        print(f"SYNTAX_ERROR: {msg}")
 
 
 class ESRangeError(ESError):
     def __init__(self, msg=""):
         obj = msg if isinstance(msg, JSObject) else CreateRangeError(msg)
         super().__init__(obj)
+        print(f"RANGE_ERROR: {msg}")
 
 
 class ESAbrupt(BaseException):
@@ -4225,6 +4233,10 @@ def CreateIntrinsics(realm_rec):
         SpecificTypedArrayFixups(realm_rec, name)
     intrinsics["%JSON%"] = CreateJSONObject(realm_rec)
     intrinsics["%JSONParse%"] = Get(intrinsics["%JSON%"], "parse")
+    intrinsics["%Map%"] = CreateMapConstructor(realm_rec)
+    intrinsics["%MapPrototype%"] = CreateMapPrototype(realm_rec)
+    MapFixups(realm_rec)
+    intrinsics["%MapIteratorPrototype%"] = CreateMapIteratorPrototype(realm_rec)
 
     # 14. Return intrinsics.
     return intrinsics
@@ -18099,7 +18111,7 @@ class P2_StatementListItem_Statement(P2_StatementListItem):
         return self.Statement.HasUseStrict
 
     def evaluate(self):
-        print(f"STATEMENT: {self.Statement}")
+        # print(f"STATEMENT: {self.Statement}")
         return self.Statement.evaluate()
 
 
@@ -18191,7 +18203,7 @@ class P2_StatementListItem_Declaration(P2_StatementListItem):
         return (False, [])
 
     def evaluate(self):
-        print(f"DECLARATION: {self.Declaration}")
+        # print(f"DECLARATION: {self.Declaration}")
         return self.Declaration.evaluate()
 
 
@@ -29732,7 +29744,8 @@ def BindBuiltinFunctions(realm, obj, details):
 
 
 def CreateAndAnnotateBuiltinFunction(fcn, realm):
-    argspec = inspect.getfullargspec(fcn)
+    # (The bit about "__wrapped__" is so that these checks work even if a function has been snooped)
+    argspec = inspect.getfullargspec(getattr(fcn, "__wrapped__", fcn))
     assert len(argspec.args) >= 2
     assert len(argspec.defaults or ()) >= len(argspec.args) - 2
     assert argspec.varargs is not None
@@ -38278,6 +38291,552 @@ def SpecificTypedArrayFixups(realm: Realm, name: str):
     DefinePropertyOrThrow(
         cstr, "prototype", PropertyDescriptor(value=proto, writable=False, enumerable=False, configurable=False)
     )
+
+
+####################################################################################################################
+# 23 Keyed Collections
+####################################################################################################################
+# 23.1 Map Objects
+# Map objects are collections of key/value pairs where both the keys and values may be arbitrary ECMAScript language
+# values. A distinct key value may only occur in one key/value pair within the Map's collection. Distinct key values
+# are discriminated using the SameValueZero comparison algorithm.
+#
+# Map object must be implemented using either hash tables or other mechanisms that, on average, provide access times
+# that are sublinear on the number of elements in the collection. The data structures used in this Map objects
+# specification is only intended to describe the required observable semantics of Map objects. It is not intended to
+# be a viable implementation model.
+
+
+class ECMAMap(dict):
+    def __init__(self):
+        super().__init__(self)
+        self.keylist = []
+
+    @staticmethod
+    def toMapKey(key):
+        if isinstance(key, bool):
+            return TRUE if key else FALSE
+        return key
+
+    @staticmethod
+    def fromMapKey(mkey):
+        if mkey == TRUE:
+            return True
+        if mkey == FALSE:
+            return False
+        return mkey
+
+    def __setitem__(self, key, value):
+        mkey = self.toMapKey(key)
+        if mkey not in self:
+            self.keylist.append(key)
+        super().__setitem__(mkey, value)
+
+    def __getitem__(self, key):
+        mkey = self.toMapKey(key)
+        return super().__getitem__(mkey)
+
+    def __delitem__(self, key):
+        try:
+            self.keylist[self.keylist.index(key)] = ...
+        except ValueError:
+            pass
+        super().__delitem__(self.toMapKey(key))
+
+    def clear(self):
+        self.keylist = [...] * len(self.keylist)
+        super().clear()
+
+    def __contains__(self, item):
+        mkey = self.toMapKey(item)
+        return super().__contains__(mkey)
+
+
+# 23.1.1 The Map Constructor
+# The Map constructor:
+#
+#   * is the intrinsic object %Map%.
+#   * is the initial value of the Map property of the global object.
+#   * creates and initializes a new Map object when called as a constructor.
+#   * is not intended to be called as a function and will throw an exception when called in that manner.
+#   * is designed to be subclassable. It may be used as the value in an extends clause of a class definition.
+#     Subclass constructors that intend to inherit the specified Map behaviour must include a super call to the Map
+#     constructor to create and initialize the subclass instance with the internal state necessary to support the
+#     Map.prototype built-in methods.
+
+
+def CreateMapConstructor(realm):
+    obj = CreateBuiltinFunction(MapFunction, ["Construct"], realm=realm)
+    for key, value in [("length", MapFunction.length), ("name", MapFunction.name)]:
+        desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)
+        DefinePropertyOrThrow(obj, key, desc)
+
+    # 23.1.2.2 get Map [ @@species ]
+    # Map[@@species] is an accessor property whose set accessor function is undefined. Its get accessor function
+    # performs the following steps:
+    #   1. Return the this value.
+    # The value of the name property of this function is "get [Symbol.species]".
+    # NOTE  | Methods that create derived collection objects should call @@species to determine the constructor to
+    #       | use to create the derived objects. Subclass constructor may over-ride @@species to change the default
+    #       | constructor assignment.
+    get = lambda this_value, new_target, *_: this_value
+    get.length = 0
+    get.name = "get [Symbol.species]"
+    BindBuiltinAccessors(realm, obj, [(wks_species, get, None),])
+
+    return obj
+
+
+# 23.1.1.1 Map ( [ iterable ] )
+def MapFunction(this_value, new_target, iterable=None, *_):
+    # When the Map function is called with optional argument iterable, the following steps are taken:
+    #
+    #   1. If NewTarget is undefined, throw a TypeError exception.
+    #   2. Let map be ? OrdinaryCreateFromConstructor(NewTarget, "%MapPrototype%", « [[MapData]] »).
+    #   3. Set map.[[MapData]] to a new empty List.
+    #   4. If iterable is not present, or is either undefined or null, return map.
+    #   5. Let adder be ? Get(map, "set").
+    #   6. Return ? AddEntriesFromIterable(map, iterable, adder).
+    # NOTE  | If the parameter iterable is present, it is expected to be an object that implements an @@iterator
+    #       | method that returns an iterator object that produces a two element array-like object whose first
+    #       | element is a value that will be used as a Map key and whose second element is the value to associate
+    #       | with that key.
+    if new_target is None:
+        raise ESTypeError("Map may not be called as a function")
+    map = OrdinaryCreateFromConstructor(new_target, "%MapPrototype%", ["MapData"])
+    map.MapData = ECMAMap()
+    if iterable is None or isNull(iterable):
+        return map
+    adder = Get(map, "set")
+    return AddEntriesFromIterable(map, iterable, adder)
+
+
+MapFunction.name = "Map"
+MapFunction.length = 0
+
+# 23.1.1.2 AddEntriesFromIterable ( target, iterable, adder )
+def AddEntriesFromIterable(target, iterable, adder):
+    # The abstract operation AddEntriesFromIterable accepts a target object, an iterable of entries, and an adder
+    # function to be invoked, with target as the receiver.
+    #   1. If IsCallable(adder) is false, throw a TypeError exception.
+    #   2. Assert: iterable is present, and is neither undefined nor null.
+    #   3. Let iteratorRecord be ? GetIterator(iterable).
+    #   4. Repeat,
+    #       a. Let next be ? IteratorStep(iteratorRecord).
+    #       b. If next is false, return target.
+    #       c. Let nextItem be ? IteratorValue(next).
+    #       d. If Type(nextItem) is not Object, then
+    #           i. Let error be ThrowCompletion(a newly created TypeError object).
+    #           ii. Return ? IteratorClose(iteratorRecord, error).
+    #       e. Let k be Get(nextItem, "0").
+    #       f. If k is an abrupt completion, return ? IteratorClose(iteratorRecord, k).
+    #       g. Let v be Get(nextItem, "1").
+    #       h. If v is an abrupt completion, return ? IteratorClose(iteratorRecord, v).
+    #       i. Let status be Call(adder, target, « k.[[Value]], v.[[Value]] »).
+    #       j. If status is an abrupt completion, return ? IteratorClose(iteratorRecord, status).
+    # NOTE  | The parameter iterable is expected to be an object that implements an @@iterator method that returns
+    #       | an iterator object that produces a two element array-like object whose first element is a value that
+    #       | will be used as a Map key and whose second element is the value to associate with that key.
+    if not IsCallable(adder):
+        raise ESTypeError("Map's setter isn't a function")
+    iteratorRecord = GetIterator(iterable)
+    while 1:
+        nxt = IteratorStep(iteratorRecord)
+        if nxt is False:
+            return target
+        nextItem = IteratorValue(nxt)
+        if not isObject(nextItem):
+            IteratorClose(iteratorRecord, True)
+            raise ESTypeError("map iterator trouble")
+        try:
+            k = Get(nextItem, "0")
+            v = Get(nextItem, "1")
+            Call(adder, target, [k, v])
+        except (ESError, ESAbrupt) as err:
+            IteratorClose(iteratorRecord, err.completion.ctype == CompletionType.THROW)
+            raise
+
+
+# 23.1.2 Properties of the Map Constructor
+# The Map constructor:
+#
+#   * has a [[Prototype]] internal slot whose value is the intrinsic object %FunctionPrototype%.
+#   * has the following properties:
+
+# 23.1.2.1 Map.prototype
+# The initial value of Map.prototype is the intrinsic object %MapPrototype%.
+#
+# This property has the attributes { [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: false }.
+
+# 23.1.3 Properties of the Map Prototype Object
+# The Map prototype object:
+#
+#   * is the intrinsic object %MapPrototype%.
+#   * has a [[Prototype]] internal slot whose value is the intrinsic object %ObjectPrototype%.
+#   * is an ordinary object.
+#   * does not have a [[MapData]] internal slot.
+
+
+def CreateMapPrototype(realm):
+    obj = ObjectCreate(realm.intrinsics["%ObjectPrototype%"])
+    BindBuiltinFunctions(
+        realm,
+        obj,
+        (
+            ("clear", MapPrototype_clear, None),
+            ("delete", MapPrototype_delete, None),
+            ("entries", MapPrototype_entries, None),
+            ("forEach", MapPrototype_forEach, None),
+            ("get", MapPrototype_get, None),
+            ("has", MapPrototype_has, None),
+            ("keys", MapPrototype_keys, None),
+            ("set", MapPrototype_set, None),
+            ("values", MapPrototype_values, None),
+        ),
+    )
+    BindBuiltinAccessors(realm, obj, (("size", MapPrototype_get_size, None),))
+    DefinePropertyOrThrow(
+        obj, wks_to_string_tag, PropertyDescriptor(value="Map", writable=False, enumerable=False, configurable=True)
+    )
+    DefinePropertyOrThrow(obj, wks_iterator, obj.GetOwnProperty("entries"))
+    return obj
+
+
+# 23.1.3.1 Map.prototype.clear ( )
+def MapPrototype_clear(this_value, new_target, *_):
+    # The following steps are taken:
+    #
+    #   1. Let M be the this value.
+    #   2. If Type(M) is not Object, throw a TypeError exception.
+    #   3. If M does not have a [[MapData]] internal slot, throw a TypeError exception.
+    #   4. Let entries be the List that is M.[[MapData]].
+    #   5. For each Record { [[Key]], [[Value]] } p that is an element of entries, do
+    #       a. Set p.[[Key]] to empty.
+    #       b. Set p.[[Value]] to empty.
+    #   6. Return undefined.
+    # NOTE  | The existing [[MapData]] List is preserved because there may be existing Map Iterator objects that are
+    #       | suspended midway through iterating over that List.
+    M = this_value
+    if not isObject(M) or not hasattr(M, "MapData"):
+        raise ESTypeError("Map.prototype.clear called on non-map receiver")
+    M.MapData.clear()
+    return None
+
+
+MapPrototype_clear.name = "clear"
+MapPrototype_clear.length = 0
+
+# 23.1.3.3 Map.prototype.delete ( key )
+def MapPrototype_delete(this_value, new_target, key=None, *_):
+    # The following steps are taken:
+    #
+    #   1. Let M be the this value.
+    #   2. If Type(M) is not Object, throw a TypeError exception.
+    #   3. If M does not have a [[MapData]] internal slot, throw a TypeError exception.
+    #   4. Let entries be the List that is M.[[MapData]].
+    #   5. For each Record { [[Key]], [[Value]] } p that is an element of entries, do
+    #       a. If p.[[Key]] is not empty and SameValueZero(p.[[Key]], key) is true, then
+    #           i. Set p.[[Key]] to empty.
+    #           ii. Set p.[[Value]] to empty.
+    #           iii. Return true.
+    #   6. Return false.
+    # NOTE  | The value empty is used as a specification device to indicate that an entry has been deleted. Actual
+    #       | implementations may take other actions such as physically removing the entry from internal data
+    #       | structures.
+    M = this_value
+    if not isObject(M) or not hasattr(M, "MapData"):
+        raise ESTypeError("Map.prototype.delete called on non-map receiver")
+    try:
+        del M.MapData[key]
+        return True
+    except KeyError:
+        return False
+
+
+MapPrototype_delete.name = "delete"
+MapPrototype_delete.length = 1
+
+# 23.1.3.4 Map.prototype.entries ( )
+def MapPrototype_entries(this_value, new_target, *_):
+    # The following steps are taken:
+    #   1. Let M be the this value.
+    #   2. Return ? CreateMapIterator(M, "key+value").
+    return CreateMapIterator(this_value, "key+value")
+
+
+MapPrototype_entries.name = "entries"
+MapPrototype_entries.length = 0
+
+# 23.1.3.5 Map.prototype.forEach ( callbackfn [ , thisArg ] )
+def MapPrototype_forEach(this_value, new_target, callbackfn=None, thisArg=None, *_):
+    # When the forEach method is called with one or two arguments, the following steps are taken:
+    #   1. Let M be the this value.
+    #   2. If Type(M) is not Object, throw a TypeError exception.
+    #   3. If M does not have a [[MapData]] internal slot, throw a TypeError exception.
+    #   4. If IsCallable(callbackfn) is false, throw a TypeError exception.
+    #   5. If thisArg is present, let T be thisArg; else let T be undefined.
+    #   6. Let entries be the List that is M.[[MapData]].
+    #   7. For each Record { [[Key]], [[Value]] } e that is an element of entries, in original key insertion order,
+    #      do
+    #       a. If e.[[Key]] is not empty, then
+    #           i. Perform ? Call(callbackfn, T, « e.[[Value]], e.[[Key]], M »).
+    #   8. Return undefined.
+    # NOTE  | callbackfn should be a function that accepts three arguments. forEach calls callbackfn once for each
+    #       | key/value pair present in the map object, in key insertion order. callbackfn is called only for keys
+    #       | of the map which actually exist; it is not called for keys that have been deleted from the map.
+    #       |
+    #       | If a thisArg parameter is provided, it will be used as the this value for each invocation of
+    #       | callbackfn. If it is not provided, undefined is used instead.
+    #       |
+    #       | callbackfn is called with three arguments: the value of the item, the key of the item, and the Map
+    #       | object being traversed.
+    #       |
+    #       | forEach does not directly mutate the object on which it is called but the object may be mutated by the
+    #       | calls to callbackfn. Each entry of a map's [[MapData]] is only visited once. New keys added after the
+    #       | call to forEach begins are visited. A key will be revisited if it is deleted after it has been visited
+    #       | and then re-added before the forEach call completes. Keys that are deleted after the call to forEach
+    #       | begins and before being visited are not visited unless the key is added again before the forEach call
+    #       | completes.
+    M = this_value
+    if not isObject(M) or not hasattr(M, "MapData"):
+        raise ESTypeError("Map.prototype.forEach called on non-map receiver")
+    if not IsCallable(callbackfn):
+        raise ESTypeError("Map.prototype.forEach called with non-function callbackfn")
+    idx = 0
+    while 1:
+        try:
+            key = M.MapData.keylist[idx]
+        except IndexError:
+            break
+        if key is not ...:
+            Call(callbackfn, thisArg, [M.MapData[key], key, M])
+        idx += 1
+    return None
+
+
+MapPrototype_forEach.name = "forEach"
+MapPrototype_forEach.length = 1
+
+# 23.1.3.6 Map.prototype.get ( key )
+def MapPrototype_get(this_value, new_target, key=None, *_):
+    # The following steps are taken:
+    #   1. Let M be the this value.
+    #   2. If Type(M) is not Object, throw a TypeError exception.
+    #   3. If M does not have a [[MapData]] internal slot, throw a TypeError exception.
+    #   4. Let entries be the List that is M.[[MapData]].
+    #   5. For each Record { [[Key]], [[Value]] } p that is an element of entries, do
+    #       a. If p.[[Key]] is not empty and SameValueZero(p.[[Key]], key) is true, return p.[[Value]].
+    #   6. Return undefined.
+    M = this_value
+    if not isObject(M) or not hasattr(M, "MapData"):
+        raise ESTypeError("Map.prototype.get called on non-map receiver")
+    return M.MapData.get(key, None)
+
+
+MapPrototype_get.name = "get"
+MapPrototype_get.length = 1
+
+# 23.1.3.7 Map.prototype.has ( key )
+def MapPrototype_has(this_value, new_target, key=None, *_):
+    # The following steps are taken:
+    #   1. Let M be the this value.
+    #   2. If Type(M) is not Object, throw a TypeError exception.
+    #   3. If M does not have a [[MapData]] internal slot, throw a TypeError exception.
+    #   4. Let entries be the List that is M.[[MapData]].
+    #   5. For each Record { [[Key]], [[Value]] } p that is an element of entries, do
+    #       a. If p.[[Key]] is not empty and SameValueZero(p.[[Key]], key) is true, return true.
+    #   6. Return false.
+    M = this_value
+    if not isObject(M) or not hasattr(M, "MapData"):
+        raise ESTypeError("Map.prototype.has called on non-map receiver")
+    return key in M.MapData
+
+
+MapPrototype_has.name = "has"
+MapPrototype_has.length = 1
+
+# 23.1.3.8 Map.prototype.keys ( )
+def MapPrototype_keys(this_value, new_target, *_):
+    # The following steps are taken:
+    #   1. Let M be the this value.
+    #   2. Return ? CreateMapIterator(M, "key").
+    return CreateMapIterator(this_value, "key")
+
+
+MapPrototype_keys.name = "keys"
+MapPrototype_length = 0
+
+# 23.1.3.9 Map.prototype.set ( key, value )
+def MapPrototype_set(this_value, new_target, key=None, value=None, *_):
+    # The following steps are taken:
+    #   1. Let M be the this value.
+    #   2. If Type(M) is not Object, throw a TypeError exception.
+    #   3. If M does not have a [[MapData]] internal slot, throw a TypeError exception.
+    #   4. Let entries be the List that is M.[[MapData]].
+    #   5. For each Record { [[Key]], [[Value]] } p that is an element of entries, do
+    #       a. If p.[[Key]] is not empty and SameValueZero(p.[[Key]], key) is true, then
+    #           i. Set p.[[Value]] to value.
+    #           ii. Return M.
+    #   6. If key is -0, set key to +0.
+    #   7. Let p be the Record { [[Key]]: key, [[Value]]: value }.
+    #   8. Append p as the last element of entries.
+    #   9. Return M.
+    M = this_value
+    if not isObject(M) or not hasattr(M, "MapData"):
+        raise ESTypeError("Map.prototype.set called on non-map receiver")
+    M.MapData[key] = value
+    return M
+
+
+MapPrototype_set.name = "set"
+MapPrototype_set.length = 2
+
+# 23.1.3.10 get Map.prototype.size
+def MapPrototype_get_size(this_value, new_target, *_):
+    # Map.prototype.size is an accessor property whose set accessor function is undefined. Its get accessor function
+    # performs the following steps:
+    #   1. Let M be the this value.
+    #   2. If Type(M) is not Object, throw a TypeError exception.
+    #   3. If M does not have a [[MapData]] internal slot, throw a TypeError exception.
+    #   4. Let entries be the List that is M.[[MapData]].
+    #   5. Let count be 0.
+    #   6. For each Record { [[Key]], [[Value]] } p that is an element of entries, do
+    #       a. If p.[[Key]] is not empty, increase count by 1.
+    #   7. Return count.
+    M = this_value
+    if not isObject(M) or not hasattr(M, "MapData"):
+        raise ESTypeError("Map.prototype.size called on non-map receiver")
+    return len(M.MapData)
+
+
+MapPrototype_get_size.name = "get size"
+MapPrototype_get_size.length = 0
+
+# 23.1.3.11 Map.prototype.values ( )
+def MapPrototype_values(this_value, new_target, *_):
+    # The following steps are taken:
+    #   1. Let M be the this value.
+    #   2. Return ? CreateMapIterator(M, "value").
+    return CreateMapIterator(this_value, "value")
+
+
+def MapFixups(realm):
+    constructor = realm.intrinsics["%Map%"]
+    prototype = realm.intrinsics["%MapPrototype%"]
+    DefinePropertyOrThrow(
+        constructor,
+        "prototype",
+        PropertyDescriptor(value=prototype, writable=False, enumerable=False, configurable=False),
+    )
+    DefinePropertyOrThrow(
+        prototype,
+        "constructor",
+        PropertyDescriptor(value=constructor, writable=True, enumerable=False, configurable=True),
+    )
+
+
+# 23.1.5 Map Iterator Objects
+# A Map Iterator is an object, that represents a specific iteration over some specific Map instance object. There is
+# not a named constructor for Map Iterator objects. Instead, map iterator objects are created by calling certain
+# methods of Map instance objects.
+
+# 23.1.5.1 CreateMapIterator ( map, kind )
+def CreateMapIterator(map, kind):
+    # Several methods of Map objects return Iterator objects. The abstract operation CreateMapIterator with
+    # arguments map and kind is used to create such iterator objects. It performs the following steps:
+    #   1. If Type(map) is not Object, throw a TypeError exception.
+    #   2. If map does not have a [[MapData]] internal slot, throw a TypeError exception.
+    #   3. Let iterator be ObjectCreate(%MapIteratorPrototype%, « [[Map]], [[MapNextIndex]], [[MapIterationKind]] »).
+    #   4. Set iterator.[[Map]] to map.
+    #   5. Set iterator.[[MapNextIndex]] to 0.
+    #   6. Set iterator.[[MapIterationKind]] to kind.
+    #   7. Return iterator.
+    if not isObject(map) or not hasattr(map, "MapData"):
+        raise ESTypeError("Map iterators don't work for things that aren't maps")
+    iterator = ObjectCreate(
+        surrounding_agent.running_ec.realm.intrinsics["%MapIteratorPrototype%"],
+        ["Map", "MapNextIndex", "MapIterationKind"],
+    )
+    iterator.Map = map
+    iterator.MapNextIndex = 0
+    iterator.MapIterationKind = kind
+    return iterator
+
+
+# 23.1.5.2 The %MapIteratorPrototype% Object
+# The %MapIteratorPrototype% object:
+#
+#   * has properties that are inherited by all Map Iterator Objects.
+#   * is an ordinary object.
+#   * has a [[Prototype]] internal slot whose value is the intrinsic object %IteratorPrototype%.
+#   * has the following properties:
+def CreateMapIteratorPrototype(realm):
+    obj = ObjectCreate(realm.intrinsics["%IteratorPrototype%"])
+    BindBuiltinFunctions(realm, obj, (("next", MapIteratorPrototype_next, None),))
+    DefinePropertyOrThrow(
+        obj,
+        wks_to_string_tag,
+        PropertyDescriptor(value="Map Iterator", writable=False, enumerable=False, configurable=True),
+    )
+    return obj
+
+
+# 23.1.5.2.1 %MapIteratorPrototype%.next ( )
+def MapIteratorPrototype_next(this_value, new_target, *_):
+    #   1. Let O be the this value.
+    #   2. If Type(O) is not Object, throw a TypeError exception.
+    #   3. If O does not have all of the internal slots of a Map Iterator Instance (23.1.5.3), throw a TypeError exception.
+    #   4. Let m be O.[[Map]].
+    #   5. Let index be O.[[MapNextIndex]].
+    #   6. Let itemKind be O.[[MapIterationKind]].
+    #   7. If m is undefined, return CreateIterResultObject(undefined, true).
+    #   8. Assert: m has a [[MapData]] internal slot.
+    #   9. Let entries be the List that is m.[[MapData]].
+    #   10. Let numEntries be the number of elements of entries.
+    #   11. NOTE: numEntries must be redetermined each time this method is evaluated.
+    #   12. Repeat, while index is less than numEntries,
+    #       a. Let e be the Record { [[Key]], [[Value]] } that is the value of entries[index].
+    #       b. Increase index by 1.
+    #       c. Set O.[[MapNextIndex]] to index.
+    #       d. If e.[[Key]] is not empty, then
+    #           i. If itemKind is "key", let result be e.[[Key]].
+    #           ii. Else if itemKind is "value", let result be e.[[Value]].
+    #           iii. Else,
+    #               1. Assert: itemKind is "key+value".
+    #               2. Let result be CreateArrayFromList(« e.[[Key]], e.[[Value]] »).
+    #           iv. Return CreateIterResultObject(result, false).
+    #   13. Set O.[[Map]] to undefined.
+    #   14. Return CreateIterResultObject(undefined, true).
+    O = this_value
+    if (
+        not isObject(O)
+        or not hasattr(O, "Map")
+        or not hasattr(O, "MapNextIndex")
+        or not hasattr(O, "MapIterationKind")
+    ):
+        raise ESTypeError("%MapIteratorPrototype%.next called with non-iterator")
+    m = O.Map
+    if m is None:
+        return CreateIterResultObject(None, True)
+    index = O.MapNextIndex
+    itemKind = O.MapIterationKind
+    entries = m.MapData.keylist
+    numEntries = len(entries)
+    while index < numEntries:
+        key = entries[index]
+        index += 1
+        O.MapNextIndex = index
+        if key is not ...:
+            if itemKind == "key":
+                result = key
+            elif itemKind == "value":
+                result = m.MapData[key]
+            else:
+                val = m.MapData[key]
+                result = CreateArrayFromList([key, val])
+            return CreateIterResultObject(result, False)
+    O.Map = None
+    return CreateIterResultObject(None, True)
 
 
 ######################################################################################################################
