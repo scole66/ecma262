@@ -1088,6 +1088,10 @@ class ESError(BaseException):
     def __repr__(self):
         return f"ESError({self.ecma_object!r})"
 
+    @property
+    def completion(self):
+        return Completion(CompletionType.THROW, self.ecma_object, None)
+
 
 class ESReferenceError(ESError):
     def __init__(self, msg=""):
@@ -2783,7 +2787,7 @@ def IteratorStep(iteratorRecord):
 
 
 # 7.4.6 IteratorClose ( iteratorRecord, completion )
-def IteratorClose(iteratorRecord):
+def IteratorClose(iteratorRecord, thrown):
     # The abstract operation IteratorClose with arguments iteratorRecord and completion is used to notify an iterator
     # that it should perform any actions it would normally perform when it has reached its completed state:
     #
@@ -2800,10 +2804,18 @@ def IteratorClose(iteratorRecord):
     assert isObject(iteratorRecord.Iterator)
     iterator = iteratorRecord.Iterator
     return_method = GetMethod(iterator, "return")
-    if return_method:
+    if return_method is None:
+        return
+    try:
         innerResult = Call(return_method, iterator, [])
-        if not isObject(innerResult):
-            raise ESTypeError(f"Bad result from iterator 'return' method. (Got {ToString(innerResult)})")
+    except ESError:
+        if thrown:
+            return
+        raise
+    if thrown:
+        return
+    if not isObject(innerResult):
+        raise ESTypeError(f"Bad result from iterator 'return' method. (Got {ToString(innerResult)})")
 
 
 # 7.4.7 AsyncIteratorClose ( iteratorRecord, completion )
@@ -15800,7 +15812,7 @@ class P2_ArrayAssignmentPattern_Empty(P2_ArrayAssignmentPattern):
         #   1. Let iteratorRecord be ? GetIterator(value).
         #   2. Return ? IteratorClose(iteratorRecord, NormalCompletion(empty)).
         iteratorRecord = GetIterator(value)
-        IteratorClose(iteratorRecord)
+        IteratorClose(iteratorRecord, False)
         return EMPTY
 
 
@@ -15819,11 +15831,13 @@ class P2_ArrayAssignmentPattern_Elision(P2_ArrayAssignmentPattern):
         #   3. If iteratorRecord.[[Done]] is false, return ? IteratorClose(iteratorRecord, result).
         #   4. Return result.
         iteratorRecord = GetIterator(value)
+        thrown = True
         try:
             result = self.Elision.IteratorDestructuringAssignmentEvaluation(iteratorRecord)
+            thrown = False
         finally:
             if not iteratorRecord.Done:
-                IteratorClose(iteratorRecord)
+                IteratorClose(iteratorRecord, thrown)
         return result
 
 
@@ -15858,11 +15872,13 @@ class P2_ArrayAssignmentPattern_Elision_AssignmentRestElement(P2_ArrayAssignment
             except (ESError, ESAbrupt):
                 assert iteratorRecord.Done
                 raise
+        thrown = True
         try:
             result = self.AssignmentRestElement.IteratorDestructuringAssignmentEvaluation(iteratorRecord)
+            thrown = False
         finally:
             if not iteratorRecord.Done:
-                IteratorClose(iteratorRecord)
+                IteratorClose(iteratorRecord, thrown)
         return result
 
 
@@ -15889,11 +15905,13 @@ class P2_ArrayAssignmentPattern_AssignmentElementList(P2_ArrayAssignmentPattern)
         #   3. If iteratorRecord.[[Done]] is false, return ? IteratorClose(iteratorRecord, result).
         #   4. Return result.
         iteratorRecord = GetIterator(value)
+        thrown = True
         try:
             result = self.AssignmentElementList.IteratorDestructuringAssignmentEvaluation(iteratorRecord)
+            thrown = False
         finally:
             if not iteratorRecord.Done:
-                IteratorClose(iteratorRecord)
+                IteratorClose(iteratorRecord, thrown)
         return result
 
 
@@ -15932,15 +15950,17 @@ class P2_ArrayAssignmentPattern_AssignmentElementList_Elision_AssignmentRestElem
         #   6. If iteratorRecord.[[Done]] is false, return ? IteratorClose(iteratorRecord, status).
         #   7. Return Completion(status).
         iteratorRecord = GetIterator(value)
+        thrown = True
         try:
             status = self.AssignmentElementList.IteratorDestructuringAssignmentEvaluation(iteratorRecord)
             if self.Elision:
                 status = self.Elision.IteratorDestructuringAssignmentEvaluation(iteratorRecord)
             if self.AssignmentRestElement:
                 status = self.AssignmentRestElement.IteratorDestructuringAssignmentEvaluation(iteratorRecord)
+            thrown = False
         finally:
             if not iteratorRecord.Done:
-                IteratorClose(iteratorRecord)
+                IteratorClose(iteratorRecord, thrown)
         return status
 
 
@@ -18929,11 +18949,13 @@ class P2_BindingPattern_ArrayBindingPattern(P2_BindingPattern):
         #   3. If iteratorRecord.[[Done]] is false, return ? IteratorClose(iteratorRecord, result).
         #   4. Return result.
         iteratorRecord = GetIterator(value)
+        thrown = True
         try:
             result = self.ArrayBindingPattern.IteratorBindingInitialization(iteratorRecord, environment)
+            thrown = False
         finally:
             if not iteratorRecord.Done:
-                IteratorClose(iteratorRecord)
+                IteratorClose(iteratorRecord, thrown)
         return result
 
 
@@ -22152,7 +22174,7 @@ def ForInOfBodyEvaluation(lhs, stmt, iteratorRecord, iterationKind, lhsKind, lab
             if iterationKind == ENUMERATE:
                 raise
             assert iterationKind == ITERATE
-            IteratorClose(iteratorRecord)
+            IteratorClose(iteratorRecord, True)
             raise
         try:
             result = stmt.evaluate()
@@ -22162,7 +22184,7 @@ def ForInOfBodyEvaluation(lhs, stmt, iteratorRecord, iterationKind, lhsKind, lab
                 if iterationKind == ITERATE:
                     if iteratorKind == ASYNC:
                         return AsyncIteratorClose(iteratorRecord, abrupt)
-                    IteratorClose(iteratorRecord)
+                    IteratorClose(iteratorRecord, False)  # ESAbrupt are not THROW completions
                 raise type(abrupt)(value=UpdateEmpty(c.value, V), target=c.target)
         finally:
             surrounding_agent.running_ec.lexical_environment = oldEnv
@@ -27509,7 +27531,7 @@ class P2_YieldExpression_YIELD_STAR_AssignmentExpression(P2_YieldExpression):
                     if generatorKind == ASYNC:
                         AsyncIteratorClose(iteratorRecord)
                     else:
-                        IteratorClose(iteratorRecord)
+                        IteratorClose(iteratorRecord, True)
                     raise ESTypeError("Generator has no throw method")
             else:
                 assert received.ctype == CompletionType.RETURN

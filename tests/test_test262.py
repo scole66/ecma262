@@ -522,8 +522,6 @@ xfail_tests = (
     "/test/language/computed-property-names/class/static/method-number.js",  # Wants default anonymous function naming
     "/test/language/computed-property-names/class/static/method-string.js",  # Wants default anonymous function naming
     "/test/language/computed-property-names/class/static/method-symbol.js",  # Wants default anonymous function naming
-    "/test/language/expressions/assignment/dstr/array-elem-iter-thrw-close-err.js",  # Needs a functional IteratorClose
-    "/test/language/expressions/assignment/dstr/array-elem-iter-thrw-close.js",  # Needs a functional IteratorClose
     "/test/language/expressions/assignment/dstr/array-elem-nested-array-invalid.js",  # Something is Wrong
     "/test/language/expressions/assignment/dstr/array-elem-nested-array-null.js",  # Fix pending
     "/test/language/expressions/assignment/dstr/array-elem-nested-array-undefined-hole.js",  # Fix pending
@@ -539,20 +537,13 @@ xfail_tests = (
     "/test/language/expressions/assignment/dstr/array-elem-nested-obj-yield-ident-valid.js",  # ???
     "/test/language/expressions/assignment/dstr/array-elem-nested-obj.js",  # Fix pending
     "/test/language/expressions/assignment/dstr/array-elem-target-simple-strict.js",  # An early error is failing
-    "/test/language/expressions/assignment/dstr/array-elem-trlg-iter-list-thrw-close-err.js",  # Needs a functional IteratorClose
-    "/test/language/expressions/assignment/dstr/array-elem-trlg-iter-list-thrw-close.js",  # Needs a functional IteratorClose
     "/test/language/expressions/assignment/dstr/array-elem-trlg-iter-rest-nrml-close-skip.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/array-elem-trlg-iter-rest-thrw-close-err.js",  # Needs a functional IteratorClose
-    "/test/language/expressions/assignment/dstr/array-elem-trlg-iter-rest-thrw-close.js",  # Needs a functional IteratorClose
     "/test/language/expressions/assignment/dstr/array-elision-val-string.js",  # ???
     "/test/language/expressions/assignment/dstr/array-empty-val-string.js",  # ???
     "/test/language/expressions/assignment/dstr/array-rest-after-element.js",  # Fix pending
     "/test/language/expressions/assignment/dstr/array-rest-after-elision.js",  # Fix pending
     "/test/language/expressions/assignment/dstr/array-rest-elision.js",  # Fix pending
     "/test/language/expressions/assignment/dstr/array-rest-iter-nrml-close-skip.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/array-rest-iter-thrw-close-err.js",  # IteratorClose
-    "/test/language/expressions/assignment/dstr/array-rest-iter-thrw-close.js",  # IteratorClose
-    "/test/language/expressions/assignment/dstr/array-rest-lref-err.js",  # IteratorClose
     "/test/language/expressions/assignment/dstr/array-rest-lref.js",  # Fix pending
     "/test/language/expressions/assignment/dstr/array-rest-nested-array-invalid.js",  # ???
     "/test/language/expressions/assignment/dstr/array-rest-nested-array-iter-thrw-close-skip.js",  # IteratorDestructuringAssignmentEvaluation
