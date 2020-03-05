@@ -234,6 +234,7 @@ passing = (
     "built-ins/Array/prototype/push",
     "built-ins/Array/prototype/reduce",
     "built-ins/Array/prototype/slice",
+    "built-ins/Array/prototype/sort",
     "built-ins/Array/prototype/toString",
     "built-ins/Array/prototype/values",
     "built-ins/Boolean",
@@ -825,10 +826,7 @@ skip_tests = (
 )
 
 xfail_tests = (
-    "/test/harness/deepEqual-circular.js",  # Needs Array.prototype.sort
-    "/test/harness/deepEqual-deep.js",  # Needs Array.prototype.sort
     "/test/harness/deepEqual-mapset.js",  # Needs Set
-    "/test/harness/deepEqual-object.js",  # Needs Array.prototype.sort
     "/test/harness/timer.js",  # Needs Promise
     "/test/built-ins/Array/from/elements-deleted-after.js",  # Needs Array.prototype.splice
     "/test/built-ins/Array/prototype/concat/Array.prototype.concat_large-typed-array.js",  # Needs TypedArrays to have a working length
@@ -837,6 +835,8 @@ xfail_tests = (
     "/test/built-ins/Array/prototype/map/create-proto-from-ctor-realm-array.js",  # Alternate Realm stuff
     "/test/built-ins/Array/prototype/slice/create-proto-from-ctor-realm-array.js",  # Alternate Realm stuff
     "/test/built-ins/Array/prototype/slice/length-exceeding-integer-limit-proxied-array.js",  # Needs Proxy
+    "/test/built-ins/Array/prototype/sort/stability-2048-elements.js",  # Recursion Limit
+    "/test/built-ins/Array/prototype/sort/stability-513-elements.js",  # Recursion Limit
     "/test/built-ins/Date/parse/zero.js",  # Wants a bit more flexible Date.parse
     "/test/built-ins/Date/prototype/getTimezoneOffset/this-value-valid-date.js",  # Overflow in LocalTZA
     "/test/built-ins/Date/prototype/setDate/new-value-time-clip.js",  # Overflow in LocalTZA
@@ -901,7 +901,6 @@ xfail_tests = (
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-10.js",  # Needs decodeURIComponent
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-11.js",  # Needs encodeURIComponent
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-42.js",  # Needs Array.prototype.reverse
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-44.js",  # Needs Array.prototype.sort
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-47.js",  # Needs Array.prototype.pop
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-48.js",  # Needs Array.prototype.shift
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-49.js",  # Needs Array.prototype.unshift
