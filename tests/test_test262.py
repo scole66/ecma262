@@ -226,6 +226,7 @@ lang_tests = (
 passing = (
     # These paths have passed (or xfailed, or skipped) 100%. We shouldn't break them.
     "harness",
+    "built-ins/Array/from",
     "built-ins/Array/prototype/concat",
     "built-ins/Array/prototype/forEach",
     "built-ins/Array/prototype/join",
@@ -829,6 +830,7 @@ xfail_tests = (
     "/test/harness/deepEqual-mapset.js",  # Needs Set
     "/test/harness/deepEqual-object.js",  # Needs Array.prototype.sort
     "/test/harness/timer.js",  # Needs Promise
+    "/test/built-ins/Array/from/elements-deleted-after.js",  # Needs Array.prototype.splice
     "/test/built-ins/Array/prototype/concat/Array.prototype.concat_large-typed-array.js",  # Needs TypedArrays to have a working length
     "/test/built-ins/Array/prototype/concat/Array.prototype.concat_small-typed-array.js",  # Needs TypedArrays to have a working length
     "/test/built-ins/Array/prototype/concat/create-proto-from-ctor-realm-array.js",  # Alternate Realm stuff
