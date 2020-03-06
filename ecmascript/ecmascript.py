@@ -7853,7 +7853,7 @@ class ParseNode2:
             ch.name if isinstance(ch, ParseNode2) else f"{ch.type}" for ch in filter(None, self.children)
         )
         terms = " ".join(repr(trm.value) if trm.type == "STRING" else str(trm.value) for trm in self.terminals())
-        return f"ParseNode[{self.name} : {children}] ({terms})"
+        return utf_16_decode(f"ParseNode[{self.name} : {children}] ({terms})", False)
 
     def Contains(self, symbol):
         return (
@@ -8961,13 +8961,9 @@ class P2_PrimaryExpression_RegularExpressionLiteral(P2_PrimaryExpression):
         #     Pattern of the ECMAScript RegExp grammar specified in 21.2.1.
         #   * It is a Syntax Error if FlagText of RegularExpressionLiteral contains any code points other than "g",
         #     "i", "m", "s", "u", or "y", or if it contains the same code point more than once.
-        errs = []
         rel = self.RegularExpressionLiteral.value
-        re_lex = e262_regexp.parse_Pattern(rel.body, 0, False, False)
-        if re_lex is None:
-            errs.append(self.CreateSyntaxError("Bad Regular Expression"))
-        if bad_regex_flag_match.search(rel.flags) or len(rel.flags) != len(set(rel.flags)):
-            errs.append(self.CreateSyntaxError("Bad Regular Expression Flags"))
+        _1, _2, err_msgs = RegExp_CheckAndParse(rel.body, rel.flags)
+        errs = [self.CreateSyntaxError(msg) for msg in err_msgs]
         return errs
 
     def evaluate(self):
@@ -35247,6 +35243,28 @@ def RegExpAlloc(newTarget):
     return obj
 
 
+def RegExp_CheckAndParse(P, F):
+    if bad_regex_flag_match.search(F) or len(F) != len(set(F)):
+        return None, None, (f"Bad flags for regex: {F}",)
+    BMP = "u" not in F
+    if BMP:
+        pat = e262_regexp.parse_Pattern(P, 0, False, False)
+        if pat and pat.group_names:
+            pat = e262_regexp.parse_Pattern(P, 0, False, True)
+        if not pat or pat.span.after != len(P):
+            return None, None, (f"Bad Regex: {P}",)
+        patternCharacters = P
+    else:
+        Ppoints = utf_16_decode(P, False)
+        pat = e262_regexp.parse_Pattern(Ppoints, 0, True, True)
+        if not pat or pat.span.after != len(Ppoints):
+            return None, None, (f"Bad Regex: {P}",)
+        patternCharacters = Ppoints
+    if pat.earlyerrors:
+        return None, None, tuple(chain((f"Bad Regex: {P}",), pat.earlyerrors))
+    return (pat, patternCharacters, ())
+
+
 # 21.2.3.2.2 Runtime Semantics: RegExpInitialize ( obj, pattern, flags )
 def RegExpInitialize(obj, pattern, flags):
     # When the abstract operation RegExpInitialize with arguments obj, pattern, and flags is called, the following
@@ -35280,23 +35298,9 @@ def RegExpInitialize(obj, pattern, flags):
     #   13. Return obj.
     P = "" if pattern is None else ToString(pattern)
     F = "" if flags is None else ToString(flags)
-    if bad_regex_flag_match.search(F) or len(F) != len(set(F)):
-        raise ESSyntaxError(f"Bad flags for regex: {F}")
-    BMP = "u" not in F
-    if BMP:
-        pat = e262_regexp.parse_Pattern(P, 0, False, False)
-        if pat and pat.group_names:
-            pat = e262_regexp.parse_Pattern(P, 0, False, True)
-        if not pat or pat.span.after != len(P):
-            raise ESSyntaxError(f"Bad Regex: {P}")
-        patternCharacters = P
-    else:
-        pat = e262_regexp.parse_Pattern(P, 0, True, True)
-        if not pat or pat.span.after != len(pat):
-            raise ESSyntaxError(f"Bad Regex: {P}")
-        patternCharacters = utf_16_decode(P, throw=True, syntax_error_ctor=CreateSyntaxError)
-    if pat.earlyerrors:
-        raise ESSyntaxError("\n".join(chain((f"Bad Regex: {P}",), pat.earlyerrors)))
+    pat, patternCharacters, errs = RegExp_CheckAndParse(P, F)
+    if errs:
+        raise ESSyntaxError("\n".join(chain((f"Bad Regex: {P}",), errs)))
 
     obj.OriginalSource = P
     obj.OriginalFlags = F

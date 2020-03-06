@@ -69,7 +69,6 @@ MatchResult = Union[State, Failure]
 FAILURE: MatchResult = Failure.FAILURE
 Continuation = Callable[[State], MatchResult]
 Matcher = Callable[[State, Continuation], MatchResult]
-AssertionTester = Callable[[State], bool]
 
 
 class CharSet:
@@ -153,6 +152,27 @@ class CharSet:
                 yield self.Range(a, b)
 
         ranges = list(arrange(merge(cvtd)))
+        cs = CharSet("")
+        cs.ranges = ranges
+        return cs
+
+    def __invert__(self) -> "CharSet":
+        def flatten(numbers: Iterable[self.Range]) -> Iterator[int]:
+            for start, after in numbers:
+                yield start
+                yield after
+
+        def pairify(numbers: Iterable[int]) -> Iterator[self.Range]:
+            try:
+                while 1:
+                    left = next(numbers)
+                    right = next(numbers)
+                    if left != right:
+                        yield self.Range(left, right)
+            except StopIteration:
+                pass
+
+        ranges = list(pairify(chain.from_iterable(((0,), flatten(self.ranges), (self._maxchar + 1,)))))
         cs = CharSet("")
         cs.ranges = ranges
         return cs
@@ -243,7 +263,7 @@ class Production:
             return (0, True)
         count = 0
         if target in self.children:
-            for ch in self.children:
+            for ch in (ch for ch in self.children if isinstance(ch, Production)):
                 if ch == target:
                     break
                 count += ch.NcapturingParens
@@ -254,6 +274,21 @@ class Production:
             if found:
                 return (count, True)
         return (count, False)
+
+    @lru_cache
+    def GroupSpecifierNamed(self, name: str) -> Optional["GroupSpecifier"]:
+        # Returns a child GroupSpecifier node whose RegExpIdentifierName is equal to the name parameter.
+        # If no such node exists, returns None
+
+        # Assume, in this base class definition, that this node is _not_ a GroupSpecifier. (I.e.: the Groupspecifier
+        # class definition will override this method.) In that case, we just need to pick the first of our children
+        # which does not return None. (It's a syntax error if names are duplicated, so we don't need to worry about
+        # which non-None element to choose.)
+        for ch in (ch for ch in self.children if isinstance(ch, Production)):
+            node = ch.GroupSpecifierNamed(name)
+            if node:
+                return node
+        return None
 
 
 def join(lst: Sequence[A], sep: B) -> Iterator[Union[A, B]]:
@@ -284,9 +319,9 @@ class ClassEscape(Production):
 
 class ClassEscape_b(ClassEscape):
     def __init__(self, src: str, position: int):
-        super.src = src
-        super.span = Span(position, position + 1)
-        super.children = ("b",)
+        self.src = src
+        self.span = Span(position, position + 1)
+        self.children = ("b",)
 
     CharacterValue = 8  # BACKSPACE
     IsCharacterClass = False
@@ -303,9 +338,9 @@ class ClassEscape_b(ClassEscape):
 
 class ClassEscape_dash(ClassEscape):
     def __init__(self, src: str, position: int):
-        super.src = src
-        super.span = Span(position, position + 1)
-        super.children = ("-",)
+        self.src = src
+        self.span = Span(position, position + 1)
+        self.children = ("-",)
 
     CharacterValue = 0x2D  # HYPHEN-MINUS
     IsCharacterClass = False
@@ -588,6 +623,31 @@ class NonemptyClassRangesNoDash_withdash(NonemptyClassRangesNoDash):
         self.class_atom_no_dash = cand
         self.class_atom = ca
         self.class_ranges = cr
+
+    @cached_property
+    def earlyerrors(self) -> List[str]:
+        # 21.2.1.1 Static Semantics: Early Errors
+        # NonemptyClassRangesNoDash::ClassAtomNoDash-ClassAtomClassRanges
+        #   * It is a Syntax Error if IsCharacterClass of ClassAtomNoDash is true or IsCharacterClass of ClassAtom
+        #     is true.
+        #   * It is a Syntax Error if IsCharacterClass of ClassAtomNoDash is false and IsCharacterClass of ClassAtom
+        #     is false and the CharacterValue of ClassAtomNoDash is larger than the CharacterValue of ClassAtom.
+        return list(
+            chain(
+                filter(
+                    None,
+                    [
+                        (self.class_atom_no_dash.IsCharacterClass or self.class_atom.IsCharacterClass)
+                        and f"Confused class range: {self.src[self.span.start:self.span.after]}",
+                        not self.class_atom_no_dash.IsCharacterClass
+                        and not self.class_atom.IsCharacterClass
+                        and self.class_atom_no_dash.CharacterValue > self.class_atom.CharacterValue
+                        and f"Reversed class range: {self.src[self.span.start:self.span.after]}",
+                    ],
+                ),
+                super().earlyerrors,
+            )
+        )
 
     def evaluate(self, context: Context) -> CharSet:
         # 21.2.2.16 NonemptyClassRangesNoDash
@@ -878,8 +938,8 @@ class Assertion(Production):
     def __init__(self, *args):
         raise ValueError("Don't instantiate the base class!")
 
-    def evaluate(self, context: Context) -> AssertionTester:
-        raise NotImplementedError()  # @@@
+    def evaluate(self, context: Context) -> Matcher:
+        raise ValueError("Don't instantiate the base class!")
 
 
 class Assertion_start_of_input(Assertion):
@@ -888,20 +948,21 @@ class Assertion_start_of_input(Assertion):
         self.span = Span(position, position + 1)
         self.children = ("^",)
 
-    def evaluate(self, context: Context) -> AssertionTester:
+    def evaluate(self, context: Context) -> Matcher:
         # 21.2.2.6 Assertion
         # The production Assertion :: ^ evaluates as follows:
-        #   1. Return an internal AssertionTester closure that takes a State argument x and performs the following steps when evaluated:
+        #   1. Return an internal Matcher closure that takes two arguments, a State x and a Continuation c, and performs the following steps:
         #       a. Let e be x's endIndex.
-        #       b. If e is zero, return true.
-        #       c. If Multiline is false, return false.
-        #       d. If the character Input[e - 1] is one of LineTerminator, return true.
-        #       e. Return false.
-        def closure(x: State) -> bool:
+        #       b. If e is zero, or if Multiline is true and the character Input[e - 1] is one of LineTerminator, then
+        #           i. Call c(x) and return its result.
+        #       c. Return failure.
+        def closure(x: State, c: Continuation) -> MatchResult:
             e = x.endIndex
-            return e == 0 or (
+            if e == 0 or (
                 context.Multiline and context.Input[e - 1] in "\N{LF}\N{CR}\N{LINE SEPARATOR}\N{PARAGRAPH SEPARATOR}"
-            )
+            ):
+                return c(x)
+            return FAILURE
 
         return closure
 
@@ -912,20 +973,21 @@ class Assertion_end_of_input(Assertion):
         self.span = Span(position, position + 1)
         self.children = ("$",)
 
-    def evaluate(self, context: Context) -> AssertionTester:
+    def evaluate(self, context: Context) -> Matcher:
         # 21.2.2.6 Assertion
         # The production Assertion :: $ evaluates as follows:
-        #   1. Return an internal AssertionTester closure that takes a State argument x and performs the following steps when evaluated:
+        #   1. Return an internal Matcher closure that takes two arguments, a State x and a Continuation c, and performs the following steps:
         #       a. Let e be x's endIndex.
-        #       b. If e is equal to InputLength, return true.
-        #       c. If Multiline is false, return false.
-        #       d. If the character Input[e] is one of LineTerminator, return true.
-        #       e. Return false.
-        def closure(x: State) -> bool:
+        #       b. If e is equal to InputLength, or if Multiline is true and the character Input[e] is one of LineTerminator, then
+        #           i. Call c(x) and return its result.
+        #       c. Return failure.
+        def closure(x: State, c: Continuation) -> MatchResult:
             e = x.endIndex
-            return e == context.InputLength or (
+            if e == context.InputLength or (
                 context.Multiline and context.Input[e] in "\N{LF}\N{CR}\N{LINE SEPARATOR}\N{PARAGRAPH SEPARATOR}"
-            )
+            ):
+                return c(x)
+            return FAILURE
 
         return closure
 
@@ -936,19 +998,21 @@ class Assertion_word_boundary(Assertion):
         self.span = Span(position, position + 2)
         self.children = ("\\b",)
 
-    def evaluate(self, context: Context) -> AssertionTester:
+    def evaluate(self, context: Context) -> Matcher:
         # 21.2.2.6 Assertion
         # The production Assertion::\b evaluates as follows:
-        #   1. Return an internal AssertionTester closure that takes a State argument x and performs the following steps when evaluated:
+        #   1. Return an internal Matcher closure that takes two arguments, a State x and a Continuation c, and performs the following steps:
         #       a. Let e be x's endIndex.
         #       b. Call IsWordChar(e - 1) and let a be the Boolean result.
         #       c. Call IsWordChar(e) and let b be the Boolean result.
-        #       d. If a is true and b is false, return true.
-        #       e. If a is false and b is true, return true.
-        #       f. Return false.
-        def closure(x: State) -> bool:
+        #       d. If a is true and b is false, or if a is false and b is true, then
+        #           i. Call c(x) and return its result.
+        #       e. Return failure.
+        def closure(x: State, c: Continuation) -> MatchResult:
             e = x.endIndex
-            return IsWordChar(context, e - 1) ^ IsWordChar(context, e)
+            if IsWordChar(context, e - 1) != IsWordChar(context, e):
+                return c(x)
+            return FAILURE
 
         return closure
 
@@ -959,19 +1023,154 @@ class Assertion_not_word_boundary(Assertion):
         self.span = Span(position, position + 2)
         self.children = ("\\B",)
 
-    def evaluate(self, context: Context) -> AssertionTester:
+    def evaluate(self, context: Context) -> Matcher:
         # 21.2.2.6 Assertion
         # The production Assertion::\B evaluates as follows:
-        #   1. Return an internal AssertionTester closure that takes a State argument x and performs the following steps when evaluated:
+        #   1. Return an internal Matcher closure that takes two arguments, a State x and a Continuation c, and performs the following steps:
         #       a. Let e be x's endIndex.
         #       b. Call IsWordChar(e - 1) and let a be the Boolean result.
         #       c. Call IsWordChar(e) and let b be the Boolean result.
-        #       d. If a is true and b is false, return false.
-        #       e. If a is false and b is true, return false.
-        #       f. Return true.
-        def closure(x: State) -> bool:
+        #       d. If a is true and b is true, or if a is false and b is false, then
+        #           i. Call c(x) and return its result.
+        #       e. Return failure.
+        def closure(x: State, c: Continuation) -> MatchResult:
             e = x.endIndex
-            return not (IsWordChar(context, e - 1) ^ IsWordChar(context, e))
+            if IsWordChar(context, e - 1) == IsWordChar(context, e):
+                return c(x)
+            return FAILURE
+
+        return closure
+
+
+class Assertion_lookahead(Assertion):
+    def __init__(self, src: str, dis: "Disjunction"):
+        self.src = src
+        self.span = Span(dis.span.start - 3, dis.span.after + 1)
+        self.children = ("(?=", dis, ")")
+        self.disjunction = dis
+
+    def evaluate(self, context: Context) -> Matcher:
+        # 21.2.2.6 Assertion
+        # The production Assertion::(?=Disjunction) evaluates as follows:
+        #   1. Evaluate Disjunction with +1 as its direction argument to obtain a Matcher m.
+        #   2. Return an internal Matcher closure that takes two arguments, a State x and a Continuation c, and performs the following steps:
+        #       a. Let d be a Continuation that always returns its State argument as a successful MatchResult.
+        #       b. Call m(x, d) and let r be its result.
+        #       c. If r is failure, return failure.
+        #       d. Let y be r's State.
+        #       e. Let cap be y's captures List.
+        #       f. Let xe be x's endIndex.
+        #       g. Let z be the State (xe, cap).
+        #       h. Call c(z) and return its result.
+        m = self.disjunction.evaluate(context, 1)
+
+        def closure(x: State, c: Continuation) -> MatchResult:
+            def d(x: State) -> State:
+                return x
+
+            r = m(x, d)
+            if r == FAILURE:
+                return r
+            y = r
+            cap = y.captures
+            xe = x.endIndex
+            z = State(xe, cap)
+            return c(z)
+
+        return closure
+
+
+class Assertion_not_lookahead(Assertion):
+    def __init__(self, src: str, dis: "Disjunction"):
+        self.src = src
+        self.span = Span(dis.span.start - 3, dis.span.after + 1)
+        self.children = ("(?!", dis, ")")
+        self.disjunction = dis
+
+    def evaluate(self, context: Context) -> Matcher:
+        # 21.2.2.6 Assertion
+        # The production Assertion::(?!Disjunction) evaluates as follows:
+        #   1. Evaluate Disjunction with +1 as its direction argument to obtain a Matcher m.
+        #   2. Return an internal Matcher closure that takes two arguments, a State x and a Continuation c, and
+        #      performs the following steps:
+        #       a. Let d be a Continuation that always returns its State argument as a successful MatchResult.
+        #       b. Call m(x, d) and let r be its result.
+        #       c. If r is not failure, return failure.
+        #       d. Call c(x) and return its result.
+        m = self.disjunction.evaluate(context, 1)
+
+        def closure(x: State, c: Continuation) -> MatchResult:
+            def d(x: State) -> State:
+                return x
+
+            r = m(x, d)
+            if r != FAILURE:
+                return FAILURE
+            return c(x)
+
+        return closure
+
+
+class Assertion_lookbehind(Assertion):
+    def __init__(self, src: str, dis: "Disjunction"):
+        self.src = src
+        self.span = Span(dis.span.start - 4, dis.span.after + 1)
+        self.children = ("(?<=", dis, ")")
+        self.disjunction = dis
+
+    def evaluate(self, context: Context) -> Matcher:
+        # 21.2.2.6 Assertion
+        # The production Assertion::(?<=Disjunction) evaluates as follows:
+        #   1. Evaluate Disjunction with -1 as its direction argument to obtain a Matcher m.
+        #   2. Return an internal Matcher closure that takes two arguments, a State x and a Continuation c, and performs the following steps:
+        #       a. Let d be a Continuation that always returns its State argument as a successful MatchResult.
+        #       b. Call m(x, d) and let r be its result.
+        #       c. If r is failure, return failure.
+        #       d. Let y be r's State.
+        #       e. Let cap be y's captures List.
+        #       f. Let xe be x's endIndex.
+        #       g. Let z be the State (xe, cap).
+        #       h. Call c(z) and return its result.
+        m = self.disjunction.evaluate(context, -1)
+
+        def closure(x: State, c: Continuation) -> MatchResult:
+            def d(x: State) -> State:
+                return x
+
+            r = m(x, d)
+            if r == FAILURE:
+                return r
+            return c(State(x.endIndex, r.captures))
+
+        return closure
+
+
+class Assertion_not_lookbehind(Assertion):
+    def __init__(self, src: str, dis: "Disjunction"):
+        self.src = src
+        self.span = Span(dis.span.start - 4, dis.span.after + 1)
+        self.children = ("(?<!", dis, ")")
+        self.disjunction = dis
+
+    def evaluate(self, context: Context) -> Matcher:
+        # 21.2.2.6 Assertion
+        # The production Assertion::(?<!Disjunction) evaluates as follows:
+        #   1. Evaluate Disjunction with -1 as its direction argument to obtain a Matcher m.
+        #   2. Return an internal Matcher closure that takes two arguments, a State x and a Continuation c, and performs the following steps:
+        #       a. Let d be a Continuation that always returns its State argument as a successful MatchResult.
+        #       b. Call m(x, d) and let r be its result.
+        #       c. If r is not failure, return failure.
+        #       d. Call c(x) and return its result.
+        m = self.disjunction.evaluate(context, -1)
+
+        def closure(x: State, c: Continuation) -> MatchResult:
+            def d(x: State) -> State:
+                return x
+
+            r = m(x, d)
+            if r != FAILURE:
+                return FAILURE
+            return c(x)
 
         return closure
 
@@ -983,6 +1182,10 @@ def parse_Assertion(src: str, position: int, U: bool, N: bool) -> Optional[Asser
     #       $
     #       \ b
     #       \ B
+    #       ( ? = Disjunction[?U, ?N] )
+    #       ( ? ! Disjunction[?U, ?N] )
+    #       ( ? < = Disjunction[?U, ?N] )
+    #       ( ? < ! Disjunction[?U, ?N] )
     if position >= len(src):
         return None
     choices = (
@@ -995,6 +1198,22 @@ def parse_Assertion(src: str, position: int, U: bool, N: bool) -> Optional[Asser
     for leader, ctor in choices:
         if src.startswith(leader, position):
             return ctor(src, position)
+
+    lookarounds = (
+        ("(?=", Assertion_lookahead),
+        ("(?!", Assertion_not_lookahead),
+        ("(?<=", Assertion_lookbehind),
+        ("(?<!", Assertion_not_lookbehind),
+    )
+    for leader, ctor in lookarounds:
+        l = len(leader)
+        if src[position : position + l] == leader:
+            disjunction = parse_Disjunction(src, position + l, U, N)
+            if disjunction:
+                after = disjunction.span.after
+                if after < len(src) and src[after] == ")":
+                    return ctor(src, disjunction)
+            break
     return None
 
 
@@ -1186,7 +1405,7 @@ class AtomEscape(Production):
 class AtomEscape_group(AtomEscape):
     def __init__(self, src: str, group_name: "GroupName"):
         self.src = src
-        self.span = Span(group_name.start - 1, group_name.after)
+        self.span = Span(group_name.span.start - 1, group_name.span.after)
         self.children = ("k", group_name)
         self.group_name = group_name
 
@@ -1197,7 +1416,17 @@ class AtomEscape_group(AtomEscape):
     def evaluate(self, context: Context, direction: int) -> Matcher:
         # 21.2.2.9 AtomEscape
         #   With parameter direction.
-        raise NotImplementedError()  # @@@
+        # The production AtomEscape::k GroupName evaluates as follows:
+        #   1. Search the enclosing Pattern for an instance of a GroupSpecifier for a RegExpIdentifierName which has
+        #      a StringValue equal to the StringValue of the RegExpIdentifierName contained in GroupName.
+        #   2. Assert: A unique such GroupSpecifier is found.
+        #   3. Let parenIndex be the number of left-capturing parentheses in the entire regular expression that
+        #      occur to the left of the located GroupSpecifier. This is the total number of
+        #      Atom::(GroupSpecifier Disjunction) Parse Nodes prior to or enclosing the located GroupSpecifier.
+        #   4. Call BackreferenceMatcher(parenIndex, direction) and return its Matcher result.
+        gs = context.pattern.GroupSpecifierNamed(self.group_name.children[1].StringValue)
+        parenIndex = context.pattern.parenIndex(gs)
+        return BackreferenceMatcher(context, parenIndex, direction)
 
 
 class AtomEscape_cce(AtomEscape):
@@ -1210,7 +1439,11 @@ class AtomEscape_cce(AtomEscape):
     def evaluate(self, context: Context, direction: int) -> Matcher:
         # 21.2.2.9 AtomEscape
         #   With parameter direction.
-        raise NotImplementedError()  # @@@
+        # The production AtomEscape::CharacterClassEscape evaluates as follows:
+        #   1. Evaluate CharacterClassEscape to obtain a CharSet A.
+        #   2. Call CharacterSetMatcher(A, false, direction) and return its Matcher result.
+        A = self.character_class_escape.evaluate(context)
+        return CharacterSetMatcher(context, A, False, direction)
 
 
 class AtomEscape_ce(AtomEscape):
@@ -1246,7 +1479,12 @@ class AtomEscape_decimal(AtomEscape):
     def evaluate(self, context: Context, direction: int) -> Matcher:
         # 21.2.2.9 AtomEscape
         #   With parameter direction.
-        raise NotImplementedError()  # @@@
+        # The production AtomEscape::DecimalEscape evaluates as follows:
+        #   1. Evaluate DecimalEscape to obtain an integer n.
+        #   2. Assert: n ≤ NcapturingParens.
+        #   3. Call BackreferenceMatcher(n, direction) and return its Matcher result.
+        n = self.decimal_escape.evaluate()
+        return BackreferenceMatcher(context, n, direction)
 
 
 def parse_AtomEscape(src: str, position: int, U: bool, N: bool) -> Optional[AtomEscape]:
@@ -1254,22 +1492,60 @@ def parse_AtomEscape(src: str, position: int, U: bool, N: bool) -> Optional[Atom
     #   AtomEscape[U, N] ::
     #       DecimalEscape
     #       CharacterClassEscape[?U]
-    #       CharacterEscape[?U]
     #       [+N] k GroupName[?U]
+    #       CharacterEscape[?U]
     decimal_escape = parse_DecimalEscape(src, position)
     if decimal_escape:
         return AtomEscape_decimal(src, decimal_escape)
     cc_escape = parse_CharacterClassEscape(src, position, U)
     if cc_escape:
         return AtomEscape_cce(src, cc_escape)
-    char_escape = parse_CharacterEscape(src, position, U)
-    if char_escape:
-        return AtomEscape_ce(src, char_escape)
     if N and position < len(src) and src[position] == "k":
         group_name = parse_GroupName(src, position + 1, U)
         if group_name:
             return AtomEscape_group(src, group_name)
+    char_escape = parse_CharacterEscape(src, position, U)
+    if char_escape:
+        return AtomEscape_ce(src, char_escape)
     return None
+
+
+# 21.2.2.9.1 Runtime Semantics: BackreferenceMatcher ( n, direction )
+def BackreferenceMatcher(context: Context, n: int, direction: int) -> Matcher:
+    # The abstract operation BackreferenceMatcher takes two arguments, an integer n and an integer direction, and
+    # performs the following steps:
+    #   1. Return an internal Matcher closure that takes two arguments, a State x and a Continuation c, and performs
+    #      the following steps:
+    #       a. Let cap be x's captures List.
+    #       b. Let s be cap[n].
+    #       c. If s is undefined, return c(x).
+    #       d. Let e be x's endIndex.
+    #       e. Let len be the number of elements in s.
+    #       f. Let f be e + direction × len.
+    #       g. If f < 0 or f > InputLength, return failure.
+    #       h. Let g be min(e, f).
+    #       i. If there exists an integer i between 0 (inclusive) and len (exclusive) such that Canonicalize(s[i])
+    #          is not the same character value as Canonicalize(Input[g + i]), return failure.
+    #       j. Let y be the State (f, cap).
+    #       k. Call c(y) and return its result.
+    def closure(x: State, c: Continuation) -> MatchResult:
+        cap = x.captures
+        s = cap[n - 1]
+        if s is None:
+            return c(x)
+        e = x.endIndex
+        length = len(s)
+        f = e + direction * length
+        if f < 0 or f > context.InputLength:
+            return FAILURE
+        g = min(e, f)
+        if not all(
+            Canonicalize(context, s[i]) == Canonicalize(context, context.Input[g + i]) for i in range(length)
+        ):
+            return FAILURE
+        return c(State(f, cap))
+
+    return closure
 
 
 class CharacterEscape(Production):
@@ -1505,6 +1781,9 @@ class GroupSpecifier(Production):
 class GroupSpecifier_empty(GroupSpecifier):
     group_names: List[str] = []
 
+    def GroupSpecifierNamed(self, name: str) -> Optional[GroupSpecifier]:
+        return None
+
 
 class GroupSpecifier_GroupName(GroupSpecifier):
     @cached_property
@@ -1514,6 +1793,12 @@ class GroupSpecifier_GroupName(GroupSpecifier):
     @cached_property
     def capture_map(self) -> Dict[int, str]:
         return {0: self.children[1].children[1].StringValue}
+
+    @lru_cache
+    def GroupSpecifierNamed(self, name: str) -> Optional[GroupSpecifier]:
+        if self.children[1].children[1].StringValue == name:
+            return self
+        return None
 
 
 def parse_GroupSpecifier(src: str, position: int, U: bool) -> Optional[GroupSpecifier]:
@@ -1709,6 +1994,16 @@ class DecimalEscape(Production):
         assert len(self.children) > 0 and isinstance(self.children[0], str)
         return int(self.children[0], 10)
 
+    # 21.2.2.11 DecimalEscape
+    def evaluate(self) -> int:
+        # The DecimalEscape productions evaluate as follows:
+        # DecimalEscape :: NonZeroDigit DecimalDigits[opt]
+        #   1. Return the CapturingGroupNumber of this DecimalEscape.
+        # NOTE  | If \ is followed by a decimal number n whose first digit is not 0, then the escape sequence is
+        #       | considered to be a backreference. It is an error if n is greater than the total number of
+        #       | left-capturing parentheses in the entire regular expression.
+        return self.CapturingGroupNumber
+
 
 _DecimalEscape = regex.compile(r"[1-9][0-9]*")
 
@@ -1830,7 +2125,7 @@ class CharacterClassEscape_W(CharacterClassEscape):
         # 21.2.2.12 CharacterClassEscape
         # The production CharacterClassEscape::W evaluates as follows:
         #   1. Return the set of all characters not included in the set returned by CharacterClassEscape::w .
-        return CharSet(WordCharacters(context), inverted=False)
+        return CharSet(WordCharacters(context), inverted=True)
 
 
 class CharacterClassEscape_p(CharacterClassEscape):
@@ -1840,6 +2135,11 @@ class CharacterClassEscape_p(CharacterClassEscape):
         self.children = ("p{", upve, "}")
         self.unicode_property_value_expression = upve
 
+    def evaluate(self, context: Context) -> CharSet:
+        # The production CharacterClassEscape::p{UnicodePropertyValueExpression} evaluates as follows:
+        #   1. Return the result of evaluating UnicodePropertyValueExpression.
+        return self.unicode_property_value_expression.evaluate(context)
+
 
 class CharacterClassEscape_P(CharacterClassEscape):
     def __init__(self, src: str, upve: "UnicodePropertyValueExpression"):
@@ -1847,6 +2147,12 @@ class CharacterClassEscape_P(CharacterClassEscape):
         self.span = Span(upve.span.start - 2, upve.span.after + 1)
         self.children = ("P{", upve, "}")
         self.unicode_property_value_expression = upve
+
+    def evaluate(self, context: Context) -> CharSet:
+        # The production CharacterClassEscape::P{UnicodePropertyValueExpression} evaluates as follows:
+        #   1. Return the CharSet containing all Unicode code points not included in the CharSet returned by
+        #      the evaluation of UnicodePropertyValueExpression.
+        return ~self.unicode_property_value_expression.evaluate(context)
 
 
 def parse_CharacterClassEscape(src: str, position: int, U: bool) -> Optional[CharacterClassEscape]:
@@ -1907,6 +2213,22 @@ class UnicodePropertyValueExpression_lone(Production):
             )
         )
 
+    def evaluate(self, context: Context) -> CharSet:
+        # The production UnicodePropertyValueExpression::LoneUnicodePropertyNameOrValue evaluates as follows:
+        #   1. Let s be SourceText of LoneUnicodePropertyNameOrValue.
+        #   2. If ! UnicodeMatchPropertyValue(General_Category, s) is identical to a List of Unicode code points
+        #      that is the name of a Unicode general category or general category alias listed in the “Property
+        #      value and aliases” column of Table 59, then
+        #   a. Return the CharSet containing all Unicode code points whose character database definition includes
+        #      the property “General_Category” with value s.
+        #   3. Let p be ! UnicodeMatchProperty(s).
+        #   4. Assert: p is a binary Unicode property or binary property alias listed in the “Property name and
+        #      aliases” column of Table 58.
+        #   5. Return the CharSet containing all Unicode code points whose character database definition includes
+        #      the property p with value “True”.
+        s = self.NameStringValue
+        raise NotImplementedError()  # I need to make tables for this. :/ This data isn't in the unicodedata module.
+
 
 class UnicodePropertyValueExpression_pair(Production):
     @cached_property
@@ -1922,11 +2244,11 @@ class UnicodePropertyValueExpression_pair(Production):
         # UnicodePropertyValueExpression :: UnicodePropertyName = UnicodePropertyValue
         #   * It is a Syntax Error if the List of Unicode code points that is SourceText of UnicodePropertyName is not
         #     identical to a List of Unicode code points that is a Unicode property name or property alias listed in
-        #     the “Property name and aliases” column of Table 54.
+        #     the “Property name and aliases” column of Table 57.
         #   * It is a Syntax Error if the List of Unicode code points that is SourceText of UnicodePropertyValue is not
         #     identical to a List of Unicode code points that is a value or value alias for the Unicode property or
         #     property alias given by SourceText of UnicodePropertyName listed in the “Property value and aliases”
-        #     column of the corresponding tables Table 56 or Table 57.
+        #     column of the corresponding tables Table 59 or Table 60.
         return list(
             chain(
                 filter(
@@ -1945,6 +2267,23 @@ class UnicodePropertyValueExpression_pair(Production):
                 super().earlyerrors,
             )
         )
+
+    def evaluate(self, context: Context) -> CharSet:
+        # The production UnicodePropertyValueExpression::UnicodePropertyName=UnicodePropertyValue evaluates as
+        # follows:
+        #   1. Let ps be SourceText of UnicodePropertyName.
+        #   2. Let p be ! UnicodeMatchProperty(ps).
+        #   3. Assert: p is a Unicode property name or property alias listed in the “Property name and aliases”
+        #      column of Table 57.
+        #   4. Let vs be SourceText of UnicodePropertyValue.
+        #   5. Let v be ! UnicodeMatchPropertyValue(p, vs).
+        #   6. Return the CharSet containing all Unicode code points whose character database definition includes
+        #      the property p with value v.
+        ps = self.NameStringValue
+        p = UnicodeMatchProperty(ps)
+        vs = self.ValueStringValue
+        v = UnicodeMatchPropertyValue(p, vs)
+        raise NotImplementedError()
 
 
 _ControlLetter_re = r"([a-zA-Z])"
@@ -1975,13 +2314,62 @@ def parse_UnicodePropertyValueExpression(src: str, position: int) -> Optional[Un
     return None
 
 
+# 21.2.2.8.3 Runtime Semantics: UnicodeMatchProperty ( p )
+def UnicodeMatchProperty(p):
+    # The abstract operation UnicodeMatchProperty takes a parameter p that is a List of Unicode code points and
+    # performs the following steps:
+    #   1. Assert: p is a List of Unicode code points that is identical to a List of Unicode code points that is a
+    #      Unicode property name or property alias listed in the “Property name and aliases” column of Table 57 or
+    #      Table 58.
+    #   2. Let c be the canonical property name of p as given in the “Canonical property name” column of the
+    #      corresponding row.
+    #   3. Return the List of Unicode code points of c.
+    # Implementations must support the Unicode property names and aliases listed in Table 57 and Table 58. To ensure
+    # interoperability, implementations must not support any other property names or aliases.
+    # NOTE 1    | For example, Script_Extensions (property name) and scx (property alias) are valid, but
+    #           | script_extensions or Scx aren't.
+    # NOTE 2    | The listed properties form a superset of what UTS18 RL1.2 requires.
+    canonicalization = _canonical_nonbinary_property_names.get(p) or _canonical_binary_property_names.get(p)
+    assert canonicalization is not None
+    return canonicalization
+
+
+# 21.2.2.8.4 Runtime Semantics: UnicodeMatchPropertyValue ( p, v )
+def UnicodeMatchPropertyValue(p, v):
+    # The abstract operation UnicodeMatchPropertyValue takes two parameters p and v, each of which is a List of
+    # Unicode code points, and performs the following steps:
+    #   1. Assert: p is a List of Unicode code points that is identical to a List of Unicode code points that is a
+    #      canonical, unaliased Unicode property name listed in the “Canonical property name” column of Table 57.
+    #   2. Assert: v is a List of Unicode code points that is identical to a List of Unicode code points that is a
+    #      property value or property value alias for Unicode property p listed in the “Property value and aliases”
+    #      column of Table 59 or Table 60.
+    #   3. Let value be the canonical property value of v as given in the “Canonical property value” column of the
+    #      corresponding row.
+    #   4. Return the List of Unicode code points of value.
+    # Implementations must support the Unicode property value names and aliases listed in Table 59 and Table 60. To
+    # ensure interoperability, implementations must not support any other property value names or aliases.
+    # NOTE 1    | For example, Xpeo and Old_Persian are valid Script_Extensions values, but xpeo and Old Persian
+    #           | aren't.
+    # NOTE 2    | This algorithm differs from the matching rules for symbolic values listed in UAX44: case, white
+    #           | space, U+002D (HYPHEN-MINUS), and U+005F (LOW LINE) are not ignored, and the Is prefix is not
+    #           | supported.
+    assert (p in ("Script", "Script_Extensions") and v in _script_values) or (
+        p == "General_Category" and v in _general_categories
+    )
+    if p == "General_Category":
+        value = _canonical_general_category_values[v]
+    else:
+        value = _canonical_script_values[v]
+    return value
+
+
 class RegExpUnicodeEscapeSequence(Production):
     @cached_property
     def SV(self) -> str:
         return utf_16_encode(chr(self.CharacterValue))
 
     def CharacterValue(self) -> int:
-        raise NotImplementedError("Must use a subclass")
+        raise TypeError("Must use a subclass")
 
 
 class RegExpUnicodeEscapeSequence_4digits(RegExpUnicodeEscapeSequence):
@@ -2052,7 +2440,7 @@ class IdentityEscape(Production):
 
 
 _SyntaxSlash_pattern = regex.compile(r"[/^$\\.*+?()\[\]{}|]")
-_NotContinue_pattern = regex.compile(r"[^\p{ID_Continue}]")
+# _NotContinue_pattern = regex.compile(r"[^\p{ID_Continue}]")
 
 
 def parse_IdentityEscape(src: str, position: int, U: bool) -> Optional[IdentityEscape]:
@@ -2061,15 +2449,20 @@ def parse_IdentityEscape(src: str, position: int, U: bool) -> Optional[IdentityE
     #       [+U] SyntaxCharacter
     #       [+U] /
     #       [~U] SourceCharacter but not UnicodeIDContinue
+    #
+    # Note: That last line seems wrong, and should probably be:
+    #       [~U] SourceCharacter
     if U:
         ch = _SyntaxSlash_pattern.match(src, pos=position)
         if ch:
             return IdentityEscape(src, Span(*ch.span()), (ch.group(0),))
         return None
-    chx = _NotContinue_pattern.match(src, pos=position)
-    if chx:
-        return IdentityEscape(src, Span(*chx.span()), (chx.group(0),))
-    return None
+    #    chx = _NotContinue_pattern.match(src, pos=position)
+    #    if chx:
+    #        return IdentityEscape(src, Span(*chx.span()), (chx.group(0),))
+    #    return None
+    if position < len(src):
+        return IdentityEscape(src, Span(position, position + 1), (src[position],))
 
 
 # 21.2.2.8.2 Runtime Semantics: Canonicalize ( ch )
@@ -2218,7 +2611,16 @@ class Atom_dot(Atom):
     def evaluate(self, context: Context, direction: int) -> Matcher:
         # 21.2.2.8 Atom
         #   With parameter direction.
-        raise NotImplementedError()  # @@@
+        # The production Atom::. evaluates as follows:
+        #   1. If DotAll is true, then
+        #       a. Let A be the set of all characters.
+        #   2. Otherwise, let A be the set of all characters except LineTerminator.
+        #   3. Call CharacterSetMatcher(A, false, direction) and return its Matcher result.
+        if context.DotAll:
+            A = CharSet("", True)
+        else:
+            A = CharSet("\N{LF}\N{CR}\N{LINE SEPARATOR}\N{PARAGRAPH SEPARATOR}", True)
+        return CharacterSetMatcher(context, A, False, direction)
 
 
 class Atom_charclass(Atom):
@@ -2315,76 +2717,9 @@ class Atom_dis(Atom):
         self.children = ("(?:", dis, ")")
 
     def evaluate(self, context: Context, direction: int) -> Matcher:
-        raise NotImplementedError()  # @@@
-
-
-class Atom_lookahead(Atom):
-    def __init__(self, src: str, dis: "Disjunction"):
-        self.src = src
-        self.span = Span(dis.span.start - 3, dis.span.after + 1)
-        self.children = ("(?=", dis, ")")
-        self.disjunction = dis
-
-    def evaluate(self, context: Context) -> Matcher:
-        # 21.2.2.6 Assertion
-        # The production Assertion::(?=Disjunction) evaluates as follows:
-        #   1. Evaluate Disjunction with +1 as its direction argument to obtain a Matcher m.
-        #   2. Return an internal Matcher closure that takes two arguments, a State x and a Continuation c, and performs the following steps:
-        #       a. Let d be a Continuation that always returns its State argument as a successful MatchResult.
-        #       b. Call m(x, d) and let r be its result.
-        #       c. If r is failure, return failure.
-        #       d. Let y be r's State.
-        #       e. Let cap be y's captures List.
-        #       f. Let xe be x's endIndex.
-        #       g. Let z be the State (xe, cap).
-        #       h. Call c(z) and return its result.
-        # Spec Error: These "lookaround" assertions should have been Atoms, not Assertions.
-        m = self.disjunction.evaluate(context, 1)
-
-        def closure(x: State) -> bool:
-            def d(x: State) -> State:
-                return x
-
-            r = m(x, d)
-            return r != FAILURE
-
-        return closure
-
-
-class Atom_not_lookahead(Atom):
-    def __init__(self, src: str, dis: "Disjunction"):
-        self.src = src
-        self.span = Span(dis.span.start - 3, dis.span.after + 1)
-        self.children = ("(?!", dis, ")")
-        self.disjunction = dis
-
-    def evaluate(self, context: Context) -> Matcher:
-        # 21.2.2.6 Assertion
-        raise NotImplementedError()  # @@@
-
-
-class Atom_lookbehind(Atom):
-    def __init__(self, src: str, dis: "Disjunction"):
-        self.src = src
-        self.span = Span(dis.span.start - 4, dis.span.after + 1)
-        self.children = ("(?<=", dis, ")")
-        self.disjunction = dis
-
-    def evaluate(self, context: Context) -> Matcher:
-        # 21.2.2.6 Assertion
-        raise NotImplementedError()  # @@@
-
-
-class Atom_not_lookbehind(Atom):
-    def __init__(self, src: str, dis: "Disjunction"):
-        self.src = src
-        self.span = Span(dis.span.start - 4, dis.span.after + 1)
-        self.children = ("(?<!", dis, ")")
-        self.disjunction = dis
-
-    def evaluate(self, context: Context) -> Matcher:
-        # 21.2.2.6 Assertion
-        raise NotImplementedError()  # @@@
+        # The production Atom::(?:Disjunction) evaluates as follows:
+        #   1. Return the Matcher that is the result of evaluating Disjunction with argument direction.
+        return self.disjunction.evaluate(context, direction)
 
 
 def parse_Atom(src: str, position: int, U: bool, N: bool) -> Optional[Atom]:
@@ -2396,10 +2731,6 @@ def parse_Atom(src: str, position: int, U: bool, N: bool) -> Optional[Atom]:
     #       CharacterClass[?U]
     #       ( GroupSpecifier[?U] Disjunction[?U, ?N] )
     #       ( ? : Disjunction[?U, ?N] )
-    #       ( ? = Disjunction[?U, ?N] )
-    #       ( ? ! Disjunction[?U, ?N] )
-    #       ( ? < = Disjunction[?U, ?N] )
-    #       ( ? < ! Disjunction[?U, ?N] )
     if position >= len(src):
         return None
     pc = parse_PatternCharacter(src, position)
@@ -2425,21 +2756,6 @@ def parse_Atom(src: str, position: int, U: bool, N: bool) -> Optional[Atom]:
             dis = parse_Disjunction(src, position + 3, U, N)
             if dis and dis.span.after < len(src) and src[dis.span.after] == ")":
                 return Atom_dis(src, Span(position, dis.span.after + 1), dis)
-    lookarounds = (
-        ("(?=", Atom_lookahead),
-        ("(?!", Atom_not_lookahead),
-        ("(?<=", Atom_lookbehind),
-        ("(?<!", Atom_not_lookbehind),
-    )
-    for leader, ctor in lookarounds:
-        l = len(leader)
-        if src[position : position + l] == leader:
-            disjunction = parse_Disjunction(src, position + l, U, N)
-            if disjunction:
-                after = disjunction.span.after
-                if after < len(src) and src[after] == ")":
-                    return ctor(src, disjunction)
-            break
     return None
 
 
@@ -2570,19 +2886,9 @@ class Term_Assertion(Term):
         #   With parameter direction.
         #
         # The production Term::Assertion evaluates as follows:
-        #   1. Return an internal Matcher closure that takes two arguments, a State x and a Continuation c, and
-        #      performs the following steps when evaluated:
-        #       a. Evaluate Assertion to obtain an AssertionTester t.
-        #       b. Call t(x) and let r be the resulting Boolean value.
-        #       c. If r is false, return failure.
-        #       d. Call c(x) and return its result.
-        # NOTE  | The AssertionTester is independent of direction.
-        def matcher(x: State, c: Continuation) -> MatchResult:
-            if not self.assertion.evaluate(context)(x):
-                return FAILURE
-            return c(x)
-
-        return matcher
+        #   1. Return the Matcher that is the result of evaluating Assertion.
+        # NOTE  | The resulting Matcher is independent of direction.
+        return self.assertion.evaluate(context)
 
 
 class Term_Atom(Term):
@@ -2769,7 +3075,7 @@ class Disjunction(Production):
         assert len(self.alternatives) > 0
         if len(self.alternatives) == 1:
             return self.alternatives[0].evaluate(context, direction)
-        matchers = (alternative.evaluate(context, direction) for alternative in self.alternatives)
+        matchers = tuple(alternative.evaluate(context, direction) for alternative in self.alternatives)
 
         def closure(x: State, c: Continuation) -> MatchResult:
             return reduce(lambda acc, item: item(x, c) if acc == FAILURE else acc, matchers, FAILURE)
@@ -2924,487 +3230,515 @@ def matcher(pat: Pattern, pattern_chars: str, flags: str) -> Callable[[str, int]
     return pat.evaluate(context)
 
 
-# Table 54
-_general_category_aliases = ("General_Category", "gc")
-_script_aliases = ("Script", "sc", "Script_Extensions", "scx")
+# Table 57: Non-binary Unicode property aliases and their canonical property names
+# +---------------------------+-------------------------+
+# | Property name and aliases | Canonical property name |
+# +---------------------------+-------------------------+
+# | General_Category          | General_Category        |
+# | gc                        |                         |
+# +---------------------------+-------------------------+
+# | Script                    | Script                  |
+# | sc                        |                         |
+# +---------------------------+-------------------------+
+# | Script_Extensions         | Script_Extensions       |
+# | scx                       |                         |
+# +---------------------------+-------------------------+
+_canonical_nonbinary_property_names = {
+    "General_Category": "General_Category",
+    "gc": "General_Category",
+    "Script": "Script",
+    "sc": "Script",
+    "Script_Extensions": "Script_Extensions",
+    "scx": "Script_Extensions",
+}
+_general_category_aliases = tuple(
+    key for key, value in _canonical_nonbinary_property_names.items() if value == "General_Category"
+)
+_script_aliases = tuple(
+    key for key, value in _canonical_nonbinary_property_names.items() if value in ("Script", "Script_Extensions")
+)
 _nonbinary_unicode_property_names_and_aliases = (*_general_category_aliases, *_script_aliases)
 
-# Table 55
-_binary_unicode_property_names_and_aliases = (
-    "ASCII",
-    "ASCII_Hex_Digit",
-    "AHex",
-    "Alphabetic",
-    "Alpha",
-    "Any",
-    "Assigned",
-    "Bidi_Control",
-    "Bidi_C",
-    "Bidi_Mirrored",
-    "Bidi_M",
-    "Case_Ignorable",
-    "CI",
-    "Cased",
-    "Changes_When_Casefolded",
-    "CWCF",
-    "Changes_When_Casemapped",
-    "CWCM",
-    "Changes_When_Lowercased",
-    "CWL",
-    "Changes_When_NFKC_Casefolded",
-    "CWKCF",
-    "Changes_When_Titlecased",
-    "CWT",
-    "Changes_When_Uppercased",
-    "CWU",
-    "Dash",
-    "Default_Ignorable_Code_Point",
-    "DI",
-    "Deprecated",
-    "Dep",
-    "Diacritic",
-    "Dia",
-    "Emoji",
-    "Emoji_Component",
-    "Emoji_Modifier",
-    "Emoji_Modifier_Base",
-    "Emoji_Presentation",
-    "Extended_Pictographic",
-    "Extender",
-    "Ext",
-    "Grapheme_Base",
-    "Gr_Base",
-    "Grapheme_Extend",
-    "Gr_Ext",
-    "Hex_Digit",
-    "Hex",
-    "IDS_Binary_Operator",
-    "IDSB",
-    "IDS_Trinary_Operator",
-    "IDST",
-    "ID_Continue",
-    "IDC",
-    "ID_Start",
-    "IDS",
-    "Ideographic",
-    "Ideo",
-    "Join_Control",
-    "Join_C",
-    "Logical_Order_Exception",
-    "LOE",
-    "Lowercase",
-    "Lower",
-    "Math",
-    "Noncharacter_Code_Point",
-    "NChar",
-    "Pattern_Syntax",
-    "Pat_Syn",
-    "Pattern_White_Space",
-    "Pat_WS",
-    "Quotation_Mark",
-    "QMark",
-    "Radical",
-    "Regional_Indicator",
-    "RI",
-    "Sentence_Terminal",
-    "STerm",
-    "Soft_Dotted",
-    "SD",
-    "Terminal_Punctuation",
-    "Term",
-    "Unified_Ideograph",
-    "UIdeo",
-    "Uppercase",
-    "Upper",
-    "Variation_Selector",
-    "VS",
-    "White_Space",
-    "space",
-    "XID_Continue",
-    "XIDC",
-    "XID_Start",
-    "XIDS",
-)
+# Table 58: Binary Unicode property aliases and their canonical property names
+_canonical_binary_property_names = {
+    "ASCII": "ASCII",
+    "ASCII_Hex_Digit": "ASCII_Hex_Digit",
+    "AHex": "ASCII_Hex_Digit",
+    "Alphabetic": "Alphabetic",
+    "Alpha": "Alphabetic",
+    "Any": "Any",
+    "Assigned": "Assigned",
+    "Bidi_Control": "Bidi_Control",
+    "Bidi_C": "Bidi_Control",
+    "Bidi_Mirrored": "Bidi_Mirrored",
+    "Bidi_M": "Bidi_Mirrored",
+    "Case_Ignorable": "Case_Ignorable",
+    "CI": "Case_Ignorable",
+    "Cased": "Cased",
+    "Changes_When_Casefolded": "Changes_When_Casefolded",
+    "CWCF": "Changes_When_Casefolded",
+    "Changes_When_Casemapped": "Changes_When_Casemapped",
+    "CWCM": "Changes_When_Casemapped",
+    "Changes_When_Lowercased": "Changes_When_Lowercased",
+    "CWL": "Changes_When_Lowercased",
+    "Changes_When_NFKC_Casefolded": "Changes_When_NFKC_Casefolded",
+    "CWKCF": "Changes_When_NFKC_Casefolded",
+    "Changes_When_Titlecased": "Changes_When_Titlecased",
+    "CWT": "Changes_When_Titlecased",
+    "Changes_When_Uppercased": "Changes_When_Uppercased",
+    "CWU": "Changes_When_Uppercased",
+    "Dash": "Dash",
+    "Default_Ignorable_Code_Point": "Default_Ignorable_Code_Point",
+    "DI": "Default_Ignorable_Code_Point",
+    "Deprecated": "Deprecated",
+    "Dep": "Deprecated",
+    "Diacritic": "Deprecated",
+    "Dia": "Deprecated",
+    "Emoji": "Emoji",
+    "Emoji_Component": "Emoji_Component",
+    "Emoji_Modifier": "Emoji_Modifier",
+    "Emoji_Modifier_Base": "Emoji_Modifier_Base",
+    "Emoji_Presentation": "Emoji_Presentation",
+    "Extended_Pictographic": "Extended_Pictographic",
+    "Extender": "Extender",
+    "Ext": "Extender",
+    "Grapheme_Base": "Grapheme_Base",
+    "Gr_Base": "Grapheme_Base",
+    "Grapheme_Extend": "Grapheme_Base",
+    "Gr_Ext": "Grapheme_Base",
+    "Hex_Digit": "Grapheme_Base",
+    "Hex": "Grapheme_Base",
+    "IDS_Binary_Operator": "IDS_Binary_Operator",
+    "IDSB": "IDS_Binary_Operator",
+    "IDS_Trinary_Operator": "IDS_Trinary_Operator",
+    "IDST": "IDS_Trinary_Operator",
+    "ID_Continue": "ID_Continue",
+    "IDC": "ID_Continue",
+    "ID_Start": "ID_Start",
+    "IDS": "ID_Start",
+    "Ideographic": "Ideographic",
+    "Ideo": "Ideographic",
+    "Join_Control": "Join_Control",
+    "Join_C": "Join_Control",
+    "Logical_Order_Exception": "Logical_Order_Exception",
+    "LOE": "Logical_Order_Exception",
+    "Lowercase": "Lowercase",
+    "Lower": "Lowercase",
+    "Math": "Math",
+    "Noncharacter_Code_Point": "Noncharacter_Code_Point",
+    "NChar": "Noncharacter_Code_Point",
+    "Pattern_Syntax": "Pattern_Syntax",
+    "Pat_Syn": "Pattern_Syntax",
+    "Pattern_White_Space": "Pattern_White_Space",
+    "Pat_WS": "Pattern_White_Space",
+    "Quotation_Mark": "Quotation_Mark",
+    "QMark": "Quotation_Mark",
+    "Radical": "Radical",
+    "Regional_Indicator": "Regional_Indicator",
+    "RI": "Regional_Indicator",
+    "Sentence_Terminal": "Sentence_Terminal",
+    "STerm": "Sentence_Terminal",
+    "Soft_Dotted": "Soft_Dotted",
+    "SD": "Soft_Dotted",
+    "Terminal_Punctuation": "Terminal_Punctuation",
+    "Term": "Terminal_Punctuation",
+    "Unified_Ideograph": "Unified_Ideograph",
+    "UIdeo": "Unified_Ideograph",
+    "Uppercase": "Uppercase",
+    "Upper": "Uppercase",
+    "Variation_Selector": "Variation_Selector",
+    "VS": "Variation_Selector",
+    "White_Space": "White_Space",
+    "space": "White_Space",
+    "XID_Continue": "XID_Continue",
+    "XIDC": "XID_Continue",
+    "XID_Start": "XID_Start",
+    "XIDS": "XID_Start",
+}
+_binary_unicode_property_names_and_aliases = tuple(_canonical_binary_property_names.keys())
 
-# Table 56
-_general_categories = (
-    "Cased_Letter",
-    "LC",
-    "Close_Punctuation",
-    "Pe",
-    "Connector_Punctuation",
-    "Pc",
-    "Control",
-    "Cc",
-    "cntrl",
-    "Currency_Symbol",
-    "Sc",
-    "Dash_Punctuation",
-    "Pd",
-    "Decimal_Number",
-    "Nd",
-    "digit",
-    "Enclosing_Mark",
-    "Me",
-    "Final_Punctuation",
-    "Pf",
-    "Format",
-    "Cf",
-    "Initial_Punctuation",
-    "Pi",
-    "Letter",
-    "L",
-    "Letter_Number",
-    "Nl",
-    "Line_Separator",
-    "Zl",
-    "Lowercase_Letter",
-    "Ll",
-    "Mark",
-    "M",
-    "Combining_Mark",
-    "Math_Symbol",
-    "Sm",
-    "Modifier_Letter",
-    "Lm",
-    "Modifier_Symbol",
-    "Sk",
-    "Nonspacing_Mark",
-    "Mn",
-    "Number",
-    "N",
-    "Open_Punctuation",
-    "Ps",
-    "Other",
-    "C",
-    "Other_Letter",
-    "Lo",
-    "Other_Number",
-    "No",
-    "Other_Punctuation",
-    "Po",
-    "Other_Symbol",
-    "So",
-    "Paragraph_Separator",
-    "Zp",
-    "Private_Use",
-    "Co",
-    "Punctuation",
-    "P",
-    "punct",
-    "Separator",
-    "Z",
-    "Space_Separator",
-    "Zs",
-    "Spacing_Mark",
-    "Mc",
-    "Surrogate",
-    "Cs",
-    "Symbol",
-    "S",
-    "Titlecase_Letter",
-    "Lt",
-    "Unassigned",
-    "Cn",
-    "Uppercase_Letter",
-    "Lu",
-)
+# Table 56  or Table 59: Value aliases and canonical values for the Unicode property General_Category
+_canonical_general_category_values = {
+    "Cased_Letter": "Cased_Letter",
+    "LC": "Cased_Letter",
+    "Close_Punctuation": "Close_Punctuation",
+    "Pe": "Close_Punctuation",
+    "Connector_Punctuation": "Connector_Punctuation",
+    "Pc": "Connector_Punctuation",
+    "Control": "Control",
+    "Cc": "Control",
+    "cntrl": "Control",
+    "Currency_Symbol": "Currency_Symbol",
+    "Sc": "Currency_Symbol",
+    "Dash_Punctuation": "Dash_Punctuation",
+    "Pd": "Dash_Punctuation",
+    "Decimal_Number": "Decimal_Number",
+    "Nd": "Decimal_Number",
+    "digit": "Decimal_Number",
+    "Enclosing_Mark": "Enclosing_Mark",
+    "Me": "Enclosing_Mark",
+    "Final_Punctuation": "Final_Punctuation",
+    "Pf": "Final_Punctuation",
+    "Format": "Format",
+    "Cf": "Format",
+    "Initial_Punctuation": "Initial_Punctuation",
+    "Pi": "Initial_Punctuation",
+    "Letter": "Letter",
+    "L": "Letter",
+    "Letter_Number": "Letter_Number",
+    "Nl": "Letter_Number",
+    "Line_Separator": "Line_Separator",
+    "Zl": "Line_Separator",
+    "Lowercase_Letter": "Lowercase_Letter",
+    "Ll": "Lowercase_Letter",
+    "Mark": "Mark",
+    "M": "Mark",
+    "Combining_Mark": "Mark",
+    "Math_Symbol": "Math_Symbol",
+    "Sm": "Math_Symbol",
+    "Modifier_Letter": "Modifier_Letter",
+    "Lm": "Modifier_Letter",
+    "Modifier_Symbol": "Modifier_Symbol",
+    "Sk": "Modifier_Symbol",
+    "Nonspacing_Mark": "Nonspacing_Mark",
+    "Mn": "Nonspacing_Mark",
+    "Number": "Number",
+    "N": "Number",
+    "Open_Punctuation": "Open_Punctuation",
+    "Ps": "Open_Punctuation",
+    "Other": "Other",
+    "C": "Other",
+    "Other_Letter": "Other_Letter",
+    "Lo": "Other_Letter",
+    "Other_Number": "Other_Number",
+    "No": "Other_Number",
+    "Other_Punctuation": "Other_Punctuation",
+    "Po": "Other_Punctuation",
+    "Other_Symbol": "Other_Symbol",
+    "So": "Other_Symbol",
+    "Paragraph_Separator": "Paragraph_Separator",
+    "Zp": "Paragraph_Separator",
+    "Private_Use": "Private_Use",
+    "Co": "Private_Use",
+    "Punctuation": "Punctuation",
+    "P": "Punctuation",
+    "punct": "Punctuation",
+    "Separator": "Separator",
+    "Z": "Separator",
+    "Space_Separator": "Space_Separator",
+    "Zs": "Space_Separator",
+    "Spacing_Mark": "Spacing_Mark",
+    "Mc": "Spacing_Mark",
+    "Surrogate": "Surrogate",
+    "Cs": "Surrogate",
+    "Symbol": "Symbol",
+    "S": "Symbol",
+    "Titlecase_Letter": "Titlecase_Letter",
+    "Lt": "Titlecase_Letter",
+    "Unassigned": "Unassigned",
+    "Cn": "Unassigned",
+    "Uppercase_Letter": "Uppercase_Letter",
+    "Lu": "Uppercase_Letter",
+}
+_general_categories = tuple(_canonical_general_category_values.keys())
 
-# Table 57
-_script_values = (
-    "Adlam",
-    "Adlm",
-    "Ahom",
-    "Anatolian_Hieroglyphs",
-    "Hluw",
-    "Arabic",
-    "Arab",
-    "Armenian",
-    "Armn",
-    "Avestan",
-    "Avst",
-    "Balinese",
-    "Bali",
-    "Bamum",
-    "Bamu",
-    "Bassa_Vah",
-    "Bass",
-    "Batak",
-    "Batk",
-    "Bengali",
-    "Beng",
-    "Bhaiksuki",
-    "Bhks",
-    "Bopomofo",
-    "Bopo",
-    "Brahmi",
-    "Brah",
-    "Braille",
-    "Brai",
-    "Buginese",
-    "Bugi",
-    "Buhid",
-    "Buhd",
-    "Canadian_Aboriginal",
-    "Cans",
-    "Carian",
-    "Cari",
-    "Caucasian_Albanian",
-    "Aghb",
-    "Chakma",
-    "Cakm",
-    "Cham",
-    "Cherokee",
-    "Cher",
-    "Common",
-    "Zyyy",
-    "Coptic",
-    "Copt",
-    "Qaac",
-    "Cuneiform",
-    "Xsux",
-    "Cypriot",
-    "Cprt",
-    "Cyrillic",
-    "Cyrl",
-    "Deseret",
-    "Dsrt",
-    "Devanagari",
-    "Deva",
-    "Dogra",
-    "Dogr",
-    "Duployan",
-    "Dupl",
-    "Egyptian_Hieroglyphs",
-    "Egyp",
-    "Elbasan",
-    "Elba",
-    "Ethiopic",
-    "Ethi",
-    "Georgian",
-    "Geor",
-    "Glagolitic",
-    "Glag",
-    "Gothic",
-    "Goth",
-    "Grantha",
-    "Gran",
-    "Greek",
-    "Grek",
-    "Gujarati",
-    "Gujr",
-    "Gunjala_Gondi",
-    "Gong",
-    "Gurmukhi",
-    "Guru",
-    "Han",
-    "Hani",
-    "Hangul",
-    "Hang",
-    "Hanifi_Rohingya",
-    "Rohg",
-    "Hanunoo",
-    "Hano",
-    "Hatran",
-    "Hatr",
-    "Hebrew",
-    "Hebr",
-    "Hiragana",
-    "Hira",
-    "Imperial_Aramaic",
-    "Armi",
-    "Inherited",
-    "Zinh",
-    "Qaai",
-    "Inscriptional_Pahlavi",
-    "Phli",
-    "Inscriptional_Parthian",
-    "Prti",
-    "Javanese",
-    "Java",
-    "Kaithi",
-    "Kthi",
-    "Kannada",
-    "Knda",
-    "Katakana",
-    "Kana",
-    "Kayah_Li",
-    "Kali",
-    "Kharoshthi",
-    "Khar",
-    "Khmer",
-    "Khmr",
-    "Khojki",
-    "Khoj",
-    "Khudawadi",
-    "Sind",
-    "Lao",
-    "Laoo",
-    "Latin",
-    "Latn",
-    "Lepcha",
-    "Lepc",
-    "Limbu",
-    "Limb",
-    "Linear_A",
-    "Lina",
-    "Linear_B",
-    "Linb",
-    "Lisu",
-    "Lycian",
-    "Lyci",
-    "Lydian",
-    "Lydi",
-    "Mahajani",
-    "Mahj",
-    "Makasar",
-    "Maka",
-    "Malayalam",
-    "Mlym",
-    "Mandaic",
-    "Mand",
-    "Manichaean",
-    "Mani",
-    "Marchen",
-    "Marc",
-    "Medefaidrin",
-    "Medf",
-    "Masaram_Gondi",
-    "Gonm",
-    "Meetei_Mayek",
-    "Mtei",
-    "Mende_Kikakui",
-    "Mend",
-    "Meroitic_Cursive",
-    "Merc",
-    "Meroitic_Hieroglyphs",
-    "Mero",
-    "Miao",
-    "Plrd",
-    "Modi",
-    "Mongolian",
-    "Mong",
-    "Mro",
-    "Mroo",
-    "Multani",
-    "Mult",
-    "Myanmar",
-    "Mymr",
-    "Nabataean",
-    "Nbat",
-    "New_Tai_Lue",
-    "Talu",
-    "Newa",
-    "Nko",
-    "Nkoo",
-    "Nushu",
-    "Nshu",
-    "Ogham",
-    "Ogam",
-    "Ol_Chiki",
-    "Olck",
-    "Old_Hungarian",
-    "Hung",
-    "Old_Italic",
-    "Ital",
-    "Old_North_Arabian",
-    "Narb",
-    "Old_Permic",
-    "Perm",
-    "Old_Persian",
-    "Xpeo",
-    "Old_Sogdian",
-    "Sogo",
-    "Old_South_Arabian",
-    "Sarb",
-    "Old_Turkic",
-    "Orkh",
-    "Oriya",
-    "Orya",
-    "Osage",
-    "Osge",
-    "Osmanya",
-    "Osma",
-    "Pahawh_Hmong",
-    "Hmng",
-    "Palmyrene",
-    "Palm",
-    "Pau_Cin_Hau",
-    "Pauc",
-    "Phags_Pa",
-    "Phag",
-    "Phoenician",
-    "Phnx",
-    "Psalter_Pahlavi",
-    "Phlp",
-    "Rejang",
-    "Rjng",
-    "Runic",
-    "Runr",
-    "Samaritan",
-    "Samr",
-    "Saurashtra",
-    "Saur",
-    "Sharada",
-    "Shrd",
-    "Shavian",
-    "Shaw",
-    "Siddham",
-    "Sidd",
-    "SignWriting",
-    "Sgnw",
-    "Sinhala",
-    "Sinh",
-    "Sogdian",
-    "Sogd",
-    "Sora_Sompeng",
-    "Sora",
-    "Soyombo",
-    "Soyo",
-    "Sundanese",
-    "Sund",
-    "Syloti_Nagri",
-    "Sylo",
-    "Syriac",
-    "Syrc",
-    "Tagalog",
-    "Tglg",
-    "Tagbanwa",
-    "Tagb",
-    "Tai_Le",
-    "Tale",
-    "Tai_Tham",
-    "Lana",
-    "Tai_Viet",
-    "Tavt",
-    "Takri",
-    "Takr",
-    "Tamil",
-    "Taml",
-    "Tangut",
-    "Tang",
-    "Telugu",
-    "Telu",
-    "Thaana",
-    "Thaa",
-    "Thai",
-    "Tibetan",
-    "Tibt",
-    "Tifinagh",
-    "Tfng",
-    "Tirhuta",
-    "Tirh",
-    "Ugaritic",
-    "Ugar",
-    "Vai",
-    "Vaii",
-    "Warang_Citi",
-    "Wara",
-    "Yi",
-    "Yiii",
-    "Zanabazar_Square",
-    "Zanb",
-)
+
+# Table 57  ... or Table 60: Value aliases and canonical values for the Unicode properties Script and Script_Extensions
+_canonical_script_values = {
+    "Adlam": "Adlam",
+    "Adlm": "Adlam",
+    "Ahom": "Ahom",
+    "Anatolian_Hieroglyphs": "Anatolian_Hieroglyphs",
+    "Hluw": "Anatolian_Hieroglyphs",
+    "Arabic": "Arabic",
+    "Arab": "Arabic",
+    "Armenian": "Armenian",
+    "Armn": "Armenian",
+    "Avestan": "Avestan",
+    "Avst": "Avestan",
+    "Balinese": "Balinese",
+    "Bali": "Balinese",
+    "Bamum": "Bamum",
+    "Bamu": "Bamum",
+    "Bassa_Vah": "Bassa_Vah",
+    "Bass": "Bassa_Vah",
+    "Batak": "Batak",
+    "Batk": "Batak",
+    "Bengali": "Bengali",
+    "Beng": "Bengali",
+    "Bhaiksuki": "Bhaiksuki",
+    "Bhks": "Bhaiksuki",
+    "Bopomofo": "Bopomofo",
+    "Bopo": "Bopomofo",
+    "Brahmi": "Brahmi",
+    "Brah": "Brahmi",
+    "Braille": "Braille",
+    "Brai": "Braille",
+    "Buginese": "Buginese",
+    "Bugi": "Buginese",
+    "Buhid": "Buhid",
+    "Buhd": "Buhid",
+    "Canadian_Aboriginal": "Canadian_Aboriginal",
+    "Cans": "Canadian_Aboriginal",
+    "Carian": "Carian",
+    "Cari": "Carian",
+    "Caucasian_Albanian": "Caucasian_Albanian",
+    "Aghb": "Caucasian_Albanian",
+    "Chakma": "Chakma",
+    "Cakm": "Chakma",
+    "Cham": "Cham",
+    "Cherokee": "Cherokee",
+    "Cher": "Cherokee",
+    "Common": "Common",
+    "Zyyy": "Common",
+    "Coptic": "Coptic",
+    "Copt": "Coptic",
+    "Qaac": "Coptic",
+    "Cuneiform": "Cuneiform",
+    "Xsux": "Cuneiform",
+    "Cypriot": "Cypriot",
+    "Cprt": "Cypriot",
+    "Cyrillic": "Cyrillic",
+    "Cyrl": "Cyrillic",
+    "Deseret": "Deseret",
+    "Dsrt": "Deseret",
+    "Devanagari": "Devanagari",
+    "Deva": "Devanagari",
+    "Dogra": "Dogra",
+    "Dogr": "Dogra",
+    "Duployan": "Duployan",
+    "Dupl": "Duployan",
+    "Egyptian_Hieroglyphs": "Egyptian_Hieroglyphs",
+    "Egyp": "Egyptian_Hieroglyphs",
+    "Elbasan": "Elbasan",
+    "Elba": "Elbasan",
+    "Ethiopic": "Ethiopic",
+    "Ethi": "Ethiopic",
+    "Georgian": "Georgian",
+    "Geor": "Georgian",
+    "Glagolitic": "Glagolitic",
+    "Glag": "Glagolitic",
+    "Gothic": "Gothic",
+    "Goth": "Gothic",
+    "Grantha": "Grantha",
+    "Gran": "Grantha",
+    "Greek": "Greek",
+    "Grek": "Greek",
+    "Gujarati": "Gujarati",
+    "Gujr": "Gujarati",
+    "Gunjala_Gondi": "Gunjala_Gondi",
+    "Gong": "Gunjala_Gondi",
+    "Gurmukhi": "Gurmukhi",
+    "Guru": "Gurmukhi",
+    "Han": "Han",
+    "Hani": "Han",
+    "Hangul": "Hangul",
+    "Hang": "Hangul",
+    "Hanifi_Rohingya": "Hanifi_Rohingya",
+    "Rohg": "Hanifi_Rohingya",
+    "Hanunoo": "Hanunoo",
+    "Hano": "Hanunoo",
+    "Hatran": "Hatran",
+    "Hatr": "Hatran",
+    "Hebrew": "Hebrew",
+    "Hebr": "Hebrew",
+    "Hiragana": "Hiragana",
+    "Hira": "Hiragana",
+    "Imperial_Aramaic": "Imperial_Aramaic",
+    "Armi": "Imperial_Aramaic",
+    "Inherited": "Inherited",
+    "Zinh": "Inherited",
+    "Qaai": "Inherited",
+    "Inscriptional_Pahlavi": "Inscriptional_Pahlavi",
+    "Phli": "Inscriptional_Pahlavi",
+    "Inscriptional_Parthian": "Inscriptional_Parthian",
+    "Prti": "Inscriptional_Parthian",
+    "Javanese": "Javanese",
+    "Java": "Javanese",
+    "Kaithi": "Kaithi",
+    "Kthi": "Kaithi",
+    "Kannada": "Kannada",
+    "Knda": "Kannada",
+    "Katakana": "Katakana",
+    "Kana": "Katakana",
+    "Kayah_Li": "Kayah_Li",
+    "Kali": "Kayah_Li",
+    "Kharoshthi": "Kharoshthi",
+    "Khar": "Kharoshthi",
+    "Khmer": "Khmer",
+    "Khmr": "Khmer",
+    "Khojki": "Khojki",
+    "Khoj": "Khojki",
+    "Khudawadi": "Khudawadi",
+    "Sind": "Khudawadi",
+    "Lao": "Lao",
+    "Laoo": "Lao",
+    "Latin": "Latin",
+    "Latn": "Latin",
+    "Lepcha": "Lepcha",
+    "Lepc": "Lepcha",
+    "Limbu": "Limbu",
+    "Limb": "Limbu",
+    "Linear_A": "Linear_A",
+    "Lina": "Linear_A",
+    "Linear_B": "Linear_B",
+    "Linb": "Linear_B",
+    "Lisu": "Lisu",
+    "Lycian": "Lycian",
+    "Lyci": "Lycian",
+    "Lydian": "Lydian",
+    "Lydi": "Lydian",
+    "Mahajani": "Mahajani",
+    "Mahj": "Mahajani",
+    "Makasar": "Makasar",
+    "Maka": "Makasar",
+    "Malayalam": "Malayalam",
+    "Mlym": "Malayalam",
+    "Mandaic": "Mandaic",
+    "Mand": "Mandaic",
+    "Manichaean": "Manichaean",
+    "Mani": "Manichaean",
+    "Marchen": "Marchen",
+    "Marc": "Marchen",
+    "Medefaidrin": "Medefaidrin",
+    "Medf": "Medefaidrin",
+    "Masaram_Gondi": "Masaram_Gondi",
+    "Gonm": "Masaram_Gondi",
+    "Meetei_Mayek": "Meetei_Mayek",
+    "Mtei": "Meetei_Mayek",
+    "Mende_Kikakui": "Mende_Kikakui",
+    "Mend": "Mende_Kikakui",
+    "Meroitic_Cursive": "Meroitic_Cursive",
+    "Merc": "Meroitic_Cursive",
+    "Meroitic_Hieroglyphs": "Meroitic_Hieroglyphs",
+    "Mero": "Meroitic_Hieroglyphs",
+    "Miao": "Miao",
+    "Plrd": "Miao",
+    "Modi": "Modi",
+    "Mongolian": "Mongolian",
+    "Mong": "Mongolian",
+    "Mro": "Mro",
+    "Mroo": "Mro",
+    "Multani": "Multani",
+    "Mult": "Multani",
+    "Myanmar": "Myanmar",
+    "Mymr": "Myanmar",
+    "Nabataean": "Nabataean",
+    "Nbat": "Nabataean",
+    "New_Tai_Lue": "New_Tai_Lue",
+    "Talu": "New_Tai_Lue",
+    "Newa": "Newa",
+    "Nko": "Nko",
+    "Nkoo": "Nko",
+    "Nushu": "Nushu",
+    "Nshu": "Nushu",
+    "Ogham": "Ogham",
+    "Ogam": "Ogham",
+    "Ol_Chiki": "Ol_Chiki",
+    "Olck": "Ol_Chiki",
+    "Old_Hungarian": "Old_Hungarian",
+    "Hung": "Old_Hungarian",
+    "Old_Italic": "Old_Italic",
+    "Ital": "Old_Italic",
+    "Old_North_Arabian": "Old_North_Arabian",
+    "Narb": "Old_North_Arabian",
+    "Old_Permic": "Old_Permic",
+    "Perm": "Old_Permic",
+    "Old_Persian": "Old_Persian",
+    "Xpeo": "Old_Persian",
+    "Old_Sogdian": "Old_Sogdian",
+    "Sogo": "Old_Sogdian",
+    "Old_South_Arabian": "Old_South_Arabian",
+    "Sarb": "Old_South_Arabian",
+    "Old_Turkic": "Old_Turkic",
+    "Orkh": "Old_Turkic",
+    "Oriya": "Oriya",
+    "Orya": "Oriya",
+    "Osage": "Osage",
+    "Osge": "Osage",
+    "Osmanya": "Osmanya",
+    "Osma": "Osmanya",
+    "Pahawh_Hmong": "Pahawh_Hmong",
+    "Hmng": "Pahawh_Hmong",
+    "Palmyrene": "Palmyrene",
+    "Palm": "Palmyrene",
+    "Pau_Cin_Hau": "Pau_Cin_Hau",
+    "Pauc": "Pau_Cin_Hau",
+    "Phags_Pa": "Phags_Pa",
+    "Phag": "Phags_Pa",
+    "Phoenician": "Phoenician",
+    "Phnx": "Phoenician",
+    "Psalter_Pahlavi": "Psalter_Pahlavi",
+    "Phlp": "Psalter_Pahlavi",
+    "Rejang": "Rejang",
+    "Rjng": "Rejang",
+    "Runic": "Runic",
+    "Runr": "Runic",
+    "Samaritan": "Samaritan",
+    "Samr": "Samaritan",
+    "Saurashtra": "Saurashtra",
+    "Saur": "Saurashtra",
+    "Sharada": "Sharada",
+    "Shrd": "Sharada",
+    "Shavian": "Shavian",
+    "Shaw": "Shavian",
+    "Siddham": "Siddham",
+    "Sidd": "Siddham",
+    "SignWriting": "SignWriting",
+    "Sgnw": "SignWriting",
+    "Sinhala": "Sinhala",
+    "Sinh": "Sinhala",
+    "Sogdian": "Sogdian",
+    "Sogd": "Sogdian",
+    "Sora_Sompeng": "Sora_Sompeng",
+    "Sora": "Sora_Sompeng",
+    "Soyombo": "Soyombo",
+    "Soyo": "Soyombo",
+    "Sundanese": "Sundanese",
+    "Sund": "Sundanese",
+    "Syloti_Nagri": "Syloti_Nagri",
+    "Sylo": "Syloti_Nagri",
+    "Syriac": "Syriac",
+    "Syrc": "Syriac",
+    "Tagalog": "Tagalog",
+    "Tglg": "Tagalog",
+    "Tagbanwa": "Tagbanwa",
+    "Tagb": "Tagbanwa",
+    "Tai_Le": "Tai_Le",
+    "Tale": "Tai_Le",
+    "Tai_Tham": "Tai_Tham",
+    "Lana": "Tai_Tham",
+    "Tai_Viet": "Tai_Viet",
+    "Tavt": "Tai_Viet",
+    "Takri": "Takri",
+    "Takr": "Takri",
+    "Tamil": "Tamil",
+    "Taml": "Tamil",
+    "Tangut": "Tangut",
+    "Tang": "Tangut",
+    "Telugu": "Telugu",
+    "Telu": "Telugu",
+    "Thaana": "Thaana",
+    "Thaa": "Thaana",
+    "Thai": "Thai",
+    "Tibetan": "Tibetan",
+    "Tibt": "Tibetan",
+    "Tifinagh": "Tifinagh",
+    "Tfng": "Tifinagh",
+    "Tirhuta": "Tirhuta",
+    "Tirh": "Tirhuta",
+    "Ugaritic": "Ugaritic",
+    "Ugar": "Ugaritic",
+    "Vai": "Vai",
+    "Vaii": "Vai",
+    "Warang_Citi": "Warang_Citi",
+    "Wara": "Warang_Citi",
+    "Yi": "Yi",
+    "Yiii": "Yi",
+    "Zanabazar_Square": "Zanabazar_Square",
+    "Zanb": "Zanabazar_Square",
+}
+_script_values = tuple(_canonical_script_values.keys())
 
 _casefold = {
     0x0041: 0x0061,
