@@ -16550,7 +16550,9 @@ class P2_AssignmentElement_DestructuringAssignmentTarget_Initializer(P2_Assignme
         else:
             rhsValue = v
         if is_structured_literal:
-            assignmentPattern = self.DestructuringAssignmentTarget.covering("AssignmentPattern")
+            assignmentPattern = self.DestructuringAssignmentTarget.covering(
+                parse_AssignmentPattern, self.strict, self.Yield, self.Await
+            )
             return assignmentPattern.DestructuringAssignmentEvaluation(rhsValue)
         if (
             self.Initializer
