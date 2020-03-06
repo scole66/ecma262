@@ -36451,7 +36451,64 @@ def Array_from(this_value, new_target, items=None, mapfn=None, thisArg=None, *_)
     # The from function is an intentionally generic factory method; it does not require that its this value be the
     # Array constructor. Therefore it can be transferred to or inherited by any other constructors that may be called
     # with a single numeric argument.
-    raise NotImplementedError  # This wants iterators. @@@ I'm not there yet.
+    C = this_value
+    if mapfn is None:
+        mapping = False
+    else:
+        if not IsCallable(mapfn):
+            raise ESTypeError("Array.from: mapfn must be callable")
+        T = thisArg
+        mapping = True
+    usingIterator = GetMethod(items, wks_iterator)
+    if usingIterator is not None:
+        if IsConstructor(C):
+            A = Construct(C)
+        else:
+            A = ArrayCreate(0)
+        iteratorRecord = GetIterator(items, SYNC, usingIterator)
+        k = 0
+        while 1:
+            if k >= 2 ** 53 - 1:
+                IteratorClose(iteratorRecord, True)
+                raise ESTypeError("Array.from: too many items")
+            Pk = ToString(k)
+            nextitem = IteratorStep(iteratorRecord)
+            if nextitem is False:
+                Set(A, "length", k, True)
+                return A
+            nextValue = IteratorValue(nextitem)
+            if mapping:
+                try:
+                    mappedValue = Call(mapfn, T, [nextValue, k])
+                except (ESError, ESAbrupt) as err:
+                    IteratorClose(iteratorRecord, err.completion.ctype == CompletionType.THROW)
+                    raise
+            else:
+                mappedValue = nextValue
+            try:
+                CreateDataPropertyOrThrow(A, Pk, mappedValue)
+            except (ESError, ESAbrupt) as err:
+                IteratorClose(iteratorRecord, err.completion.ctype == CompletionType.THROW)
+                raise
+            k += 1
+    arrayLike = ToObject(items)
+    length = ToLength(Get(arrayLike, "length"))
+    if IsConstructor(C):
+        A = Construct(C, [length])
+    else:
+        A = ArrayCreate(length)
+    k = 0
+    while k < length:
+        Pk = ToString(k)
+        kValue = Get(arrayLike, Pk)
+        if mapping:
+            mappedValue = Call(mapfn, T, [kValue, k])
+        else:
+            mappedValue = kValue
+        CreateDataPropertyOrThrow(A, Pk, mappedValue)
+        k += 1
+    Set(A, "length", length, True)
+    return A
 
 
 Array_from.length = 1
