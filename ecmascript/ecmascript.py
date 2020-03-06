@@ -3,7 +3,7 @@ import dateutil.tz
 import sys
 from enum import Enum, unique, auto
 from collections import namedtuple, deque, Counter
-from functools import reduce, partial, cached_property, lru_cache
+from functools import reduce, partial, cached_property, lru_cache, cmp_to_key
 from itertools import chain
 from typing import Union, Any, Tuple, Callable, Optional, List, Mapping, Deque
 from copy import copy
@@ -36587,6 +36587,7 @@ def CreateArrayPrototype(realm):
             ("push", ArrayPrototype_push, None),
             ("reduce", ArrayPrototype_reduce, None),
             ("slice", ArrayPrototype_slice, None),
+            ("sort", ArrayPrototype_sort, None),
             ("toString", ArrayPrototype_toString, 0),
             ("values", ArrayPrototype_values, 0),
         ],
@@ -37013,6 +37014,181 @@ def ArrayPrototype_slice(this_value, new_target, start=None, end=None, *_):
 
 ArrayPrototype_slice.length = 2
 ArrayPrototype_slice.name = "slice"
+
+# 22.1.3.27 Array.prototype.sort ( comparefn )
+def ArrayPrototype_sort(this_value, new_target, comparefn=None, *_):
+    # The elements of this array are sorted. The sort must be stable (that is, elements that compare equal must
+    # remain in their original order). If comparefn is not undefined, it should be a function that accepts two
+    # arguments x and y and returns a negative value if x < y, zero if x = y, or a positive value if x > y.
+    #
+    # Upon entry, the following steps are performed to initialize evaluation of the sort function:
+    #
+    #   1. If comparefn is not undefined and IsCallable(comparefn) is false, throw a TypeError exception.
+    #   2. Let obj be ? ToObject(this value).
+    #   3. Let len be ? ToLength(? Get(obj, "length")).
+    #
+    # Within this specification of the sort method, an object, obj, is said to be sparse if the following algorithm
+    # returns true:
+    #
+    #   1. For each integer i in the range 0 ≤ i < len, do
+    #       a. Let elem be obj.[[GetOwnProperty]](! ToString(i)).
+    #       b. If elem is undefined, return true.
+    #   2. Return false.
+    #
+    # The sort order is the ordering, after completion of this function, of the integer-indexed property values of
+    # obj whose integer indexes are less than len. The result of the sort function is then determined as follows:
+    #
+    # If comparefn is not undefined and is not a consistent comparison function for the elements of this array (see
+    # below), the sort order is implementation-defined. The sort order is also implementation-defined if comparefn
+    # is undefined and SortCompare does not act as a consistent comparison function.
+    #
+    # Let proto be obj.[[GetPrototypeOf]](). If proto is not null and there exists an integer j such that all of the
+    # conditions below are satisfied then the sort order is implementation-defined:
+    #
+    #   * obj is sparse
+    #   * 0 ≤ j < len
+    #   * HasProperty(proto, ToString(j)) is true.
+    #
+    # The sort order is also implementation-defined if obj is sparse and any of the following conditions are true:
+    #
+    #   * IsExtensible(obj) is false.
+    #   * Any integer index property of obj whose name is a nonnegative integer less than len is a data property
+    #     whose [[Configurable]] attribute is false.
+    #
+    # The sort order is also implementation-defined if any of the following conditions are true:
+    #
+    #   * If obj is an exotic object (including Proxy exotic objects) whose behaviour for [[Get]], [[Set]],
+    #     [[Delete]], and [[GetOwnProperty]] is not the ordinary object implementation of these internal methods.
+    #   * If any index property of obj whose name is a nonnegative integer less than len is an accessor property or
+    #     is a data property whose [[Writable]] attribute is false.
+    #   * If comparefn is undefined and the application of ToString to any value passed as an argument to
+    #     SortCompare modifies obj or any object on obj's prototype chain.
+    #   * If comparefn is undefined and all applications of ToString, to any specific value passed as an argument to
+    #     SortCompare, do not produce the same result.
+    #
+    # The following steps are taken:
+    #
+    #   1. Perform an implementation-dependent sequence of calls to the [[Get]] and [[Set]] internal methods of obj,
+    #      to the DeletePropertyOrThrow and HasOwnProperty abstract operation with obj as the first argument, and to
+    #      SortCompare (described below), such that:
+    #       * The property key argument for each call to [[Get]], [[Set]], HasOwnProperty, or DeletePropertyOrThrow
+    #         is the string representation of a nonnegative integer less than len.
+    #       * The arguments for calls to SortCompare are values returned by a previous call to the [[Get]] internal
+    #         method, unless the properties accessed by those previous calls did not exist according to
+    #         HasOwnProperty. If both prospective arguments to SortCompare correspond to non-existent properties,
+    #         use +0 instead of calling SortCompare. If only the first prospective argument is non-existent use +1.
+    #         If only the second prospective argument is non-existent use -1.
+    #       * If obj is not sparse then DeletePropertyOrThrow must not be called.
+    #       * If any [[Set]] call returns false a TypeError exception is thrown.
+    #       * If an abrupt completion is returned from any of these operations, it is immediately returned as the
+    #         value of this function.
+    #   2. Return obj.
+    #
+    # Unless the sort order is specified above to be implementation-defined, the returned object must have the
+    # following two characteristics:
+    #
+    #   * There must be some mathematical permutation π of the nonnegative integers less than len, such that for
+    #     every nonnegative integer j less than len, if property old[j] existed, then new[π(j)] is exactly the same
+    #     value as old[j]. But if property old[j] did not exist, then new[π(j)] does not exist.
+    #   * Then for all nonnegative integers j and k, each less than len, if SortCompare(old[j], old[k]) < 0 (see
+    #     SortCompare below), then new[π(j)] < new[π(k)].
+    #
+    # Here the notation old[j] is used to refer to the hypothetical result of calling obj.[[Get]](j) before this
+    # function is executed, and the notation new[j] to refer to the hypothetical result of calling obj.[[Get]](j)
+    # after this function has been executed.
+    #
+    # A function comparefn is a consistent comparison function for a set of values S if all of the requirements
+    # below are met for all values a, b, and c (possibly the same value) in the set S: The notation a <CF b means
+    # comparefn(a, b) < 0; a =CF b means comparefn(a, b) = 0 (of either sign); and a >CF b means
+    # comparefn(a, b) > 0.
+    #
+    #   * Calling comparefn(a, b) always returns the same value v when given a specific pair of values a and b as
+    #     its two arguments. Furthermore, Type(v) is Number, and v is not NaN. Note that this implies that exactly
+    #     one of a <CF b, a =CF b, and a >CF b will be true for a given pair of a and b.
+    #   * Calling comparefn(a, b) does not modify obj or any object on obj's prototype chain.
+    #   * a =CF a (reflexivity)
+    #   * If a =CF b, then b =CF a (symmetry)
+    #   * If a =CF b and b =CF c, then a =CF c (transitivity of =CF)
+    #   * If a <CF b and b <CF c, then a <CF c (transitivity of <CF)
+    #   * If a >CF b and b >CF c, then a >CF c (transitivity of >CF)
+    #
+    # NOTE 1    | The above conditions are necessary and sufficient to ensure that comparefn divides the set S into
+    #           | equivalence classes and that these equivalence classes are totally ordered.
+    #
+    # NOTE 2    | The sort function is intentionally generic; it does not require that its this value be an Array
+    #           | object. Therefore, it can be transferred to other kinds of objects for use as a method.
+    #
+    # 22.1.3.27.1 Runtime Semantics: SortCompare ( x, y )
+    #
+    # The SortCompare abstract operation is called with two arguments x and y. It also has access to the comparefn
+    # argument passed to the current invocation of the sort method. The following steps are taken:
+    #
+    #   1. If x and y are both undefined, return +0.
+    #   2. If x is undefined, return 1.
+    #   3. If y is undefined, return -1.
+    #   4. If comparefn is not undefined, then
+    #       a. Let v be ? ToNumber(? Call(comparefn, undefined, « x, y »)).
+    #       b. If v is NaN, return +0.
+    #       c. Return v.
+    #   5. Let xString be ? ToString(x).
+    #   6. Let yString be ? ToString(y).
+    #   7. Let xSmaller be the result of performing Abstract Relational Comparison xString < yString.
+    #   8. If xSmaller is true, return -1.
+    #   9. Let ySmaller be the result of performing Abstract Relational Comparison yString < xString.
+    #   10. If ySmaller is true, return 1.
+    #   11. Return +0.
+    #
+    # NOTE 1    | Because non-existent property values always compare greater than undefined property values, and
+    #           | undefined always compares greater than any other value, undefined property values always sort to
+    #           | the end of the result, followed by non-existent property values.
+    #
+    # NOTE 2    | Method calls performed by the ToString abstract operations in steps 5 and 7 have the potential to
+    #           | cause SortCompare to not behave as a consistent comparison function.
+    if comparefn is not None and not IsCallable(comparefn):
+        raise ESTypeError("Array.prototype.sort: comparefn must be undefined or callable")
+    obj = ToObject(this_value)
+    length = ToLength(Get(obj, "length"))
+    data = [obj.Get(Pk, obj) if HasOwnProperty(obj, Pk) else ... for Pk in (str(x) for x in range(length))]
+
+    def SortCompare(x, y):
+        if x is ... and y is ...:
+            return 0
+        if x is ...:
+            return 1
+        if y is ...:
+            return -1
+        if x is None and y is None:
+            return 0
+        if x is None:
+            return 1
+        if y is None:
+            return -1
+        if comparefn is not None:
+            v = ToNumber(Call(comparefn, None, [x, y]))
+            if math.isnan(v):
+                return 0
+            return v
+        xString = ToString(x)
+        yString = ToString(y)
+        xSmaller = AbstractRelationalComparison(xString, yString, True)
+        if xSmaller:
+            return -1
+        ySmaller = AbstractRelationalComparison(yString, xString, True)
+        if ySmaller:
+            return 1
+        return 0
+
+    data.sort(key=cmp_to_key(SortCompare))
+    for propname, value in ((str(idx), value) for idx, value in enumerate(data)):
+        if value is ...:
+            DeletePropertyOrThrow(obj, propname)
+        else:
+            obj.Set(propname, value, obj)
+    return obj
+
+
+ArrayPrototype_sort.name = "sort"
+ArrayPrototype_sort.length = 1
 
 # 22.1.3.30 Array.prototype.toString ( )
 def ArrayPrototype_toString(this_value, new_target, *_):
