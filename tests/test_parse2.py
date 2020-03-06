@@ -2044,16 +2044,24 @@ def test_P2_AssignmentElement_init(context):
 
 
 def test_P2_AssignmentElement_DestructuringAssignmentTarget_init(context):
-    ae = e.P2_AssignmentElement_DestructuringAssignmentTarget(context, "StrictArg", ["child"])
+    ae = e.P2_AssignmentElement_DestructuringAssignmentTarget(
+        context, "StrictArg", ["child"], "yieldarg", "awaitarg"
+    )
     assert ae.name == "AssignmentElement"
     assert ae.DestructuringAssignmentTarget == "child"
+    assert ae.Yield == "yieldarg"
+    assert ae.Await == "awaitarg"
 
 
 def test_P2_AssignmentElement_DestructuringAssignmentTarget_Initializer_init(context):
-    ae = e.P2_AssignmentElement_DestructuringAssignmentTarget_Initializer(context, "StrictArg", ["child", "init"])
+    ae = e.P2_AssignmentElement_DestructuringAssignmentTarget_Initializer(
+        context, "StrictArg", ["child", "init"], "yieldarg", "awaitarg"
+    )
     assert ae.name == "AssignmentElement"
     assert ae.DestructuringAssignmentTarget == "child"
     assert ae.Initializer == "init"
+    assert ae.Yield == "yieldarg"
+    assert ae.Await == "awaitarg"
 
 
 #### AssignmentRestElement ######################################################################################################################################################################
@@ -2079,9 +2087,13 @@ def test_P2_AssignmentRestElement_init(context):
 
 
 def test_P2_AssignmentRestElement_DestructuringAssignmentTarget_init(context):
-    are = e.P2_AssignmentRestElement_DestructuringAssignmentTarget(context, "StrictArg", ["...", "child"])
+    are = e.P2_AssignmentRestElement_DestructuringAssignmentTarget(
+        context, "StrictArg", ["...", "child"], "yieldarg", "awaitarg"
+    )
     assert are.name == "AssignmentRestElement"
     assert are.DestructuringAssignmentTarget == "child"
+    assert are.Yield == "yieldarg"
+    assert are.Await == "awaitarg"
 
 
 ##### DestructuringAssignmentTarget ############################################################################################################################################################################################################################

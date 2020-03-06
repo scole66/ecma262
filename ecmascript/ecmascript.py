@@ -16438,6 +16438,11 @@ class P2_AssignmentElement(ParseNode2):
 
 
 class P2_AssignmentElement_DestructuringAssignmentTarget_Initializer(P2_AssignmentElement):
+    def __init__(self, ctx, strict, children, Yield, Await):
+        super().__init__(ctx, strict, children)
+        self.Yield = Yield
+        self.Await = Await
+
     @property
     def DestructuringAssignmentTarget(self):
         return self.children[0]
@@ -16497,7 +16502,9 @@ class P2_AssignmentElement_DestructuringAssignmentTarget_Initializer(P2_Assignme
         else:
             v = value
         if is_structured_literal:
-            nestedAssignmentPattern = self.DestructuringAssignmentTarget.covering("AssignmentPattern")
+            nestedAssignmentPattern = self.DestructuringAssignmentTarget.covering(
+                parse_AssignmentPattern, self.strict, self.Yield, self.Await
+            )
             return nestedAssignmentPattern.DestructuringAssignmentEvaluation(v)
         if (
             self.Initializer
@@ -16573,8 +16580,10 @@ def parse_AssignmentElement(context, lexer, pos, strict, Yield, Await):
     if dat:
         init = parse_Initializer(context, lexer, dat.after, strict, True, Yield, Await)
         if init:
-            return P2_AssignmentElement_DestructuringAssignmentTarget_Initializer(context, strict, [dat, init])
-        return P2_AssignmentElement_DestructuringAssignmentTarget(context, strict, [dat])
+            return P2_AssignmentElement_DestructuringAssignmentTarget_Initializer(
+                context, strict, [dat, init], Yield, Await
+            )
+        return P2_AssignmentElement_DestructuringAssignmentTarget(context, strict, [dat], Yield, Await)
     return None
 
 
@@ -16590,6 +16599,11 @@ class P2_AssignmentRestElement(ParseNode2):
 
 
 class P2_AssignmentRestElement_DestructuringAssignmentTarget(P2_AssignmentRestElement):
+    def __init__(self, ctx, strict, children, Yield, Await):
+        super().__init__(ctx, strict, children)
+        self.Yield = Yield
+        self.Await = Await
+
     @property
     def DestructuringAssignmentTarget(self):
         return self.children[1]
@@ -16641,7 +16655,9 @@ class P2_AssignmentRestElement_DestructuringAssignmentTarget(P2_AssignmentRestEl
             n += 1
         if not is_structured_literal:
             return PutValue(lref, A)
-        nestedAssignmentPattern = self.DestructuringAssignmentTarget.covering("AssignmentPattern")
+        nestedAssignmentPattern = self.DestructuringAssignmentTarget.covering(
+            parse_AssignmentPattern, self.strict, self.Yield, self.Await
+        )
         return nestedAssignmentPattern.DestructuringAssignmentEvaluation(A)
 
 
@@ -16655,7 +16671,7 @@ def parse_AssignmentRestElement(context, lexer, pos, strict, Yield, Await):
     if dots:
         dat = parse_DestructuringAssignmentTarget(context, lexer, dots.span.after, strict, Yield, Await)
         if dat:
-            return P2_AssignmentRestElement_DestructuringAssignmentTarget(context, strict, [dots, dat])
+            return P2_AssignmentRestElement_DestructuringAssignmentTarget(context, strict, [dots, dat], Yield, Await)
     return None
 
 
