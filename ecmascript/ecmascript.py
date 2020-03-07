@@ -16647,12 +16647,12 @@ class P2_AssignmentRestElement_DestructuringAssignmentTarget(P2_AssignmentRestEl
                     iteratorRecord.Done = True
                 else:
                     nextValue = IteratorValue(next_step)
+                    status = CreateDataProperty(A, ToString(n), nextValue)
+                    assert status
+                    n += 1
             except (ESError, ESAbrupt):
                 iteratorRecord.Done = True
                 raise
-            status = CreateDataProperty(A, ToString(n), nextValue)
-            assert status
-            n += 1
         if not is_structured_literal:
             return PutValue(lref, A)
         nestedAssignmentPattern = self.DestructuringAssignmentTarget.covering(
