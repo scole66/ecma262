@@ -342,6 +342,8 @@ if test_passing:
 # test_files.extend(glob.glob(f"{base_path}/test/language/expressions/object/**/*.js", recursive=True))  # 23 failing
 # test_files.extend(glob.glob(f"{base_path}/test/language/expressions/property-accessors/**/*.js", recursive=True))  # 10 failing
 # test_files.extend(glob.glob(f"{base_path}/test/language/expressions/right-shift/**/*.js", recursive=True)) #  8 failing (Hit python recursion limit)
+for s in ():
+    test_files.append(f"{base_path}{s}")
 test_files = [fn for fn in test_files if not fn.endswith("_FIXTURE.js")]
 test_files.sort()
 
@@ -943,19 +945,8 @@ xfail_tests = (
     "/test/language/computed-property-names/class/static/method-string.js",  # Wants default anonymous function naming
     "/test/language/computed-property-names/class/static/method-symbol.js",  # Wants default anonymous function naming
     "/test/language/expressions/assignment/dstr/array-elem-nested-array-invalid.js",  # Something is Wrong
-    "/test/language/expressions/assignment/dstr/array-elem-nested-array-null.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/array-elem-nested-array-undefined-hole.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/array-elem-nested-array-undefined-own.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/array-elem-nested-array-undefined.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/array-elem-nested-array-yield-ident-valid.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/array-elem-nested-array.js",  # Fix pending
     "/test/language/expressions/assignment/dstr/array-elem-nested-obj-invalid.js",  # Something is Wrong
-    "/test/language/expressions/assignment/dstr/array-elem-nested-obj-null.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/array-elem-nested-obj-undefined-hole.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/array-elem-nested-obj-undefined-own.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/array-elem-nested-obj-undefined.js",  # Fix pending
     "/test/language/expressions/assignment/dstr/array-elem-nested-obj-yield-ident-valid.js",  # ???
-    "/test/language/expressions/assignment/dstr/array-elem-nested-obj.js",  # Fix pending
     "/test/language/expressions/assignment/dstr/array-elem-target-simple-strict.js",  # An early error is failing
     "/test/language/expressions/assignment/dstr/array-elem-trlg-iter-rest-nrml-close-skip.js",  # Fix pending
     "/test/language/expressions/assignment/dstr/array-elision-val-string.js",  # ???
@@ -968,18 +959,13 @@ xfail_tests = (
     "/test/language/expressions/assignment/dstr/array-rest-nested-array-invalid.js",  # ???
     "/test/language/expressions/assignment/dstr/array-rest-nested-array-iter-thrw-close-skip.js",  # IteratorDestructuringAssignmentEvaluation
     "/test/language/expressions/assignment/dstr/array-rest-nested-array-null.js",  # IteratorDestructuringAssignmentEvaluation
-    "/test/language/expressions/assignment/dstr/array-rest-nested-array-undefined-hole.js",  # IteratorDestructuringAssignmentEvaluation
-    "/test/language/expressions/assignment/dstr/array-rest-nested-array-undefined-own.js",  # IteratorDestructuringAssignmentEvaluation
     "/test/language/expressions/assignment/dstr/array-rest-nested-array-undefined.js",  # IteratorDestructuringAssignmentEvaluation
-    "/test/language/expressions/assignment/dstr/array-rest-nested-array-yield-ident-valid.js",  # IteratorDestructuringAssignmentEvaluation
-    "/test/language/expressions/assignment/dstr/array-rest-nested-array.js",  # ???
     "/test/language/expressions/assignment/dstr/array-rest-nested-obj-invalid.js",  # ???
     "/test/language/expressions/assignment/dstr/array-rest-nested-obj-null.js",  # IteratorDestructuringAssignmentEvaluation
     "/test/language/expressions/assignment/dstr/array-rest-nested-obj-undefined-hole.js",  # IteratorDestructuringAssignmentEvaluation
     "/test/language/expressions/assignment/dstr/array-rest-nested-obj-undefined-own.js",  # IteratorDestructuringAssignmentEvaluation
     "/test/language/expressions/assignment/dstr/array-rest-nested-obj-undefined.js",  # IteratorDestructuringAssignmentEvaluation
     "/test/language/expressions/assignment/dstr/array-rest-nested-obj-yield-ident-valid.js",  # ???
-    "/test/language/expressions/assignment/dstr/array-rest-nested-obj.js",  # IteratorDestructuringAssignmentEvaluation
     "/test/language/expressions/assignment/dstr/array-rest-put-let.js",  # Fix pending
     "/test/language/expressions/assignment/dstr/array-rest-put-prop-ref-no-get.js",  # Fix pending
     "/test/language/expressions/assignment/dstr/array-rest-put-prop-ref-user-err-iter-close-skip.js",  # Fix pending
