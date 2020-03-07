@@ -7802,6 +7802,10 @@ def trampoline(f, *args):
     return v
 
 
+def first(seq):
+    return next(iter(seq))
+
+
 class ParseNode2:
     def __init__(self, ctx, name, strict, children=[]):
         self.name = name
@@ -7810,33 +7814,76 @@ class ParseNode2:
         self.children = children
         self.strict = strict
 
+    def preorder(self):
+        # A generator that returns all the nodes in the tree, in PREORDER, without recursion
+        p = self
+        stack = []
+        while 1:
+            if p is not None:
+                yield p
+            if hasattr(p, "children") and len(p.children) > 0:
+                stack.append((p, 1))
+                p = p.children[0]
+            else:
+                while len(stack) > 0:
+                    parent, idx = stack.pop()
+                    if idx < len(parent.children):
+                        p = parent.children[idx]
+                        stack.append((parent, idx + 1))
+                        break
+                if len(stack) == 0:
+                    break
+
+    def lefthand(self):
+        # A generator that returns children[0] until we hit the end, in PREORDER
+        p = self
+        while 1:
+            yield p
+            if not hasattr(p, "children") or len(p.children) == 0:
+                break
+            p = p.children[0]
+
+    def righthand(self):
+        # A generator that returns children[-1] until we hit the end, in PREORDER
+        p = self
+        while 1:
+            yield p
+            if not hasattr(p, "children") or len(p.children) == 0:
+                break
+            p = p.children[-1]
+
     @cached_property
     def after(self):
-        if hasattr(self.children[-1], "span"):
-            return self.children[-1].span.after
-        return self.children[-1].after
+        return first(n for n in self.righthand() if hasattr(n, "span")).span.after
+        # if hasattr(self.children[-1], "span"):
+        #     return self.children[-1].span.after
+        # return self.children[-1].after
 
     @cached_property
     def start(self):
-        if hasattr(self.children[0], "span"):
-            return self.children[0].span.start
-        return self.children[0].start
+        return first(n for n in self.lefthand() if hasattr(n, "span")).span.start
+        # if hasattr(self.children[0], "span"):
+        #     return self.children[0].span.start
+        # return self.children[0].start
 
     @cached_property
     def src(self):
-        return self.children[0].src
+        return first(n for n in self.lefthand() if not isinstance(n, ParseNode2)).src
+        # return self.children[0].src
 
     @property
     def pn_count(self):
-        return 1 + sum(node.pn_count for node in self.children if isinstance(node, ParseNode2))
+        return reduce(lambda acc, node: acc + 1, (n for n in self.preorder() if isinstance(n, ParseNode2)), 1)
+        # return 1 + sum(node.pn_count for node in self.children if isinstance(node, ParseNode2))
 
     def terminals(self):
-        for child in filter(None, self.children):
-            if not isinstance(child, ParseNode2):
-                yield child
-            else:
-                for sub_token in child.terminals():
-                    yield sub_token
+        return (ch for ch in self.preorder() if not isinstance(ch, ParseNode2))
+        # for child in filter(None, self.children):
+        #     if not isinstance(child, ParseNode2):
+        #         yield child
+        #     else:
+        #         for sub_token in child.terminals():
+        #             yield sub_token
 
     def matched_source(self):
         return self.src[self.start : self.after]
@@ -7884,13 +7931,18 @@ class ParseNode2:
         return parse_node if parse_node and parse_node.after == self.after - self.start else None
 
     def EarlyErrorsScan(self):
-        errs = []
-        # Check the children first
-        for ch in (child for child in self.children if hasattr(child, "EarlyErrorsScan")):
-            errs.extend(ch.EarlyErrorsScan())
-        # Now myself.
-        errs.extend(self.EarlyErrors())
-        return errs
+        return reduce(
+            lambda acc, item: acc + item.EarlyErrors(),
+            (node for node in self.preorder() if hasattr(node, "EarlyErrors")),
+            [],
+        )
+        # errs = []
+        # # Check the children first
+        # for ch in (child for child in self.children if hasattr(child, "EarlyErrorsScan")):
+        #     errs.extend(ch.EarlyErrorsScan())
+        # # Now myself.
+        # errs.extend(self.EarlyErrors())
+        # return errs
 
     def EarlyErrors(self):
         return []
