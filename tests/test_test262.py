@@ -969,17 +969,8 @@ xfail_tests = (
     "/test/language/expressions/assignment/dstr/obj-id-init-yield-ident-valid.js",  # Fix pending
     "/test/language/expressions/assignment/dstr/obj-id-simple-strict.js",  # ???
     "/test/language/expressions/assignment/dstr/obj-prop-nested-array-invalid.js",  # ???
-    "/test/language/expressions/assignment/dstr/obj-prop-nested-array-null.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-nested-array-undefined-own.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-nested-array-undefined.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-nested-array-yield-ident-valid.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-nested-array.js",  # Fix pending
     "/test/language/expressions/assignment/dstr/obj-prop-nested-obj-invalid.js",  # ???
-    "/test/language/expressions/assignment/dstr/obj-prop-nested-obj-null.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-nested-obj-undefined-own.js",  # Fix pending
-    "/test/language/expressions/assignment/dstr/obj-prop-nested-obj-undefined.js",  # Fix pending
     "/test/language/expressions/assignment/dstr/obj-prop-nested-obj-yield-ident-valid.js",  # ???
-    "/test/language/expressions/assignment/dstr/obj-prop-nested-obj.js",  # Fix pending
     "/test/language/expressions/assignment/fn-name-arrow.js",  # Fix pending
     "/test/language/expressions/assignment/fn-name-class.js",  # Fix pending
     "/test/language/expressions/assignment/fn-name-cover.js",  # Fix pending
