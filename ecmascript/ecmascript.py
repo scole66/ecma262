@@ -4241,6 +4241,10 @@ def CreateIntrinsics(realm_rec):
     intrinsics["%MapPrototype%"] = CreateMapPrototype(realm_rec)
     MapFixups(realm_rec)
     intrinsics["%MapIteratorPrototype%"] = CreateMapIteratorPrototype(realm_rec)
+    intrinsics["%Set%"] = CreateSetConstructor(realm_rec)
+    intrinsics["%SetPrototype%"] = CreateSetPrototype(realm_rec)
+    SetFixups(realm_rec)
+    intrinsics["%SetIteratorPrototype%"] = CreateSetIteratorPrototype(realm_rec)
 
     # 14. Return intrinsics.
     return intrinsics
@@ -39096,6 +39100,481 @@ def MapIteratorPrototype_next(this_value, new_target, *_):
             return CreateIterResultObject(result, False)
     O.Map = None
     return CreateIterResultObject(None, True)
+
+
+# 23.2 Set Objects
+# Set objects are collections of ECMAScript language values. A distinct value may only occur once as an element of a
+# Set's collection. Distinct values are discriminated using the SameValueZero comparison algorithm.
+#
+# Set objects must be implemented using either hash tables or other mechanisms that, on average, provide access
+# times that are sublinear on the number of elements in the collection. The data structures used in this Set objects
+# specification is only intended to describe the required observable semantics of Set objects. It is not intended to
+# be a viable implementation model.
+
+
+class ECMASet(set):
+    def __init__(self):
+        super().__init__(self)
+        self.keylist = []
+
+    @staticmethod
+    def toSetValue(val):
+        if isinstance(val, bool):
+            return TRUE if val else FALSE
+        return val
+
+    @staticmethod
+    def fromSetValue(sval):
+        if sval == TRUE:
+            return True
+        if sval == FALSE:
+            return False
+        return sval
+
+    def __contains__(self, item):
+        sval = self.toSetValue(item)
+        return super().__contains__(sval)
+
+    def add(self, item):
+        sval = self.toSetValue(item)
+        if sval not in self:
+            self.keylist.append(sval)
+            super().add(sval)
+
+    def discard(self, item):
+        sval = self.toSetValue(item)
+        if sval in self:
+            self.keylist[self.keylist.index(sval)] = ...
+            super().discard(sval)
+
+    def clear(self):
+        self.keylist = [...] * len(self.keylist)
+        super().clear()
+
+    def values(self):
+        return (self.fromSetValue(v) for v in self.keylist if v is not ...)
+
+    def entries(self):
+        return (CreateArrayFromList([v, v]) for v in self.values())
+
+
+def CheckSet(S, func_name):
+    if not isObject(S) or not hasattr(S, "SetData"):
+        raise ESTypeError(f"Set.prototype.{func_name} called on non-Set receiver")
+    return S
+
+
+# 23.2.1 The Set Constructor
+# The Set constructor:
+#
+#   * is the intrinsic object %Set%.
+#   * is the initial value of the Set property of the global object.
+#   * creates and initializes a new Set object when called as a constructor.
+#   * is not intended to be called as a function and will throw an exception when called in that manner.
+#   * is designed to be subclassable. It may be used as the value in an extends clause of a class definition.
+#     Subclass constructors that intend to inherit the specified Set behaviour must include a super call to the Set
+#     constructor to create and initialize the subclass instance with the internal state necessary to support the
+#     Set.prototype built-in methods.
+
+
+def CreateSetConstructor(realm):
+    obj = CreateBuiltinFunction(SetFunction, ["Construct"], realm)
+    for key, value in (("length", SetFunction.length), ("name", SetFunction.name)):
+        desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)
+        DefinePropertyOrThrow(obj, key, desc)
+
+    # 23.2.2.2 get Set [ @@species ]
+    # Set[@@species] is an accessor property whose set accessor function is undefined. Its get accessor function
+    # performs the following steps:
+    #   1. Return the this value.
+    # The value of the name property of this function is "get [Symbol.species]".
+    # NOTE  | Methods that create derived collection objects should call @@species to determine the constructor to
+    #       | use to create the derived objects. Subclass constructor may over-ride @@species to change the default
+    #       | constructor assignment.
+    get = lambda this_value, new_target, *_: this_value
+    get.length = 0
+    get.name = "get [Symbol.species]"
+    BindBuiltinAccessors(realm, obj, [(wks_species, get, None),])
+
+    return obj
+
+
+# 23.2.1.1 Set ( [ iterable ] )
+def SetFunction(this_value, new_target, iterable=None, *_):
+    # When the Set function is called with optional argument iterable, the following steps are taken:
+    #
+    #   1. If NewTarget is undefined, throw a TypeError exception.
+    #   2. Let set be ? OrdinaryCreateFromConstructor(NewTarget, "%SetPrototype%", « [[SetData]] »).
+    #   3. Set set.[[SetData]] to a new empty List.
+    #   4. If iterable is not present, set iterable to undefined.
+    #   5. If iterable is either undefined or null, return set.
+    #   6. Let adder be ? Get(set, "add").
+    #   7. If IsCallable(adder) is false, throw a TypeError exception.
+    #   8. Let iteratorRecord be ? GetIterator(iterable).
+    #   9. Repeat,
+    #       a. Let next be ? IteratorStep(iteratorRecord).
+    #       b. If next is false, return set.
+    #       c. Let nextValue be ? IteratorValue(next).
+    #       d. Let status be Call(adder, set, « nextValue »).
+    #       e. If status is an abrupt completion, return ? IteratorClose(iteratorRecord, status).
+    if new_target is None:
+        raise ESTypeError("Set may not be called as a function")
+    setobj = OrdinaryCreateFromConstructor(new_target, "%SetPrototype%", ["SetData"])
+    setobj.SetData = ECMASet()
+    if iterable is None or isNull(iterable):
+        return setobj
+    adder = Get(setobj, "add")
+    if not IsCallable(adder):
+        raise ESTypeError("Set's adder isn't a function")
+    iteratorRecord = GetIterator(iterable)
+    while 1:
+        next_item = IteratorStep(iteratorRecord)
+        if next_item is False:
+            return setobj
+        nextValue = IteratorValue(next_item)
+        try:
+            Call(adder, setobj, [nextValue])
+        except (ESError, ESAbrupt) as err:
+            IteratorClose(iteratorRecord, err.completion.ctype == CompletionType.THROW)
+            raise
+
+
+SetFunction.name = "Set"
+SetFunction.length = 0
+
+# 23.2.2 Properties of the Set Constructor
+# The Set constructor:
+#
+#   * has a [[Prototype]] internal slot whose value is the intrinsic object %FunctionPrototype%.
+#   * has the following properties:
+
+# 23.2.2.1 Set.prototype
+# The initial value of Set.prototype is the intrinsic %SetPrototype% object.
+#
+# This property has the attributes { [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: false }.
+
+# 23.2.3 Properties of the Set Prototype Object
+# The Set prototype object:
+#   * is the intrinsic object %SetPrototype%.
+#   * has a [[Prototype]] internal slot whose value is the intrinsic object %ObjectPrototype%.
+#   * is an ordinary object.
+#   * does not have a [[SetData]] internal slot.
+def CreateSetPrototype(realm):
+    obj = ObjectCreate(realm.intrinsics["%ObjectPrototype%"])
+    BindBuiltinFunctions(
+        realm,
+        obj,
+        (
+            ("add", SetPrototype_add, None),
+            ("clear", SetPrototype_clear, None),
+            ("delete", SetPrototype_delete, None),
+            ("entries", SetPrototype_entries, None),
+            ("forEach", SetPrototype_forEach, None),
+            ("has", SetPrototype_has, None),
+            ("values", SetPrototype_values, None),
+        ),
+    )
+    BindBuiltinAccessors(realm, obj, (("size", SetPrototype_get_size, None),))
+    values = obj.GetOwnProperty("values")
+    # 23.2.3.8 Set.prototype.keys ( )
+    # The initial value of the keys property is the same function object as the initial value of the values
+    # property.
+    # NOTE  | For iteration purposes, a Set appears similar to a Map where each entry has the same value for its key
+    #       | and value.
+    DefinePropertyOrThrow(obj, "keys", values)
+    # 23.2.3.11 Set.prototype [ @@iterator ] ( )
+    # The initial value of the @@iterator property is the same function object as the initial value of the values
+    # property.
+    DefinePropertyOrThrow(obj, wks_iterator, values)
+    # 23.2.3.12 Set.prototype [ @@toStringTag ]
+    # The initial value of the @@toStringTag property is the String value "Set".
+    # This property has the attributes { [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true }.
+    DefinePropertyOrThrow(
+        obj, wks_to_string_tag, PropertyDescriptor(value="Set", writable=False, enumerable=False, configurable=True)
+    )
+    return obj
+
+
+# 23.2.3.1 Set.prototype.add ( value )
+def SetPrototype_add(this_value, new_target, value=None, *_):
+    # The following steps are taken:
+    #   1. Let S be the this value.
+    #   2. If Type(S) is not Object, throw a TypeError exception.
+    #   3. If S does not have a [[SetData]] internal slot, throw a TypeError exception.
+    #   4. Let entries be the List that is S.[[SetData]].
+    #   5. For each e that is an element of entries, do
+    #       a. If e is not empty and SameValueZero(e, value) is true, then
+    #           i. Return S.
+    #   6. If value is -0, set value to +0.
+    #   7. Append value as the last element of entries.
+    #   8. Return S.
+    S = CheckSet(this_value, "add")
+    if isinstance(value, float) and value == 0.0:
+        value = 0  # Clear -0
+    S.SetData.add(value)
+    return S
+
+
+SetPrototype_add.name = "add"
+SetPrototype_add.length = 1
+
+# 23.2.3.2 Set.prototype.clear ( )
+def SetPrototype_clear(this_value, new_target, *_):
+    # The following steps are taken:
+    #   1. Let S be the this value.
+    #   2. If Type(S) is not Object, throw a TypeError exception.
+    #   3. If S does not have a [[SetData]] internal slot, throw a TypeError exception.
+    #   4. Let entries be the List that is S.[[SetData]].
+    #   5. For each e that is an element of entries, do
+    #       a. Replace the element of entries whose value is e with an element whose value is empty.
+    #   6. Return undefined.
+    # NOTE  | The existing [[SetData]] List is preserved because there may be existing Set Iterator objects that are
+    #       | suspended midway through iterating over that List.
+    S = CheckSet(this_value, "clear")
+    S.SetData.clear()
+    return None
+
+
+SetPrototype_clear.name = "clear"
+SetPrototype_clear.length = 0
+
+# 23.2.3.4 Set.prototype.delete ( value )
+def SetPrototype_delete(this_value, new_target, value=None, *_):
+    # The following steps are taken:
+    #   1. Let S be the this value.
+    #   2. If Type(S) is not Object, throw a TypeError exception.
+    #   3. If S does not have a [[SetData]] internal slot, throw a TypeError exception.
+    #   4. Let entries be the List that is S.[[SetData]].
+    #   5. For each e that is an element of entries, do
+    #       a. If e is not empty and SameValueZero(e, value) is true, then
+    #           i. Replace the element of entries whose value is e with an element whose value is empty.
+    #           ii. Return true.
+    #   6. Return false.
+    # NOTE  | The value empty is used as a specification device to indicate that an entry has been deleted. Actual
+    #       | implementations may take other actions such as physically removing the entry from internal data
+    #       | structures.
+    S = CheckSet(this_value, "delete")
+    rval = value in S.SetData
+    S.SetData.discard(value)
+    return rval
+
+
+SetPrototype_delete.name = "delete"
+SetPrototype_delete.length = 1
+
+# 23.2.3.5 Set.prototype.entries ( )
+def SetPrototype_entries(this_value, new_target, *_):
+    # The following steps are taken:
+    #   1. Let S be the this value.
+    #   2. Return ? CreateSetIterator(S, "key+value").
+    # NOTE  | For iteration purposes, a Set appears similar to a Map where each entry has the same value for its key
+    #       | and value.
+    return CreateSetIterator(this_value, "key+value")
+
+
+SetPrototype_entries.name = "entries"
+SetPrototype_entries.length = 0
+
+# 23.2.3.6 Set.prototype.forEach ( callbackfn [ , thisArg ] )
+def SetPrototype_forEach(this_value, new_target, callbackfn=None, thisArg=None, *_):
+    # When the forEach method is called with one or two arguments, the following steps are taken:
+    #   1. Let S be the this value.
+    #   2. If Type(S) is not Object, throw a TypeError exception.
+    #   3. If S does not have a [[SetData]] internal slot, throw a TypeError exception.
+    #   4. If IsCallable(callbackfn) is false, throw a TypeError exception.
+    #   5. If thisArg is present, let T be thisArg; else let T be undefined.
+    #   6. Let entries be the List that is S.[[SetData]].
+    #   7. For each e that is an element of entries, in original insertion order, do
+    #       a. If e is not empty, then
+    #           i. Perform ? Call(callbackfn, T, « e, e, S »).
+    #   8. Return undefined.
+    # NOTE  | callbackfn should be a function that accepts three arguments. forEach calls callbackfn once for each
+    #       | value present in the set object, in value insertion order. callbackfn is called only for values of the
+    #       | Set which actually exist; it is not called for keys that have been deleted from the set.
+    #       |
+    #       | If a thisArg parameter is provided, it will be used as the this value for each invocation of
+    #       | callbackfn. If it is not provided, undefined is used instead.
+    #       |
+    #       | callbackfn is called with three arguments: the first two arguments are a value contained in the Set.
+    #       | The same value is passed for both arguments. The Set object being traversed is passed as the third
+    #       | argument.
+    #       |
+    #       | The callbackfn is called with three arguments to be consistent with the call back functions used by
+    #       | forEach methods for Map and Array. For Sets, each item value is considered to be both the key and the
+    #       | value.
+    #       |
+    #       | forEach does not directly mutate the object on which it is called but the object may be mutated by the
+    #       | calls to callbackfn.
+    #       |
+    #       | Each value is normally visited only once. However, a value will be revisited if it is deleted after
+    #       | it has been visited and then re-added before the forEach call completes. Values that are deleted after
+    #       | the call to forEach begins and before being visited are not visited unless the value is added again
+    #       | before the forEach call completes. New values added after the call to forEach begins are visited.
+    S = CheckSet(this_value, "forEach")
+    if not IsCallable(callbackfn):
+        raise ESTypeError("Set.prototype.forEach: callbackfn must be callable")
+    for e in S.SetData.values():
+        Call(callbackfn, thisArg, [e, e, S])
+    return None
+
+
+SetPrototype_forEach.name = "forEach"
+SetPrototype_forEach.length = 1
+
+# 23.2.3.7 Set.prototype.has ( value )
+def SetPrototype_has(this_value, new_target, value=None, *_):
+    # The following steps are taken:
+    #   1. Let S be the this value.
+    #   2. If Type(S) is not Object, throw a TypeError exception.
+    #   3. If S does not have a [[SetData]] internal slot, throw a TypeError exception.
+    #   4. Let entries be the List that is S.[[SetData]].
+    #   5. For each e that is an element of entries, do
+    #       a. If e is not empty and SameValueZero(e, value) is true, return true.
+    #   6. Return false.
+    S = CheckSet(this_value, "has")
+    return value in S.SetData
+
+
+SetPrototype_has.name = "has"
+SetPrototype_has.length = 1
+
+
+# 23.2.3.9 get Set.prototype.size
+def SetPrototype_get_size(this_value, new_target, *_):
+    # Set.prototype.size is an accessor property whose set accessor function is undefined. Its get accessor function
+    # performs the following steps:
+    #   1. Let S be the this value.
+    #   2. If Type(S) is not Object, throw a TypeError exception.
+    #   3. If S does not have a [[SetData]] internal slot, throw a TypeError exception.
+    #   4. Let entries be the List that is S.[[SetData]].
+    #   5. Let count be 0.
+    #   6. For each e that is an element of entries, do
+    #       a. If e is not empty, increase count by 1.
+    #   7. Return count.
+    S = CheckSet(this_value, "size")
+    return len(S.SetData)
+
+
+SetPrototype_get_size.name = "get size"
+SetPrototype_get_size.length = 0
+
+# 23.2.3.10 Set.prototype.values ( )
+def SetPrototype_values(this_value, new_target, *_):
+    # The following steps are taken:
+    #   1. Let S be the this value.
+    #   2. Return ? CreateSetIterator(S, "value").
+    return CreateSetIterator(this_value, "value")
+
+
+SetPrototype_values.name = "values"
+SetPrototype_values.length = 0
+
+
+def SetFixups(realm):
+    constructor = realm.intrinsics["%Set%"]
+    prototype = realm.intrinsics["%SetPrototype%"]
+    # 23.2.2.1 Set.prototype
+    # The initial value of Set.prototype is the intrinsic %SetPrototype% object.
+    # This property has the attributes { [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: false }.
+    DefinePropertyOrThrow(
+        constructor,
+        "prototype",
+        PropertyDescriptor(value=prototype, writable=False, enumerable=False, configurable=False),
+    )
+    # 23.2.3.3 Set.prototype.constructor
+    # The initial value of Set.prototype.constructor is the intrinsic object %Set%.
+    DefinePropertyOrThrow(
+        prototype,
+        "constructor",
+        PropertyDescriptor(value=constructor, writable=True, enumerable=False, configurable=True),
+    )
+
+
+# 23.2.4 Properties of Set Instances
+# Set instances are ordinary objects that inherit properties from the Set prototype. Set instances also have a
+# [[SetData]] internal slot.
+
+# 23.2.5 Set Iterator Objects
+# A Set Iterator is an ordinary object, with the structure defined below, that represents a specific iteration over
+# some specific Set instance object. There is not a named constructor for Set Iterator objects. Instead, set
+# iterator objects are created by calling certain methods of Set instance objects.
+
+# 23.2.5.1 CreateSetIterator ( set, kind )
+def CreateSetIterator(setobj, kind):
+    # Several methods of Set objects return Iterator objects. The abstract operation CreateSetIterator with
+    # arguments set and kind is used to create such iterator objects. It performs the following steps:
+    #   1. If Type(set) is not Object, throw a TypeError exception.
+    #   2. If set does not have a [[SetData]] internal slot, throw a TypeError exception.
+    #   3. Let iterator be ObjectCreate(%SetIteratorPrototype%, « [[IteratedSet]], [[SetNextIndex]], [[SetIterationKind]] »).
+    #   4. Set iterator.[[IteratedSet]] to set.
+    #   5. Set iterator.[[SetNextIndex]] to 0.
+    #   6. Set iterator.[[SetIterationKind]] to kind.
+    #   7. Return iterator.
+    if not isObject(setobj) or not hasattr(setobj, "SetData"):
+        raise ESTypeError("Set Iterators can only be created from Set Objects")
+    iterator = ObjectCreate(
+        surrounding_agent.running_ec.realm.intrinsics["%SetIteratorPrototype%"], ["InternalSetIterator"]
+    )
+    iterator.InternalSetIterator = setobj.SetData.values() if kind != "key+value" else setobj.SetData.entries()
+    return iterator
+
+
+# 23.2.5.2 The %SetIteratorPrototype% Object
+# The %SetIteratorPrototype% object:
+#   * has properties that are inherited by all Set Iterator Objects.
+#   * is an ordinary object.
+#   * has a [[Prototype]] internal slot whose value is the intrinsic object %IteratorPrototype%.
+#   * has the following properties:
+
+
+def CreateSetIteratorPrototype(realm):
+    obj = ObjectCreate(realm.intrinsics["%IteratorPrototype%"])
+    BindBuiltinFunctions(realm, obj, (("next", SetIteratorPrototype_next, None),))
+    # 23.2.5.2.2 %SetIteratorPrototype% [ @@toStringTag ]
+    # The initial value of the @@toStringTag property is the String value "Set Iterator".
+    # This property has the attributes { [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true }.
+    DefinePropertyOrThrow(
+        obj,
+        wks_to_string_tag,
+        PropertyDescriptor(value="Set Iterator", writable=False, enumerable=False, configurable=True),
+    )
+    return obj
+
+
+# 23.2.5.2.1 %SetIteratorPrototype%.next ( )
+def SetIteratorPrototype_next(this_value, new_target, *_):
+    #   1. Let O be the this value.
+    #   2. If Type(O) is not Object, throw a TypeError exception.
+    #   3. If O does not have all of the internal slots of a Set Iterator Instance (23.2.5.3), throw a TypeError
+    #      exception.
+    #   4. Let s be O.[[IteratedSet]].
+    #   5. Let index be O.[[SetNextIndex]].
+    #   6. Let itemKind be O.[[SetIterationKind]].
+    #   7. If s is undefined, return CreateIterResultObject(undefined, true).
+    #   8. Assert: s has a [[SetData]] internal slot.
+    #   9. Let entries be the List that is s.[[SetData]].
+    #   10. Let numEntries be the number of elements of entries.
+    #   11. NOTE: numEntries must be redetermined each time this method is evaluated.
+    #   12. Repeat, while index is less than numEntries,
+    #       a. Let e be entries[index].
+    #       b. Increase index by 1.
+    #       c. Set O.[[SetNextIndex]] to index.
+    #       d. If e is not empty, then
+    #           i. If itemKind is "key+value", then
+    #               1. Return CreateIterResultObject(CreateArrayFromList(« e, e »), false).
+    #           ii. Return CreateIterResultObject(e, false).
+    #   13. Set O.[[IteratedSet]] to undefined.
+    #   14. Return CreateIterResultObject(undefined, true).
+    O = this_value
+    if not (isObject(O) and hasattr(O, "InternalSetIterator")):
+        raise ESTypeError("%SetIteratorPrototype%.next called on non-set-iterator receiver")
+    try:
+        e = next(O.InternalSetIterator)
+        done = False
+    except StopIteration:
+        e = None
+        done = True
+    return CreateIterResultObject(e, done)
 
 
 ######################################################################################################################

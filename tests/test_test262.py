@@ -246,6 +246,7 @@ passing = (
     "built-ins/Math",
     "built-ins/Object",
     "built-ins/RegExp",
+    "built-ins/Set",
     "built-ins/String",
     "built-ins/isFinite",
     "built-ins/isNaN",
@@ -317,7 +318,7 @@ passing = (
 
 is_ci = any(n.startswith("CIRCLE") or n == "GITHUB_ACTIONS" for n in os.environ)
 
-test_passing = True or is_ci
+test_passing = False or is_ci
 run_slow_tests = False and not is_ci
 base_path = base_paths[0]
 test_files = []
@@ -828,7 +829,6 @@ skip_tests = (
 )
 
 xfail_tests = (
-    "/test/harness/deepEqual-mapset.js",  # Needs Set
     "/test/harness/timer.js",  # Needs Promise
     "/test/built-ins/Array/from/elements-deleted-after.js",  # Needs Array.prototype.splice
     "/test/built-ins/Array/prototype/concat/Array.prototype.concat_large-typed-array.js",  # Needs TypedArrays to have a working length
@@ -872,26 +872,16 @@ xfail_tests = (
     "/test/built-ins/Function/prototype/toString/S15.3.4.2_A16.js",  # Needs better Function.prototype.toString
     "/test/built-ins/Function/prototype/toString/well-known-intrinsic-object-functions.js",  # Needs Generators
     "/test/built-ins/JSON/stringify/value-string-escape-ascii.js",  # Needs Array.prototype.reverse
-    "/test/built-ins/Map/prototype/clear/context-is-set-object-throws.js",  # Needs Set
     "/test/built-ins/Map/prototype/clear/context-is-weakmap-object-throws.js",  # Needs WeakMap
-    "/test/built-ins/Map/prototype/delete/context-is-set-object-throws.js",  # Needs Set
     "/test/built-ins/Map/prototype/delete/context-is-weakmap-object-throws.js",  # Needs WeakMap
-    "/test/built-ins/Map/prototype/entries/does-not-have-mapdata-internal-slot-set.js",  # Needs Set
     "/test/built-ins/Map/prototype/entries/does-not-have-mapdata-internal-slot-weakmap.js",  # Needs WeakMap
-    "/test/built-ins/Map/prototype/forEach/does-not-have-mapdata-internal-slot-set.js",  # Needs Set
     "/test/built-ins/Map/prototype/forEach/does-not-have-mapdata-internal-slot-weakmap.js",  # Needs WeakMap
-    "/test/built-ins/Map/prototype/get/does-not-have-mapdata-internal-slot-set.js",  # Needs Set
     "/test/built-ins/Map/prototype/get/does-not-have-mapdata-internal-slot-weakmap.js",  # Needs WeakMap
-    "/test/built-ins/Map/prototype/has/does-not-have-mapdata-internal-slot-set.js",  # Needs Set
     "/test/built-ins/Map/prototype/has/does-not-have-mapdata-internal-slot-weakmap.js",  # Needs WeakMap
-    "/test/built-ins/Map/prototype/keys/does-not-have-mapdata-internal-slot-set.js",  # Needs Set
     "/test/built-ins/Map/prototype/keys/does-not-have-mapdata-internal-slot-weakmap.js",  # Needs WeakMap
     "/test/built-ins/Map/prototype/set/append-new-values.js",  # Needs Array.prototype.pop
-    "/test/built-ins/Map/prototype/set/does-not-have-mapdata-internal-slot-set.js",  # Needs Set
     "/test/built-ins/Map/prototype/set/does-not-have-mapdata-internal-slot-weakmap.js",  # Needs WeakMap
-    "/test/built-ins/Map/prototype/size/does-not-have-mapdata-internal-slot-set.js",  # Needs Set
     "/test/built-ins/Map/prototype/size/does-not-have-mapdata-internal-slot-weakmap.js",  # Needs WeakMap
-    "/test/built-ins/Map/prototype/values/does-not-have-mapdata-internal-slot-set.js",  # Needs Set
     "/test/built-ins/Map/prototype/values/does-not-have-mapdata-internal-slot-weakmap.js",  # Needs WeakMap
     "/test/built-ins/Object/defineProperty/15.2.3.6-4-612.js",  # Needs Array.prototype.indexOf
     "/test/built-ins/Object/defineProperty/15.2.3.6-4-613.js",  # Needs Array.prototype.lastIndexOf
@@ -932,6 +922,20 @@ xfail_tests = (
     "/test/built-ins/RegExp/property-escapes/character-class.js",  # Needs Unicode class tables
     "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Other.js",  # Recursion Limit
     "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Other_Letter.js",  # Recursion Limit
+    "/test/built-ins/Set/prototype/add/does-not-have-setdata-internal-slot-weakset.js",  # Needs WeakSet
+    "/test/built-ins/Set/prototype/add/preserves-insertion-order.js",  # Needs Array.prototype.shift
+    "/test/built-ins/Set/prototype/clear/does-not-have-setdata-internal-slot-weakset.js",  # Needs WeakSet
+    "/test/built-ins/Set/prototype/delete/does-not-have-setdata-internal-slot-weakset.js",  # Needs WeakSet
+    "/test/built-ins/Set/prototype/entries/does-not-have-setdata-internal-slot-weakset.js",  # Needs WeakSet
+    "/test/built-ins/Set/prototype/forEach/does-not-have-setdata-internal-slot-weakset.js",  # Needs WeakSet
+    "/test/built-ins/Set/prototype/forEach/iterates-in-insertion-order.js",  # Needs Array.prototype.shift
+    "/test/built-ins/Set/prototype/forEach/iterates-in-iterable-entry-order.js",  # Needs array.prototype.shift
+    "/test/built-ins/Set/prototype/forEach/iterates-values-added-after-foreach-begins.js",  # Needs Array.prototype.shift
+    "/test/built-ins/Set/prototype/forEach/iterates-values-deleted-then-readded.js",  # Needs Array.prototype.shift
+    "/test/built-ins/Set/prototype/forEach/iterates-values-not-deleted.js",  # Needs array.prototype.shift
+    "/test/built-ins/Set/prototype/forEach/iterates-values-revisits-after-delete-re-add.js",  # Needs Array.prototype.shift
+    "/test/built-ins/Set/prototype/has/does-not-have-setdata-internal-slot-weakset.js",  # Needs WeakSet
+    "/test/built-ins/Set/prototype/values/does-not-have-setdata-internal-slot-weakset.js",  # Needs WeakSet
     "/test/built-ins/String/prototype/indexOf/S15.5.4.7_A1_T12.js",  # Needs Array.prototype.indexOf
     "/test/built-ins/String/prototype/lastIndexOf/S15.5.4.8_A1_T12.js",  # Needs Array.prototype.lastIndexOf
     "/test/built-ins/String/prototype/replace/S15.5.4.11_A3_T1.js",  # Needs Regex Character Class Escape
