@@ -833,9 +833,6 @@ xfail_tests = (
     "/test/built-ins/Array/from/elements-deleted-after.js",  # Needs Array.prototype.splice
     "/test/built-ins/Array/prototype/concat/Array.prototype.concat_large-typed-array.js",  # Needs TypedArrays to have a working length
     "/test/built-ins/Array/prototype/concat/Array.prototype.concat_small-typed-array.js",  # Needs TypedArrays to have a working length
-    "/test/built-ins/Array/prototype/concat/create-proto-from-ctor-realm-array.js",  # Alternate Realm stuff
-    "/test/built-ins/Array/prototype/map/create-proto-from-ctor-realm-array.js",  # Alternate Realm stuff
-    "/test/built-ins/Array/prototype/slice/create-proto-from-ctor-realm-array.js",  # Alternate Realm stuff
     "/test/built-ins/Array/prototype/slice/length-exceeding-integer-limit-proxied-array.js",  # Needs Proxy
     "/test/built-ins/Array/prototype/sort/stability-2048-elements.js",  # Recursion Limit
     "/test/built-ins/Array/prototype/sort/stability-513-elements.js",  # Recursion Limit
