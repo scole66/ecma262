@@ -6337,7 +6337,7 @@ class BuiltinFunction(JSObject):
     def __init__(self, steps, realm, prototype, extensible, script_or_module, internal_slots_list):
         super().__init__()
         self.steps = steps
-        self.realm = realm
+        self.Realm = realm
         self.Prototype = prototype
         self.Extensible = extensible
         self.script_or_module = script_or_module
@@ -6358,7 +6358,7 @@ class BuiltinFunction(JSObject):
         # 4. Set the Function of calleeContext to F.
         callee_context.function = self
         # 5. Let calleeRealm be F.[[Realm]].
-        callee_realm = self.realm
+        callee_realm = self.Realm
         # 6. Set the Realm of calleeContext to calleeRealm.
         callee_context.realm = callee_realm
         # 7. Set the ScriptOrModule of calleeContext to F.[[ScriptOrModule]].
@@ -6407,7 +6407,7 @@ def BuiltinFunction_Construct(self, arguments_list, new_target):
     # 4. Set the Function of calleeContext to F.
     callee_context.function = self
     # 5. Let calleeRealm be F.[[Realm]].
-    callee_realm = self.realm
+    callee_realm = self.Realm
     # 6. Set the Realm of calleeContext to calleeRealm.
     callee_context.realm = callee_realm
     # 7. Set the ScriptOrModule of calleeContext to F.[[ScriptOrModule]].

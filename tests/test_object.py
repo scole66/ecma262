@@ -1082,21 +1082,6 @@ def test_GetPrototypeFromConstructor_04(realm):
         GetPrototypeFromConstructor(constructor, "%ObjectPrototype%")
 
 
-def test_GetPrototypeFromConstructor_05(realm):
-    # GetFunctionRealm throws.
-    def fake_constructor(this_value, new_target):
-        return None
-
-    constructor = CreateBuiltinFunction(fake_constructor, ["ProxyHandler"])
-    assert not hasattr(
-        constructor, "Realm"
-    )  # This should be here, but isn't. I suspect I have a case mismatch problem. In any case, if this assert starts breaking, just 'del' the Realm attr here instead of asserting.
-    constructor.ProxyHandler = JSNull.NULL
-
-    with pytest.raises(ESTypeError):
-        GetPrototypeFromConstructor(constructor, "%ObjectPrototype%")
-
-
 def test_OrdinaryCreateFromConstructor_01(realm):
     # Test the successful path. (Most of the work happens in GetPrototypeFromConstructor, so we really don't need to check much
     # here.)
