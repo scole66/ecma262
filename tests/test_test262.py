@@ -226,17 +226,7 @@ lang_tests = (
 passing = (
     # These paths have passed (or xfailed, or skipped) 100%. We shouldn't break them.
     "harness",
-    "built-ins/Array/from",
-    "built-ins/Array/prototype/concat",
-    "built-ins/Array/prototype/forEach",
-    "built-ins/Array/prototype/join",
-    "built-ins/Array/prototype/map",
-    "built-ins/Array/prototype/push",
-    "built-ins/Array/prototype/reduce",
-    "built-ins/Array/prototype/slice",
-    "built-ins/Array/prototype/sort",
-    "built-ins/Array/prototype/toString",
-    "built-ins/Array/prototype/values",
+    "built-ins/Array",
     "built-ins/Boolean",
     "built-ins/Date",
     "built-ins/Error",
@@ -370,8 +360,6 @@ features_to_avoid = (
     "class-static-methods-private",
     "class-methods-private",
     "dynamic-import",
-    "Array.prototype.flat",
-    "Array.prototype.flatMap",
     "numeric-separator-literal",
     "String.prototype.matchAll",
     "Symbol.matchAll",
@@ -830,12 +818,16 @@ skip_tests = (
 
 xfail_tests = (
     "/test/harness/timer.js",  # Needs Promise
-    "/test/built-ins/Array/from/elements-deleted-after.js",  # Needs Array.prototype.splice
     "/test/built-ins/Array/prototype/concat/Array.prototype.concat_large-typed-array.js",  # Needs TypedArrays to have a working length
     "/test/built-ins/Array/prototype/concat/Array.prototype.concat_small-typed-array.js",  # Needs TypedArrays to have a working length
+    "/test/built-ins/Array/prototype/flat/proxy-access-count.js",  # Needs Proxy
+    "/test/built-ins/Array/prototype/flatMap/array-like-objects-typedarrays.js",  # Needs TypedArrays to have a working length
+    "/test/built-ins/Array/prototype/flatMap/proxy-access-count.js",  # Needs Proxy
+    "/test/built-ins/Array/prototype/reverse/length-exceeding-integer-limit-with-proxy.js",  # Needs Proxy
     "/test/built-ins/Array/prototype/slice/length-exceeding-integer-limit-proxied-array.js",  # Needs Proxy
     "/test/built-ins/Array/prototype/sort/stability-2048-elements.js",  # Recursion Limit
     "/test/built-ins/Array/prototype/sort/stability-513-elements.js",  # Recursion Limit
+    "/test/built-ins/Array/prototype/splice/create-species-length-exceeding-integer-limit.js",  # Needs Proxy
     "/test/built-ins/Date/parse/zero.js",  # Wants a bit more flexible Date.parse
     "/test/built-ins/Date/prototype/getTimezoneOffset/this-value-valid-date.js",  # Overflow in LocalTZA
     "/test/built-ins/Date/prototype/setDate/new-value-time-clip.js",  # Overflow in LocalTZA
@@ -876,31 +868,12 @@ xfail_tests = (
     "/test/built-ins/Map/prototype/get/does-not-have-mapdata-internal-slot-weakmap.js",  # Needs WeakMap
     "/test/built-ins/Map/prototype/has/does-not-have-mapdata-internal-slot-weakmap.js",  # Needs WeakMap
     "/test/built-ins/Map/prototype/keys/does-not-have-mapdata-internal-slot-weakmap.js",  # Needs WeakMap
-    "/test/built-ins/Map/prototype/set/append-new-values.js",  # Needs Array.prototype.pop
     "/test/built-ins/Map/prototype/set/does-not-have-mapdata-internal-slot-weakmap.js",  # Needs WeakMap
     "/test/built-ins/Map/prototype/size/does-not-have-mapdata-internal-slot-weakmap.js",  # Needs WeakMap
     "/test/built-ins/Map/prototype/values/does-not-have-mapdata-internal-slot-weakmap.js",  # Needs WeakMap
-    "/test/built-ins/Object/defineProperty/15.2.3.6-4-612.js",  # Needs Array.prototype.indexOf
-    "/test/built-ins/Object/defineProperty/15.2.3.6-4-613.js",  # Needs Array.prototype.lastIndexOf
-    "/test/built-ins/Object/defineProperty/15.2.3.6-4-614.js",  # Needs Array.prototype.every
-    "/test/built-ins/Object/defineProperty/15.2.3.6-4-615.js",  # Needs Array.prototype.some
-    "/test/built-ins/Object/defineProperty/15.2.3.6-4-618.js",  # Needs Array.prototype.filter
-    "/test/built-ins/Object/defineProperty/15.2.3.6-4-620.js",  # Needs Array.prototype.reduceRight
     "/test/built-ins/Object/freeze/throws-when-false.js",  # Needs Proxy
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-10.js",  # Needs decodeURIComponent
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-11.js",  # Needs encodeURIComponent
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-42.js",  # Needs Array.prototype.reverse
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-47.js",  # Needs Array.prototype.pop
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-48.js",  # Needs Array.prototype.shift
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-49.js",  # Needs Array.prototype.unshift
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-50.js",  # Needs Array.prototype.splice
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-51.js",  # Needs Array.prototype.toLocaleString
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-52.js",  # Needs Array.prototype.indexOf
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-53.js",  # Needs Array.prototype.lastIndexOf
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-54.js",  # Needs Array.prototype.every
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-55.js",  # Needs Array.prototype.some
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-58.js",  # Needs Array.prototype.filter
-    "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-60.js",  # Needs Array.prototype.reduceRight
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-9.js",  # Needs decodeURI
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-90.js",  # Needs Number.prototype.toLocaleString
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-91.js",  # Needs Number.prototype.toFixed
@@ -914,27 +887,17 @@ xfail_tests = (
     "/test/built-ins/RegExp/S15.10.2.8_A3_T16.js",  # Recursion Limit
     "/test/built-ins/RegExp/S15.10.2.8_A3_T18.js",  # Recursion Limit
     "/test/built-ins/RegExp/S15.10.2_A1_T1.js",  # Recursion Limit
-    "/test/built-ins/RegExp/character-class-escape-non-whitespace.js",  # Needs Unicode class tables
     "/test/built-ins/RegExp/lookBehind/sliced-strings.js",  # Needs String.prototype.substr
     "/test/built-ins/RegExp/property-escapes/character-class.js",  # Needs Unicode class tables
     "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Other.js",  # Recursion Limit
     "/test/built-ins/RegExp/property-escapes/generated/General_Category_-_Other_Letter.js",  # Recursion Limit
     "/test/built-ins/Set/prototype/add/does-not-have-setdata-internal-slot-weakset.js",  # Needs WeakSet
-    "/test/built-ins/Set/prototype/add/preserves-insertion-order.js",  # Needs Array.prototype.shift
     "/test/built-ins/Set/prototype/clear/does-not-have-setdata-internal-slot-weakset.js",  # Needs WeakSet
     "/test/built-ins/Set/prototype/delete/does-not-have-setdata-internal-slot-weakset.js",  # Needs WeakSet
     "/test/built-ins/Set/prototype/entries/does-not-have-setdata-internal-slot-weakset.js",  # Needs WeakSet
     "/test/built-ins/Set/prototype/forEach/does-not-have-setdata-internal-slot-weakset.js",  # Needs WeakSet
-    "/test/built-ins/Set/prototype/forEach/iterates-in-insertion-order.js",  # Needs Array.prototype.shift
-    "/test/built-ins/Set/prototype/forEach/iterates-in-iterable-entry-order.js",  # Needs array.prototype.shift
-    "/test/built-ins/Set/prototype/forEach/iterates-values-added-after-foreach-begins.js",  # Needs Array.prototype.shift
-    "/test/built-ins/Set/prototype/forEach/iterates-values-deleted-then-readded.js",  # Needs Array.prototype.shift
-    "/test/built-ins/Set/prototype/forEach/iterates-values-not-deleted.js",  # Needs array.prototype.shift
-    "/test/built-ins/Set/prototype/forEach/iterates-values-revisits-after-delete-re-add.js",  # Needs Array.prototype.shift
     "/test/built-ins/Set/prototype/has/does-not-have-setdata-internal-slot-weakset.js",  # Needs WeakSet
     "/test/built-ins/Set/prototype/values/does-not-have-setdata-internal-slot-weakset.js",  # Needs WeakSet
-    "/test/built-ins/String/prototype/indexOf/S15.5.4.7_A1_T12.js",  # Needs Array.prototype.indexOf
-    "/test/built-ins/String/prototype/lastIndexOf/S15.5.4.8_A1_T12.js",  # Needs Array.prototype.lastIndexOf
     "/test/built-ins/String/prototype/replace/S15.5.4.11_A3_T1.js",  # Needs Regex Character Class Escape
     "/test/built-ins/String/prototype/replace/S15.5.4.11_A3_T2.js",  # Needs Regex Character Class Escape
     "/test/built-ins/String/prototype/replace/S15.5.4.11_A3_T3.js",  # Needs Regex Character Class Escape

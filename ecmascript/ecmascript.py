@@ -4,7 +4,7 @@ import sys
 from enum import Enum, unique, auto
 from collections import namedtuple, deque, Counter
 from functools import reduce, partial, cached_property, lru_cache, cmp_to_key
-from itertools import chain
+from itertools import chain, count
 from typing import Union, Any, Tuple, Callable, Optional, List, Mapping, Deque
 from copy import copy
 import traceback
@@ -2009,8 +2009,6 @@ def StrictEqualityComparison(x, y):
     # NOTE
     # This algorithm differs from the SameValue Algorithm in its treatment of signed zeroes and NaNs.
 
-
-import functools
 
 #################################################################################################################################################################################################################
 #
@@ -6698,7 +6696,7 @@ class ArrayObject(JSObject):
         return OrdinaryDefineOwnProperty(self, P, Desc)
 
     def __repr__(self):
-        return f"[{ToString(self)}]"
+        return f"[ArrayData]"
 
 
 # ------------------------------------ 𝟗.𝟒.𝟐.𝟐 𝑨𝒓𝒓𝒂𝒚𝑪𝒓𝒆𝒂𝒕𝒆 ( 𝒍𝒆𝒏𝒈𝒕𝒉 [ , 𝒑𝒓𝒐𝒕𝒐 ] ) ------------------------------------
@@ -6852,15 +6850,26 @@ def ArraySetLength(A, Desc):
     succeeded = OrdinaryDefineOwnProperty(A, "length", newLenDesc)
     if not succeeded:
         return False
-    while newLen < oldLen:
-        oldLen -= 1
-        deleteSucceeded = A.Delete(ToString(oldLen))
+    props_to_delete = sorted(
+        (x for x in (int(x) for x in A.OwnPropertyKeys() if isIntegerIndex(x)) if newLen <= x < oldLen), reverse=True
+    )
+    for p in props_to_delete:
+        deleteSucceeded = A.Delete(str(p))
         if not deleteSucceeded:
-            newLenDesc.value = oldLen + 1
+            newLenDesc.value = p + 1
             if not newWritable:
                 newLenDesc.writable = False
             OrdinaryDefineOwnProperty(A, "length", newLenDesc)
             return False
+    # while newLen < oldLen:
+    #     oldLen -= 1
+    #     deleteSucceeded = A.Delete(ToString(oldLen))
+    #     if not deleteSucceeded:
+    #         newLenDesc.value = oldLen + 1
+    #         if not newWritable:
+    #             newLenDesc.writable = False
+    #         OrdinaryDefineOwnProperty(A, "length", newLenDesc)
+    #         return False
     if not newWritable:
         return OrdinaryDefineOwnProperty(A, "length", PropertyDescriptor(writable=False))
     return True
@@ -36308,14 +36317,18 @@ def CreateArrayConstructor(realm):
         realm, obj, [("from", Array_from, None), ("isArray", Array_isArray, None), ("of", Array_of, None),],
     )
 
-    def get_species(this_value, new_target, *_):
-        return this_value
-
+    # 22.1.2.5 get Array [ @@species ]
+    # Array[@@species] is an accessor property whose set accessor function is undefined. Its get accessor function
+    # performs the following steps:
+    #   1. Return the this value.
+    # The value of the name property of this function is "get [Symbol.species]".
+    # NOTE  | Array prototype methods normally use their this object's constructor to create a derived object.
+    #       | However, a subclass constructor may over-ride that default behaviour by redefining its @@species
+    #       | property.
+    get_species = lambda this_value, new_target, *_: this_value
     get_species.length = 0
     get_species.name = "get [Symbol.species]"
-
-    fcn_obj = CreateAnnotatedFunctionObject(realm, get_species, [])
-    DefinePropertyOrThrow(obj, wks_species, PropertyDescriptor(Get=fcn_obj, enumerable=False, configurable=True))
+    BindBuiltinAccessors(realm, obj, [(wks_species, get_species, None),])
 
     return obj
 
@@ -36603,21 +36616,47 @@ def CreateArrayPrototype(realm):
         proto,
         [
             ("concat", ArrayPrototype_concat, None),
+            ("copyWithin", ArrayPrototype_copyWithin, None),
+            ("entries", ArrayPrototype_entries, None),
+            ("every", ArrayPrototype_every, None),
+            ("fill", ArrayPrototype_fill, None),
+            ("filter", ArrayPrototype_filter, None),
+            ("find", ArrayPrototype_find, None),
+            ("findIndex", ArrayPrototype_findIndex, None),
+            ("flat", ArrayPrototype_flat, None),
+            ("flatMap", ArrayPrototype_flatMap, None),
             ("forEach", ArrayPrototype_forEach, None),
+            ("includes", ArrayPrototype_includes, None),
+            ("indexOf", ArrayPrototype_indexOf, None),
             ("join", ArrayPrototype_join, None),
+            ("keys", ArrayPrototype_keys, None),
+            ("lastIndexOf", ArrayPrototype_lastIndexOf, None),
             ("map", ArrayPrototype_map, None),
+            ("pop", ArrayPrototype_pop, None),
             ("push", ArrayPrototype_push, None),
             ("reduce", ArrayPrototype_reduce, None),
+            ("reduceRight", ArrayPrototype_reduceRight, None),
+            ("reverse", ArrayPrototype_reverse, None),
+            ("shift", ArrayPrototype_shift, None),
             ("slice", ArrayPrototype_slice, None),
+            ("some", ArrayPrototype_some, None),
             ("sort", ArrayPrototype_sort, None),
-            ("toString", ArrayPrototype_toString, 0),
-            ("values", ArrayPrototype_values, 0),
+            ("splice", ArrayPrototype_splice, None),
+            ("toLocaleString", ArrayPrototype_toLocaleString, None),
+            ("toString", ArrayPrototype_toString, None),
+            ("unshift", ArrayPrototype_unshift, None),
+            ("values", ArrayPrototype_values, None),
         ],
     )
+    # 22.1.3.33 Array.prototype [ @@iterator ] ( )
+    # The initial value of the @@iterator property is the same function object as the initial value of the
+    # Array.prototype.values property.
+    DefinePropertyOrThrow(proto, wks_iterator, OrdinaryGetOwnProperty(proto, "values"))
+
     DefinePropertyOrThrow(
         proto,
-        wks_iterator,
-        PropertyDescriptor(value=Get(proto, "values"), writable=True, enumerable=False, configurable=True),
+        wks_unscopables,
+        PropertyDescriptor(value=ArrayPrototype_unscopables(), writable=False, enumerable=False, configurable=True),
     )
     return proto
 
@@ -36672,7 +36711,7 @@ def ArrayPrototype_concat(this_value, new_target, *arguments):
         if spreadable:
             k = 0
             length = ToLength(Get(E, "length"))
-            if n + length > 2 ** 52 - 1:
+            if n + length > 2 ** 53 - 1:
                 raise ESTypeError("Array.prototype.concat: length too large")
             while k < length:
                 P = ToString(k)
@@ -36709,6 +36748,455 @@ def IsConcatSpreadable(O):
         return ToBoolean(spreadable)
     return IsArray(O)
 
+
+# 22.1.3.3 Array.prototype.copyWithin ( target, start [ , end ] )
+def ArrayPrototype_copyWithin(this_value, new_target, target=None, start=None, end=None, *_):
+    # The copyWithin method takes up to three arguments target, start and end.
+    # NOTE 1    | The end argument is optional with the length of the this object as its default value. If target is
+    #           | negative, it is treated as length + target where length is the length of the array. If start is
+    #           | negative, it is treated as length + start. If end is negative, it is treated as length + end.
+    # The following steps are taken:
+    #   1. Let O be ? ToObject(this value).
+    #   2. Let len be ? ToLength(? Get(O, "length")).
+    #   3. Let relativeTarget be ? ToInteger(target).
+    #   4. If relativeTarget < 0, let to be max((len + relativeTarget), 0); else let to be min(relativeTarget, len).
+    #   5. Let relativeStart be ? ToInteger(start).
+    #   6. If relativeStart < 0, let from be max((len + relativeStart), 0); else let from be min(relativeStart,
+    #      len).
+    #   7. If end is undefined, let relativeEnd be len; else let relativeEnd be ? ToInteger(end).
+    #   8. If relativeEnd < 0, let final be max((len + relativeEnd), 0); else let final be min(relativeEnd, len).
+    #   9. Let count be min(final - from, len - to).
+    #   10. If from < to and to < from + count, then
+    #       a. Let direction be -1.
+    #       b. Set from to from + count - 1.
+    #       c. Set to to to + count - 1.
+    #   11. Else,
+    #       a. Let direction be 1.
+    #   12. Repeat, while count > 0
+    #       a. Let fromKey be ! ToString(from).
+    #       b. Let toKey be ! ToString(to).
+    #       c. Let fromPresent be ? HasProperty(O, fromKey).
+    #       d. If fromPresent is true, then
+    #           i. Let fromVal be ? Get(O, fromKey).
+    #           ii. Perform ? Set(O, toKey, fromVal, true).
+    #       e. Else fromPresent is false,
+    #           i. Perform ? DeletePropertyOrThrow(O, toKey).
+    #       f. Set from to from + direction.
+    #       g. Set to to to + direction.
+    #       h. Decrease count by 1.
+    #   13. Return O.
+    # NOTE 2    | The copyWithin function is intentionally generic; it does not require that its this value be an
+    #           | Array object. Therefore it can be transferred to other kinds of objects for use as a method.
+    O = ToObject(this_value)
+    length = ToLength(Get(O, "length"))
+    relativeTarget = ToInteger(target)
+    if relativeTarget < 0:
+        to_idx = max((length + relativeTarget), 0)
+    else:
+        to_idx = min(relativeTarget, length)
+    relativeStart = ToInteger(start)
+    if relativeStart < 0:
+        from_idx = max((length + relativeStart), 0)
+    else:
+        from_idx = min(relativeStart, length)
+    if end is None:
+        relativeEnd = length
+    else:
+        relativeEnd = ToInteger(end)
+    if relativeEnd < 0:
+        final = max((length + relativeEnd), 0)
+    else:
+        final = min(relativeEnd, length)
+    count = min(final - from_idx, length - to_idx)
+    if from_idx < to_idx < from_idx + count:
+        direction = -1
+        from_idx = from_idx + count - 1
+        to_idx = to_idx + count - 1
+    else:
+        direction = 1
+    while count > 0:
+        fromKey = ToString(from_idx)
+        toKey = ToString(to_idx)
+        fromPresent = HasProperty(O, fromKey)
+        if fromPresent:
+            fromVal = Get(O, fromKey)
+            Set(O, toKey, fromVal, True)
+        else:
+            DeletePropertyOrThrow(O, toKey)
+        from_idx += direction
+        to_idx += direction
+        count -= 1
+    return O
+
+
+ArrayPrototype_copyWithin.name = "copyWithin"
+ArrayPrototype_copyWithin.length = 2
+
+# 22.1.3.4 Array.prototype.entries ( )
+def ArrayPrototype_entries(this_value, new_target, *_):
+    # The following steps are taken:
+    #   1. Let O be ? ToObject(this value).
+    #   2. Return CreateArrayIterator(O, "key+value").
+    # This function is the %ArrayProto_entries% intrinsic object.
+    return CreateArrayIterator(ToObject(this_value), "key+value")
+
+
+ArrayPrototype_entries.name = "entries"
+ArrayPrototype_entries.length = 0
+
+# 22.1.3.5 Array.prototype.every ( callbackfn [ , thisArg ] )
+def ArrayPrototype_every(this_value, new_target, callbackfn=None, thisArg=None, *_):
+    # NOTE 1    | callbackfn should be a function that accepts three arguments and returns a value that is coercible
+    #           | to the Boolean value true or false. every calls callbackfn once for each element present in the
+    #           | array, in ascending order, until it finds one where callbackfn returns false. If such an element
+    #           | is found, every immediately returns false. Otherwise, if callbackfn returned true for all
+    #           | elements, every will return true. callbackfn is called only for elements of the array which
+    #           | actually exist; it is not called for missing elements of the array.
+    #           |
+    #           | If a thisArg parameter is provided, it will be used as the this value for each invocation of
+    #           | callbackfn. If it is not provided, undefined is used instead.
+    #           |
+    #           | callbackfn is called with three arguments: the value of the element, the index of the element, and
+    #           | the object being traversed.
+    #           |
+    #           | every does not directly mutate the object on which it is called but the object may be mutated by
+    #           | the calls to callbackfn.
+    #           |
+    #           | The range of elements processed by every is set before the first call to callbackfn. Elements
+    #           | which are appended to the array after the call to every begins will not be visited by callbackfn.
+    #           | If existing elements of the array are changed, their value as passed to callbackfn will be the
+    #           | value at the time every visits them; elements that are deleted after the call to every begins and
+    #           | before being visited are not visited. every acts like the "for all" quantifier in mathematics. In
+    #           | particular, for an empty array, it returns true.
+    # When the every method is called with one or two arguments, the following steps are taken:
+    #   1. Let O be ? ToObject(this value).
+    #   2. Let len be ? ToLength(? Get(O, "length")).
+    #   3. If IsCallable(callbackfn) is false, throw a TypeError exception.
+    #   4. If thisArg is present, let T be thisArg; else let T be undefined.
+    #   5. Let k be 0.
+    #   6. Repeat, while k < len
+    #       a. Let Pk be ! ToString(k).
+    #       b. Let kPresent be ? HasProperty(O, Pk).
+    #       c. If kPresent is true, then
+    #           i. Let kValue be ? Get(O, Pk).
+    #           ii. Let testResult be ToBoolean(? Call(callbackfn, T, « kValue, k, O »)).
+    #           iii. If testResult is false, return false.
+    #       d. Increase k by 1.
+    #   7. Return true.
+    # NOTE 2    | The every function is intentionally generic; it does not require that its this value be an Array
+    #           | object. Therefore it can be transferred to other kinds of objects for use as a method.
+    O = ToObject(this_value)
+    length = ToLength(Get(O, "length"))
+    if not IsCallable(callbackfn):
+        raise ESTypeError("Array.prototype.every: callbackfn must be callable")
+    T = thisArg
+    for k in range(length):
+        Pk = ToString(k)
+        kPresent = HasProperty(O, Pk)
+        if kPresent:
+            kValue = Get(O, Pk)
+            testResult = ToBoolean(Call(callbackfn, T, [kValue, k, O]))
+            if not testResult:
+                return False
+    return True
+
+
+ArrayPrototype_every.name = "every"
+ArrayPrototype_every.length = 1
+
+# 22.1.3.6 Array.prototype.fill ( value [ , start [ , end ] ] )
+def ArrayPrototype_fill(this_value, new_target, value=None, start=None, end=None, *_):
+    # The fill method takes up to three arguments value, start and end.
+    # NOTE 1    | The start and end arguments are optional with default values of 0 and the length of the this
+    #           | object. If start is negative, it is treated as length + start where length is the length of the
+    #           | array. If end is negative, it is treated as length + end.
+    # The following steps are taken:
+    #   1. Let O be ? ToObject(this value).
+    #   2. Let len be ? ToLength(? Get(O, "length")).
+    #   3. Let relativeStart be ? ToInteger(start).
+    #   4. If relativeStart < 0, let k be max((len + relativeStart), 0); else let k be min(relativeStart, len).
+    #   5. If end is undefined, let relativeEnd be len; else let relativeEnd be ? ToInteger(end).
+    #   6. If relativeEnd < 0, let final be max((len + relativeEnd), 0); else let final be min(relativeEnd, len).
+    #   7. Repeat, while k < final
+    #       a. Let Pk be ! ToString(k).
+    #       b. Perform ? Set(O, Pk, value, true).
+    #       c. Increase k by 1.
+    #   8. Return O.
+    # NOTE 2    | The fill function is intentionally generic; it does not require that its this value be an Array
+    #           | object. Therefore it can be transferred to other kinds of objects for use as a method.
+    O = ToObject(this_value)
+    length = ToLength(Get(O, "length"))
+    relativeStart = ToInteger(start)
+    if relativeStart < 0:
+        k = int(max((length + relativeStart), 0))
+    else:
+        k = int(min(relativeStart, length))
+    if end is None:
+        relativeEnd = length
+    else:
+        relativeEnd = ToInteger(end)
+    if relativeEnd < 0:
+        final = int(max((length + relativeEnd), 0))
+    else:
+        final = int(min(relativeEnd, length))
+    for Pk in (str(idx) for idx in range(k, final)):
+        Set(O, Pk, value, True)
+    return O
+
+
+ArrayPrototype_fill.name = "fill"
+ArrayPrototype_fill.length = 1
+
+# 22.1.3.7 Array.prototype.filter ( callbackfn [ , thisArg ] )
+def ArrayPrototype_filter(this_value, new_target, callbackfn=None, thisArg=None, *_):
+    # NOTE 1    | callbackfn should be a function that accepts three arguments and returns a value that is coercible
+    #           | to the Boolean value true or false. filter calls callbackfn once for each element in the array, in
+    #           | ascending order, and constructs a new array of all the values for which callbackfn returns true.
+    #           | callbackfn is called only for elements of the array which actually exist; it is not called for
+    #           | missing elements of the array.
+    #           |
+    #           | If a thisArg parameter is provided, it will be used as the this value for each invocation of
+    #           | callbackfn. If it is not provided, undefined is used instead.
+    #           |
+    #           | callbackfn is called with three arguments: the value of the element, the index of the element, and
+    #           | the object being traversed.
+    #           |
+    #           | filter does not directly mutate the object on which it is called but the object may be mutated by
+    #           | the calls to callbackfn.
+    #           |
+    #           | The range of elements processed by filter is set before the first call to callbackfn. Elements
+    #           | which are appended to the array after the call to filter begins will not be visited by callbackfn.
+    #           | If existing elements of the array are changed their value as passed to callbackfn will be the
+    #           | value at the time filter visits them; elements that are deleted after the call to filter begins
+    #           | and before being visited are not visited.
+    # When the filter method is called with one or two arguments, the following steps are taken:
+    #   1. Let O be ? ToObject(this value).
+    #   2. Let len be ? ToLength(? Get(O, "length")).
+    #   3. If IsCallable(callbackfn) is false, throw a TypeError exception.
+    #   4. If thisArg is present, let T be thisArg; else let T be undefined.
+    #   5. Let A be ? ArraySpeciesCreate(O, 0).
+    #   6. Let k be 0.
+    #   7. Let to be 0.
+    #   8. Repeat, while k < len
+    #       a. Let Pk be ! ToString(k).
+    #       b. Let kPresent be ? HasProperty(O, Pk).
+    #       c. If kPresent is true, then
+    #           i. Let kValue be ? Get(O, Pk).
+    #           ii. Let selected be ToBoolean(? Call(callbackfn, T, « kValue, k, O »)).
+    #           iii. If selected is true, then
+    #               1. Perform ? CreateDataPropertyOrThrow(A, ! ToString(to), kValue).
+    #               2. Increase to by 1.
+    #       d. Increase k by 1.
+    #   9. Return A.
+    # NOTE 2    | The filter function is intentionally generic; it does not require that its this value be an Array
+    #           | object. Therefore it can be transferred to other kinds of objects for use as a method.
+    O = ToObject(this_value)
+    length = ToLength(Get(O, "length"))
+    if not IsCallable(callbackfn):
+        raise ESTypeError("Array.prototype.filter: callbackfn must be callable")
+    T = thisArg
+    A = ArraySpeciesCreate(O, 0)
+    to_idx = 0
+    for Pk, k in ((ToString(k), k) for k in range(0, length)):
+        if HasProperty(O, Pk):
+            kValue = Get(O, Pk)
+            if ToBoolean(Call(callbackfn, T, [kValue, k, O])):
+                CreateDataPropertyOrThrow(A, str(to_idx), kValue)
+                to_idx += 1
+    return A
+
+
+ArrayPrototype_filter.name = "filter"
+ArrayPrototype_filter.length = 1
+
+# 22.1.3.8 Array.prototype.find ( predicate [ , thisArg ] )
+def ArrayPrototype_find(this_value, new_target, predicate=None, thisArg=None, *_):
+    # The find method is called with one or two arguments, predicate and thisArg.
+    # NOTE 1    | predicate should be a function that accepts three arguments and returns a value that is coercible
+    #           | to a Boolean value. find calls predicate once for each element of the array, in ascending order,
+    #           | until it finds one where predicate returns true. If such an element is found, find immediately
+    #           | returns that element value. Otherwise, find returns undefined.
+    #           |
+    #           | If a thisArg parameter is provided, it will be used as the this value for each invocation of
+    #           | predicate. If it is not provided, undefined is used instead.
+    #           |
+    #           | predicate is called with three arguments: the value of the element, the index of the element, and
+    #           | the object being traversed.
+    #           |
+    #           | find does not directly mutate the object on which it is called but the object may be mutated by
+    #           | the calls to predicate.
+    #           |
+    #           | The range of elements processed by find is set before the first call to predicate. Elements that
+    #           | are appended to the array after the call to find begins will not be visited by predicate. If
+    #           | existing elements of the array are changed, their value as passed to predicate will be the value
+    #           | at the time that find visits them.
+    # When the find method is called, the following steps are taken:
+    #   1. Let O be ? ToObject(this value).
+    #   2. Let len be ? ToLength(? Get(O, "length")).
+    #   3. If IsCallable(predicate) is false, throw a TypeError exception.
+    #   4. If thisArg is present, let T be thisArg; else let T be undefined.
+    #   5. Let k be 0.
+    #   6. Repeat, while k < len
+    #       a. Let Pk be ! ToString(k).
+    #       b. Let kValue be ? Get(O, Pk).
+    #       c. Let testResult be ToBoolean(? Call(predicate, T, « kValue, k, O »)).
+    #       d. If testResult is true, return kValue.
+    #       e. Increase k by 1.
+    #   7. Return undefined.
+    # NOTE 2    | The find function is intentionally generic; it does not require that its this value be an Array
+    #           | object. Therefore it can be transferred to other kinds of objects for use as a method.
+    O = ToObject(this_value)
+    length = int(ToLength(Get(O, "length")))
+    if not IsCallable(predicate):
+        raise ESTypeError("Array.prototype.find: predicate must be callable")
+    T = thisArg
+    for Pk, k in ((str(k), k) for k in range(0, length)):
+        kValue = Get(O, Pk)
+        if ToBoolean(Call(predicate, T, [kValue, k, O])):
+            return kValue
+    return None
+
+
+ArrayPrototype_find.name = "find"
+ArrayPrototype_find.length = 1
+
+# 22.1.3.9 Array.prototype.findIndex ( predicate [ , thisArg ] )
+def ArrayPrototype_findIndex(this_value, new_target, predicate=None, thisArg=None, *_):
+    # NOTE 1    | predicate should be a function that accepts three arguments and returns a value that is coercible
+    #           | to the Boolean value true or false. findIndex calls predicate once for each element of the array,
+    #           | in ascending order, until it finds one where predicate returns true. If such an element is found,
+    #           | findIndex immediately returns the index of that element value. Otherwise, findIndex returns -1.
+    #           |
+    #           | If a thisArg parameter is provided, it will be used as the this value for each invocation of
+    #           | predicate. If it is not provided, undefined is used instead.
+    #           |
+    #           | predicate is called with three arguments: the value of the element, the index of the element, and
+    #           | the object being traversed.
+    #           |
+    #           | findIndex does not directly mutate the object on which it is called but the object may be mutated
+    #           | by the calls to predicate.
+    #           |
+    #           | The range of elements processed by findIndex is set before the first call to predicate. Elements
+    #           | that are appended to the array after the call to findIndex begins will not be visited by
+    #           | predicate. If existing elements of the array are changed, their value as passed to predicate will
+    #           | be the value at the time that findIndex visits them.
+    # When the findIndex method is called with one or two arguments, the following steps are taken:
+    #   1. Let O be ? ToObject(this value).
+    #   2. Let len be ? ToLength(? Get(O, "length")).
+    #   3. If IsCallable(predicate) is false, throw a TypeError exception.
+    #   4. If thisArg is present, let T be thisArg; else let T be undefined.
+    #   5. Let k be 0.
+    #   6. Repeat, while k < len
+    #       a. Let Pk be ! ToString(k).
+    #       b. Let kValue be ? Get(O, Pk).
+    #       c. Let testResult be ToBoolean(? Call(predicate, T, « kValue, k, O »)).
+    #       d. If testResult is true, return k.
+    #       e. Increase k by 1.
+    #   7. Return -1.
+    # NOTE 2    | The findIndex function is intentionally generic; it does not require that its this value be an
+    #           | Array object. Therefore it can be transferred to other kinds of objects for use as a method.
+    O = ToObject(this_value)
+    length = int(ToLength(Get(O, "length")))
+    if not IsCallable(predicate):
+        raise ESTypeError("Array.prototype.findIndex: predicate must be callable")
+    for k in range(0, length):
+        kValue = Get(O, str(k))
+        if ToBoolean(Call(predicate, thisArg, [kValue, k, O])):
+            return k
+    return -1
+
+
+ArrayPrototype_findIndex.name = "findIndex"
+ArrayPrototype_findIndex.length = 1
+
+# 22.1.3.10 Array.prototype.flat( [ depth ] )
+def ArrayPrototype_flat(this_value, new_target, depth=None, *_):
+    # When the flat method is called with zero or one arguments, the following steps are taken:
+    #   1. Let O be ? ToObject(this value).
+    #   2. Let sourceLen be ? ToLength(? Get(O, "length")).
+    #   3. Let depthNum be 1.
+    #   4. If depth is not undefined, then
+    #       a. Set depthNum to ? ToInteger(depth).
+    #   5. Let A be ? ArraySpeciesCreate(O, 0).
+    #   6. Perform ? FlattenIntoArray(A, O, sourceLen, 0, depthNum).
+    #   7. Return A.
+    O = ToObject(this_value)
+    sourceLen = int(ToLength(Get(O, "length")))
+    depthNum = 1 if depth is None else ToInteger(depth)
+    A = ArraySpeciesCreate(O, 0)
+    FlattenIntoArray(A, O, sourceLen, 0, depthNum)
+    return A
+
+
+ArrayPrototype_flat.name = "flat"
+ArrayPrototype_flat.length = 0
+
+# 22.1.3.10.1 FlattenIntoArray(target, source, sourceLen, start, depth [ , mapperFunction, thisArg ])
+def FlattenIntoArray(target, source, sourceLen, start, depth, mapperFunction=..., thisArg=..., *_):
+    #   1. Let targetIndex be start.
+    #   2. Let sourceIndex be 0.
+    #   3. Repeat, while sourceIndex < sourceLen
+    #       a. Let P be ! ToString(sourceIndex).
+    #       b. Let exists be ? HasProperty(source, P).
+    #       c. If exists is true, then
+    #           i. Let element be ? Get(source, P).
+    #           ii. If mapperFunction is present, then
+    #               1. Assert: thisArg is present.
+    #               2. Set element to ? Call(mapperFunction, thisArg , « element, sourceIndex, source »).
+    #           iii. Let shouldFlatten be false.
+    #           iv. If depth > 0, then
+    #               1. Set shouldFlatten to ? IsArray(element).
+    #           v. If shouldFlatten is true, then
+    #               1. Let elementLen be ? ToLength(? Get(element, "length")).
+    #               2. Set targetIndex to ? FlattenIntoArray(target, element, elementLen, targetIndex, depth - 1).
+    #           vi. Else,
+    #               1. If targetIndex ≥ 2^53-1, throw a TypeError exception.
+    #               2. Perform ? CreateDataPropertyOrThrow(target, ! ToString(targetIndex), element).
+    #               3. Increase targetIndex by 1.
+    #       d. Increase sourceIndex by 1.
+    #   4. Return targetIndex.
+    targetIndex = start
+    sourceIndex = 0
+    while sourceIndex < sourceLen:
+        P = str(sourceIndex)
+        if HasProperty(source, P):
+            element = Get(source, P)
+            if mapperFunction is not ...:
+                assert thisArg is not ...
+                element = Call(mapperFunction, thisArg, [element, sourceIndex, source])
+            if depth > 0 and IsArray(element):
+                elementLen = ToLength(Get(element, "length"))
+                targetIndex = FlattenIntoArray(target, element, elementLen, targetIndex, depth - 1)
+            else:
+                if targetIndex >= 2 ** 53 - 1:
+                    raise ESTypeError("Array too large in flattener")
+                CreateDataPropertyOrThrow(target, str(targetIndex), element)
+                targetIndex += 1
+        sourceIndex += 1
+    return targetIndex
+
+
+# 22.1.3.11 Array.prototype.flatMap ( mapperFunction [ , thisArg ] )
+def ArrayPrototype_flatMap(this_value, new_target, mapperFunction=None, thisArg=None, *_):
+    # When the flatMap method is called with one or two arguments, the following steps are taken:
+    #   1. Let O be ? ToObject(this value).
+    #   2. Let sourceLen be ? ToLength(? Get(O, "length")).
+    #   3. If IsCallable(mapperFunction) is false, throw a TypeError exception.
+    #   4. If thisArg is present, let T be thisArg; else let T be undefined.
+    #   5. Let A be ? ArraySpeciesCreate(O, 0).
+    #   6. Perform ? FlattenIntoArray(A, O, sourceLen, 0, 1, mapperFunction, T).
+    #   7. Return A.
+    O = ToObject(this_value)
+    sourceLen = int(ToLength(Get(O, "length")))
+    if not IsCallable(mapperFunction):
+        raise ESTypeError("Array.prototype.flatMap: mapperFunction must be callable")
+    A = ArraySpeciesCreate(O, 0)
+    FlattenIntoArray(A, O, sourceLen, 0, 1, mapperFunction, thisArg)
+    return A
+
+
+ArrayPrototype_flatMap.name = "flatMap"
+ArrayPrototype_flatMap.length = 1
 
 # 22.1.3.12 Array.prototype.forEach ( callbackfn [ , thisArg ] )
 def ArrayPrototype_forEach(this_value, new_target, callbackfn=None, thisArg=None, *_):
@@ -36757,6 +37245,115 @@ def ArrayPrototype_forEach(this_value, new_target, callbackfn=None, thisArg=None
 ArrayPrototype_forEach.length = 1
 ArrayPrototype_forEach.name = "forEach"
 
+
+# 22.1.3.13 Array.prototype.includes ( searchElement [ , fromIndex ] )
+def ArrayPrototype_includes(this_value, new_target, searchElement=None, fromIndex=None, *_):
+    # NOTE 1    | includes compares searchElement to the elements of the array, in ascending order, using the
+    #           | SameValueZero algorithm, and if found at any position, returns true; otherwise, false is returned.
+    #           |
+    #           | The optional second argument fromIndex defaults to 0 (i.e. the whole array is searched). If it is
+    #           | greater than or equal to the length of the array, false is returned, i.e. the array will not be
+    #           | searched. If it is negative, it is used as the offset from the end of the array to compute
+    #           | fromIndex. If the computed index is less than 0, the whole array will be searched.
+    # When the includes method is called, the following steps are taken:
+    #   1. Let O be ? ToObject(this value).
+    #   2. Let len be ? ToLength(? Get(O, "length")).
+    #   3. If len is 0, return false.
+    #   4. Let n be ? ToInteger(fromIndex).
+    #   5. Assert: If fromIndex is undefined, then n is 0.
+    #   6. If n ≥ 0, then
+    #       a. Let k be n.
+    #   7. Else n < 0,
+    #       a. Let k be len + n.
+    #       b. If k < 0, set k to 0.
+    #   8. Repeat, while k < len
+    #       a. Let elementK be the result of ? Get(O, ! ToString(k)).
+    #       b. If SameValueZero(searchElement, elementK) is true, return true.
+    #       c. Increase k by 1.
+    #   9. Return false.
+    # NOTE 2    | The includes function is intentionally generic; it does not require that its this value be an
+    #           | Array object. Therefore it can be transferred to other kinds of objects for use as a method.
+    # NOTE 3    | The includes method intentionally differs from the similar indexOf method in two ways. First, it
+    #           | uses the SameValueZero algorithm, instead of Strict Equality Comparison, allowing it to detect NaN
+    #           | array elements. Second, it does not skip missing array elements, instead treating them as
+    #           | undefined.
+    O = ToObject(this_value)
+    length = int(ToLength(Get(O, "length")))
+    if length == 0:
+        return False
+    n = ToInteger(fromIndex)
+    if n >= 0:
+        k = n
+    else:
+        k = length + n
+        if k < 0:
+            k = 0
+    while k < length:
+        elementK = Get(O, str(int(k)))
+        if SameValueZero(searchElement, elementK):
+            return True
+        k += 1
+    return False
+
+
+ArrayPrototype_includes.name = "includes"
+ArrayPrototype_includes.length = 1
+
+
+# 22.1.3.14 Array.prototype.indexOf ( searchElement [ , fromIndex ] )
+def ArrayPrototype_indexOf(this_value, new_target, searchElement=None, fromIndex=None, *_):
+    # NOTE 1    | indexOf compares searchElement to the elements of the array, in ascending order, using the Strict
+    #           | Equality Comparison algorithm, and if found at one or more indices, returns the smallest such
+    #           | index; otherwise, -1 is returned.
+    #           |
+    #           | The optional second argument fromIndex defaults to 0 (i.e. the whole array is searched). If it is
+    #           | greater than or equal to the length of the array, -1 is returned, i.e. the array will not be
+    #           | searched. If it is negative, it is used as the offset from the end of the array to compute
+    #           | fromIndex. If the computed index is less than 0, the whole array will be searched.
+    # When the indexOf method is called with one or two arguments, the following steps are taken:
+    #   1. Let O be ? ToObject(this value).
+    #   2. Let len be ? ToLength(? Get(O, "length")).
+    #   3. If len is 0, return -1.
+    #   4. Let n be ? ToInteger(fromIndex).
+    #   5. Assert: If fromIndex is undefined, then n is 0.
+    #   6. If n ≥ len, return -1.
+    #   7. If n ≥ 0, then
+    #       a. If n is -0, let k be +0; else let k be n.
+    #   8. Else n < 0,
+    #       a. Let k be len + n.
+    #       b. If k < 0, set k to 0.
+    #   9. Repeat, while k < len
+    #       a. Let kPresent be ? HasProperty(O, ! ToString(k)).
+    #       b. If kPresent is true, then
+    #           i. Let elementK be ? Get(O, ! ToString(k)).
+    #           ii. Let same be the result of performing Strict Equality Comparison searchElement === elementK.
+    #           iii. If same is true, return k.
+    #       c. Increase k by 1.
+    #   10. Return -1.
+    # NOTE 2    | The indexOf function is intentionally generic; it does not require that its this value be an Array
+    #           | object. Therefore it can be transferred to other kinds of objects for use as a method.
+    O = ToObject(this_value)
+    length = int(ToLength(Get(O, "length")))
+    if length == 0:
+        return -1
+    n = ToInteger(fromIndex)
+    if n >= length:
+        return -1
+    if n >= 0:
+        startidx = int(n)
+    else:
+        startidx = int(max(0, length + n))
+    for k in range(startidx, length):
+        if HasProperty(O, str(k)):
+            elementK = Get(O, str(k))
+            if StrictEqualityComparison(searchElement, elementK):
+                return k
+    return -1
+
+
+ArrayPrototype_indexOf.name = "indexOf"
+ArrayPrototype_indexOf.length = 1
+
 # 22.1.3.15 Array.prototype.join ( separator )
 def ArrayPrototype_join(this_value, new_target, separator=None, *_):
     # NOTE 1
@@ -36793,6 +37390,74 @@ def ArrayPrototype_join(this_value, new_target, separator=None, *_):
 
 ArrayPrototype_join.length = 1
 ArrayPrototype_join.name = "join"
+
+
+# 22.1.3.16 Array.prototype.keys ( )
+def ArrayPrototype_keys(this_value, new_target, *_):
+    # The following steps are taken:
+    #   1. Let O be ? ToObject(this value).
+    #   2. Return CreateArrayIterator(O, "key").
+    # This function is the %ArrayProto_keys% intrinsic object.
+    return CreateArrayIterator(ToObject(this_value), "key")
+
+
+ArrayPrototype_keys.name = "keys"
+ArrayPrototype_keys.length = 0
+
+
+# 22.1.3.17 Array.prototype.lastIndexOf ( searchElement [ , fromIndex ] )
+def ArrayPrototype_lastIndexOf(this_value, new_target, searchElement=None, fromIndex=..., *_):
+    # NOTE 1    | lastIndexOf compares searchElement to the elements of the array in descending order using the
+    #           | Strict Equality Comparison algorithm, and if found at one or more indices, returns the largest
+    #           | such index; otherwise, -1 is returned.
+    #           |
+    #           | The optional second argument fromIndex defaults to the array's length minus one (i.e. the whole
+    #           | array is searched). If it is greater than or equal to the length of the array, the whole array
+    #           | will be searched. If it is negative, it is used as the offset from the end of the array to compute
+    #           | fromIndex. If the computed index is less than 0, -1 is returned.
+    # When the lastIndexOf method is called with one or two arguments, the following steps are taken:
+    #   1. Let O be ? ToObject(this value).
+    #   2. Let len be ? ToLength(? Get(O, "length")).
+    #   3. If len is 0, return -1.
+    #   4. If fromIndex is present, let n be ? ToInteger(fromIndex); else let n be len - 1.
+    #   5. If n ≥ 0, then
+    #       a. If n is -0, let k be +0; else let k be min(n, len - 1).
+    #   6. Else n < 0,
+    #       a. Let k be len + n.
+    #   7. Repeat, while k ≥ 0
+    #       a. Let kPresent be ? HasProperty(O, ! ToString(k)).
+    #       b. If kPresent is true, then
+    #           i. Let elementK be ? Get(O, ! ToString(k)).
+    #           ii. Let same be the result of performing Strict Equality Comparison searchElement === elementK.
+    #           iii. If same is true, return k.
+    #       c. Decrease k by 1.
+    #   8. Return -1.
+    # NOTE 2    | The lastIndexOf function is intentionally generic; it does not require that its this value be an
+    #           | Array object. Therefore it can be transferred to other kinds of objects for use as a method.
+    O = ToObject(this_value)
+    length = int(ToLength(Get(O, "length")))
+    if length == 0:
+        return -1
+    if fromIndex is not ...:
+        n = ToInteger(fromIndex)
+    else:
+        n = length - 1
+    if n >= 0:
+        k = int(min(n, length - 1))
+    else:
+        k = length + n
+    while k >= 0:
+        if HasProperty(O, str(int(k))):
+            elementK = Get(O, str(int(k)))
+            if StrictEqualityComparison(searchElement, elementK):
+                return k
+        k -= 1
+    return -1
+
+
+ArrayPrototype_lastIndexOf.name = "lastIndexOf"
+ArrayPrototype_lastIndexOf.length = 1
+
 
 # 22.1.3.18 Array.prototype.map ( callbackfn [ , thisArg ] )
 def ArrayPrototype_map(this_value, new_target, callbackfn=None, T=None, *_):
@@ -36849,6 +37514,41 @@ def ArrayPrototype_map(this_value, new_target, callbackfn=None, T=None, *_):
 
 ArrayPrototype_map.length = 1
 ArrayPrototype_map.name = "map"
+
+
+# 22.1.3.19 Array.prototype.pop ( )
+def ArrayPrototype_pop(this_value, new_target, *_):
+    # NOTE 1    | The last element of the array is removed from the array and returned.
+    # When the pop method is called, the following steps are taken:
+    #   1. Let O be ? ToObject(this value).
+    #   2. Let len be ? ToLength(? Get(O, "length")).
+    #   3. If len is zero, then
+    #       a. Perform ? Set(O, "length", 0, true).
+    #       b. Return undefined.
+    #   4. Else len > 0,
+    #       a. Let newLen be len - 1.
+    #       b. Let index be ! ToString(newLen).
+    #       c. Let element be ? Get(O, index).
+    #       d. Perform ? DeletePropertyOrThrow(O, index).
+    #       e. Perform ? Set(O, "length", newLen, true).
+    #       f. Return element.
+    # NOTE 2    | The pop function is intentionally generic; it does not require that its this value be an Array object.
+    #           | Therefore it can be transferred to other kinds of objects for use as a method.
+    O = ToObject(this_value)
+    length = int(ToLength(Get(O, "length")))
+    if length == 0:
+        Set(O, "length", 0, True)
+        return None
+    newLen = length - 1
+    index = str(newLen)
+    element = Get(O, index)
+    DeletePropertyOrThrow(O, index)
+    Set(O, "length", newLen, True)
+    return element
+
+
+ArrayPrototype_pop.name = "pop"
+ArrayPrototype_pop.length = 0
 
 # 22.1.3.20 Array.prototype.push ( ...items )
 def ArrayPrototype_push(this_value, new_target, *items):
@@ -36969,6 +37669,203 @@ def ArrayPrototype_reduce(this_value, new_target, callbackfn=None, initialValue=
 ArrayPrototype_reduce.name = "reduce"
 ArrayPrototype_reduce.length = 1
 
+
+# 22.1.3.22 Array.prototype.reduceRight ( callbackfn [ , initialValue ] )
+def ArrayPrototype_reduceRight(this_value, new_target, callbackfn=None, initialValue=..., *_):
+    # NOTE 1    | callbackfn should be a function that takes four arguments. reduceRight calls the callback, as a
+    #           | function, once for each element after the first element present in the array, in descending order.
+    #           |
+    #           | callbackfn is called with four arguments: the previousValue (value from the previous call to
+    #           | callbackfn), the currentValue (value of the current element), the currentIndex, and the object
+    #           | being traversed. The first time the function is called, the previousValue and currentValue can be
+    #           | one of two values. If an initialValue was supplied in the call to reduceRight, then previousValue
+    #           | will be equal to initialValue and currentValue will be equal to the last value in the array. If no
+    #           | initialValue was supplied, then previousValue will be equal to the last value in the array and
+    #           | currentValue will be equal to the second-to-last value. It is a TypeError if the array contains no
+    #           | elements and initialValue is not provided.
+    #           |
+    #           | reduceRight does not directly mutate the object on which it is called but the object may be
+    #           | mutated by the calls to callbackfn.
+    #           |
+    #           | The range of elements processed by reduceRight is set before the first call to callbackfn.
+    #           | Elements that are appended to the array after the call to reduceRight begins will not be visited
+    #           | by callbackfn. If existing elements of the array are changed by callbackfn, their value as passed
+    #           | to callbackfn will be the value at the time reduceRight visits them; elements that are deleted
+    #           | after the call to reduceRight begins and before being visited are not visited.
+    # When the reduceRight method is called with one or two arguments, the following steps are taken:
+    #   1. Let O be ? ToObject(this value).
+    #   2. Let len be ? ToLength(? Get(O, "length")).
+    #   3. If IsCallable(callbackfn) is false, throw a TypeError exception.
+    #   4. If len is 0 and initialValue is not present, throw a TypeError exception.
+    #   5. Let k be len - 1.
+    #   6. Let accumulator be undefined.
+    #   7. If initialValue is present, then
+    #       a. Set accumulator to initialValue.
+    #   8. Else initialValue is not present,
+    #       a. Let kPresent be false.
+    #       b. Repeat, while kPresent is false and k ≥ 0
+    #           i. Let Pk be ! ToString(k).
+    #           ii. Set kPresent to ? HasProperty(O, Pk).
+    #           iii. If kPresent is true, then
+    #               1. Set accumulator to ? Get(O, Pk).
+    #           iv. Decrease k by 1.
+    #       c. If kPresent is false, throw a TypeError exception.
+    #   9. Repeat, while k ≥ 0
+    #       a. Let Pk be ! ToString(k).
+    #       b. Let kPresent be ? HasProperty(O, Pk).
+    #       c. If kPresent is true, then
+    #           i. Let kValue be ? Get(O, Pk).
+    #           ii. Set accumulator to ? Call(callbackfn, undefined, « accumulator, kValue, k, O »).
+    #       d. Decrease k by 1.
+    #   10. Return accumulator.
+    # NOTE 2    | The reduceRight function is intentionally generic; it does not require that its this value be an
+    #           | Array object. Therefore it can be transferred to other kinds of objects for use as a method.
+    O = ToObject(this_value)
+    length = int(ToLength(Get(O, "length")))
+    if not IsCallable(callbackfn):
+        raise ESTypeError("Array.prototype.reduceRight: callbackfn must be callable")
+    if length == 0 and initialValue is ...:
+        raise ESTypeError("Array.prototype.reduceRight: initial value missing for empty list")
+    k = length - 1
+    accumulator = None
+    if initialValue is not ...:
+        accumulator = initialValue
+    else:
+        kPresent = False
+        while not kPresent and k >= 0:
+            Pk = str(k)
+            kPresent = HasProperty(O, Pk)
+            if kPresent:
+                accumulator = Get(O, Pk)
+            k -= 1
+        if not kPresent:
+            raise ESTypeError("Array.prototype.reduceRight: initial value missing for empty list")
+    while k >= 0:
+        Pk = str(k)
+        if HasProperty(O, Pk):
+            kValue = Get(O, Pk)
+            accumulator = Call(callbackfn, None, [accumulator, kValue, k, O])
+        k -= 1
+    return accumulator
+
+
+ArrayPrototype_reduceRight.name = "reduceRight"
+ArrayPrototype_reduceRight.length = 1
+
+
+# 22.1.3.23 Array.prototype.reverse ( )
+def ArrayPrototype_reverse(this_value, new_target, *_):
+    # NOTE 1    | The elements of the array are rearranged so as to reverse their order. The object is returned as
+    #           | the result of the call.
+    # When the reverse method is called, the following steps are taken:
+    #   1. Let O be ? ToObject(this value).
+    #   2. Let len be ? ToLength(? Get(O, "length")).
+    #   3. Let middle be floor(len / 2).
+    #   4. Let lower be 0.
+    #   5. Repeat, while lower ≠ middle
+    #       a. Let upper be len - lower - 1.
+    #       b. Let upperP be ! ToString(upper).
+    #       c. Let lowerP be ! ToString(lower).
+    #       d. Let lowerExists be ? HasProperty(O, lowerP).
+    #       e. If lowerExists is true, then
+    #           i. Let lowerValue be ? Get(O, lowerP).
+    #       f. Let upperExists be ? HasProperty(O, upperP).
+    #       g. If upperExists is true, then
+    #           i. Let upperValue be ? Get(O, upperP).
+    #       h. If lowerExists is true and upperExists is true, then
+    #           i. Perform ? Set(O, lowerP, upperValue, true).
+    #           ii. Perform ? Set(O, upperP, lowerValue, true).
+    #       i. Else if lowerExists is false and upperExists is true, then
+    #           i. Perform ? Set(O, lowerP, upperValue, true).
+    #           ii. Perform ? DeletePropertyOrThrow(O, upperP).
+    #       j. Else if lowerExists is true and upperExists is false, then
+    #           i. Perform ? DeletePropertyOrThrow(O, lowerP).
+    #           ii. Perform ? Set(O, upperP, lowerValue, true).
+    #       k. Else both lowerExists and upperExists are false,
+    #           i. No action is required.
+    #       l. Increase lower by 1.
+    #   6. Return O.
+    # NOTE 2    | The reverse function is intentionally generic; it does not require that its this value be an Array
+    #           | object. Therefore, it can be transferred to other kinds of objects for use as a method.
+    O = ToObject(this_value)
+    length = int(ToLength(Get(O, "length")))
+    middle = length // 2
+    lower = 0
+    while lower != middle:
+        upper = length - lower - 1
+        upperP = str(upper)
+        lowerP = str(lower)
+        lowerExists = HasProperty(O, lowerP)
+        if lowerExists:
+            lowerValue = Get(O, lowerP)
+        upperExists = HasProperty(O, upperP)
+        if upperExists:
+            upperValue = Get(O, upperP)
+        if lowerExists and upperExists:
+            Set(O, lowerP, upperValue, True)
+            Set(O, upperP, lowerValue, True)
+        elif upperExists:
+            Set(O, lowerP, upperValue, True)
+            DeletePropertyOrThrow(O, upperP)
+        elif lowerExists:
+            DeletePropertyOrThrow(O, lowerP)
+            Set(O, upperP, lowerValue, True)
+        lower += 1
+    return O
+
+
+ArrayPrototype_reverse.name = "reverse"
+ArrayPrototype_reverse.length = 0
+
+
+# 22.1.3.24 Array.prototype.shift ( )
+def ArrayPrototype_shift(this_value, new_target, *_):
+    # NOTE 1    | The first element of the array is removed from the array and returned.
+    # When the shift method is called, the following steps are taken:
+    #   1. Let O be ? ToObject(this value).
+    #   2. Let len be ? ToLength(? Get(O, "length")).
+    #   3. If len is zero, then
+    #       a. Perform ? Set(O, "length", 0, true).
+    #       b. Return undefined.
+    #   4. Let first be ? Get(O, "0").
+    #   5. Let k be 1.
+    #   6. Repeat, while k < len
+    #       a. Let from be ! ToString(k).
+    #       b. Let to be ! ToString(k - 1).
+    #       c. Let fromPresent be ? HasProperty(O, from).
+    #       d. If fromPresent is true, then
+    #           i. Let fromVal be ? Get(O, from).
+    #           ii. Perform ? Set(O, to, fromVal, true).
+    #       e. Else fromPresent is false,
+    #           i. Perform ? DeletePropertyOrThrow(O, to).
+    #       f. Increase k by 1.
+    #   7. Perform ? DeletePropertyOrThrow(O, ! ToString(len - 1)).
+    #   8. Perform ? Set(O, "length", len - 1, true).
+    #   9. Return first.
+    # NOTE 2    | The shift function is intentionally generic; it does not require that its this value be an Array
+    #           | object. Therefore it can be transferred to other kinds of objects for use as a method.
+    O = ToObject(this_value)
+    length = int(ToLength(Get(O, "length")))
+    if length == 0:
+        Set(O, "length", 0, True)
+        return None
+    first = Get(O, "0")
+    for k in range(1, length):
+        Pfrom = str(k)
+        Pto = str(k - 1)
+        if HasProperty(O, Pfrom):
+            fromVal = Get(O, Pfrom)
+            Set(O, Pto, fromVal, True)
+        else:
+            DeletePropertyOrThrow(O, Pto)
+    DeletePropertyOrThrow(O, str(length - 1))
+    Set(O, "length", length - 1, True)
+    return first
+
+
+ArrayPrototype_shift.name = "shift"
+ArrayPrototype_shift.length = 0
+
 # 22.1.3.25 Array.prototype.slice ( start, end )
 def ArrayPrototype_slice(this_value, new_target, start=None, end=None, *_):
     # NOTE 1    | The slice method takes two arguments, start and end, and returns an array containing the elements
@@ -37036,6 +37933,62 @@ def ArrayPrototype_slice(this_value, new_target, start=None, end=None, *_):
 
 ArrayPrototype_slice.length = 2
 ArrayPrototype_slice.name = "slice"
+
+
+# 22.1.3.26 Array.prototype.some ( callbackfn [ , thisArg ] )
+def ArrayPrototype_some(this_value, new_target, callbackfn=None, thisArg=None, *_):
+    # NOTE 1    | callbackfn should be a function that accepts three arguments and returns a value that is coercible
+    #           | to the Boolean value true or false. some calls callbackfn once for each element present in the
+    #           | array, in ascending order, until it finds one where callbackfn returns true. If such an element is
+    #           | found, some immediately returns true. Otherwise, some returns false. callbackfn is called only for
+    #           | elements of the array which actually exist; it is not called for missing elements of the array.
+    #           |
+    #           | If a thisArg parameter is provided, it will be used as the this value for each invocation of
+    #           | callbackfn. If it is not provided, undefined is used instead.
+    #           |
+    #           | callbackfn is called with three arguments: the value of the element, the index of the element, and
+    #           | the object being traversed.
+    #           |
+    #           | some does not directly mutate the object on which it is called but the object may be mutated by
+    #           | the calls to callbackfn.
+    #           |
+    #           | The range of elements processed by some is set before the first call to callbackfn. Elements that
+    #           | are appended to the array after the call to some begins will not be visited by callbackfn. If
+    #           | existing elements of the array are changed, their value as passed to callbackfn will be the value
+    #           | at the time that some visits them; elements that are deleted after the call to some begins and
+    #           | before being visited are not visited. some acts like the "exists" quantifier in mathematics. In
+    #           | particular, for an empty array, it returns false.
+    # When the some method is called with one or two arguments, the following steps are taken:
+    #   1. Let O be ? ToObject(this value).
+    #   2. Let len be ? ToLength(? Get(O, "length")).
+    #   3. If IsCallable(callbackfn) is false, throw a TypeError exception.
+    #   4. If thisArg is present, let T be thisArg; else let T be undefined.
+    #   5. Let k be 0.
+    #   6. Repeat, while k < len
+    #   a. Let Pk be ! ToString(k).
+    #   b. Let kPresent be ? HasProperty(O, Pk).
+    #   c. If kPresent is true, then
+    #   i. Let kValue be ? Get(O, Pk).
+    #   ii. Let testResult be ToBoolean(? Call(callbackfn, T, « kValue, k, O »)).
+    #   iii. If testResult is true, return true.
+    #   d. Increase k by 1.
+    #   7. Return false.
+    # NOTE 2    | The some function is intentionally generic; it does not require that its this value be an Array
+    #           | object. Therefore it can be transferred to other kinds of objects for use as a method.
+    O = ToObject(this_value)
+    length = int(ToLength(Get(O, "length")))
+    if not IsCallable(callbackfn):
+        raise ESTypeError("Array.prototype.some: callbackfn must be callable")
+    for k in range(length):
+        if HasProperty(O, str(k)):
+            kValue = Get(O, str(k))
+            if ToBoolean(Call(callbackfn, thisArg, [kValue, k, O])):
+                return True
+    return False
+
+
+ArrayPrototype_some.name = "some"
+ArrayPrototype_some.length = 1
 
 # 22.1.3.27 Array.prototype.sort ( comparefn )
 def ArrayPrototype_sort(this_value, new_target, comparefn=None, *_):
@@ -37212,6 +38165,193 @@ def ArrayPrototype_sort(this_value, new_target, comparefn=None, *_):
 ArrayPrototype_sort.name = "sort"
 ArrayPrototype_sort.length = 1
 
+
+# 22.1.3.28 Array.prototype.splice ( start, deleteCount, ...items )
+def ArrayPrototype_splice(this_value, new_target, start=..., deleteCount=..., *items):
+    # NOTE 1    | When the splice method is called with two or more arguments start, deleteCount and zero or more
+    #           | items, the deleteCount elements of the array starting at integer index start are replaced by the
+    #           | arguments items. An Array object containing the deleted elements (if any) is returned.
+    # The following steps are taken:
+    #   1. Let O be ? ToObject(this value).
+    #   2. Let len be ? ToLength(? Get(O, "length")).
+    #   3. Let relativeStart be ? ToInteger(start).
+    #   4. If relativeStart < 0, let actualStart be max((len + relativeStart), 0); else let actualStart be
+    #      min(relativeStart, len).
+    #   5. If the number of actual arguments is 0, then
+    #       a. Let insertCount be 0.
+    #       b. Let actualDeleteCount be 0.
+    #   6. Else if the number of actual arguments is 1, then
+    #       a. Let insertCount be 0.
+    #       b. Let actualDeleteCount be len - actualStart.
+    #   7. Else,
+    #       a. Let insertCount be the number of actual arguments minus 2.
+    #       b. Let dc be ? ToInteger(deleteCount).
+    #       c. Let actualDeleteCount be min(max(dc, 0), len - actualStart).
+    #   8. If len + insertCount - actualDeleteCount > 2^53 - 1, throw a TypeError exception.
+    #   9. Let A be ? ArraySpeciesCreate(O, actualDeleteCount).
+    #   10. Let k be 0.
+    #   11. Repeat, while k < actualDeleteCount
+    #       a. Let from be ! ToString(actualStart + k).
+    #       b. Let fromPresent be ? HasProperty(O, from).
+    #       c. If fromPresent is true, then
+    #           i. Let fromValue be ? Get(O, from).
+    #           ii. Perform ? CreateDataPropertyOrThrow(A, ! ToString(k), fromValue).
+    #       d. Increment k by 1.
+    #   12. Perform ? Set(A, "length", actualDeleteCount, true).
+    #   13. Let items be a List whose elements are, in left to right order, the portion of the actual argument list
+    #       starting with the third argument. The list is empty if fewer than three arguments were passed.
+    #   14. Let itemCount be the number of elements in items.
+    #   15. If itemCount < actualDeleteCount, then
+    #       a. Set k to actualStart.
+    #       b. Repeat, while k < (len - actualDeleteCount)
+    #           i. Let from be ! ToString(k + actualDeleteCount).
+    #           ii. Let to be ! ToString(k + itemCount).
+    #           iii. Let fromPresent be ? HasProperty(O, from).
+    #           iv. If fromPresent is true, then
+    #               1. Let fromValue be ? Get(O, from).
+    #               2. Perform ? Set(O, to, fromValue, true).
+    #           v. Else fromPresent is false,
+    #               1. Perform ? DeletePropertyOrThrow(O, to).
+    #           vi. Increase k by 1.
+    #       c. Set k to len.
+    #       d. Repeat, while k > (len - actualDeleteCount + itemCount)
+    #           i. Perform ? DeletePropertyOrThrow(O, ! ToString(k - 1)).
+    #           ii. Decrease k by 1.
+    #   16. Else if itemCount > actualDeleteCount, then
+    #       a. Set k to (len - actualDeleteCount).
+    #       b. Repeat, while k > actualStart
+    #           i. Let from be ! ToString(k + actualDeleteCount - 1).
+    #           ii. Let to be ! ToString(k + itemCount - 1).
+    #           iii. Let fromPresent be ? HasProperty(O, from).
+    #           iv. If fromPresent is true, then
+    #               1. Let fromValue be ? Get(O, from).
+    #               2. Perform ? Set(O, to, fromValue, true).
+    #           v. Else fromPresent is false,
+    #               1. Perform ? DeletePropertyOrThrow(O, to).
+    #           vi. Decrease k by 1.
+    #   17. Set k to actualStart.
+    #   18. Repeat, while items is not empty
+    #       a. Remove the first element from items and let E be the value of that element.
+    #       b. Perform ? Set(O, ! ToString(k), E, true).
+    #       c. Increase k by 1.
+    #   19. Perform ? Set(O, "length", len - actualDeleteCount + itemCount, true).
+    #   20. Return A.
+    # NOTE 2    | The explicit setting of the "length" property of the result Array in step 19 was necessary in
+    #           | previous editions of ECMAScript to ensure that its length was correct in situations where the
+    #           | trailing elements of the result Array were not present. Setting "length" became unnecessary
+    #           | starting in ES2015 when the result Array was initialized to its proper length rather than an empty
+    #           | Array but is carried forward to preserve backward compatibility.
+    # NOTE 3    | The splice function is intentionally generic; it does not require that its this value be an Array
+    #           | object. Therefore it can be transferred to other kinds of objects for use as a method.
+    O = ToObject(this_value)
+    length = int(ToLength(Get(O, "length")))
+    relativeStart = ToInteger(start if start is not ... else 0)
+    if relativeStart < 0:
+        actualStart = int(max((length + relativeStart), 0))
+    else:
+        actualStart = int(min(relativeStart, length))
+    if start is ...:
+        insertCount = 0
+        actualDeleteCount = 0
+    elif deleteCount is ...:
+        insertCount = 0
+        actualDeleteCount = length - actualStart
+    else:
+        insertCount = len(items)
+        dc = ToInteger(deleteCount)
+        actualDeleteCount = int(min(max(dc, 0), length - actualStart))
+    if length + insertCount - actualDeleteCount > 2 ** 53 - 1:
+        raise ESTypeError("Array.prototype.splice: Too many array items")
+    A = ArraySpeciesCreate(O, actualDeleteCount)
+    for k in range(actualDeleteCount):
+        from_key = str(actualStart + k)
+        if HasProperty(O, from_key):
+            fromValue = Get(O, from_key)
+            CreateDataPropertyOrThrow(A, str(k), fromValue)
+    Set(A, "length", actualDeleteCount, True)
+    itemCount = len(items)
+    if itemCount < actualDeleteCount:
+        for k in range(actualStart, length - actualDeleteCount):
+            from_key = str(k + actualDeleteCount)
+            to_key = str(k + itemCount)
+            if HasProperty(O, from_key):
+                fromValue = Get(O, from_key)
+                Set(O, to_key, fromValue, True)
+            else:
+                DeletePropertyOrThrow(O, to_key)
+        for k in range(length - 1, length - actualDeleteCount + itemCount - 1, -1):
+            DeletePropertyOrThrow(O, str(k))
+    elif itemCount > actualDeleteCount:
+        for k in range(length - actualDeleteCount - 1, actualStart - 1, -1):
+            from_key = str(k + actualDeleteCount)
+            to_key = str(k + itemCount)
+            if HasProperty(O, from_key):
+                fromValue = Get(O, from_key)
+                Set(O, to_key, fromValue, True)
+            else:
+                DeletePropertyOrThrow(O, to_key)
+    for k, E in zip(count(actualStart), items):
+        Set(O, str(k), E, True)
+    Set(O, "length", length - actualDeleteCount + itemCount, True)
+    return A
+
+
+ArrayPrototype_splice.name = "splice"
+ArrayPrototype_splice.length = 2
+
+
+# 22.1.3.29 Array.prototype.toLocaleString ( [ reserved1 [ , reserved2 ] ] )
+def ArrayPrototype_toLocaleString(this_value, new_target, *_):
+    # An ECMAScript implementation that includes the ECMA-402 Internationalization API must implement the
+    # Array.prototype.toLocaleString method as specified in the ECMA-402 specification. If an ECMAScript
+    # implementation does not include the ECMA-402 API the following specification of the toLocaleString method is
+    # used.
+    #
+    # NOTE 1    | The first edition of ECMA-402 did not include a replacement specification for the
+    #           | Array.prototype.toLocaleString method.
+    #
+    # The meanings of the optional parameters to this method are defined in the ECMA-402 specification;
+    # implementations that do not include ECMA-402 support must not use those parameter positions for anything else.
+    #
+    # The following steps are taken:
+    #
+    #   1. Let array be ? ToObject(this value).
+    #   2. Let len be ? ToLength(? Get(array, "length")).
+    #   3. Let separator be the String value for the list-separator String appropriate for the host environment's
+    #      current locale (this is derived in an implementation-defined way).
+    #   4. Let R be the empty String.
+    #   5. Let k be 0.
+    #   6. Repeat, while k < len
+    #       a. If k > 0, then
+    #           i. Set R to the string-concatenation of R and separator.
+    #       b. Let nextElement be ? Get(array, ! ToString(k)).
+    #       c. If nextElement is not undefined or null, then
+    #           i. Let S be ? ToString(? Invoke(nextElement, "toLocaleString")).
+    #           ii. Set R to the string-concatenation of R and S.
+    #       d. Increase k by 1.
+    #   7. Return R.
+    #
+    # NOTE 2    | The elements of the array are converted to Strings using their toLocaleString methods, and these
+    #           | Strings are then concatenated, separated by occurrences of a separator String that has been
+    #           | derived in an implementation-defined locale-specific way. The result of calling this function is
+    #           | intended to be analogous to the result of toString, except that the result of this function is
+    #           | intended to be locale-specific.
+    #
+    # NOTE 3    | The toLocaleString function is intentionally generic; it does not require that its this value be
+    #           | an Array object. Therefore it can be transferred to other kinds of objects for use as a method.
+    #
+    array = ToObject(this_value)
+    length = int(ToLength(Get(array, "length")))
+    separator = ", "
+    return separator.join(
+        ToString(Invoke(nextElement, "toLocaleString")) if not (nextElement is None or isNull(nextElement)) else ""
+        for nextElement in (Get(array, str(k)) for k in range(length))
+    )
+
+
+ArrayPrototype_toLocaleString.name = "toLocaleString"
+ArrayPrototype_toLocaleString.length = 0
+
 # 22.1.3.30 Array.prototype.toString ( )
 def ArrayPrototype_toString(this_value, new_target, *_):
     # When the toString method is called, the following steps are taken:
@@ -37230,6 +38370,68 @@ def ArrayPrototype_toString(this_value, new_target, *_):
     return Call(func, array)
 
 
+ArrayPrototype_toString.name = "toString"
+ArrayPrototype_toString.length = 0
+
+
+# 22.1.3.31 Array.prototype.unshift ( ...items )
+def ArrayPrototype_unshift(this_value, new_target, *items):
+    # NOTE 1    | The arguments are prepended to the start of the array, such that their order within the array is
+    #           | the same as the order in which they appear in the argument list.
+    # When the unshift method is called with zero or more arguments item1, item2, etc., the following steps are taken:
+    #   1. Let O be ? ToObject(this value).
+    #   2. Let len be ? ToLength(? Get(O, "length")).
+    #   3. Let argCount be the number of actual arguments.
+    #   4. If argCount > 0, then
+    #       a. If len + argCount > 2^53 - 1, throw a TypeError exception.
+    #       b. Let k be len.
+    #       c. Repeat, while k > 0,
+    #           i. Let from be ! ToString(k - 1).
+    #           ii. Let to be ! ToString(k + argCount - 1).
+    #           iii. Let fromPresent be ? HasProperty(O, from).
+    #           iv. If fromPresent is true, then
+    #               1. Let fromValue be ? Get(O, from).
+    #               2. Perform ? Set(O, to, fromValue, true).
+    #           v. Else fromPresent is false,
+    #               1. Perform ? DeletePropertyOrThrow(O, to).
+    #           vi. Decrease k by 1.
+    #       d. Let j be 0.
+    #       e. Let items be a List whose elements are, in left to right order, the arguments that were passed to
+    #          this function invocation.
+    #       f. Repeat, while items is not empty
+    #           i. Remove the first element from items and let E be the value of that element.
+    #           ii. Perform ? Set(O, ! ToString(j), E, true).
+    #           iii. Increase j by 1.
+    #   5. Perform ? Set(O, "length", len + argCount, true).
+    #   6. Return len + argCount.
+    # The "length" property of the unshift method is 1.
+    #
+    # NOTE 2    | The unshift function is intentionally generic; it does not require that its this value be an Array
+    #           | object. Therefore it can be transferred to other kinds of objects for use as a method.
+    O = ToObject(this_value)
+    length = int(ToLength(Get(O, "length")))
+    argCount = len(items)
+    if argCount > 0:
+        if length + argCount > 2 ** 53 - 1:
+            raise ESTypeError("Array.prototype.unshift: resulting list too large")
+        for k in range(length, 0, -1):
+            fromKey = str(k - 1)
+            toKey = str(k + argCount - 1)
+            if HasProperty(O, fromKey):
+                fromValue = Get(O, fromKey)
+                Set(O, toKey, fromValue, True)
+            else:
+                DeletePropertyOrThrow(O, toKey)
+        for j, E in enumerate(items):
+            Set(O, str(j), E, True)
+    Set(O, "length", length + argCount, True)
+    return length + argCount
+
+
+ArrayPrototype_unshift.name = "unshift"
+ArrayPrototype_unshift.length = 1
+
+
 # 22.1.3.32 Array.prototype.values ( )
 def ArrayPrototype_values(this_value, new_target, *_):
     # The following steps are taken:
@@ -37239,6 +38441,48 @@ def ArrayPrototype_values(this_value, new_target, *_):
     O = ToObject(this_value)
     return CreateArrayIterator(O, "value")
     # This function is the %ArrayProto_values% intrinsic object.
+
+
+ArrayPrototype_values.name = "values"
+ArrayPrototype_length = 0
+
+
+# 22.1.3.34 Array.prototype [ @@unscopables ]
+def ArrayPrototype_unscopables():
+    # The initial value of the @@unscopables data property is an object created by the following steps:
+    #
+    #   1. Let unscopableList be ObjectCreate(null).
+    #   2. Perform CreateDataProperty(unscopableList, "copyWithin", true).
+    #   3. Perform CreateDataProperty(unscopableList, "entries", true).
+    #   4. Perform CreateDataProperty(unscopableList, "fill", true).
+    #   5. Perform CreateDataProperty(unscopableList, "find", true).
+    #   6. Perform CreateDataProperty(unscopableList, "findIndex", true).
+    #   7. Perform CreateDataProperty(unscopableList, "flat", true).
+    #   8. Perform CreateDataProperty(unscopableList, "flatMap", true).
+    #   9. Perform CreateDataProperty(unscopableList, "includes", true).
+    #   10. Perform CreateDataProperty(unscopableList, "keys", true).
+    #   11. Perform CreateDataProperty(unscopableList, "values", true).
+    #   12. Assert: Each of the above calls returns true.
+    #   13. Return unscopableList.
+    # This property has the attributes { [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true }.
+    #
+    # NOTE  | The own property names of this object are property names that were not included as standard properties
+    #       | of Array.prototype prior to the ECMAScript 2015 specification. These names are ignored for with
+    #       | statement binding purposes in order to preserve the behaviour of existing code that might use one of
+    #       | these names as a binding in an outer scope that is shadowed by a with statement whose binding object
+    #       | is an Array object.
+    unscopableList = ObjectCreate(JSNull.NULL)
+    CreateDataProperty(unscopableList, "copyWithin", True)
+    CreateDataProperty(unscopableList, "entries", True)
+    CreateDataProperty(unscopableList, "fill", True)
+    CreateDataProperty(unscopableList, "find", True)
+    CreateDataProperty(unscopableList, "findIndex", True)
+    CreateDataProperty(unscopableList, "flat", True)
+    CreateDataProperty(unscopableList, "flatMap", True)
+    CreateDataProperty(unscopableList, "includes", True)
+    CreateDataProperty(unscopableList, "keys", True)
+    CreateDataProperty(unscopableList, "values", True)
+    return unscopableList
 
 
 def ArrayFixups(realm):
