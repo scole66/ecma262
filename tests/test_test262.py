@@ -246,6 +246,8 @@ passing = (
     "built-ins/Set",
     "built-ins/SetIteratorPrototype",
     "built-ins/String",
+    "built-ins/TypedArray",
+    "built-ins/TypedArrayConstructors",
     "language/arguments-object",
     "language/asi",
     "language/block-scope",
@@ -822,33 +824,13 @@ skip_tests = (
 
 xfail_tests = (
     "/test/harness/timer.js",  # Needs Promise
-    "/test/built-ins/Array/prototype/concat/Array.prototype.concat_large-typed-array.js",  # Needs TypedArrays to have a working length
-    "/test/built-ins/Array/prototype/concat/Array.prototype.concat_small-typed-array.js",  # Needs TypedArrays to have a working length
     "/test/built-ins/Array/prototype/flat/proxy-access-count.js",  # Needs Proxy
-    "/test/built-ins/Array/prototype/flatMap/array-like-objects-typedarrays.js",  # Needs TypedArrays to have a working length
     "/test/built-ins/Array/prototype/flatMap/proxy-access-count.js",  # Needs Proxy
     "/test/built-ins/Array/prototype/reverse/length-exceeding-integer-limit-with-proxy.js",  # Needs Proxy
     "/test/built-ins/Array/prototype/slice/length-exceeding-integer-limit-proxied-array.js",  # Needs Proxy
     "/test/built-ins/Array/prototype/sort/stability-2048-elements.js",  # Recursion Limit
     "/test/built-ins/Array/prototype/sort/stability-513-elements.js",  # Recursion Limit
     "/test/built-ins/Array/prototype/splice/create-species-length-exceeding-integer-limit.js",  # Needs Proxy
-    "/test/built-ins/ArrayIteratorPrototype/next/detach-typedarray-in-progress.js",  # Needs keys() function for typedarrays
-    "/test/built-ins/ArrayIteratorPrototype/next/Float32Array.js",  # Needs TypedArray support
-    "/test/built-ins/ArrayIteratorPrototype/next/Float32Array.js",  # Needs TypedArray support
-    "/test/built-ins/ArrayIteratorPrototype/next/Float64Array.js",  # Needs TypedArray support
-    "/test/built-ins/ArrayIteratorPrototype/next/Float64Array.js",  # Needs TypedArray support
-    "/test/built-ins/ArrayIteratorPrototype/next/Int16Array.js",  # Needs TypedArray support
-    "/test/built-ins/ArrayIteratorPrototype/next/Int16Array.js",  # Needs TypedArray support
-    "/test/built-ins/ArrayIteratorPrototype/next/Int32Array.js",  # Needs TypedArray support
-    "/test/built-ins/ArrayIteratorPrototype/next/Int32Array.js",  # Needs TypedArray support
-    "/test/built-ins/ArrayIteratorPrototype/next/Int8Array.js",  # Needs TypedArray support
-    "/test/built-ins/ArrayIteratorPrototype/next/Int8Array.js",  # Needs TypedArray support
-    "/test/built-ins/ArrayIteratorPrototype/next/Uint16Array.js",  # Needs TypedArray support
-    "/test/built-ins/ArrayIteratorPrototype/next/Uint16Array.js",  # Needs TypedArray support
-    "/test/built-ins/ArrayIteratorPrototype/next/Uint32Array.js",  # Needs TypedArray support
-    "/test/built-ins/ArrayIteratorPrototype/next/Uint32Array.js",  # Needs TypedArray support
-    "/test/built-ins/ArrayIteratorPrototype/next/Uint8ClampedArray.js",  # Needs TypedArray support
-    "/test/built-ins/ArrayIteratorPrototype/next/Uint8Array.js",
     "/test/built-ins/Date/parse/zero.js",  # Wants a bit more flexible Date.parse
     "/test/built-ins/Date/prototype/getTimezoneOffset/this-value-valid-date.js",  # Overflow in LocalTZA
     "/test/built-ins/Date/prototype/setDate/new-value-time-clip.js",  # Overflow in LocalTZA
@@ -926,6 +908,66 @@ xfail_tests = (
     "/test/built-ins/String/prototype/Symbol.iterator/name.js",  # Needs String.prototype.@@iterator
     "/test/built-ins/String/prototype/Symbol.iterator/prop-desc.js",  # Needs String.prototype.@@iterator
     "/test/built-ins/String/prototype/Symbol.iterator/this-val-to-str-err.js",  # Needs String.prototype.@@iterator
+    "/test/built-ins/TypedArray/prototype/copyWithin/this-is-not-typedarray-instance.js",  # Needs DataView
+    "/test/built-ins/TypedArray/prototype/entries/this-is-not-typedarray-instance.js",  # Needs DataView
+    "/test/built-ins/TypedArray/prototype/every/this-is-not-typedarray-instance.js",  # Needs DataView
+    "/test/built-ins/TypedArray/prototype/fill/this-is-not-typedarray-instance.js",  # Needs DataView
+    "/test/built-ins/TypedArray/prototype/filter/this-is-not-typedarray-instance.js",  # Needs DataView
+    "/test/built-ins/TypedArray/prototype/find/this-is-not-typedarray-instance.js",  # Needs DataView
+    "/test/built-ins/TypedArray/prototype/findIndex/this-is-not-typedarray-instance.js",  # Needs DataView
+    "/test/built-ins/TypedArray/prototype/forEach/this-is-not-typedarray-instance.js",  # Needs DataView
+    "/test/built-ins/TypedArray/prototype/includes/this-is-not-typedarray-instance.js",  # Needs DataView
+    "/test/built-ins/TypedArray/prototype/indexOf/this-is-not-typedarray-instance.js",  # Needs DataView
+    "/test/built-ins/TypedArray/prototype/join/this-is-not-typedarray-instance.js",  # Needs DataView
+    "/test/built-ins/TypedArray/prototype/keys/this-is-not-typedarray-instance.js",  # Needs DataView
+    "/test/built-ins/TypedArray/prototype/lastIndexOf/this-is-not-typedarray-instance.js",  # Needs DataView
+    "/test/built-ins/TypedArray/prototype/length/this-has-no-typedarrayname-internal.js",  # Needs DataView
+    "/test/built-ins/TypedArray/prototype/map/this-is-not-typedarray-instance.js",  # Needs DataView
+    "/test/built-ins/TypedArray/prototype/reduce/this-is-not-typedarray-instance.js",  # Needs DataView
+    "/test/built-ins/TypedArray/prototype/reduceRight/this-is-not-typedarray-instance.js",  # Needs DataView
+    "/test/built-ins/TypedArray/prototype/reverse/this-is-not-typedarray-instance.js",  # Needs DataView
+    "/test/built-ins/TypedArray/prototype/set/this-is-not-typedarray-instance.js",  # Needs DataView
+    "/test/built-ins/TypedArray/prototype/set/typedarray-arg-set-values-diff-buffer-other-type-conversions-sab.js",  # Needs SharedArrayBuffer
+    "/test/built-ins/TypedArray/prototype/set/typedarray-arg-set-values-diff-buffer-other-type-sab.js",  # Needs SharedArrayBuffer
+    "/test/built-ins/TypedArray/prototype/set/typedarray-arg-set-values-diff-buffer-same-type-sab.js",  # Needs SharedArrayBuffer
+    "/test/built-ins/TypedArray/prototype/set/typedarray-arg-set-values-same-buffer-same-type-sab.js",  # Needs SharedArrayBuffer
+    "/test/built-ins/TypedArray/prototype/slice/this-is-not-typedarray-instance.js",  # Needs DataView
+    "/test/built-ins/TypedArray/prototype/some/this-is-not-typedarray-instance.js",  # Needs DataView
+    "/test/built-ins/TypedArray/prototype/sort/this-is-not-typedarray-instance.js",  # Needs DataView
+    "/test/built-ins/TypedArray/prototype/subarray/this-is-not-typedarray-instance.js",  # Needs DataView
+    "/test/built-ins/TypedArray/prototype/toLocaleString/this-is-not-typedarray-instance.js",  # Needs DataView
+    "/test/built-ins/TypedArray/prototype/values/this-is-not-typedarray-instance.js",  # Needs DataView
+    "/test/built-ins/TypedArray/prototype/byteOffset/this-has-no-typedarrayname-internal.js",  # Needs DataView
+    "/test/built-ins/TypedArray/prototype/byteLength/this-has-no-typedarrayname-internal.js",  # Needs DataView
+    "/test/built-ins/TypedArray/prototype/Symbol.toStringTag/this-has-no-typedarrayname-internal.js",  # Needs DataView
+    "/test/built-ins/TypedArray/prototype/buffer/this-has-no-typedarrayname-internal.js",  # Needs DataView
+    "/test/built-ins/TypedArrayConstructors/internals/Get/indexed-value-sab.js",  # Needs SharedArrayBuffer
+    "/test/built-ins/TypedArrayConstructors/ctors/buffer-arg/bufferbyteoffset-throws-from-modulo-element-size-sab.js",  # Needs SharedArrayBuffer
+    "/test/built-ins/TypedArrayConstructors/ctors/buffer-arg/byteoffset-is-negative-throws-sab.js",  # Needs SharedArrayBuffer
+    "/test/built-ins/TypedArrayConstructors/ctors/buffer-arg/byteoffset-is-negative-zero-sab.js",  # Needs SharedArrayBuffer
+    "/test/built-ins/TypedArrayConstructors/ctors/buffer-arg/byteoffset-is-symbol-throws-sab.js",  # Needs SharedArrayBuffer
+    "/test/built-ins/TypedArrayConstructors/ctors/buffer-arg/byteoffset-throws-from-modulo-element-size-sab.js",  # Needs SharedArrayBuffer
+    "/test/built-ins/TypedArrayConstructors/ctors/buffer-arg/byteoffset-to-number-throws-sab.js",  # Needs SharedArrayBuffer
+    "/test/built-ins/TypedArrayConstructors/ctors/buffer-arg/custom-proto-access-throws-sab.js",  # Needs SharedArrayBuffer
+    "/test/built-ins/TypedArrayConstructors/ctors/buffer-arg/defined-length-and-offset-sab.js",  # Needs SharedArrayBuffer
+    "/test/built-ins/TypedArrayConstructors/ctors/buffer-arg/defined-length-sab.js",  # Needs SharedArrayBuffer
+    "/test/built-ins/TypedArrayConstructors/ctors/buffer-arg/defined-negative-length-sab.js",  # Needs SharedArrayBuffer
+    "/test/built-ins/TypedArrayConstructors/ctors/buffer-arg/defined-offset-sab.js",  # Needs SharedArrayBuffer
+    "/test/built-ins/TypedArrayConstructors/ctors/buffer-arg/excessive-length-throws-sab.js",  # Needs SharedArrayBuffer
+    "/test/built-ins/TypedArrayConstructors/ctors/buffer-arg/excessive-offset-throws-sab.js",  # Needs SharedArrayBuffer
+    "/test/built-ins/TypedArrayConstructors/ctors/buffer-arg/invoked-with-undefined-newtarget-sab.js",  # Needs SharedArrayBuffer
+    "/test/built-ins/TypedArrayConstructors/ctors/buffer-arg/is-referenced-sab.js",  # Needs SharedArrayBuffer
+    "/test/built-ins/TypedArrayConstructors/ctors/buffer-arg/length-access-throws-sab.js",  # Needs SharedArrayBuffer
+    "/test/built-ins/TypedArrayConstructors/ctors/buffer-arg/length-is-symbol-throws-sab.js",  # Needs SharedArrayBuffer
+    "/test/built-ins/TypedArrayConstructors/ctors/buffer-arg/new-instance-extensibility-sab.js",  # Needs SharedArrayBuffer
+    "/test/built-ins/TypedArrayConstructors/ctors/buffer-arg/proto-from-ctor-realm-sab.js",  # Needs SharedArrayBuffer
+    "/test/built-ins/TypedArrayConstructors/ctors/buffer-arg/returns-new-instance-sab.js",  # Needs SharedArrayBuffer
+    "/test/built-ins/TypedArrayConstructors/ctors/buffer-arg/toindex-bytelength-sab.js",  # Needs SharedArrayBuffer
+    "/test/built-ins/TypedArrayConstructors/ctors/buffer-arg/toindex-byteoffset-sab.js",  # Needs SharedArrayBuffer
+    "/test/built-ins/TypedArrayConstructors/ctors/buffer-arg/use-custom-proto-if-object-sab.js",  # Needs SharedArrayBuffer
+    "/test/built-ins/TypedArrayConstructors/ctors/buffer-arg/use-default-proto-if-custom-proto-is-not-object-sab.js",  # Needs SharedArrayBuffer
+    "/test/built-ins/TypedArrayConstructors/ctors/buffer-arg/typedarray-backed-by-sharedarraybuffer.js",  # Needs SharedArrayBuffer
+    "/test/built-ins/TypedArrayConstructors/ctors/object-arg/as-generator-iterable-returns.js",  # Needs Generators
     "/test/language/computed-property-names/class/static/method-number.js",  # Wants default anonymous function naming
     "/test/language/computed-property-names/class/static/method-string.js",  # Wants default anonymous function naming
     "/test/language/computed-property-names/class/static/method-symbol.js",  # Wants default anonymous function naming

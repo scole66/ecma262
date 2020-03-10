@@ -29,6 +29,10 @@ from .lexer2 import LexerCore, utf_16_encode, utf_16_decode
 from . import e262_regexp
 
 
+def first(seq):
+    return next(iter(seq))
+
+
 @unique
 class Empty(Enum):
     EMPTY = auto()
@@ -1008,7 +1012,10 @@ def CreateByteDataBlock(size):
     #   3. Set all of the bytes of db to 0.
     #   4. Return db.
     assert size >= 0
-    return memoryview(bytearray(size))
+    try:
+        return memoryview(bytearray(size))
+    except MemoryError:
+        raise ESRangeError(f"Memory Limit Exceeded. (Request for {size} bytes is rejected.)")
 
 
 # 6.2.7.3 CopyDataBlockBytes ( toBlock, toIndex, fromBlock, fromIndex, count )
@@ -1472,6 +1479,29 @@ def ToString(arg):
     # isObject
     prim_value = ToPrimitive(arg, "string")
     return ToString(prim_value)
+
+
+def ToRepr(arg, avoid_subcalls=False):
+    if isUndefined(arg):
+        return "undefined"
+    if isNull(arg):
+        return "null"
+    if isBoolean(arg):
+        return "true" if arg else "false"
+    if isNumber(arg):
+        return NumberToString(arg)
+    if isString(arg):
+        return arg
+    if isSymbol(arg):
+        return f"Symbol: {arg.description}"
+    # isObject
+    try:
+        if not avoid_subcalls:
+            prim_value = ToPrimitive(arg, "string")
+            return ToString(prim_value)
+    except:
+        pass
+    return "[Object]"
 
 
 _nts_pattern = regex.compile(
@@ -7404,9 +7434,9 @@ def MakeArgSetter(name, env):
 class IntegerIndexedObject(JSObject):
     def __init__(self):
         self.ViewedArrayBuffer = None
-        self.ArrayLength = None
-        self.ByteOffset = None
-        self.TypedArrayName = None
+        self.ArrayLength = 0
+        self.ByteOffset = 0
+        self.TypedArrayName = ""
         super().__init__()
 
     # 9.4.5.1 [[GetOwnProperty]] ( P )
@@ -7822,6 +7852,12 @@ class ParseNode2:
         assert isinstance(children, list)
         self.children = children
         self.strict = strict
+        self.start
+        self.after
+        self.contains_unenclosed_continue
+        self.contains_encapsulated_unenclosed_continue
+        self.contains_unenclosed_break
+        self.contains_encapsulated_unenclosed_break
 
     @cached_property
     def after(self):
@@ -25353,10 +25389,6 @@ class P2_FormalParameters(ParseNode2):
 
 
 class P2_FormalParameters_EMPTY(P2_FormalParameters):
-    def __init__(self, ctx, pos, strict):
-        super().__init__(ctx, strict, [])
-        self.after = pos
-
     FormalParameterList = None
     FunctionRestParameter = None
 
@@ -25509,7 +25541,7 @@ def parse_FormalParameters(context, lexer, pos, strict, Yield, Await):
     frp2 = parse_FunctionRestParameter(context, lexer, pos, strict, Yield, Await)
     if frp2:
         return P2_FormalParameters_FunctionRestParameter(context, strict, [frp2])
-    return P2_FormalParameters_EMPTY(context, pos, strict)
+    return P2_FormalParameters_EMPTY(context, strict, [lexer.empty_token(pos)])
 
 
 # --------======= 𝓕𝓸𝓻𝓶𝓪𝓵𝓟𝓪𝓻𝓪𝓶𝓮𝓽𝓮𝓻𝓛𝓲𝓼𝓽 =======--------
@@ -25879,9 +25911,6 @@ class P2_FunctionStatementList_StatementList(P2_FunctionStatementList):
 
 
 class P2_FunctionStatementList_EMPTY(P2_FunctionStatementList):
-    def __init__(self, ctx, pos, strict):
-        super().__init__(ctx, strict, [])
-        self.after = pos
 
     StatementList = None
 
@@ -25936,7 +25965,7 @@ def parse_FunctionStatementList(context, lexer, pos, strict, Yield, Await):
     sl = parse_StatementList(context, lexer, pos, strict, True, Yield, Await, True)
     if sl:
         return P2_FunctionStatementList_StatementList(context, strict or sl.strict, [sl])
-    return P2_FunctionStatementList_EMPTY(context, pos, strict)
+    return P2_FunctionStatementList_EMPTY(context, strict, [lexer.empty_token(pos)])
 
 
 # 14.1.10 Static Semantics: IsAnonymousFunctionDefinition ( expr )
@@ -26638,7 +26667,8 @@ class P2_MethodDefinition_GET_PropertyName_FunctionBody(P2_MethodDefinition_Prop
         #   11. Return ? DefinePropertyOrThrow(object, propKey, desc).
         propKey = self.PropertyName.evaluate()
         scope = surrounding_agent.running_ec.lexical_environment
-        formalParameterList = P2_FormalParameters_EMPTY(self.context, 0, self.strict)
+        lexer = LexerCore("", CreateSyntaxError)
+        formalParameterList = P2_FormalParameters_EMPTY(self.context, self.strict, [lexer.empty_token(0)])
         closure = FunctionCreate(METHOD, formalParameterList, self.FunctionBody, scope, self.strict)
         MakeMethod(closure, object)
         SetFunctionName(closure, propKey, "get")
@@ -29184,8 +29214,8 @@ global_eval.length = 1
 global_eval.name = "eval"
 
 
-def CreateAnnotatedFunctionObject(realm, fn, slots=[]):
-    func = CreateBuiltinFunction(fn, slots, realm)
+def CreateAnnotatedFunctionObject(realm, fn, slots=[], prototype=MISSING):
+    func = CreateBuiltinFunction(fn, slots, realm, prototype)
     DefinePropertyOrThrow(
         func, "length", PropertyDescriptor(value=fn.length, writable=False, enumerable=False, configurable=True)
     )
@@ -38342,7 +38372,7 @@ def ArrayPrototype_toLocaleString(this_value, new_target, *_):
     #
     array = ToObject(this_value)
     length = int(ToLength(Get(array, "length")))
-    separator = ", "
+    separator = ","
     return separator.join(
         ToString(Invoke(nextElement, "toLocaleString")) if not (nextElement is None or isNull(nextElement)) else ""
         for nextElement in (Get(array, str(k)) for k in range(length))
@@ -38946,10 +38976,10 @@ def TypedArrayFixups(realm: Realm) -> None:
     proto = realm.intrinsics["%TypedArrayPrototype%"]
     cstr = realm.intrinsics["%TypedArray%"]
     DefinePropertyOrThrow(
-        proto, "constructor", PropertyDescriptor(value=proto, writable=True, enumerable=False, configurable=True)
+        proto, "constructor", PropertyDescriptor(value=cstr, writable=True, enumerable=False, configurable=True)
     )
     DefinePropertyOrThrow(
-        cstr, "prototype", PropertyDescriptor(value=cstr, writable=False, enumerable=False, configurable=False)
+        cstr, "prototype", PropertyDescriptor(value=proto, writable=False, enumerable=False, configurable=False)
     )
 
 
@@ -38985,6 +39015,8 @@ def CreateTypedArrayPrototype(realm: Realm) -> JSObject:
             ("buffer", TypedArrayPrototype_getBuffer, None),
             ("byteLength", TypedArrayPrototype_getByteLength, None),
             ("byteOffset", TypedArrayPrototype_getByteOffset, None),
+            ("length", TypedArrayPrototype_getLength, None),
+            (wks_to_string_tag, TypedArrayPrototyope_getToStringTag, None),
         ),
     )
     BindBuiltinFunctions(
@@ -38997,9 +39029,35 @@ def CreateTypedArrayPrototype(realm: Realm) -> JSObject:
             ("fill", TypedArrayPrototype_fill, None),
             ("filter", TypedArrayPrototype_filter, None),
             ("find", TypedArrayPrototype_find, None),
+            ("findIndex", TypedArrayPrototype_findIndex, None),
+            ("forEach", TypedArrayPrototype_forEach, None),
+            ("includes", TypedArrayPrototype_includes, None),
+            ("indexOf", TypedArrayPrototype_indexOf, None),
+            ("join", TypedArrayPrototype_join, None),
+            ("keys", TypedArrayPrototype_keys, None),
+            ("lastIndexOf", TypedArrayPrototype_lastIndexOf, None),
+            ("map", TypedArrayPrototype_map, None),
+            ("reduce", TypedArrayPrototype_reduce, None),
+            ("reduceRight", TypedArrayPrototype_reduceRight, None),
+            ("reverse", TypedArrayPrototype_reverse, None),
+            ("set", TypedArrayPrototype_set, None),
             ("slice", TypedArrayPrototype_slice, None),
+            ("some", TypedArrayPrototype_some, None),
+            ("sort", TypedArrayPrototype_sort, None),
+            ("subarray", TypedArrayPrototype_subarray, None),
+            ("toLocaleString", TypedArrayPrototype_toLocaleString, None),
+            ("values", TypedArrayPrototype_values, None),
         ),
     )
+    # 22.2.3.29 %TypedArray%.prototype.toString ( )
+    # The initial value of the %TypedArray%.prototype.toString data property is the same built-in function object as
+    # the Array.prototype.toString method defined in 22.1.3.30.
+    DefinePropertyOrThrow(obj, "toString", OrdinaryGetOwnProperty(realm.intrinsics["%ArrayPrototype%"], "toString"))
+
+    # 22.2.3.31 %TypedArray%.prototype [ @@iterator ] ( )
+    # The initial value of the @@iterator property is the same function object as the initial value of the
+    # %TypedArray%.prototype.values property.
+    DefinePropertyOrThrow(obj, wks_iterator, OrdinaryGetOwnProperty(obj, "values"))
     return obj
 
 
@@ -39070,6 +39128,7 @@ def TypedArrayPrototype_getByteOffset(this_value, new_target, *_):
 
 TypedArrayPrototype_getByteOffset.length = 0
 TypedArrayPrototype_getByteOffset.name = "get byteOffset"
+
 
 # 22.2.3.5 %TypedArray%.prototype.copyWithin ( target, start [ , end ] )
 def TypedArrayPrototype_copyWithin(this_value, new_target, target=None, start=None, end=None, *_):
@@ -39154,7 +39213,7 @@ def TypedArrayPrototype_copyWithin(this_value, new_target, target=None, start=No
             fromByteIndex += direction
             toByteIndex += direction
             countBytes -= 1
-        return O
+    return O
 
 
 TypedArrayPrototype_copyWithin.length = 2
@@ -39170,7 +39229,7 @@ def ValidateTypedArray(O: JSValue, whoami: str):
     #   5. If IsDetachedBuffer(buffer) is true, throw a TypeError exception.
     #   6. Return buffer.
     if not isObject(O) or not hasattr(O, "TypedArrayName"):
-        raise ESTypeError(f"{whoami} called with invalid receiver {ToString(O)}")
+        raise ESTypeError(f"{whoami} called with invalid receiver ({ToRepr(O)})")
     assert hasattr(O, "ViewedArrayBuffer")
     buffer = O.ViewedArrayBuffer
     if IsDetachedBuffer(buffer):
@@ -39193,6 +39252,7 @@ def TypedArrayPrototype_entries(this_value, new_target, *_):
 TypedArrayPrototype_entries.length = 0
 TypedArrayPrototype_entries.name = "entries"
 
+
 # 22.2.3.7 %TypedArray%.prototype.every ( callbackfn [ , thisArg ] )
 def TypedArrayPrototype_every(this_value, new_target, callbackfn=None, thisArg=None, *_):
     # %TypedArray%.prototype.every is a distinct function that implements the same algorithm as
@@ -39208,9 +39268,9 @@ def TypedArrayPrototype_every(this_value, new_target, callbackfn=None, thisArg=N
     ValidateTypedArray(this_value, "%TypedArray%.prototype.every")
     len_ = this_value.ArrayLength
     if not IsCallable(callbackfn):
-        raise ESTypeError(f"%TypedArray%.prototype.every called with non-function {ToString(callbackfn)}")
+        raise ESTypeError(f"%TypedArray%.prototype.every called with non-function {ToRepr(callbackfn)}")
     for value, index in ((Get(this_value, ToString(k)), k) for k in range(len_)):
-        testResult = Call(callbackfn, thisArg, [value, index, this_value])
+        testResult = ToBoolean(Call(callbackfn, thisArg, [value, index, this_value]))
         if not testResult:
             return False
     return True
@@ -39299,10 +39359,10 @@ def TypedArrayPrototype_filter(O, new_target, callbackfn=None, T=None, *_):
     ValidateTypedArray(O, "%TypedArray%.prototype.filter")
     if not IsCallable(callbackfn):
         raise ESTypeError(f"%TypedArray%.prototype.filter callback must be callable")
-    kept = [val for k in range(O.ArrayLength) if ToBoolean(Call(callbackfn, T, [val := Get(O, ToString(k)), k, O]))]
+    kept = [val for k in range(O.ArrayLength) if ToBoolean(Call(callbackfn, T, [val := Get(O, str(k)), k, O]))]
     A = TypedArraySpeciesCreate(O, [len(kept)])
     for n, e in enumerate(kept):
-        Set(A, ToString(n), e, True)
+        Set(A, str(n), e, True)
     return A
 
 
@@ -39324,15 +39384,538 @@ def TypedArrayPrototype_find(O, new_target, predicate=None, T=None, *_):
     ValidateTypedArray(O, "%TypedArray%.prototype.find")
     if not IsCallable(predicate):
         raise ESTypeError("%TypedArray%.prototype.find needs a callable predicate")
-    for k in range(O.ArrayLength):
-        kValue = Get(O, ToString(k))
-        if ToBoolean(Call(predicate, T, [kValue, k, O])):
-            return kValue
-    return None
+    try:
+        return first(
+            kValue for k in range(O.ArrayLength) if ToBoolean(Call(predicate, T, [kValue := Get(O, str(k)), k, O]))
+        )
+    except StopIteration:
+        return None
 
 
 TypedArrayPrototype_find.length = 1
 TypedArrayPrototype_find.name = "find"
+
+# 22.2.3.11 %TypedArray%.prototype.findIndex ( predicate [ , thisArg ] )
+def TypedArrayPrototype_findIndex(O, new_target, predicate=None, T=None, *_):
+    # %TypedArray%.prototype.findIndex is a distinct function that implements the same algorithm as
+    # Array.prototype.findIndex as defined in 22.1.3.9 except that the this object's [[ArrayLength]] internal slot
+    # is accessed in place of performing a [[Get]] of "length". The implementation of the algorithm may be optimized
+    # with the knowledge that the this value is an object that has a fixed length and whose integer-indexed
+    # properties are not sparse. However, such optimization must not introduce any observable changes in the
+    # specified behaviour of the algorithm and must take into account the possibility that calls to predicate may
+    # cause the this value to become detached.
+    #
+    # This function is not generic. ValidateTypedArray is applied to the this value prior to evaluating the
+    # algorithm. If its result is an abrupt completion that exception is thrown instead of evaluating the algorithm.
+    ValidateTypedArray(O, "%TypedArray%.prototype.findIndex")
+    if not IsCallable(predicate):
+        raise ESTypeError("%TypedArray%.prototype.findIndex: predicate must be callable")
+    try:
+        return first(k for k in range(O.ArrayLength) if ToBoolean(Call(predicate, T, [Get(O, str(k)), k, O])))
+    except StopIteration:
+        return -1
+
+
+TypedArrayPrototype_findIndex.name = "findIndex"
+TypedArrayPrototype_findIndex.length = 1
+
+# 22.2.3.12 %TypedArray%.prototype.forEach ( callbackfn [ , thisArg ] )
+def TypedArrayPrototype_forEach(O, new_target, callbackfn=None, T=None, *_):
+    # %TypedArray%.prototype.forEach is a distinct function that implements the same algorithm as
+    # Array.prototype.forEach as defined in 22.1.3.12 except that the this object's [[ArrayLength]] internal slot is
+    # accessed in place of performing a [[Get]] of "length". The implementation of the algorithm may be optimized
+    # with the knowledge that the this value is an object that has a fixed length and whose integer-indexed
+    # properties are not sparse. However, such optimization must not introduce any observable changes in the
+    # specified behaviour of the algorithm and must take into account the possibility that calls to callbackfn may
+    # cause the this value to become detached.
+    #
+    # This function is not generic. ValidateTypedArray is applied to the this value prior to evaluating the
+    # algorithm. If its result is an abrupt completion that exception is thrown instead of evaluating the algorithm.
+    ValidateTypedArray(O, "%TypedArray%.prototype.forEach")
+    if not IsCallable(callbackfn):
+        raise ESTypeError("%TypedArray%.prototype.forEach: callbackfn must be callable")
+    for k in range(O.ArrayLength):
+        Call(callbackfn, T, [Get(O, str(k)), k, O])
+    return None
+
+
+TypedArrayPrototype_forEach.name = "forEach"
+TypedArrayPrototype_forEach.length = 1
+
+# 22.2.3.13 %TypedArray%.prototype.includes ( searchElement [ , fromIndex ] )
+def TypedArrayPrototype_includes(O, new_target, searchElement=None, fromIndex=None, *_):
+    # %TypedArray%.prototype.includes is a distinct function that implements the same algorithm as
+    # Array.prototype.includes as defined in 22.1.3.13 except that the this object's [[ArrayLength]] internal slot
+    # is accessed in place of performing a [[Get]] of "length". The implementation of the algorithm may be optimized
+    # with the knowledge that the this value is an object that has a fixed length and whose integer-indexed
+    # properties are not sparse. However, such optimization must not introduce any observable changes in the
+    # specified behaviour of the algorithm.
+    #
+    # This function is not generic. ValidateTypedArray is applied to the this value prior to evaluating the
+    # algorithm. If its result is an abrupt completion that exception is thrown instead of evaluating the algorithm.
+    ValidateTypedArray(O, "%TypedArray%.prototype.includes")
+    length = O.ArrayLength
+    if length == 0:
+        return False
+    n = ToInteger(fromIndex)
+    if n >= 0:
+        startIdx = int(min(n, length))
+    else:
+        startIdx = int(max(0, length + n))
+    return any(SameValueZero(searchElement, Get(O, str(k))) for k in range(startIdx, length))
+
+
+TypedArrayPrototype_includes.name = "includes"
+TypedArrayPrototype_includes.length = 1
+
+# 22.2.3.14 %TypedArray%.prototype.indexOf ( searchElement [ , fromIndex ] )
+def TypedArrayPrototype_indexOf(O, new_target, searchElement=None, fromIndex=None, *_):
+    # %TypedArray%.prototype.indexOf is a distinct function that implements the same algorithm as
+    # Array.prototype.indexOf as defined in 22.1.3.14 except that the this object's [[ArrayLength]] internal slot is
+    # accessed in place of performing a [[Get]] of "length". The implementation of the algorithm may be optimized
+    # with the knowledge that the this value is an object that has a fixed length and whose integer-indexed
+    # properties are not sparse. However, such optimization must not introduce any observable changes in the
+    # specified behaviour of the algorithm.
+    #
+    # This function is not generic. ValidateTypedArray is applied to the this value prior to evaluating the
+    # algorithm. If its result is an abrupt completion that exception is thrown instead of evaluating the algorithm.
+    ValidateTypedArray(O, "%TypedArray%.prototype.indexOf")
+    length = O.ArrayLength
+    if length == 0:
+        return -1
+    n = ToInteger(fromIndex)
+    if n >= 0:
+        startIdx = int(min(n, length))
+    else:
+        startIdx = int(max(0, length + n))
+    try:
+        return first(k for k in range(startIdx, length) if StrictEqualityComparison(searchElement, Get(O, str(k))))
+    except StopIteration:
+        return -1
+
+
+TypedArrayPrototype_indexOf.name = "indexOf"
+TypedArrayPrototype_indexOf.length = 1
+
+# 22.2.3.15 %TypedArray%.prototype.join ( separator )
+def TypedArrayPrototype_join(O, new_target, separator=None, *_):
+    # %TypedArray%.prototype.join is a distinct function that implements the same algorithm as Array.prototype.join
+    # as defined in 22.1.3.15 except that the this object's [[ArrayLength]] internal slot is accessed in place of
+    # performing a [[Get]] of "length". The implementation of the algorithm may be optimized with the knowledge that
+    # the this value is an object that has a fixed length and whose integer-indexed properties are not sparse.
+    # However, such optimization must not introduce any observable changes in the specified behaviour of the
+    # algorithm.
+    #
+    # This function is not generic. ValidateTypedArray is applied to the this value prior to evaluating the
+    # algorithm. If its result is an abrupt completion that exception is thrown instead of evaluating the algorithm.
+    ValidateTypedArray(O, "%TypedArray%.prototype.join")
+    length = O.ArrayLength
+    sep = ToString(separator) if separator is not None else ","
+    return sep.join(
+        "" if element is None or isNull(element) else ToString(element)
+        for element in (Get(O, str(k)) for k in range(length))
+    )
+
+
+TypedArrayPrototype_join.name = "join"
+TypedArrayPrototype_join.length = 1
+
+
+# 22.2.3.16 %TypedArray%.prototype.keys ( )
+def TypedArrayPrototype_keys(O, new_target, *_):
+    # The following steps are taken:
+    #   1. Let O be the this value.
+    #   2. Perform ? ValidateTypedArray(O).
+    #   3. Return CreateArrayIterator(O, "key").
+    ValidateTypedArray(O, "%TypedArray%.prototype.keys")
+    return CreateArrayIterator(O, "key")
+
+
+TypedArrayPrototype_keys.name = "keys"
+TypedArrayPrototype_keys.length = 0
+
+
+# 22.2.3.17 %TypedArray%.prototype.lastIndexOf ( searchElement [ , fromIndex ] )
+def TypedArrayPrototype_lastIndexOf(O, new_target, searchElement=None, fromIndex=..., *_):
+    # %TypedArray%.prototype.lastIndexOf is a distinct function that implements the same algorithm as
+    # Array.prototype.lastIndexOf as defined in 22.1.3.17 except that the this object's [[ArrayLength]] internal
+    # slot is accessed in place of performing a [[Get]] of "length". The implementation of the algorithm may be
+    # optimized with the knowledge that the this value is an object that has a fixed length and whose
+    # integer-indexed properties are not sparse. However, such optimization must not introduce any observable
+    # changes in the specified behaviour of the algorithm.
+    #
+    # This function is not generic. ValidateTypedArray is applied to the this value prior to evaluating the
+    # algorithm. If its result is an abrupt completion that exception is thrown instead of evaluating the algorithm.
+    ValidateTypedArray(O, "%TypedArray%.prototype.lastIndexOf")
+    length = O.ArrayLength
+    if length == 0:
+        return -1
+    if fromIndex is not ...:
+        n = ToInteger(fromIndex)
+    else:
+        n = length - 1
+    if n >= 0:
+        startIdx = int(min(n, length - 1))
+    else:
+        startIdx = int(max(-1, length + n))
+    try:
+        return first(k for k in range(startIdx, -1, -1) if StrictEqualityComparison(searchElement, Get(O, str(k))))
+    except StopIteration:
+        return -1
+
+
+TypedArrayPrototype_lastIndexOf.name = "lastIndexOf"
+TypedArrayPrototype_lastIndexOf.length = 1
+
+# 22.2.3.18 get %TypedArray%.prototype.length
+def TypedArrayPrototype_getLength(this_value, new_target, *_):
+    # %TypedArray%.prototype.length is an accessor property whose set accessor function is undefined. Its get
+    # accessor function performs the following steps:
+    #   1. Let O be the this value.
+    #   2. If Type(O) is not Object, throw a TypeError exception.
+    #   3. If O does not have a [[TypedArrayName]] internal slot, throw a TypeError exception.
+    #   4. Assert: O has [[ViewedArrayBuffer]] and [[ArrayLength]] internal slots.
+    #   5. Let buffer be O.[[ViewedArrayBuffer]].
+    #   6. If IsDetachedBuffer(buffer) is true, return 0.
+    #   7. Let length be O.[[ArrayLength]].
+    #   8. Return length.
+    # This function is not generic. The this value must be an object with a [[TypedArrayName]] internal slot.
+    if not isObject(this_value) or not hasattr(this_value, "TypedArrayName"):
+        raise ESTypeError("%TypedArray%.prototype.length used with improper object")
+    buffer = this_value.ViewedArrayBuffer
+    if IsDetachedBuffer(buffer):
+        return 0
+    return this_value.ArrayLength
+
+
+TypedArrayPrototype_getLength.name = "get length"
+TypedArrayPrototype_getLength.length = 0
+
+
+# 22.2.3.19 %TypedArray%.prototype.map ( callbackfn [ , thisArg ] )
+def TypedArrayPrototype_map(O, new_target, callbackfn=None, T=None, *_):
+    # The interpretation and use of the arguments of %TypedArray%.prototype.map are the same as for
+    # Array.prototype.map as defined in 22.1.3.18.
+    #
+    # When the map method is called with one or two arguments, the following steps are taken:
+    #   1. Let O be the this value.
+    #   2. Perform ? ValidateTypedArray(O).
+    #   3. Let len be O.[[ArrayLength]].
+    #   4. If IsCallable(callbackfn) is false, throw a TypeError exception.
+    #   5. If thisArg is present, let T be thisArg; else let T be undefined.
+    #   6. Let A be ? TypedArraySpeciesCreate(O, « len »).
+    #   7. Let k be 0.
+    #   8. Repeat, while k < len
+    #       a. Let Pk be ! ToString(k).
+    #       b. Let kValue be ? Get(O, Pk).
+    #       c. Let mappedValue be ? Call(callbackfn, T, « kValue, k, O »).
+    #       d. Perform ? Set(A, Pk, mappedValue, true).
+    #       e. Increase k by 1.
+    #   9. Return A.
+    # This function is not generic. The this value must be an object with a [[TypedArrayName]] internal slot.
+    ValidateTypedArray(O, "%TypedArray%.prototype.map")
+    length = O.ArrayLength
+    if not IsCallable(callbackfn):
+        raise ESTypeError(f"%TypedArray%.prototype.map: callbackfn must be callable ({ToRepr(callbackfn)})")
+    A = TypedArraySpeciesCreate(O, [length])
+    for k in range(length):
+        Pk = str(k)
+        kValue = Get(O, Pk)
+        mappedValue = Call(callbackfn, T, [kValue, k, O])
+        Set(A, Pk, mappedValue, True)
+    return A
+
+
+TypedArrayPrototype_map.name = "map"
+TypedArrayPrototype_map.length = 1
+
+
+# 22.2.3.20 %TypedArray%.prototype.reduce ( callbackfn [ , initialValue ] )
+def TypedArrayPrototype_reduce(O, new_target, callbackfn=None, initialValue=..., *_):
+    # %TypedArray%.prototype.reduce is a distinct function that implements the same algorithm as
+    # Array.prototype.reduce as defined in 22.1.3.21 except that the this object's [[ArrayLength]] internal slot is
+    # accessed in place of performing a [[Get]] of "length". The implementation of the algorithm may be optimized
+    # with the knowledge that the this value is an object that has a fixed length and whose integer-indexed
+    # properties are not sparse. However, such optimization must not introduce any observable changes in the
+    # specified behaviour of the algorithm and must take into account the possibility that calls to callbackfn may
+    # cause the this value to become detached.
+    #
+    # This function is not generic. ValidateTypedArray is applied to the this value prior to evaluating the
+    # algorithm. If its result is an abrupt completion that exception is thrown instead of evaluating the algorithm.
+    ValidateTypedArray(O, "%TypedArray%.prototype.reduce")
+    length = O.ArrayLength
+    if not IsCallable(callbackfn):
+        raise ESTypeError(f"%TypedArray%.prototype.reduce: callbackfn must be callable ({ToRepr(callbackfn)})")
+    if initialValue is not ...:
+        accumulator = initialValue
+        startIdx = 0
+    else:
+        if length == 0:
+            raise ESTypeError(f"%TypedArray%.prototype.reduce: empty sequence and no initial value")
+        accumulator = Get(O, "0")
+        startIdx = 1
+    for k in range(startIdx, length):
+        accumulator = Call(callbackfn, None, [accumulator, Get(O, str(k)), k, O])
+    return accumulator
+
+
+TypedArrayPrototype_reduce.name = "reduce"
+TypedArrayPrototype_reduce.length = 1
+
+
+# 22.2.3.21 %TypedArray%.prototype.reduceRight ( callbackfn [ , initialValue ] )
+def TypedArrayPrototype_reduceRight(O, new_target, callbackfn=None, initialValue=..., *_):
+    # %TypedArray%.prototype.reduceRight is a distinct function that implements the same algorithm as
+    # Array.prototype.reduceRight as defined in 22.1.3.22 except that the this object's [[ArrayLength]] internal
+    # slot is accessed in place of performing a [[Get]] of "length". The implementation of the algorithm may be
+    # optimized with the knowledge that the this value is an object that has a fixed length and whose
+    # integer-indexed properties are not sparse. However, such optimization must not introduce any observable
+    # changes in the specified behaviour of the algorithm and must take into account the possibility that calls to
+    # callbackfn may cause the this value to become detached.
+    #
+    # This function is not generic. ValidateTypedArray is applied to the this value prior to evaluating the
+    # algorithm. If its result is an abrupt completion that exception is thrown instead of evaluating the algorithm.
+    ValidateTypedArray(O, "%TypedArray%.prototype.reduceRight")
+    length = O.ArrayLength
+    if not IsCallable(callbackfn):
+        raise ESTypeError(f"%TypedArray%.prototype.reduceRight: callbackfn must be callable ({ToRepr(callbackfn)})")
+    if length == 0 and initialValue is ...:
+        raise ESTypeError(f"%TypedArray%.prototype.reduceRight: sequence of zero elements and no initial value")
+    startIdx = length - 1
+    if initialValue is not ...:
+        accumulator = initialValue
+    else:
+        accumulator = Get(O, str(startIdx))
+        startIdx -= 1
+    for k in range(startIdx, -1, -1):
+        accumulator = Call(callbackfn, None, [accumulator, Get(O, str(k)), k, O])
+    return accumulator
+
+
+TypedArrayPrototype_reduceRight.name = "reduceRight"
+TypedArrayPrototype_reduceRight.length = 1
+
+
+# 22.2.3.22 %TypedArray%.prototype.reverse ( )
+def TypedArrayPrototype_reverse(O, new_target, *_):
+    # %TypedArray%.prototype.reverse is a distinct function that implements the same algorithm as
+    # Array.prototype.reverse as defined in 22.1.3.23 except that the this object's [[ArrayLength]] internal slot
+    # is accessed in place of performing a [[Get]] of "length". The implementation of the algorithm may be optimized
+    # with the knowledge that the this value is an object that has a fixed length and whose integer-indexed
+    # properties are not sparse. However, such optimization must not introduce any observable changes in the
+    # specified behaviour of the algorithm.
+    #
+    # This function is not generic. ValidateTypedArray is applied to the this value prior to evaluating the
+    # algorithm. If its result is an abrupt completion that exception is thrown instead of evaluating the algorithm.
+    ValidateTypedArray(O, "%TypedArray%.prototype.reverse")
+    length = O.ArrayLength
+    middle = length // 2
+    for lower in range(middle):
+        upper = length - lower - 1
+        upperValue = Get(O, str(upper))
+        lowerValue = Get(O, str(lower))
+        Set(O, str(lower), upperValue, True)
+        Set(O, str(upper), lowerValue, True)
+    return O
+
+
+TypedArrayPrototype_reverse.name = "reverse"
+TypedArrayPrototype_reverse.length = 0
+
+# 22.2.3.23 %TypedArray%.prototype.set ( overloaded [ , offset ] )
+def TypedArrayPrototype_set(this_value, new_target, overloaded=None, offset=None, *_):
+    # %TypedArray%.prototype.set is a single function whose behaviour is overloaded based upon the type of its first
+    # argument.
+    #
+    # This function is not generic. The this value must be an object with a [[TypedArrayName]] internal slot.
+    if isObject(overloaded) and hasattr(overloaded, "TypedArrayName"):
+        return TAP_set_TA(this_value, overloaded, offset)
+    return TAP_set_other(this_value, overloaded, offset)
+
+
+TypedArrayPrototype_set.name = "set"
+TypedArrayPrototype_set.length = 1
+
+# 22.2.3.23.1 %TypedArray%.prototype.set ( array [ , offset ] )
+def TAP_set_other(target, array, offset):
+    # Sets multiple values in this TypedArray, reading the values from the object array. The optional offset value
+    # indicates the first element index in this TypedArray where values are written. If omitted, it is assumed to be
+    # 0.
+    #
+    #   1. Assert: array is any ECMAScript language value other than an Object with a [[TypedArrayName]] internal
+    #      slot. If it is such an Object, the definition in 22.2.3.23.2 applies.
+    #   2. Let target be the this value.
+    #   3. If Type(target) is not Object, throw a TypeError exception.
+    #   4. If target does not have a [[TypedArrayName]] internal slot, throw a TypeError exception.
+    #   5. Assert: target has a [[ViewedArrayBuffer]] internal slot.
+    #   6. Let targetOffset be ? ToInteger(offset).
+    #   7. If targetOffset < 0, throw a RangeError exception.
+    #   8. Let targetBuffer be target.[[ViewedArrayBuffer]].
+    #   9. If IsDetachedBuffer(targetBuffer) is true, throw a TypeError exception.
+    #   10. Let targetLength be target.[[ArrayLength]].
+    #   11. Let targetName be the String value of target.[[TypedArrayName]].
+    #   12. Let targetElementSize be the Number value of the Element Size value specified in Table 59 for
+    #       targetName.
+    #   13. Let targetType be the String value of the Element Type value in Table 59 for targetName.
+    #   14. Let targetByteOffset be target.[[ByteOffset]].
+    #   15. Let src be ? ToObject(array).
+    #   16. Let srcLength be ? ToLength(? Get(src, "length")).
+    #   17. If srcLength + targetOffset > targetLength, throw a RangeError exception.
+    #   18. Let targetByteIndex be targetOffset × targetElementSize + targetByteOffset.
+    #   19. Let k be 0.
+    #   20. Let limit be targetByteIndex + targetElementSize × srcLength.
+    #   21. Repeat, while targetByteIndex < limit
+    #       a. Let Pk be ! ToString(k).
+    #       b. Let kNumber be ? ToNumber(? Get(src, Pk)).
+    #       c. If IsDetachedBuffer(targetBuffer) is true, throw a TypeError exception.
+    #       d. Perform SetValueInBuffer(targetBuffer, targetByteIndex, targetType, kNumber, true, "Unordered").
+    #       e. Increase k by 1.
+    #       f. Set targetByteIndex to targetByteIndex + targetElementSize.
+    #   22. Return undefined.
+    if not isObject(target) or not hasattr(target, "TypedArrayName"):
+        raise ESTypeError(f"%TypedArray%.prototype.set: receiver must be a TypedArray ({ToRepr(target)})")
+    targetOffset = ToInteger(offset)
+    if targetOffset < 0:
+        raise ESRangeError(f"%TypedArray%.prototype.set: offset ({targetOffset}) must be non-negative")
+    targetBuffer = target.ViewedArrayBuffer
+    if IsDetachedBuffer(targetBuffer):
+        raise ESTypeError("%TypedArray%.prototype.set: Buffer is detached")
+    targetLength = target.ArrayLength
+    targetName = target.TypedArrayName
+    targetElementSize = TA_ElementSize[targetName]
+    targetType = TA_ElementTypeName[targetName]
+    targetByteOffset = target.ByteOffset
+    src = ToObject(array)
+    srcLength = ToLength(Get(src, "length"))
+    if srcLength + targetOffset > targetLength:
+        raise ESRangeError(
+            f"%TypedArray%.prototype.set: offset ({targetOffset}) too large (max is {targetLength - srcLength})"
+        )
+    targetByteIndex = targetOffset * targetElementSize + targetByteOffset
+    k = 0
+    limit = targetByteIndex + targetElementSize * srcLength
+    while targetByteIndex < limit:
+        Pk = str(k)
+        kNumber = ToNumber(Get(src, Pk))
+        if IsDetachedBuffer(targetBuffer):
+            raise ESTypeError("%TypedArray%.prototype.set: Buffer was detached during execution")
+        SetValueInBuffer(targetBuffer, targetByteIndex, targetType, kNumber, True, "Unordered")
+        k += 1
+        targetByteIndex += targetElementSize
+    return None
+
+
+# 22.2.3.23.2 %TypedArray%.prototype.set ( typedArray [ , offset ] )
+def TAP_set_TA(target, typedArray, offset):
+    # Sets multiple values in this TypedArray, reading the values from the typedArray argument object. The optional
+    # offset value indicates the first element index in this TypedArray where values are written. If omitted, it is
+    # assumed to be 0.
+    #
+    #   1. Assert: typedArray has a [[TypedArrayName]] internal slot. If it does not, the definition in 22.2.3.23.1
+    #      applies.
+    #   2. Let target be the this value.
+    #   3. If Type(target) is not Object, throw a TypeError exception.
+    #   4. If target does not have a [[TypedArrayName]] internal slot, throw a TypeError exception.
+    #   5. Assert: target has a [[ViewedArrayBuffer]] internal slot.
+    #   6. Let targetOffset be ? ToInteger(offset).
+    #   7. If targetOffset < 0, throw a RangeError exception.
+    #   8. Let targetBuffer be target.[[ViewedArrayBuffer]].
+    #   9. If IsDetachedBuffer(targetBuffer) is true, throw a TypeError exception.
+    #   10. Let targetLength be target.[[ArrayLength]].
+    #   11. Let srcBuffer be typedArray.[[ViewedArrayBuffer]].
+    #   12. If IsDetachedBuffer(srcBuffer) is true, throw a TypeError exception.
+    #   13. Let targetName be the String value of target.[[TypedArrayName]].
+    #   14. Let targetType be the String value of the Element Type value in Table 59 for targetName.
+    #   15. Let targetElementSize be the Number value of the Element Size value specified in Table 59 for
+    #       targetName.
+    #   16. Let targetByteOffset be target.[[ByteOffset]].
+    #   17. Let srcName be the String value of typedArray.[[TypedArrayName]].
+    #   18. Let srcType be the String value of the Element Type value in Table 59 for srcName.
+    #   19. Let srcElementSize be the Number value of the Element Size value specified in Table 59 for srcName.
+    #   20. Let srcLength be typedArray.[[ArrayLength]].
+    #   21. Let srcByteOffset be typedArray.[[ByteOffset]].
+    #   22. If srcLength + targetOffset > targetLength, throw a RangeError exception.
+    #   23. If both IsSharedArrayBuffer(srcBuffer) and IsSharedArrayBuffer(targetBuffer) are true, then
+    #       a. If srcBuffer.[[ArrayBufferData]] and targetBuffer.[[ArrayBufferData]] are the same Shared Data Block
+    #          values, let same be true; else let same be false.
+    #   24. Else, let same be SameValue(srcBuffer, targetBuffer).
+    #   25. If same is true, then
+    #       a. Let srcByteLength be typedArray.[[ByteLength]].
+    #       b. Set srcBuffer to ? CloneArrayBuffer(srcBuffer, srcByteOffset, srcByteLength, %ArrayBuffer%).
+    #       c. NOTE: %ArrayBuffer% is used to clone srcBuffer because is it known to not have any observable
+    #          side-effects.
+    #       d. Let srcByteIndex be 0.
+    #   26. Else, let srcByteIndex be srcByteOffset.
+    #   27. Let targetByteIndex be targetOffset × targetElementSize + targetByteOffset.
+    #   28. Let limit be targetByteIndex + targetElementSize × srcLength.
+    #   29. If SameValue(srcType, targetType) is true, then
+    #       a. NOTE: If srcType and targetType are the same, the transfer must be performed in a manner that
+    #          preserves the bit-level encoding of the source data.
+    #       b. Repeat, while targetByteIndex < limit
+    #           i. Let value be GetValueFromBuffer(srcBuffer, srcByteIndex, "Uint8", true, "Unordered").
+    #           ii. Perform SetValueInBuffer(targetBuffer, targetByteIndex, "Uint8", value, true, "Unordered").
+    #           iii. Increase srcByteIndex by 1.
+    #           iv. Increase targetByteIndex by 1.
+    #   30. Else,
+    #       a. Repeat, while targetByteIndex < limit
+    #           i. Let value be GetValueFromBuffer(srcBuffer, srcByteIndex, srcType, true, "Unordered").
+    #           ii. Perform SetValueInBuffer(targetBuffer, targetByteIndex, targetType, value, true, "Unordered").
+    #           iii. Set srcByteIndex to srcByteIndex + srcElementSize.
+    #           iv. Set targetByteIndex to targetByteIndex + targetElementSize.
+    #   31. Return undefined.
+    if not isObject(target) or not hasattr(target, "TypedArrayName"):
+        raise ESTypeError(f"%TypedArray%.prototype.set: receiver must be a TypedArray. ({ToRepr(target)})")
+    targetOffset = ToInteger(offset)
+    if targetOffset < 0:
+        raise ESRangeError(f"%TypedArray%.prototype.set: offset ({targetOffset}) too low")
+    targetBuffer = target.ViewedArrayBuffer
+    if IsDetachedBuffer(targetBuffer):
+        raise ESTypeError(f"%TypedArray%.prototype.set: target is detached")
+    targetLength = target.ArrayLength
+    srcBuffer = typedArray.ViewedArrayBuffer
+    if IsDetachedBuffer(srcBuffer):
+        raise ESTypeError(f"%TypedArray%.prototype.set: src is detached")
+    targetName = target.TypedArrayName
+    targetType = TA_ElementTypeName[targetName]
+    targetElementSize = TA_ElementSize[targetName]
+    targetByteOffset = target.ByteOffset
+    srcName = typedArray.TypedArrayName
+    srcType = TA_ElementTypeName[srcName]
+    srcElementSize = TA_ElementSize[srcName]
+    srcLength = typedArray.ArrayLength
+    srcByteOffset = typedArray.ByteOffset
+    if srcLength + targetOffset > targetLength:
+        raise ESRangeError(
+            f"%TypedArray%.prototype.set: offset too large ({targetOffset}). (Max: {targetLength - srcLength})"
+        )
+    if IsSharedArrayBuffer(srcBuffer) and IsSharedArrayBuffer(targetBuffer):
+        same = srcBuffer.ArrayBufferData == targetBuffer.ArrayBufferData
+    else:
+        same = SameValue(srcBuffer, targetBuffer)
+    if same:
+        srcByteLength = typedArray.ByteLength
+        srcBuffer = CloneArrayBuffer(
+            srcBuffer, srcByteOffset, srcByteLength, surrounding_agent.running_ec.realm.intrinsics["%ArrayBuffer%"]
+        )
+        srcByteIndex = 0
+    else:
+        srcByteIndex = srcByteOffset
+    targetByteIndex = targetOffset * targetElementSize + targetByteOffset
+    limit = targetByteIndex + targetElementSize * srcLength
+    if SameValue(srcType, targetType):
+        while targetByteIndex < limit:
+            value = GetValueFromBuffer(srcBuffer, srcByteIndex, "Uint8", True, "Unordered")
+            SetValueInBuffer(targetBuffer, targetByteIndex, "Uint8", value, True, "Unordered")
+            srcByteIndex += 1
+            targetByteIndex += 1
+    else:
+        while targetByteIndex < limit:
+            value = GetValueFromBuffer(srcBuffer, srcByteIndex, srcType, True, "Unordered")
+            SetValueInBuffer(targetBuffer, targetByteIndex, targetType, value, True, "Unordered")
+            srcByteIndex += srcElementSize
+            targetByteIndex += targetElementSize
+    return None
+
 
 # 22.2.3.24 %TypedArray%.prototype.slice ( start, end )
 def TypedArrayPrototype_slice(this_value, new_target, start=None, end=None, *_):
@@ -39418,6 +40001,234 @@ def TypedArrayPrototype_slice(this_value, new_target, start=None, end=None, *_):
 TypedArrayPrototype_slice.length = 2
 TypedArrayPrototype_slice.name = "slice"
 
+
+# 22.2.3.25 %TypedArray%.prototype.some ( callbackfn [ , thisArg ] )
+def TypedArrayPrototype_some(O, new_target, callbackfn=None, T=None, *_):
+    # %TypedArray%.prototype.some is a distinct function that implements the same algorithm as Array.prototype.some
+    # as defined in 22.1.3.26 except that the this object's [[ArrayLength]] internal slot is accessed in place of
+    # performing a [[Get]] of "length". The implementation of the algorithm may be optimized with the knowledge that
+    # the this value is an object that has a fixed length and whose integer-indexed properties are not sparse.
+    # However, such optimization must not introduce any observable changes in the specified behaviour of the
+    # algorithm and must take into account the possibility that calls to callbackfn may cause the this value to
+    # become detached.
+    #
+    # This function is not generic. ValidateTypedArray is applied to the this value prior to evaluating the
+    # algorithm. If its result is an abrupt completion that exception is thrown instead of evaluating the algorithm.
+    ValidateTypedArray(O, "%TypedArray%.prototype.some")
+    if not IsCallable(callbackfn):
+        raise ESTypeError(f"%TypedArray%.prototype.some: callbackfn must be callable. ({ToRepr(callbackfn)})")
+    return any(ToBoolean(Call(callbackfn, T, [Get(O, str(k)), k, O])) for k in range(O.ArrayLength))
+
+
+TypedArrayPrototype_some.name = "some"
+TypedArrayPrototype_some.length = 1
+
+
+# 22.2.3.26 %TypedArray%.prototype.sort ( comparefn )
+def TypedArrayPrototype_sort(obj, new_target, comparefn=None, *_):
+    # %TypedArray%.prototype.sort is a distinct function that, except as described below, implements the same
+    # requirements as those of Array.prototype.sort as defined in 22.1.3.27. The implementation of the
+    # %TypedArray%.prototype.sort specification may be optimized with the knowledge that the this value is an object
+    # that has a fixed length and whose integer-indexed properties are not sparse. The only internal methods of the
+    # this object that the algorithm may call are [[Get]] and [[Set]].
+    #
+    # This function is not generic. The this value must be an object with a [[TypedArrayName]] internal slot.
+    #
+    # Upon entry, the following steps are performed to initialize evaluation of the sort function. These steps are
+    # used instead of the entry steps in 22.1.3.27:
+    #
+    #   1. If comparefn is not undefined and IsCallable(comparefn) is false, throw a TypeError exception.
+    #   2. Let obj be the this value.
+    #   3. Let buffer be ? ValidateTypedArray(obj).
+    #   4. Let len be obj.[[ArrayLength]].
+    #
+    # The implementation-defined sort order condition for exotic objects is not applied by
+    # %TypedArray%.prototype.sort.
+    #
+    # The following version of SortCompare is used by %TypedArray%.prototype.sort. It performs a numeric comparison
+    # rather than the string comparison used in 22.1.3.27. SortCompare has access to the comparefn and buffer values
+    # of the current invocation of the sort method.
+    #
+    # When the TypedArray SortCompare abstract operation is called with two arguments x and y, the following steps
+    # are taken:
+    #
+    #   1. Assert: Both Type(x) and Type(y) is Number.
+    #   2. If comparefn is not undefined, then
+    #       a. Let v be ? ToNumber(? Call(comparefn, undefined, « x, y »)).
+    #       b. If IsDetachedBuffer(buffer) is true, throw a TypeError exception.
+    #       c. If v is NaN, return +0.
+    #       d. Return v.
+    #   3. If x and y are both NaN, return +0.
+    #   4. If x is NaN, return 1.
+    #   5. If y is NaN, return -1.
+    #   6. If x < y, return -1.
+    #   7. If x > y, return 1.
+    #   8. If x is -0 and y is +0, return -1.
+    #   9. If x is +0 and y is -0, return 1.
+    #   10. Return +0.
+    #
+    # NOTE  | Because NaN always compares greater than any other value, NaN property values always sort to the end
+    #       | of the result when comparefn is not provided.
+    if comparefn is not None and not IsCallable(comparefn):
+        raise ESTypeError(f"%TypedArray%.protoype.sort: comparefn must be callable ({ToRepr(comparefn)})")
+    buffer = ValidateTypedArray(obj, "%TypedArray%.prototype.sort")
+    data = [Get(obj, str(k)) for k in range(obj.ArrayLength)]
+
+    def SortCompare_with_function(x, y):
+        v = ToNumber(Call(comparefn, None, [x, y]))
+        if IsDetachedBuffer(buffer):
+            raise ESTypeError("%TypedArray%.prototype.sort: buffer detached during sort")
+        if math.isnan(v):
+            return 0
+        return v
+
+    def SortCompare_ordinary(x, y):
+        xnan = math.isnan(x)
+        ynan = math.isnan(y)
+        if xnan and ynan:
+            return 0
+        if xnan:
+            return 1
+        if ynan:
+            return -1
+        if x < y:
+            return -1
+        if x > y:
+            return 1
+        if x == 0:
+            xneg = math.copysign(1.0, x) == -1.0
+            yneg = math.copysign(1.0, y) == -1.0
+            if xneg and not yneg:
+                return -1
+            if yneg and not xneg:
+                return 1
+        return 0
+
+    SortCompare = SortCompare_with_function if comparefn is not None else SortCompare_ordinary
+    data.sort(key=cmp_to_key(SortCompare))
+    for k, val in enumerate(data):
+        Set(obj, str(k), val, True)
+    return obj
+
+
+TypedArrayPrototype_sort.name = "sort"
+TypedArrayPrototype_sort.length = 1
+
+
+# 22.2.3.27 %TypedArray%.prototype.subarray ( begin, end )
+def TypedArrayPrototype_subarray(O, new_target, begin=None, end=None, *_):
+    # Returns a new TypedArray object whose element type is the same as this TypedArray and whose ArrayBuffer is the
+    # same as the ArrayBuffer of this TypedArray, referencing the elements at begin, inclusive, up to end,
+    # exclusive. If either begin or end is negative, it refers to an index from the end of the array, as opposed to
+    # from the beginning.
+    #
+    #   1. Let O be the this value.
+    #   2. If Type(O) is not Object, throw a TypeError exception.
+    #   3. If O does not have a [[TypedArrayName]] internal slot, throw a TypeError exception.
+    #   4. Assert: O has a [[ViewedArrayBuffer]] internal slot.
+    #   5. Let buffer be O.[[ViewedArrayBuffer]].
+    #   6. Let srcLength be O.[[ArrayLength]].
+    #   7. Let relativeBegin be ? ToInteger(begin).
+    #   8. If relativeBegin < 0, let beginIndex be max((srcLength + relativeBegin), 0); else let beginIndex be
+    #      min(relativeBegin, srcLength).
+    #   9. If end is undefined, let relativeEnd be srcLength; else, let relativeEnd be ? ToInteger(end).
+    #   10. If relativeEnd < 0, let endIndex be max((srcLength + relativeEnd), 0); else let endIndex be
+    #       min(relativeEnd, srcLength).
+    #   11. Let newLength be max(endIndex - beginIndex, 0).
+    #   12. Let constructorName be the String value of O.[[TypedArrayName]].
+    #   13. Let elementSize be the Number value of the Element Size value specified in Table 59 for constructorName.
+    #   14. Let srcByteOffset be O.[[ByteOffset]].
+    #   15. Let beginByteOffset be srcByteOffset + beginIndex × elementSize.
+    #   16. Let argumentsList be « buffer, beginByteOffset, newLength ».
+    #   17. Return ? TypedArraySpeciesCreate(O, argumentsList).
+    #
+    # This function is not generic. The this value must be an object with a [[TypedArrayName]] internal slot.
+    if not isObject(O) or not hasattr(O, "TypedArrayName"):
+        raise ESTypeError(f"%TypedArray%.prototype.subarray: called with improper receiver ({ToRepr(O)})")
+    buffer = O.ViewedArrayBuffer
+    srcLength = O.ArrayLength
+    relativeBegin = ToInteger(begin)
+    if relativeBegin < 0:
+        beginIndex = int(max((srcLength + relativeBegin), 0))
+    else:
+        beginIndex = int(min(relativeBegin, srcLength))
+    if end is None:
+        relativeEnd = srcLength
+    else:
+        relativeEnd = ToInteger(end)
+    if relativeEnd < 0:
+        endIndex = int(max((srcLength + relativeEnd), 0))
+    else:
+        endIndex = int(min(relativeEnd, srcLength))
+    newLength = max(endIndex - beginIndex, 0)
+    constructorName = O.TypedArrayName
+    elementSize = TA_ElementSize[constructorName]
+    srcByteOffset = O.ByteOffset
+    beginByteOffset = srcByteOffset + beginIndex * elementSize
+    return TypedArraySpeciesCreate(O, [buffer, beginByteOffset, newLength])
+
+
+TypedArrayPrototype_subarray.name = "subarray"
+TypedArrayPrototype_subarray.length = 2
+
+
+# 22.2.3.28 %TypedArray%.prototype.toLocaleString ( [ reserved1 [ , reserved2 ] ] )
+def TypedArrayPrototype_toLocaleString(O, new_target, *_):
+    # %TypedArray%.prototype.toLocaleString is a distinct function that implements the same algorithm as
+    # Array.prototype.toLocaleString as defined in 22.1.3.29 except that the this object's [[ArrayLength]] internal
+    # slot is accessed in place of performing a [[Get]] of "length". The implementation of the algorithm may be
+    # optimized with the knowledge that the this value is an object that has a fixed length and whose
+    # integer-indexed properties are not sparse. However, such optimization must not introduce any observable
+    # changes in the specified behaviour of the algorithm.
+    #
+    # This function is not generic. ValidateTypedArray is applied to the this value prior to evaluating the
+    # algorithm. If its result is an abrupt completion that exception is thrown instead of evaluating the algorithm.
+    #
+    # NOTE  | If the ECMAScript implementation includes the ECMA-402 Internationalization API this function is based
+    #       | upon the algorithm for Array.prototype.toLocaleString that is in the ECMA-402 specification.
+    ValidateTypedArray(O, "%TypedArray%.prototype.toLocaleString")
+    return ",".join(ToString(Invoke(Get(O, str(k)), "toLocaleString")) for k in range(O.ArrayLength))
+
+
+TypedArrayPrototype_toLocaleString.name = "toLocaleString"
+TypedArrayPrototype_toLocaleString.length = 0
+
+
+# 22.2.3.30 %TypedArray%.prototype.values ( )
+def TypedArrayPrototype_values(O, new_target, *_):
+    # The following steps are taken:
+    #   1. Let O be the this value.
+    #   2. Perform ? ValidateTypedArray(O).
+    #   3. Return CreateArrayIterator(O, "value").
+    ValidateTypedArray(O, "%TypedArray%.prototype.values")
+    return CreateArrayIterator(O, "value")
+
+
+TypedArrayPrototype_values.name = "values"
+TypedArrayPrototype_values.length = 0
+
+
+# 22.2.3.32 get %TypedArray%.prototype [ @@toStringTag ]
+def TypedArrayPrototyope_getToStringTag(O, new_target, *_):
+    # %TypedArray%.prototype[@@toStringTag] is an accessor property whose set accessor function is undefined. Its
+    # get accessor function performs the following steps:
+    #   1. Let O be the this value.
+    #   2. If Type(O) is not Object, return undefined.
+    #   3. If O does not have a [[TypedArrayName]] internal slot, return undefined.
+    #   4. Let name be O.[[TypedArrayName]].
+    #   5. Assert: Type(name) is String.
+    #   6. Return name.
+    # This property has the attributes { [[Enumerable]]: false, [[Configurable]]: true }.
+    #
+    # The initial value of the name property of this function is "get [Symbol.toStringTag]".
+    if not isObject(O) or not hasattr(O, "TypedArrayName"):
+        return None
+    return O.TypedArrayName
+
+
+TypedArrayPrototyope_getToStringTag.name = "get [Symbol.toStringTag]"
+TypedArrayPrototyope_getToStringTag.length = 0
+
 # 22.2.4 The 𝑇𝑦𝑝𝑒𝑑𝐴𝑟𝑟𝑎𝑦 Constructors
 # Each 𝑇𝑦𝑝𝑒𝑑𝐴𝑟𝑟𝑎𝑦 constructor:
 #
@@ -39434,7 +40245,9 @@ TypedArrayPrototype_slice.name = "slice"
 
 
 def CreateSpecificTypedArrayConstructor(realm: Realm, name: str) -> JSObject:
-    obj = CreateAnnotatedFunctionObject(realm, CreateSpecificTypedArrayFunction(name), ["Construct"])
+    obj = CreateAnnotatedFunctionObject(
+        realm, CreateSpecificTypedArrayFunction(name), ["Construct"], realm.intrinsics["%TypedArray%"]
+    )
     # BindBuiltinFunctions(realm, obj, (("from", TypedArray_from, None), ("of", TypedArray_of, None),))
     # BindBuiltinAccessors(realm, obj, ((wks_species, TypedArray_getSpecies, None),))
     DefinePropertyOrThrow(
@@ -39471,7 +40284,7 @@ def CreateSpecificTypedArrayFunction(name: str):
             #   5. Return ? AllocateTypedArray(constructorName, NewTarget, "%𝑇𝑦𝑝𝑒𝑑𝐴𝑟𝑟𝑎𝑦Prototype%", elementLength).
             if new_target is None:
                 raise ESTypeError(f"{name}() must be used with the 'new' operator")
-            return AllocateTypedArray(name, new_target, f"%{name}Prototype%", ToIndex(arg1))
+            return AllocateTypedArray(name, new_target, f"%{name}Prototype%", int(ToIndex(arg1)))
         if hasattr(arg1, "TypedArrayName"):
             # 22.2.4.3 TypedArray ( typedArray )
             # This description applies only if the TypedArray function is called with at least one argument and the
@@ -39599,7 +40412,7 @@ def CreateSpecificTypedArrayFunction(name: str):
             if new_target is None:
                 raise ESTypeError(f"{name}() must be used with the 'new' operator")
             constructorName = name
-            O = AllocateTypedArray(constructorName, new_target, f"%{name}prototype%")
+            O = AllocateTypedArray(constructorName, new_target, f"%{name}Prototype%")
             usingIterator = GetMethod(arg1, wks_iterator)
             if usingIterator is not None:
                 values = IterableToList(arg1, usingIterator)
@@ -39608,7 +40421,7 @@ def CreateSpecificTypedArrayFunction(name: str):
                     Set(O, ToString(k), kValue, True)
                 return O
             arrayLike = arg1
-            len_ = ToLength(Get(arrayLike, "length"))
+            len_ = int(ToLength(Get(arrayLike, "length")))
             AllocateTypedArrayBuffer(O, len_)
             for Pk in (ToString(k) for k in range(len_)):
                 kValue = Get(arrayLike, Pk)
@@ -39674,7 +40487,7 @@ def CreateSpecificTypedArrayFunction(name: str):
         O.ViewedArrayBuffer = arg1
         O.ByteLength = newByteLength
         O.ByteOffset = offset
-        O.ArrayLength = newByteLength / elementSize
+        O.ArrayLength = newByteLength // elementSize
         return O
 
     SpecificTypedArray.length = 3

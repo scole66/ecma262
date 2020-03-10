@@ -5,6 +5,7 @@ from itertools import chain, product
 import regex
 from typing import TypeVar, Iterable, Tuple, Sized
 import pytest
+from dataclasses import dataclass
 
 import snoop
 
@@ -439,6 +440,29 @@ def synerror_streams(productions):
 
 class Expected_Exception(Exception):
     pass
+
+
+@dataclass
+class FakeToken:
+    value: str
+    span: Span
+    src: str
+    contains_unenclosed_continue: bool = False
+    contains_encapsulated_unenclosed_continue: bool = False
+    contains_unenclosed_break: bool = False
+    contains_encapsulated_unenclosed_break: bool = False
+
+
+def FakeTokens(*children):
+    src = " ".join(children) + " "
+
+    def tokenstitch(children):
+        prev = 0
+        for ch in children:
+            yield FakeToken(ch, Span(prev, prev + len(ch)), src)
+            prev += len(ch) + 1
+
+    return list(tokenstitch(children))
 
 
 NOPE = "¿"

@@ -7,29 +7,29 @@ import ecmascript.ecmascript as ecmascript
 
 
 def test_IdentifierReference_init(context):
-    ir = ecmascript.P2_IdentifierReference(context, "strict", ["child"], "YieldArg", "AwaitArg")
+    ir = ecmascript.P2_IdentifierReference(context, "strict", FakeTokens("child"), "YieldArg", "AwaitArg")
 
     assert ir.name == "IdentifierReference"
     assert ir.context == context
-    assert ir.children == ["child"]
+    assert [tok.value for tok in ir.children] == ["child"]
     assert ir.Yield == "YieldArg"
     assert ir.Await == "AwaitArg"
     assert ir.strict == "strict"
 
 
 def test_IdentifierReference_Identifier_init(context):
-    ir = ecmascript.P2_IdentifierReference_Identifier(context, "strict", ["child"], "YieldArg", "AwaitArg")
+    ir = ecmascript.P2_IdentifierReference_Identifier(context, "strict", FakeTokens("child"), "YieldArg", "AwaitArg")
     assert ir.name == "IdentifierReference"
-    assert ir.Identifier == "child"
+    assert ir.Identifier.value == "child"
 
 
 def test_IdentifierReference_YIELD_init(context):
-    ir = ecmascript.P2_IdentifierReference_YIELD(context, "strict", ["child"], "YieldArg", "AwaitArg")
+    ir = ecmascript.P2_IdentifierReference_YIELD(context, "strict", FakeTokens("child"), "YieldArg", "AwaitArg")
     assert ir.name == "IdentifierReference"
 
 
 def test_IdentifierReference_AWAIT_init(context):
-    ir = ecmascript.P2_IdentifierReference_AWAIT(context, "strict", ["child"], "YieldArg", "AwaitArg")
+    ir = ecmascript.P2_IdentifierReference_AWAIT(context, "strict", FakeTokens("child"), "YieldArg", "AwaitArg")
     assert ir.name == "IdentifierReference"
 
 
@@ -54,7 +54,9 @@ def test_IdentifierReference_Identifier_EarlyErrors(context, Yield, Await, ident
     class Check(ecmascript.ParseNode2):
         StringValue = identifiername
 
-    ir = ecmascript.P2_IdentifierReference_Identifier(context, "strict", [Check(context, "Check", [])], Yield, Await)
+    ir = ecmascript.P2_IdentifierReference_Identifier(
+        context, "strict", [Check(context, "Check", "strict", FakeTokens(identifiername))], Yield, Await
+    )
     errs = ir.EarlyErrors()
     assert len(errs) == expected
     for err in errs:
@@ -64,7 +66,7 @@ def test_IdentifierReference_Identifier_EarlyErrors(context, Yield, Await, ident
 @pytest.mark.parametrize("goal, expected", [("Script", 0), ("Module", 1)])
 def test_IdentifierReference_AWAIT_EarlyErrors(goal, expected):
     p2c = ecmascript.Parse2Context(goal=goal, syntax_error_ctor=Expected_Exception)
-    ir = ecmascript.P2_IdentifierReference_AWAIT(p2c, True, [], False, False)
+    ir = ecmascript.P2_IdentifierReference_AWAIT(p2c, True, FakeTokens("await"), False, False)
     errs = ir.EarlyErrors()
     assert len(errs) == expected
     for err in errs:
@@ -73,7 +75,7 @@ def test_IdentifierReference_AWAIT_EarlyErrors(goal, expected):
 
 @pytest.mark.parametrize("strict, expected", [(True, 1), (False, 0)])
 def test_IdentifierReference_YIELD_EarlyErrors(context, strict, expected):
-    ir = ecmascript.P2_IdentifierReference_YIELD(context, strict, [], False, False)
+    ir = ecmascript.P2_IdentifierReference_YIELD(context, strict, FakeTokens("yield"), False, False)
     errs = ir.EarlyErrors()
     assert len(errs) == expected
     for err in errs:
@@ -81,12 +83,12 @@ def test_IdentifierReference_YIELD_EarlyErrors(context, strict, expected):
 
 
 def test_IdentifierReference_YIELD_StringValue(context):
-    ir = ecmascript.P2_IdentifierReference_YIELD(context, "strict", [], False, False)
+    ir = ecmascript.P2_IdentifierReference_YIELD(context, "strict", FakeTokens("yield"), False, False)
     assert ir.StringValue == "yield"
 
 
 def test_IdentifierReference_AWAIT_StringValue(context):
-    ir = ecmascript.P2_IdentifierReference_AWAIT(context, "strict", [], False, False)
+    ir = ecmascript.P2_IdentifierReference_AWAIT(context, "strict", FakeTokens("await"), False, False)
     assert ir.StringValue == "await"
 
 
@@ -94,17 +96,19 @@ def test_IdentifierReference_Identifier_StringValue(context):
     class Check(ecmascript.ParseNode2):
         StringValue = "identifiername"
 
-    ir = ecmascript.P2_IdentifierReference_Identifier(context, "strict", [Check(context, "Check", [])], False, False)
+    ir = ecmascript.P2_IdentifierReference_Identifier(
+        context, "strict", [Check(context, "Check", "strict", FakeTokens("tok"))], False, False
+    )
     assert ir.StringValue == "identifiername"
 
 
 def test_IdentifierReference_YIELD_AssignmentTargetType(context):
-    ir = ecmascript.P2_IdentifierReference_YIELD(context, "strict", [], False, False)
+    ir = ecmascript.P2_IdentifierReference_YIELD(context, "strict", FakeTokens("yield"), False, False)
     assert ir.AssignmentTargetType == ecmascript.SIMPLE
 
 
 def test_IdentifierReference_AWAIT_AssignmentTargetType(context):
-    ir = ecmascript.P2_IdentifierReference_AWAIT(context, "strict", [], False, False)
+    ir = ecmascript.P2_IdentifierReference_AWAIT(context, "strict", FakeTokens("await"), False, False)
     assert ir.AssignmentTargetType == ecmascript.SIMPLE
 
 
@@ -122,7 +126,9 @@ def test_IdentifierReference_Identifier_AssignmentTargetType(context, strict, na
     class Check(ecmascript.ParseNode2):
         StringValue = name
 
-    ir = ecmascript.P2_IdentifierReference_Identifier(context, "strict", [Check(context, "Check", [])], False, False)
+    ir = ecmascript.P2_IdentifierReference_Identifier(
+        context, "strict", [Check(context, "Check", "strict", FakeTokens("bob"))], False, False
+    )
     ir.strict = strict
     assert ir.AssignmentTargetType == expected
 
@@ -153,7 +159,7 @@ def test_IdentifierReference_YIELD_evaluate(context, mocker):
     #   1. Return ? ResolveBinding("yield").
 
     # Setup: ResolveBinding will return 67.
-    ir = ecmascript.P2_IdentifierReference_YIELD(context, "strict", ["yield"], False, False)
+    ir = ecmascript.P2_IdentifierReference_YIELD(context, "strict", FakeTokens("yield"), False, False)
     ir.strict = "strict"
     rb = mocker.patch("ecmascript.ecmascript.ResolveBinding", return_value=67)
 
@@ -171,7 +177,7 @@ def test_IdentifierReference_AWAIT_evaluate(context, mocker):
     #   1. Return ? ResolveBinding("await").
 
     # Setup: ResolveBinding will return 67.
-    ir = ecmascript.P2_IdentifierReference_AWAIT(context, "strict", ["await"], False, False)
+    ir = ecmascript.P2_IdentifierReference_AWAIT(context, "strict", FakeTokens("await"), False, False)
     ir.strict = "strict"
     rb = mocker.patch("ecmascript.ecmascript.ResolveBinding", return_value=67)
 
@@ -214,16 +220,16 @@ class Test_parse_IdentifierReference(parse_test):
 
 
 def test_P2_Identifier_init(context):
-    ident = ecmascript.P2_Identifier(context, "strict", ["child"])
+    ident = ecmascript.P2_Identifier(context, "strict", FakeTokens("child"))
     assert ident.name == "Identifier"
     assert ident.context == context
-    assert ident.children == ["child"]
+    assert [tok.value for tok in ident.children] == ["child"]
 
 
 def test_P2_Identifier_IdentifierName_init(context):
-    ident = ecmascript.P2_Identifier_IdentifierName(context, "strict", ["IdentifierName"])
+    ident = ecmascript.P2_Identifier_IdentifierName(context, "strict", FakeTokens("IdentifierName"))
     assert ident.name == "Identifier"
-    assert ident.IdentifierName == "IdentifierName"
+    assert ident.IdentifierName.value == "IdentifierName"
 
 
 def test_P2_Identifier_IdentifierName_StringValue(context):
@@ -323,19 +329,19 @@ class Test_parse_Identifier(parse_test):
 
 
 def test_P2_BindingIdentifier_init(context):
-    ir = ecmascript.P2_BindingIdentifier(context, "strict", ["child"], False, True)
+    ir = ecmascript.P2_BindingIdentifier(context, "strict", FakeTokens("child"), False, True)
 
     assert ir.name == "BindingIdentifier"
     assert ir.context == context
-    assert ir.children == ["child"]
+    assert [tok.value for tok in ir.children] == ["child"]
     assert not ir.Yield
     assert ir.Await
 
 
 def test_P2_BindingIdentifier_Identifier_init(context):
-    ir = ecmascript.P2_BindingIdentifier_Identifier(context, "strict", ["child"], True, True)
+    ir = ecmascript.P2_BindingIdentifier_Identifier(context, "strict", FakeTokens("child"), True, True)
     assert ir.name == "BindingIdentifier"
-    assert ir.Identifier == "child"
+    assert ir.Identifier.value == "child"
 
 
 @pytest.mark.parametrize(
@@ -359,7 +365,9 @@ def test_P2_BindingIdentifier_Identifier_EarlyErrors(context, Yield, Await, iden
     class Check(ecmascript.ParseNode2):
         StringValue = identifiername
 
-    bi = ecmascript.P2_BindingIdentifier_Identifier(context, "strict", [Check(context, "Check", [])], Yield, Await)
+    bi = ecmascript.P2_BindingIdentifier_Identifier(
+        context, "strict", [Check(context, "Check", "strict", FakeTokens("bog"))], Yield, Await
+    )
     bi.strict = strict
     errs = bi.EarlyErrors()
     assert len(errs) == expected
@@ -368,12 +376,12 @@ def test_P2_BindingIdentifier_Identifier_EarlyErrors(context, Yield, Await, iden
 
 
 def test_P2_BindingIdentifier_YIELD_init(context):
-    ir = ecmascript.P2_BindingIdentifier_YIELD(context, "strict", ["child"], False, True)
+    ir = ecmascript.P2_BindingIdentifier_YIELD(context, "strict", FakeTokens("child"), False, True)
     assert ir.name == "BindingIdentifier"
 
 
 def test_P2_BindingIdentifier_AWAIT_init(context):
-    ir = ecmascript.P2_BindingIdentifier_AWAIT(context, "strict", ["child"], False, False)
+    ir = ecmascript.P2_BindingIdentifier_AWAIT(context, "strict", FakeTokens("child"), False, False)
     assert ir.name == "BindingIdentifier"
 
 
@@ -387,7 +395,7 @@ def test_P2_BindingIdentifier_AWAIT_init(context):
 )
 def test_BindingIdentifier_AWAIT_EarlyErrors(goal, Await, expected):
     p2c = ecmascript.Parse2Context(goal=goal, syntax_error_ctor=Expected_Exception)
-    bi = ecmascript.P2_BindingIdentifier_AWAIT(p2c, False, [], False, Await)
+    bi = ecmascript.P2_BindingIdentifier_AWAIT(p2c, False, FakeTokens("await"), False, Await)
     errs = bi.EarlyErrors()
     assert len(errs) == expected
     for err in errs:
@@ -403,7 +411,7 @@ def test_BindingIdentifier_AWAIT_EarlyErrors(goal, Await, expected):
     ],
 )
 def test_BindingIdentifier_YIELD_EarlyErrors(context, strict, Yield, expected):
-    bi = ecmascript.P2_BindingIdentifier_YIELD(context, "strict", [], Yield, False)
+    bi = ecmascript.P2_BindingIdentifier_YIELD(context, "strict", FakeTokens("yield"), Yield, False)
     bi.strict = strict
     errs = bi.EarlyErrors()
     assert len(errs) == expected
@@ -417,17 +425,19 @@ def test_BindingIdentifier_Identifier_BoundNames(context):
     class Check(ecmascript.ParseNode2):
         StringValue = identifiername
 
-    bi = ecmascript.P2_BindingIdentifier_Identifier(context, "strict", [Check(context, "Check", [])], False, False)
+    bi = ecmascript.P2_BindingIdentifier_Identifier(
+        context, "strict", [Check(context, "Check", "strict", FakeTokens(identifiername))], False, False
+    )
     assert bi.BoundNames() == [identifiername]
 
 
 def test_BindingIdentifier_YIELD_BoundNames(context):
-    bi = ecmascript.P2_BindingIdentifier_YIELD(context, "strict", [], False, False)
+    bi = ecmascript.P2_BindingIdentifier_YIELD(context, "strict", FakeTokens("yield"), False, False)
     assert bi.BoundNames() == ["yield"]
 
 
 def test_BindingIdentifier_AWAIT_BoundNames(context):
-    bi = ecmascript.P2_BindingIdentifier_AWAIT(context, "strict", [], False, False)
+    bi = ecmascript.P2_BindingIdentifier_AWAIT(context, "strict", FakeTokens("await"), False, False)
     assert bi.BoundNames() == ["await"]
 
 
@@ -454,7 +464,7 @@ def test_BindingIdentifier_YIELD_BindingInitialization(context, mocker):
     # 1. Return ? InitializeBoundName("yield", value, environment).
 
     # Setup: InitializeBoundName will return 67.
-    bi = ecmascript.P2_BindingIdentifier_YIELD(context, "strict", ["yield"], False, False)
+    bi = ecmascript.P2_BindingIdentifier_YIELD(context, "strict", FakeTokens("yield"), False, False)
     bi.strict = "strict"
     ibn = mocker.patch("ecmascript.ecmascript.InitializeBoundName", return_value=67)
 
@@ -470,7 +480,7 @@ def test_BindingIdentifier_AWAIT_BindingInitialization(context, mocker):
     # 1. Return ? InitializeBoundName("await", value, environment).
 
     # Setup: InitializeBoundName will return 67.
-    bi = ecmascript.P2_BindingIdentifier_AWAIT(context, "strict", ["await"], False, False)
+    bi = ecmascript.P2_BindingIdentifier_AWAIT(context, "strict", FakeTokens("await"), False, False)
     bi.strict = "strict"
     ibn = mocker.patch("ecmascript.ecmascript.InitializeBoundName", return_value=67)
 
@@ -507,28 +517,28 @@ class Test_parse_BindingIdentifier(parse_test):
 
 
 def test_P2_LabelIdentifier_init(context):
-    ir = ecmascript.P2_LabelIdentifier(context, "strict", ["child"], False, True)
+    ir = ecmascript.P2_LabelIdentifier(context, "strict", FakeTokens("child"), False, True)
 
     assert ir.name == "LabelIdentifier"
     assert ir.context == context
-    assert ir.children == ["child"]
+    assert [tok.value for tok in ir.children] == ["child"]
     assert not ir.Yield
     assert ir.Await
 
 
 def test_P2_LabelIdentifier_Identifier_init(context):
-    ir = ecmascript.P2_LabelIdentifier_Identifier(context, "strict", ["child"], True, True)
+    ir = ecmascript.P2_LabelIdentifier_Identifier(context, "strict", FakeTokens("child"), True, True)
     assert ir.name == "LabelIdentifier"
-    assert ir.Identifier == "child"
+    assert ir.Identifier.value == "child"
 
 
 def test_P2_LabelIdentifier_YIELD_init(context):
-    ir = ecmascript.P2_LabelIdentifier_YIELD(context, "strict", ["child"], False, True)
+    ir = ecmascript.P2_LabelIdentifier_YIELD(context, "strict", FakeTokens("child"), False, True)
     assert ir.name == "LabelIdentifier"
 
 
 def test_P2_LabelIdentifier_AWAIT_init(context):
-    ir = ecmascript.P2_LabelIdentifier_AWAIT(context, "strict", ["child"], False, False)
+    ir = ecmascript.P2_LabelIdentifier_AWAIT(context, "strict", FakeTokens("child"), False, False)
     assert ir.name == "LabelIdentifier"
 
 
@@ -553,7 +563,9 @@ def test_LabelIdentifier_Identifier_EarlyErrors(context, Yield, Await, identifie
     class Check(ecmascript.ParseNode2):
         StringValue = identifiername
 
-    li = ecmascript.P2_LabelIdentifier_Identifier(context, "strict", [Check(context, "Check", [])], Yield, Await)
+    li = ecmascript.P2_LabelIdentifier_Identifier(
+        context, "strict", [Check(context, "Check", "strict", FakeTokens("a"))], Yield, Await
+    )
     errs = li.EarlyErrors()
     assert len(errs) == expected
     for err in errs:
@@ -563,7 +575,7 @@ def test_LabelIdentifier_Identifier_EarlyErrors(context, Yield, Await, identifie
 @pytest.mark.parametrize("goal, expected", [("Script", 0), ("Module", 1)])
 def test_LabelIdentifier_AWAIT_EarlyErrors(goal, expected):
     p2c = ecmascript.Parse2Context(goal=goal, syntax_error_ctor=Expected_Exception)
-    li = ecmascript.P2_LabelIdentifier_AWAIT(p2c, False, [], False, False)
+    li = ecmascript.P2_LabelIdentifier_AWAIT(p2c, False, FakeTokens("await"), False, False)
     errs = li.EarlyErrors()
     assert len(errs) == expected
     for err in errs:
@@ -572,7 +584,7 @@ def test_LabelIdentifier_AWAIT_EarlyErrors(goal, expected):
 
 @pytest.mark.parametrize("strict, expected", [(True, 1), (False, 0)])
 def test_LabelIdentifier_YIELD_EarlyErrors(context, strict, expected):
-    li = ecmascript.P2_LabelIdentifier_YIELD(context, "strict", [], False, False)
+    li = ecmascript.P2_LabelIdentifier_YIELD(context, "strict", FakeTokens("yield"), False, False)
     li.strict = strict
     errs = li.EarlyErrors()
     assert len(errs) == expected
