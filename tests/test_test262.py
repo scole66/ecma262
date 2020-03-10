@@ -227,21 +227,25 @@ passing = (
     # These paths have passed (or xfailed, or skipped) 100%. We shouldn't break them.
     "harness",
     "built-ins/Array",
+    "built-ins/ArrayIteratorPrototype",
     "built-ins/Boolean",
     "built-ins/Date",
     "built-ins/Error",
     "built-ins/Function",
-    "built-ins/JSON",
-    "built-ins/Map",
-    "built-ins/Math",
-    "built-ins/Object",
-    "built-ins/RegExp",
-    "built-ins/Set",
-    "built-ins/String",
     "built-ins/isFinite",
     "built-ins/isNaN",
+    "built-ins/IteratorPrototype",
+    "built-ins/JSON",
+    "built-ins/Map",
+    "built-ins/MapIteratorPrototype",
+    "built-ins/Math",
+    "built-ins/Object",
     "built-ins/parseFloat",
     "built-ins/parseInt",
+    "built-ins/RegExp",
+    "built-ins/Set",
+    "built-ins/SetIteratorPrototype",
+    "built-ins/String",
     "language/arguments-object",
     "language/asi",
     "language/block-scope",
@@ -828,6 +832,23 @@ xfail_tests = (
     "/test/built-ins/Array/prototype/sort/stability-2048-elements.js",  # Recursion Limit
     "/test/built-ins/Array/prototype/sort/stability-513-elements.js",  # Recursion Limit
     "/test/built-ins/Array/prototype/splice/create-species-length-exceeding-integer-limit.js",  # Needs Proxy
+    "/test/built-ins/ArrayIteratorPrototype/next/detach-typedarray-in-progress.js",  # Needs keys() function for typedarrays
+    "/test/built-ins/ArrayIteratorPrototype/next/Float32Array.js",  # Needs TypedArray support
+    "/test/built-ins/ArrayIteratorPrototype/next/Float32Array.js",  # Needs TypedArray support
+    "/test/built-ins/ArrayIteratorPrototype/next/Float64Array.js",  # Needs TypedArray support
+    "/test/built-ins/ArrayIteratorPrototype/next/Float64Array.js",  # Needs TypedArray support
+    "/test/built-ins/ArrayIteratorPrototype/next/Int16Array.js",  # Needs TypedArray support
+    "/test/built-ins/ArrayIteratorPrototype/next/Int16Array.js",  # Needs TypedArray support
+    "/test/built-ins/ArrayIteratorPrototype/next/Int32Array.js",  # Needs TypedArray support
+    "/test/built-ins/ArrayIteratorPrototype/next/Int32Array.js",  # Needs TypedArray support
+    "/test/built-ins/ArrayIteratorPrototype/next/Int8Array.js",  # Needs TypedArray support
+    "/test/built-ins/ArrayIteratorPrototype/next/Int8Array.js",  # Needs TypedArray support
+    "/test/built-ins/ArrayIteratorPrototype/next/Uint16Array.js",  # Needs TypedArray support
+    "/test/built-ins/ArrayIteratorPrototype/next/Uint16Array.js",  # Needs TypedArray support
+    "/test/built-ins/ArrayIteratorPrototype/next/Uint32Array.js",  # Needs TypedArray support
+    "/test/built-ins/ArrayIteratorPrototype/next/Uint32Array.js",  # Needs TypedArray support
+    "/test/built-ins/ArrayIteratorPrototype/next/Uint8ClampedArray.js",  # Needs TypedArray support
+    "/test/built-ins/ArrayIteratorPrototype/next/Uint8Array.js",
     "/test/built-ins/Date/parse/zero.js",  # Wants a bit more flexible Date.parse
     "/test/built-ins/Date/prototype/getTimezoneOffset/this-value-valid-date.js",  # Overflow in LocalTZA
     "/test/built-ins/Date/prototype/setDate/new-value-time-clip.js",  # Overflow in LocalTZA

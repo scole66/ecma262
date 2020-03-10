@@ -42138,23 +42138,17 @@ d88P"             888       888         888   888    88888888 888     .d888888 8
 #   * is an ordinary object.
 def CreateIteratorPrototype(realm):
     proto = ObjectCreate(realm.intrinsics["%ObjectPrototype%"])
-    func_obj = CreateBuiltinFunction(IteratorPrototype_iterator, [], realm)
-    DefinePropertyOrThrow(
-        func_obj, "length", PropertyDescriptor(value=0, writable=False, enumerable=False, configurable=True)
-    )
-    DefinePropertyOrThrow(
-        func_obj,
-        "name",
-        PropertyDescriptor(value="[Symbol.iterator]", writable=False, enumerable=False, configurable=False),
-    )
-    CreateMethodPropertyOrThrow(proto, wks_iterator, func_obj)
+    BindBuiltinFunctions(realm, proto, ((wks_iterator, IteratorPrototype_iterator, None),))
     return proto
 
 
 # 25.1.2.1 %IteratorPrototype% [ @@iterator ] ( )
-def IteratorPrototype_iterator(this_value, new_target):
+def IteratorPrototype_iterator(this_value, new_target, *_):
     return this_value
 
+
+IteratorPrototype_iterator.name = "[Symbol.iterator]"
+IteratorPrototype_iterator.length = 0
 
 # 25.1.4 Async-from-Sync Iterator Objects
 # 25.1.4.1 CreateAsyncFromSyncIterator ( syncIteratorRecord )
