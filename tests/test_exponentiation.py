@@ -26,25 +26,25 @@ import ecmascript.lexer2 as lexer2
 #
 ##########################################################################################################################################################################################################
 def test_P2_ExponentiationExpression_init(context):
-    ee = e.P2_ExponentiationExpression(context, "StrictArg", ["child"])
+    ee = e.P2_ExponentiationExpression(context, "StrictArg", FakeTokens("child"))
     assert ee.name == "ExponentiationExpression"
     assert ee.context == context
-    assert ee.children == ["child"]
+    assert [tok.value for tok in ee.children] == ["child"]
 
 
 def test_P2_ExponentiationExpression_UnaryExpression_init(context):
-    ee = e.P2_ExponentiationExpression_UnaryExpression(context, "StrictArg", ["child"])
+    ee = e.P2_ExponentiationExpression_UnaryExpression(context, "StrictArg", FakeTokens("child"))
     assert ee.name == "ExponentiationExpression"
-    assert ee.UnaryExpression == "child"
+    assert ee.UnaryExpression.value == "child"
 
 
 def test_P2_ExponentiationExpression_UpdateExpression_STARSTAR_ExponentiationExpression_init(context):
     ee = e.P2_ExponentiationExpression_UpdateExpression_STARSTAR_ExponentiationExpression(
-        context, "StrictArg", ["upe", "**", "ee"]
+        context, "StrictArg", FakeTokens("upe", "**", "ee")
     )
     assert ee.name == "ExponentiationExpression"
-    assert ee.UpdateExpression == "upe"
-    assert ee.ExponentiationExpression == "ee"
+    assert ee.UpdateExpression.value == "upe"
+    assert ee.ExponentiationExpression.value == "ee"
 
 
 class Test_parse_ExponentiationExpression(parse_test):

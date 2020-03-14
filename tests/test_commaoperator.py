@@ -25,26 +25,26 @@ import ecmascript.lexer2 as lexer2
 #
 ########################################################################################
 def test_P2_Expression_init(context):
-    exp = e.P2_Expression(context, "StrictArg", ["child"])
+    exp = e.P2_Expression(context, "StrictArg", FakeTokens("child"))
     assert exp.name == "Expression"
     assert exp.context == context
-    assert exp.children == ["child"]
+    assert [tok.value for tok in exp.children] == ["child"]
     assert exp.strict == "StrictArg"
 
 
 def test_P2_Expression_AssignmentExpression_init(context):
-    exp = e.P2_Expression_AssignmentExpression(context, "StrictArg", ["AssignmentExpression"])
+    exp = e.P2_Expression_AssignmentExpression(context, "StrictArg", FakeTokens("AssignmentExpression"))
     assert exp.name == "Expression"
-    assert exp.AssignmentExpression == "AssignmentExpression"
+    assert exp.AssignmentExpression.value == "AssignmentExpression"
 
 
 def test_P2_Expression_Expression_COMMA_AssignmentExpression_init(context):
     exp = e.P2_Expression_Expression_COMMA_AssignmentExpression(
-        context, "StrictArg", ["Expression", ",", "AssignmentExpression"]
+        context, "StrictArg", FakeTokens("Expression", ",", "AssignmentExpression")
     )
     assert exp.name == "Expression"
-    assert exp.Expression == "Expression"
-    assert exp.AssignmentExpression == "AssignmentExpression"
+    assert exp.Expression.value == "Expression"
+    assert exp.AssignmentExpression.value == "AssignmentExpression"
 
 
 class Test_parse_Expression(parse_test):

@@ -22,48 +22,48 @@ import ecmascript.lexer2 as lexer2
 #
 ############################################################
 def test_Literal_init(context):
-    lit = ecmascript.ecmascript.P2_Literal(context, "StrictArg", ["child"])
+    lit = ecmascript.ecmascript.P2_Literal(context, "StrictArg", FakeTokens("child"))
 
     assert lit.name == "Literal"
     assert lit.context == context
-    assert lit.children == ["child"]
+    assert [tok.value for tok in lit.children] == ["child"]
     assert lit.strict == "StrictArg"
 
 
 def test_Literal_NullLiteral_init(context):
-    lit = ecmascript.ecmascript.P2_Literal_NullLiteral(context, "StrictArg", ["child"])
+    lit = ecmascript.ecmascript.P2_Literal_NullLiteral(context, "StrictArg", FakeTokens("child"))
 
     assert lit.name == "Literal"
     assert lit.context == context
-    assert lit.children == ["child"]
-    assert lit.NullLiteral == "child"
+    assert [tok.value for tok in lit.children] == ["child"]
+    assert lit.NullLiteral.value == "child"
 
 
 def test_Literal_BooleanLiteral_init(context):
-    lit = ecmascript.ecmascript.P2_Literal_BooleanLiteral(context, "StrictArg", ["child"])
+    lit = ecmascript.ecmascript.P2_Literal_BooleanLiteral(context, "StrictArg", FakeTokens("child"))
 
     assert lit.name == "Literal"
     assert lit.context == context
-    assert lit.children == ["child"]
-    assert lit.BooleanLiteral == "child"
+    assert [tok.value for tok in lit.children] == ["child"]
+    assert lit.BooleanLiteral.value == "child"
 
 
 def test_Literal_NumericLiteral_init(context):
-    lit = ecmascript.ecmascript.P2_Literal_NumericLiteral(context, "StrictArg", ["child"])
+    lit = ecmascript.ecmascript.P2_Literal_NumericLiteral(context, "StrictArg", FakeTokens("child"))
 
     assert lit.name == "Literal"
     assert lit.context == context
-    assert lit.children == ["child"]
-    assert lit.NumericLiteral == "child"
+    assert [tok.value for tok in lit.children] == ["child"]
+    assert lit.NumericLiteral.value == "child"
 
 
 def test_Literal_StringLiteral_init(context):
-    lit = ecmascript.ecmascript.P2_Literal_StringLiteral(context, "StrictArg", ["child"])
+    lit = ecmascript.ecmascript.P2_Literal_StringLiteral(context, "StrictArg", FakeTokens("child"))
 
     assert lit.name == "Literal"
     assert lit.context == context
-    assert lit.children == ["child"]
-    assert lit.StringLiteral == "child"
+    assert [tok.value for tok in lit.children] == ["child"]
+    assert lit.StringLiteral.value == "child"
 
 
 class Test_parse_Literal(parse_test):
@@ -92,129 +92,135 @@ class Test_parse_Literal(parse_test):
 
 
 def test_PrimaryExpression_init(context):
-    pe = ecmascript.ecmascript.P2_PrimaryExpression(context, "StrictArg", ["child"])
+    pe = ecmascript.ecmascript.P2_PrimaryExpression(context, "StrictArg", FakeTokens("child"))
 
     assert pe.name == "PrimaryExpression"
     assert pe.context == context
-    assert pe.children == ["child"]
+    assert [tok.value for tok in pe.children] == ["child"]
 
 
 def test_PrimaryExpression_THIS_init(context):
-    pe = ecmascript.ecmascript.P2_PrimaryExpression_THIS(context, "StrictArg", ["child"])
+    pe = ecmascript.ecmascript.P2_PrimaryExpression_THIS(context, "StrictArg", FakeTokens("child"))
 
     assert pe.name == "PrimaryExpression"
     assert pe.context == context
-    assert pe.children == ["child"]
+    assert [tok.value for tok in pe.children] == ["child"]
 
 
 def test_PrimaryExpression_IdentifierReference_init(context):
-    pe = ecmascript.ecmascript.P2_PrimaryExpression_IdentifierReference(context, "StrictArg", ["child"])
+    pe = ecmascript.ecmascript.P2_PrimaryExpression_IdentifierReference(context, "StrictArg", FakeTokens("child"))
 
     assert pe.name == "PrimaryExpression"
     assert pe.context == context
-    assert pe.children == ["child"]
-    assert pe.IdentifierReference == "child"
+    assert [tok.value for tok in pe.children] == ["child"]
+    assert pe.IdentifierReference.value == "child"
 
 
 def test_PrimaryExpression_Literal_init(context):
-    pe = ecmascript.ecmascript.P2_PrimaryExpression_Literal(context, "StrictArg", ["child"])
+    pe = ecmascript.ecmascript.P2_PrimaryExpression_Literal(context, "StrictArg", FakeTokens("child"))
 
     assert pe.name == "PrimaryExpression"
     assert pe.context == context
-    assert pe.children == ["child"]
-    assert pe.Literal == "child"
+    assert [tok.value for tok in pe.children] == ["child"]
+    assert pe.Literal.value == "child"
 
 
 def test_PrimaryExpression_ArrayLiteral_init(context):
-    pe = ecmascript.ecmascript.P2_PrimaryExpression_ArrayLiteral(context, "StrictArg", ["child"])
+    pe = ecmascript.ecmascript.P2_PrimaryExpression_ArrayLiteral(context, "StrictArg", FakeTokens("child"))
 
     assert pe.name == "PrimaryExpression"
     assert pe.context == context
-    assert pe.children == ["child"]
-    assert pe.ArrayLiteral == "child"
+    assert [tok.value for tok in pe.children] == ["child"]
+    assert pe.ArrayLiteral.value == "child"
 
 
 def test_PrimaryExpression_ObjectLiteral_init(context):
-    pe = ecmascript.ecmascript.P2_PrimaryExpression_ObjectLiteral(context, "StrictArg", ["child"])
+    pe = ecmascript.ecmascript.P2_PrimaryExpression_ObjectLiteral(context, "StrictArg", FakeTokens("child"))
 
     assert pe.name == "PrimaryExpression"
     assert pe.context == context
-    assert pe.children == ["child"]
-    assert pe.ObjectLiteral == "child"
+    assert [tok.value for tok in pe.children] == ["child"]
+    assert pe.ObjectLiteral.value == "child"
 
 
 def test_PrimaryExpression_FunctionExpression_init(context):
-    pe = ecmascript.ecmascript.P2_PrimaryExpression_FunctionExpression(context, "StrictArg", ["child"])
+    pe = ecmascript.ecmascript.P2_PrimaryExpression_FunctionExpression(context, "StrictArg", FakeTokens("child"))
 
     assert pe.name == "PrimaryExpression"
     assert pe.context == context
-    assert pe.children == ["child"]
-    assert pe.FunctionExpression == "child"
+    assert [tok.value for tok in pe.children] == ["child"]
+    assert pe.FunctionExpression.value == "child"
 
 
 def test_PrimaryExpression_ClassExpression_init(context):
-    pe = ecmascript.ecmascript.P2_PrimaryExpression_ClassExpression(context, "StrictArg", ["child"])
+    pe = ecmascript.ecmascript.P2_PrimaryExpression_ClassExpression(context, "StrictArg", FakeTokens("child"))
 
     assert pe.name == "PrimaryExpression"
     assert pe.context == context
-    assert pe.children == ["child"]
-    assert pe.ClassExpression == "child"
+    assert [tok.value for tok in pe.children] == ["child"]
+    assert pe.ClassExpression.value == "child"
 
 
 def test_PrimaryExpression_GeneratorExpression_init(context):
-    pe = ecmascript.ecmascript.P2_PrimaryExpression_GeneratorExpression(context, "StrictArg", ["child"])
+    pe = ecmascript.ecmascript.P2_PrimaryExpression_GeneratorExpression(context, "StrictArg", FakeTokens("child"))
 
     assert pe.name == "PrimaryExpression"
     assert pe.context == context
-    assert pe.children == ["child"]
-    assert pe.GeneratorExpression == "child"
+    assert [tok.value for tok in pe.children] == ["child"]
+    assert pe.GeneratorExpression.value == "child"
 
 
 def test_PrimaryExpression_AsyncFunctionExpression_init(context):
-    pe = ecmascript.ecmascript.P2_PrimaryExpression_AsyncFunctionExpression(context, "StrictArg", ["child"])
-
-    assert pe.name == "PrimaryExpression"
-    assert pe.context == context
-    assert pe.children == ["child"]
-    assert pe.AsyncFunctionExpression == "child"
-
-
-def test_PrimaryExpression_AsyncGeneratorExpression_init(context):
-    pe = ecmascript.ecmascript.P2_PrimaryExpression_AsyncGeneratorExpression(context, "StrictArg", ["child"])
-
-    assert pe.name == "PrimaryExpression"
-    assert pe.context == context
-    assert pe.children == ["child"]
-    assert pe.AsyncGeneratorExpression == "child"
-
-
-def test_PrimaryExpression_RegularExpressionLiteral_init(context):
-    pe = ecmascript.ecmascript.P2_PrimaryExpression_RegularExpressionLiteral(context, "StrictArg", ["child"])
-
-    assert pe.name == "PrimaryExpression"
-    assert pe.context == context
-    assert pe.children == ["child"]
-    assert pe.RegularExpressionLiteral == "child"
-
-
-def test_PrimaryExpression_TemplateLiteral_init(context):
-    pe = ecmascript.ecmascript.P2_PrimaryExpression_TemplateLiteral(context, "StrictArg", ["child"])
-
-    assert pe.name == "PrimaryExpression"
-    assert pe.context == context
-    assert pe.children == ["child"]
-    assert pe.TemplateLiteral == "child"
-
-
-def test_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList_init(context):
-    pe = ecmascript.ecmascript.P2_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(
-        context, "StrictArg", ["child"]
+    pe = ecmascript.ecmascript.P2_PrimaryExpression_AsyncFunctionExpression(
+        context, "StrictArg", FakeTokens("child")
     )
 
     assert pe.name == "PrimaryExpression"
     assert pe.context == context
-    assert pe.children == ["child"]
-    assert pe.CoverParenthesizedExpressionAndArrowParameterList == "child"
+    assert [tok.value for tok in pe.children] == ["child"]
+    assert pe.AsyncFunctionExpression.value == "child"
+
+
+def test_PrimaryExpression_AsyncGeneratorExpression_init(context):
+    pe = ecmascript.ecmascript.P2_PrimaryExpression_AsyncGeneratorExpression(
+        context, "StrictArg", FakeTokens("child")
+    )
+
+    assert pe.name == "PrimaryExpression"
+    assert pe.context == context
+    assert [tok.value for tok in pe.children] == ["child"]
+    assert pe.AsyncGeneratorExpression.value == "child"
+
+
+def test_PrimaryExpression_RegularExpressionLiteral_init(context):
+    pe = ecmascript.ecmascript.P2_PrimaryExpression_RegularExpressionLiteral(
+        context, "StrictArg", FakeTokens("child")
+    )
+
+    assert pe.name == "PrimaryExpression"
+    assert pe.context == context
+    assert [tok.value for tok in pe.children] == ["child"]
+    assert pe.RegularExpressionLiteral.value == "child"
+
+
+def test_PrimaryExpression_TemplateLiteral_init(context):
+    pe = ecmascript.ecmascript.P2_PrimaryExpression_TemplateLiteral(context, "StrictArg", FakeTokens("child"))
+
+    assert pe.name == "PrimaryExpression"
+    assert pe.context == context
+    assert [tok.value for tok in pe.children] == ["child"]
+    assert pe.TemplateLiteral.value == "child"
+
+
+def test_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList_init(context):
+    pe = ecmascript.ecmascript.P2_PrimaryExpression_CoverParenthesizedExpressionAndArrowParameterList(
+        context, "StrictArg", FakeTokens("child")
+    )
+
+    assert pe.name == "PrimaryExpression"
+    assert pe.context == context
+    assert [tok.value for tok in pe.children] == ["child"]
+    assert pe.CoverParenthesizedExpressionAndArrowParameterList.value == "child"
 
 
 class Test_parse_PrimaryExpression(parse_test):
@@ -293,34 +299,34 @@ class Test_parse_PrimaryExpression(parse_test):
 #########################################################################################################################################################################################################################################################################################################################################################################################################################################################
 def test_P2_CoverParenthesizedExpressionAndArrowParameterList_init(context):
     cpeaapl = ecmascript.ecmascript.P2_CoverParenthesizedExpressionAndArrowParameterList(
-        context, "StrictArg", ["child"], "YieldArg", "AwaitArg"
+        context, "StrictArg", FakeTokens("child"), "YieldArg", "AwaitArg"
     )
     assert cpeaapl.name == "CoverParenthesizedExpressionAndArrowParameterList"
     assert cpeaapl.context == context
-    assert cpeaapl.children == ["child"]
+    assert [tok.value for tok in cpeaapl.children] == ["child"]
     assert cpeaapl.Yield == "YieldArg"
     assert cpeaapl.Await == "AwaitArg"
 
 
 def test_P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_RPAREN_init(context):
     cpeaapl = ecmascript.ecmascript.P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_RPAREN(
-        context, "StrictArg", ["(", "Expression", ")"], "Y", "A"
+        context, "StrictArg", FakeTokens("(", "Expression", ")"), "Y", "A"
     )
     assert cpeaapl.name == "CoverParenthesizedExpressionAndArrowParameterList"
-    assert cpeaapl.Expression == "Expression"
+    assert cpeaapl.Expression.value == "Expression"
 
 
 def test_P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_COMMA_RPAREN_init(context):
     cpeaapl = ecmascript.ecmascript.P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_COMMA_RPAREN(
-        context, "StrictArg", ["(", "Expression", ")", ","], "Y", "A"
+        context, "StrictArg", FakeTokens("(", "Expression", ")", ","), "Y", "A"
     )
     assert cpeaapl.name == "CoverParenthesizedExpressionAndArrowParameterList"
-    assert cpeaapl.Expression == "Expression"
+    assert cpeaapl.Expression.value == "Expression"
 
 
 def test_P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_RPAREN_init(context):
     cpeaapl = ecmascript.ecmascript.P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_RPAREN(
-        context, "StrictArg", ["(", ")"], "Y", "A"
+        context, "StrictArg", FakeTokens("(", ")"), "Y", "A"
     )
     assert cpeaapl.name == "CoverParenthesizedExpressionAndArrowParameterList"
 
@@ -329,40 +335,40 @@ def test_P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_DOTDOTDOT_B
     context,
 ):
     cpeaapl = ecmascript.ecmascript.P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_DOTDOTDOT_BindingIdentifier_RPAREN(
-        context, "StrictArg", ["(", "...", "BindingIdentifier", ")"], "Y", "A"
+        context, "StrictArg", FakeTokens("(", "...", "BindingIdentifier", ")"), "Y", "A"
     )
     assert cpeaapl.name == "CoverParenthesizedExpressionAndArrowParameterList"
-    assert cpeaapl.BindingIdentifier == "BindingIdentifier"
+    assert cpeaapl.BindingIdentifier.value == "BindingIdentifier"
 
 
 def test_P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_DOTDOTDOT_BindingPattern_RPAREN_init(context):
     cpeaapl = ecmascript.ecmascript.P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_DOTDOTDOT_BindingPattern_RPAREN(
-        context, "StrictArg", ["(", "...", "BindingPattern", ")"], "Y", "A"
+        context, "StrictArg", FakeTokens("(", "...", "BindingPattern", ")"), "Y", "A"
     )
     assert cpeaapl.name == "CoverParenthesizedExpressionAndArrowParameterList"
-    assert cpeaapl.BindingPattern == "BindingPattern"
+    assert cpeaapl.BindingPattern.value == "BindingPattern"
 
 
 def test_P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_COMMA_DOTDOTDOT_BindingIdentifier_RPAREN_init(
     context,
 ):
     cpeaapl = ecmascript.ecmascript.P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_COMMA_DOTDOTDOT_BindingIdentifier_RPAREN(
-        context, "StrictArg", ["(", "Expression", ",", "...", "BindingIdentifier", ")"], "Y", "A"
+        context, "StrictArg", FakeTokens("(", "Expression", ",", "...", "BindingIdentifier", ")"), "Y", "A"
     )
     assert cpeaapl.name == "CoverParenthesizedExpressionAndArrowParameterList"
-    assert cpeaapl.Expression == "Expression"
-    assert cpeaapl.BindingIdentifier == "BindingIdentifier"
+    assert cpeaapl.Expression.value == "Expression"
+    assert cpeaapl.BindingIdentifier.value == "BindingIdentifier"
 
 
 def test_P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_COMMA_DOTDOTDOT_BindingPattern_RPAREN_init(
     context,
 ):
     cpeaapl = ecmascript.ecmascript.P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_COMMA_DOTDOTDOT_BindingPattern_RPAREN(
-        context, "StrictArg", ["(", "Expression", ",", "...", "BindingPattern", ")"], "Y", "A"
+        context, "StrictArg", FakeTokens("(", "Expression", ",", "...", "BindingPattern", ")"), "Y", "A"
     )
     assert cpeaapl.name == "CoverParenthesizedExpressionAndArrowParameterList"
-    assert cpeaapl.Expression == "Expression"
-    assert cpeaapl.BindingPattern == "BindingPattern"
+    assert cpeaapl.Expression.value == "Expression"
+    assert cpeaapl.BindingPattern.value == "BindingPattern"
 
 
 class Test_parse_CoverParenthesizedExpressionAndArrowParameterList(parse_test):
@@ -434,18 +440,18 @@ class Test_parse_CoverParenthesizedExpressionAndArrowParameterList(parse_test):
 #
 ###########################################################################################################################################################################################################
 def test_P2_ParenthesizedExpression_init(context):
-    pe = ecmascript.ecmascript.P2_ParenthesizedExpression(context, "StrictArg", ["child"])
+    pe = ecmascript.ecmascript.P2_ParenthesizedExpression(context, "StrictArg", FakeTokens("child"))
     assert pe.name == "ParenthesizedExpression"
     assert pe.context == context
-    assert pe.children == ["child"]
+    assert [tok.value for tok in pe.children] == ["child"]
 
 
 def test_P2_ParenthesizedExpression_LPAREN_Expression_RPAREN_init(context):
     pe = ecmascript.ecmascript.P2_ParenthesizedExpression_LPAREN_Expression_RPAREN(
-        context, "StrictArg", ["(", "Expression", ")"]
+        context, "StrictArg", FakeTokens("(", "Expression", ")")
     )
     assert pe.name == "ParenthesizedExpression"
-    assert pe.Expression == "Expression"
+    assert pe.Expression.value == "Expression"
 
 
 class Test_parse_ParenthesizedExpression(parse_test):
@@ -485,23 +491,23 @@ class Test_parse_ParenthesizedExpression(parse_test):
 #
 #####################################################################
 def test_Elision_init(context):
-    elision = ecmascript.ecmascript.P2_Elision(context, "StrictArg", ["child"])
+    elision = ecmascript.ecmascript.P2_Elision(context, "StrictArg", FakeTokens("child"))
     assert elision.name == "Elision"
     assert elision.context == context
-    assert elision.children == ["child"]
+    assert [tok.value for tok in elision.children] == ["child"]
 
 
 def test_Elision_COMMA_init(context):
-    elision = ecmascript.ecmascript.P2_Elision_COMMA(context, "StrictArg", [","])
+    elision = ecmascript.ecmascript.P2_Elision_COMMA(context, "StrictArg", FakeTokens(","))
     assert elision.name == "Elision"
-    assert elision.children == [","]
+    assert [tok.value for tok in elision.children] == [","]
 
 
 def test_Elision_Elision_COMMA_init(context):
-    elision = ecmascript.ecmascript.P2_Elision_Elision_COMMA(context, "StrictArg", ["child_a", "child_b"])
+    elision = ecmascript.ecmascript.P2_Elision_Elision_COMMA(context, "StrictArg", FakeTokens("child_a", "child_b"))
     assert elision.name == "Elision"
-    assert elision.children == ["child_a", "child_b"]
-    assert elision.Elision == "child_a"
+    assert [tok.value for tok in elision.children] == ["child_a", "child_b"]
+    assert elision.Elision.value == "child_a"
 
 
 class Test_parse_Elision(parse_test):
@@ -542,49 +548,49 @@ class Test_parse_Elision(parse_test):
 #
 ###################################################################################################
 def test_ArrayLiteral_init(context):
-    al = ecmascript.ecmascript.P2_ArrayLiteral(context, "StrictArg", ["child"])
+    al = ecmascript.ecmascript.P2_ArrayLiteral(context, "StrictArg", FakeTokens("child"))
     assert al.name == "ArrayLiteral"
     assert al.context == context
-    assert al.children == ["child"]
+    assert [tok.value for tok in al.children] == ["child"]
 
 
 def test_ArrayLiteral_LBRACKET_RBRACKET_init(context):
-    al = ecmascript.ecmascript.P2_ArrayLiteral_LBRACKET_RBRACKET(context, "StrictArg", ["[", "]"])
+    al = ecmascript.ecmascript.P2_ArrayLiteral_LBRACKET_RBRACKET(context, "StrictArg", FakeTokens("[", "]"))
     assert al.name == "ArrayLiteral"
-    assert al.children == ["[", "]"]
+    assert [tok.value for tok in al.children] == ["[", "]"]
 
 
 def test_ArrayLiteral_LBRACKET_Elision_RBRACKET_init(context):
     al = ecmascript.ecmascript.P2_ArrayLiteral_LBRACKET_Elision_RBRACKET(
-        context, "StrictArg", ["lbracket", "elision", "rbracket"]
+        context, "StrictArg", FakeTokens("lbracket", "elision", "rbracket")
     )
     assert al.name == "ArrayLiteral"
-    assert al.Elision == "elision"
+    assert al.Elision.value == "elision"
 
 
 def test_ArrayLiteral_LBRACKET_ElementList_RBRACKET_init(context):
     al = ecmascript.ecmascript.P2_ArrayLiteral_LBRACKET_ElementList_RBRACKET(
-        context, "StrictArg", ["lbracket", "elementlist", "rbracket"]
+        context, "StrictArg", FakeTokens("lbracket", "elementlist", "rbracket")
     )
     assert al.name == "ArrayLiteral"
-    assert al.ElementList == "elementlist"
+    assert al.ElementList.value == "elementlist"
 
 
 def test_ArrayLiteral_LBRACKET_ElementList_COMMA_RBRACKET_init(context):
     al = ecmascript.ecmascript.P2_ArrayLiteral_LBRACKET_ElementList_COMMA_RBRACKET(
-        context, "StrictArg", ["lbra", "elementlist", "comma", "rbra"]
+        context, "StrictArg", FakeTokens("lbra", "elementlist", "comma", "rbra")
     )
     assert al.name == "ArrayLiteral"
-    assert al.ElementList == "elementlist"
+    assert al.ElementList.value == "elementlist"
 
 
 def test_ArrayLiteral_elementlist_elision_init(context):
     al = ecmascript.ecmascript.P2_ArrayLiteral_LBRACKET_ElementList_COMMA_Elision_RBRACKET(
-        context, "StrictArg", ["lbra", "elementlist", "comma", "elision", "rbra"]
+        context, "StrictArg", FakeTokens("lbra", "elementlist", "comma", "elision", "rbra")
     )
     assert al.name == "ArrayLiteral"
-    assert al.ElementList == "elementlist"
-    assert al.Elision == "elision"
+    assert al.ElementList.value == "elementlist"
+    assert al.Elision.value == "elision"
 
 
 class Test_parse_ArrayLiteral(parse_test):
@@ -637,78 +643,80 @@ class Test_parse_ArrayLiteral(parse_test):
 #
 ##################################################################################################
 def test_P2_ElementList_init(context):
-    el = ecmascript.ecmascript.P2_ElementList(context, "StrictArg", ["child"])
+    el = ecmascript.ecmascript.P2_ElementList(context, "StrictArg", FakeTokens("child"))
     assert el.name == "ElementList"
     assert el.context == context
-    assert el.children == ["child"]
+    assert [tok.value for tok in el.children] == ["child"]
 
 
 def test_P2_ElementList_AssignmentExpression_init(context):
-    el = ecmascript.ecmascript.P2_ElementList_AssignmentExpression(context, "StrictArg", ["AssignmentExpression"])
+    el = ecmascript.ecmascript.P2_ElementList_AssignmentExpression(
+        context, "StrictArg", FakeTokens("AssignmentExpression")
+    )
     assert el.name == "ElementList"
-    assert el.AssignmentExpression == "AssignmentExpression"
+    assert el.AssignmentExpression.value == "AssignmentExpression"
 
 
 def test_P2_ElementList_Elision_AssignmentExpression_init(context):
     el = ecmascript.ecmascript.P2_ElementList_Elision_AssignmentExpression(
-        context, "StrictArg", ["Elision", "AssignmentExpression"]
+        context, "StrictArg", FakeTokens("Elision", "AssignmentExpression")
     )
     assert el.name == "ElementList"
-    assert el.Elision == "Elision"
-    assert el.AssignmentExpression == "AssignmentExpression"
+    assert el.Elision.value == "Elision"
+    assert el.AssignmentExpression.value == "AssignmentExpression"
 
 
 def test_P2_ElementList_SpreadElement_init(context):
-    el = ecmascript.ecmascript.P2_ElementList_SpreadElement(context, "StrictArg", ["SpreadElement"])
+    el = ecmascript.ecmascript.P2_ElementList_SpreadElement(context, "StrictArg", FakeTokens("SpreadElement"))
     assert el.name == "ElementList"
-    assert el.SpreadElement == "SpreadElement"
+    assert el.SpreadElement.value == "SpreadElement"
 
 
 def test_P2_ElementList_Elision_SpreadElement_init(context):
     el = ecmascript.ecmascript.P2_ElementList_Elision_SpreadElement(
-        context, "StrictArg", ["Elision", "SpreadElement"]
+        context, "StrictArg", FakeTokens("Elision", "SpreadElement")
     )
     assert el.name == "ElementList"
-    assert el.Elision == "Elision"
-    assert el.SpreadElement == "SpreadElement"
+    assert el.Elision.value == "Elision"
+    assert el.SpreadElement.value == "SpreadElement"
 
 
 def test_P2_ElementList_ElementList_COMMA_AssignmentExpression_init(context):
     el = ecmascript.ecmascript.P2_ElementList_ElementList_COMMA_AssignmentExpression(
-        context, "StrictArg", ["ElementList", ",", "AssignmentExpression"]
+        context, "StrictArg", FakeTokens("ElementList", ",", "AssignmentExpression")
     )
     assert el.name == "ElementList"
-    assert el.ElementList == "ElementList"
-    assert el.AssignmentExpression == "AssignmentExpression"
+    assert el.ElementList.value == "ElementList"
+    assert el.AssignmentExpression.value == "AssignmentExpression"
 
 
 def test_P2_ElementList_ElementList_COMMA_Elision_AssignmentExpression_init(context):
     el = ecmascript.ecmascript.P2_ElementList_ElementList_COMMA_Elision_AssignmentExpression(
-        context, "StrictArg", ["ElementList", ",", "Elision", "AssignmentExpression"]
+        context, "StrictArg", FakeTokens("ElementList", ",", "Elision", "AssignmentExpression")
     )
     assert el.name == "ElementList"
-    assert el.ElementList == "ElementList"
-    assert el.Elision == "Elision"
-    assert el.AssignmentExpression == "AssignmentExpression"
+    assert el.ElementList.value == "ElementList"
+    assert el.Elision.value == "Elision"
+    assert el.AssignmentExpression.value == "AssignmentExpression"
 
 
 def test_P2_ElementList_ElementList_COMMA_SpreadElement_init(context):
     el = ecmascript.ecmascript.P2_ElementList_ElementList_COMMA_SpreadElement(
-        context, "StrictArg", ["ElementList", ",", "SpreadElement"]
+        context, "StrictArg", FakeTokens("ElementList", ",", "SpreadElement")
     )
     assert el.name == "ElementList"
-    assert el.ElementList == "ElementList"
-    assert el.SpreadElement == "SpreadElement"
+    assert el.ElementList.value == "ElementList"
+    assert el.SpreadElement.value == "SpreadElement"
 
 
 def test_P2_ElementList_ElementList_COMMA_Elision_SpreadElement_init(context):
     el = ecmascript.ecmascript.P2_ElementList_ElementList_COMMA_Elision_SpreadElement(
-        context, "StrictArg", ["ElementList", ",", "Elision", "SpreadElement"]
+        context, "StrictArg", FakeTokens("ElementList", ",", "Elision", "SpreadElement")
     )
     assert el.name == "ElementList"
-    assert el.ElementList == "ElementList"
-    assert el.Elision == "Elision"
-    assert el.SpreadElement == "SpreadElement"
+    assert el.ElementList.value == "ElementList"
+    assert el.Elision.value == "Elision"
+    assert el.SpreadElement.value == "SpreadElement"
 
 
 class Test_parse_ElementList(parse_test):
@@ -777,18 +785,18 @@ class Test_parse_ElementList(parse_test):
 #
 ############################################################################################################################
 def test_P2_SpreadElement_init(context):
-    se = ecmascript.ecmascript.P2_SpreadElement(context, "StrictArg", ["child"])
+    se = ecmascript.ecmascript.P2_SpreadElement(context, "StrictArg", FakeTokens("child"))
     assert se.name == "SpreadElement"
     assert se.context == context
-    assert se.children == ["child"]
+    assert [tok.value for tok in se.children] == ["child"]
 
 
 def test_P2_SpreadElement_DOTDOTDOT_AssignmentExpression_init(context):
     se = ecmascript.ecmascript.P2_SpreadElement_DOTDOTDOT_AssignmentExpression(
-        context, "StrictArg", ["...", "AssignmentExpression"]
+        context, "StrictArg", FakeTokens("...", "AssignmentExpression")
     )
     assert se.name == "SpreadElement"
-    assert se.AssignmentExpression == "AssignmentExpression"
+    assert se.AssignmentExpression.value == "AssignmentExpression"
 
 
 class Test_parse_SpreadElement(parse_test):
@@ -829,31 +837,31 @@ class Test_parse_SpreadElement(parse_test):
 #
 #########################################################################################################
 def test_P2_ObjectLiteral_init(context):
-    ol = ecmascript.ecmascript.P2_ObjectLiteral(context, "StrictArg", ["child"])
+    ol = ecmascript.ecmascript.P2_ObjectLiteral(context, "StrictArg", FakeTokens("child"))
     assert ol.name == "ObjectLiteral"
     assert ol.context == context
-    assert ol.children == ["child"]
+    assert [tok.value for tok in ol.children] == ["child"]
 
 
 def test_P2_ObjectLiteral_LCURLY_RCURLY_init(context):
-    ol = ecmascript.ecmascript.P2_ObjectLiteral_LCURLY_RCURLY(context, "StrictArg", ["{", "}"])
+    ol = ecmascript.ecmascript.P2_ObjectLiteral_LCURLY_RCURLY(context, "StrictArg", FakeTokens("{", "}"))
     assert ol.name == "ObjectLiteral"
 
 
 def test_P2_ObjectLiteral_LCURLY_PropertyDefinitionList_RCURLY_init(context):
     ol = ecmascript.ecmascript.P2_ObjectLiteral_LCURLY_PropertyDefinitionList_RCURLY(
-        context, "StrictArg", ["{", "PropertyDefinitionList", "}"]
+        context, "StrictArg", FakeTokens("{", "PropertyDefinitionList", "}")
     )
     assert ol.name == "ObjectLiteral"
-    assert ol.PropertyDefinitionList == "PropertyDefinitionList"
+    assert ol.PropertyDefinitionList.value == "PropertyDefinitionList"
 
 
 def test_P2_ObjectLiteral_LCURLY_PropertyDefinitionList_COMMA_RCURLY_init(context):
     ol = ecmascript.ecmascript.P2_ObjectLiteral_LCURLY_PropertyDefinitionList_COMMA_RCURLY(
-        context, "StrictArg", ["{", "PropertyDefinitionList", ",", "}"]
+        context, "StrictArg", FakeTokens("{", "PropertyDefinitionList", ",", "}")
     )
     assert ol.name == "ObjectLiteral"
-    assert ol.PropertyDefinitionList == "PropertyDefinitionList"
+    assert ol.PropertyDefinitionList.value == "PropertyDefinitionList"
 
 
 class Test_parse_ObjectLiteral(parse_test):
@@ -902,27 +910,27 @@ class Test_parse_ObjectLiteral(parse_test):
 #
 ##################################################################################################################################################################################
 def test_P2_PropertyDefinitionList_init(context):
-    pdl = ecmascript.ecmascript.P2_PropertyDefinitionList(context, "StrictArg", ["child"])
+    pdl = ecmascript.ecmascript.P2_PropertyDefinitionList(context, "StrictArg", FakeTokens("child"))
     assert pdl.name == "PropertyDefinitionList"
     assert pdl.context == context
-    assert pdl.children == ["child"]
+    assert [tok.value for tok in pdl.children] == ["child"]
 
 
 def test_P2_PropertyDefinitionList_PropertyDefinition_init(context):
     pdl = ecmascript.ecmascript.P2_PropertyDefinitionList_PropertyDefinition(
-        context, "StrictArg", ["PropertyDefinition"]
+        context, "StrictArg", FakeTokens("PropertyDefinition")
     )
     assert pdl.name == "PropertyDefinitionList"
-    assert pdl.PropertyDefinition == "PropertyDefinition"
+    assert pdl.PropertyDefinition.value == "PropertyDefinition"
 
 
 def test_P2_PropertyDefinitionList_PropertyDefinitionList_COMMA_PropertyDefinition_init(context):
     pdl = ecmascript.ecmascript.P2_PropertyDefinitionList_PropertyDefinitionList_COMMA_PropertyDefinition(
-        context, "StrictArg", ["PropertyDefinitionList", ",", "PropertyDefinition"]
+        context, "StrictArg", FakeTokens("PropertyDefinitionList", ",", "PropertyDefinition")
     )
     assert pdl.name == "PropertyDefinitionList"
-    assert pdl.PropertyDefinitionList == "PropertyDefinitionList"
-    assert pdl.PropertyDefinition == "PropertyDefinition"
+    assert pdl.PropertyDefinitionList.value == "PropertyDefinitionList"
+    assert pdl.PropertyDefinition.value == "PropertyDefinition"
 
 
 class Test_parse_PropertyDefinitionList(parse_test):
@@ -966,49 +974,51 @@ class Test_parse_PropertyDefinitionList(parse_test):
 #
 #####################################################################################################################################################
 def test_P2_PropertyDefinition_init(context):
-    pd = ecmascript.ecmascript.P2_PropertyDefinition(context, "StrictArg", ["child"])
+    pd = ecmascript.ecmascript.P2_PropertyDefinition(context, "StrictArg", FakeTokens("child"))
     assert pd.name == "PropertyDefinition"
     assert pd.context == context
-    assert pd.children == ["child"]
+    assert [tok.value for tok in pd.children] == ["child"]
 
 
 def test_P2_PropertyDefinition_IdentifierReference_init(context):
     pd = ecmascript.ecmascript.P2_PropertyDefinition_IdentifierReference(
-        context, "StrictArg", ["IdentifierReference"]
+        context, "StrictArg", FakeTokens("IdentifierReference")
     )
     assert pd.name == "PropertyDefinition"
-    assert pd.IdentifierReference == "IdentifierReference"
+    assert pd.IdentifierReference.value == "IdentifierReference"
 
 
 def test_P2_PropertyDefinition_CoverInitializedName_init(context):
     pd = ecmascript.ecmascript.P2_PropertyDefinition_CoverInitializedName(
-        context, "StrictArg", ["CoverInitializedName"]
+        context, "StrictArg", FakeTokens("CoverInitializedName")
     )
     assert pd.name == "PropertyDefinition"
-    assert pd.CoverInitializedName == "CoverInitializedName"
+    assert pd.CoverInitializedName.value == "CoverInitializedName"
 
 
 def test_P2_PropertyDefinition_PropertyName_COLON_AssignmentExpression_init(context):
     pd = ecmascript.ecmascript.P2_PropertyDefinition_PropertyName_COLON_AssignmentExpression(
-        context, "StrictArg", ["PropertyName", ":", "AssignmentExpression"]
+        context, "StrictArg", FakeTokens("PropertyName", ":", "AssignmentExpression")
     )
     assert pd.name == "PropertyDefinition"
-    assert pd.PropertyName == "PropertyName"
-    assert pd.AssignmentExpression == "AssignmentExpression"
+    assert pd.PropertyName.value == "PropertyName"
+    assert pd.AssignmentExpression.value == "AssignmentExpression"
 
 
 def test_P2_PropertyDefinition_MethodDefinition_init(context):
-    pd = ecmascript.ecmascript.P2_PropertyDefinition_MethodDefinition(context, "StrictArg", ["MethodDefinition"])
+    pd = ecmascript.ecmascript.P2_PropertyDefinition_MethodDefinition(
+        context, "StrictArg", FakeTokens("MethodDefinition")
+    )
     assert pd.name == "PropertyDefinition"
-    assert pd.MethodDefinition == "MethodDefinition"
+    assert pd.MethodDefinition.value == "MethodDefinition"
 
 
 def test_P2_PropertyDefinition_DOTDOTDOT_AssignmentExpression_init(context):
     pd = ecmascript.ecmascript.P2_PropertyDefinition_DOTDOTDOT_AssignmentExpression(
-        context, "StrictArg", ["...", "AssignmentExpression"]
+        context, "StrictArg", FakeTokens("...", "AssignmentExpression")
     )
     assert pd.name == "PropertyDefinition"
-    assert pd.AssignmentExpression == "AssignmentExpression"
+    assert pd.AssignmentExpression.value == "AssignmentExpression"
 
 
 class Test_parse_PropertyDefinition(parse_test):
@@ -1067,22 +1077,26 @@ class Test_parse_PropertyDefinition(parse_test):
 #
 ########################################################################################################################
 def test_P2_PropertyName_init(context):
-    pn = ecmascript.ecmascript.P2_PropertyName(context, "StrictArg", ["child"])
+    pn = ecmascript.ecmascript.P2_PropertyName(context, "StrictArg", FakeTokens("child"))
     assert pn.name == "PropertyName"
     assert pn.context == context
-    assert pn.children == ["child"]
+    assert [tok.value for tok in pn.children] == ["child"]
 
 
 def test_P2_PropertyName_LiteralPropertyName_init(context):
-    pn = ecmascript.ecmascript.P2_PropertyName_LiteralPropertyName(context, "StrictArg", ["LiteralPropertyName"])
+    pn = ecmascript.ecmascript.P2_PropertyName_LiteralPropertyName(
+        context, "StrictArg", FakeTokens("LiteralPropertyName")
+    )
     assert pn.name == "PropertyName"
-    assert pn.LiteralPropertyName == "LiteralPropertyName"
+    assert pn.LiteralPropertyName.value == "LiteralPropertyName"
 
 
 def test_P2_PropertyName_ComputedPropertyName_init(context):
-    pn = ecmascript.ecmascript.P2_PropertyName_ComputedPropertyName(context, "StrictArg", ["ComputedPropertyName"])
+    pn = ecmascript.ecmascript.P2_PropertyName_ComputedPropertyName(
+        context, "StrictArg", FakeTokens("ComputedPropertyName")
+    )
     assert pn.name == "PropertyName"
-    assert pn.ComputedPropertyName == "ComputedPropertyName"
+    assert pn.ComputedPropertyName.value == "ComputedPropertyName"
 
 
 class Test_parse_PropertyName(parse_test):
@@ -1123,28 +1137,34 @@ class Test_parse_PropertyName(parse_test):
 #
 ##########################################################################################################################################################################
 def test_P2_LiteralPropertyName_init(context):
-    lpn = ecmascript.ecmascript.P2_LiteralPropertyName(context, "StrictArg", ["child"])
+    lpn = ecmascript.ecmascript.P2_LiteralPropertyName(context, "StrictArg", FakeTokens("child"))
     assert lpn.name == "LiteralPropertyName"
     assert lpn.context == context
-    assert lpn.children == ["child"]
+    assert [tok.value for tok in lpn.children] == ["child"]
 
 
 def test_P2_LiteralPropertyName_IdentifierName_init(context):
-    lpn = ecmascript.ecmascript.P2_LiteralPropertyName_IdentifierName(context, "StrictArg", ["IdentifierName"])
+    lpn = ecmascript.ecmascript.P2_LiteralPropertyName_IdentifierName(
+        context, "StrictArg", FakeTokens("IdentifierName")
+    )
     assert lpn.name == "LiteralPropertyName"
-    assert lpn.IdentifierName == "IdentifierName"
+    assert lpn.IdentifierName.value == "IdentifierName"
 
 
 def test_P2_LiteralPropertyName_StringLiteral_init(context):
-    lpn = ecmascript.ecmascript.P2_LiteralPropertyName_StringLiteral(context, "StrictArg", ["StringLiteral"])
+    lpn = ecmascript.ecmascript.P2_LiteralPropertyName_StringLiteral(
+        context, "StrictArg", FakeTokens("StringLiteral")
+    )
     assert lpn.name == "LiteralPropertyName"
-    assert lpn.StringLiteral == "StringLiteral"
+    assert lpn.StringLiteral.value == "StringLiteral"
 
 
 def test_P2_LiteralPropertyName_NumericLiteral_init(context):
-    lpn = ecmascript.ecmascript.P2_LiteralPropertyName_NumericLiteral(context, "StrictArg", ["NumericLiteral"])
+    lpn = ecmascript.ecmascript.P2_LiteralPropertyName_NumericLiteral(
+        context, "StrictArg", FakeTokens("NumericLiteral")
+    )
     assert lpn.name == "LiteralPropertyName"
-    assert lpn.NumericLiteral == "NumericLiteral"
+    assert lpn.NumericLiteral.value == "NumericLiteral"
 
 
 class Test_parse_LiteralPropertyName(parse_test):
@@ -1187,18 +1207,18 @@ class Test_parse_LiteralPropertyName(parse_test):
 #
 #################################################################################################################################################################################################
 def test_P2_ComputedPropertyName_init(context):
-    cpn = ecmascript.ecmascript.P2_ComputedPropertyName(context, "StrictArg", ["child"])
+    cpn = ecmascript.ecmascript.P2_ComputedPropertyName(context, "StrictArg", FakeTokens("child"))
     assert cpn.name == "ComputedPropertyName"
     assert cpn.context == context
-    assert cpn.children == ["child"]
+    assert [tok.value for tok in cpn.children] == ["child"]
 
 
 def test_P2_ComputedPropertyName_LBRACKET_AssignmentExpression_RBRACKET_init(context):
     cpn = ecmascript.ecmascript.P2_ComputedPropertyName_LBRACKET_AssignmentExpression_RBRACKET(
-        context, "StrictArg", ["[", "AssignmentExpression", "]"]
+        context, "StrictArg", FakeTokens("[", "AssignmentExpression", "]")
     )
     assert cpn.name == "ComputedPropertyName"
-    assert cpn.AssignmentExpression == "AssignmentExpression"
+    assert cpn.AssignmentExpression.value == "AssignmentExpression"
 
 
 class Test_parse_ComputedPropertyName(parse_test):
@@ -1240,19 +1260,19 @@ class Test_parse_ComputedPropertyName(parse_test):
 #
 ########################################################################################################################################################################
 def test_P2_CoverInitializedName_init(context):
-    cin = ecmascript.ecmascript.P2_CoverInitializedName(context, "StrictArg", ["child"])
+    cin = ecmascript.ecmascript.P2_CoverInitializedName(context, "StrictArg", FakeTokens("child"))
     assert cin.name == "CoverInitializedName"
     assert cin.context == context
-    assert cin.children == ["child"]
+    assert [tok.value for tok in cin.children] == ["child"]
 
 
 def test_P2_CoverInitializedName_IdentifierReference_Initializer_init(context):
     cin = ecmascript.ecmascript.P2_CoverInitializedName_IdentifierReference_Initializer(
-        context, "StrictArg", ["IdentifierReference", "Initializer"]
+        context, "StrictArg", FakeTokens("IdentifierReference", "Initializer")
     )
     assert cin.name == "CoverInitializedName"
-    assert cin.IdentifierReference == "IdentifierReference"
-    assert cin.Initializer == "Initializer"
+    assert cin.IdentifierReference.value == "IdentifierReference"
+    assert cin.Initializer.value == "Initializer"
 
 
 class Test_parse_CoverInitializedName(parse_test):
@@ -1294,18 +1314,18 @@ class Test_parse_CoverInitializedName(parse_test):
 #
 #############################################################################
 def test_P2_Initializer_init(context):
-    init = ecmascript.ecmascript.P2_Initializer(context, "StrictArg", ["child"])
+    init = ecmascript.ecmascript.P2_Initializer(context, "StrictArg", FakeTokens("child"))
     assert init.name == "Initializer"
     assert init.context == context
-    assert init.children == ["child"]
+    assert [tok.value for tok in init.children] == ["child"]
 
 
 def test_P2_Initializer_EQUALS_AssignmentExpression_init(context):
     init = ecmascript.ecmascript.P2_Initializer_EQUALS_AssignmentExpression(
-        context, "StrictArg", ["=", "AssignmentExpression"]
+        context, "StrictArg", FakeTokens("=", "AssignmentExpression")
     )
     assert init.name == "Initializer"
-    assert init.AssignmentExpression == "AssignmentExpression"
+    assert init.AssignmentExpression.value == "AssignmentExpression"
 
 
 class Test_parse_Initializer(parse_test):
@@ -1346,23 +1366,27 @@ class Test_parse_Initializer(parse_test):
 #
 #############################################################################################################################
 def test_P2_TemplateLiteral_init(context):
-    tl = ecmascript.ecmascript.P2_TemplateLiteral(context, "StrictArg", ["child"], "TaggedArg")
+    tl = ecmascript.ecmascript.P2_TemplateLiteral(context, "StrictArg", FakeTokens("child"), "TaggedArg")
     assert tl.name == "TemplateLiteral"
     assert tl.context == context
-    assert tl.children == ["child"]
+    assert [tok.value for tok in tl.children] == ["child"]
     assert tl.Tagged == "TaggedArg"
 
 
 def test_P2_TemplateLiteral_NoSubstitutionTemplate_init(context):
-    tl = ecmascript.ecmascript.P2_TemplateLiteral_NoSubstitutionTemplate(context, "StrictArg", ["NST"], "T")
+    tl = ecmascript.ecmascript.P2_TemplateLiteral_NoSubstitutionTemplate(
+        context, "StrictArg", FakeTokens("NST"), "T"
+    )
     assert tl.name == "TemplateLiteral"
-    assert tl.NoSubstitutionTemplate == "NST"
+    assert tl.NoSubstitutionTemplate.value == "NST"
 
 
 def test_P2_TemplateLiteral_SubstitutionTemplate_init(context):
-    tl = ecmascript.ecmascript.P2_TemplateLiteral_SubstitutionTemplate(context, "StrictArg", ["SubTemp"], "T")
+    tl = ecmascript.ecmascript.P2_TemplateLiteral_SubstitutionTemplate(
+        context, "StrictArg", FakeTokens("SubTemp"), "T"
+    )
     assert tl.name == "TemplateLiteral"
-    assert tl.SubstitutionTemplate == "SubTemp"
+    assert tl.SubstitutionTemplate.value == "SubTemp"
 
 
 class Test_parse_TemplateLiteral(parse_test):
@@ -1406,21 +1430,21 @@ class Test_parse_TemplateLiteral(parse_test):
 #
 #########################################################################################################################################################################
 def test_P2_SubstitutionTemplate_init(context):
-    st = ecmascript.ecmascript.P2_SubstitutionTemplate(context, "StrictArg", ["child"], "TaggedArg")
+    st = ecmascript.ecmascript.P2_SubstitutionTemplate(context, "StrictArg", FakeTokens("child"), "TaggedArg")
     assert st.name == "SubstitutionTemplate"
     assert st.context == context
-    assert st.children == ["child"]
+    assert [tok.value for tok in st.children] == ["child"]
     assert st.Tagged == "TaggedArg"
 
 
 def test_P2_SubstitutionTemplate_TemplateHead_Expression_TemplateSpans_init(context):
     st = ecmascript.ecmascript.P2_SubstitutionTemplate_TemplateHead_Expression_TemplateSpans(
-        context, "StrictArg", ["TemplateHead", "Expression", "TemplateSpans"], "T"
+        context, "StrictArg", FakeTokens("TemplateHead", "Expression", "TemplateSpans"), "T"
     )
     assert st.name == "SubstitutionTemplate"
-    assert st.TemplateHead == "TemplateHead"
-    assert st.Expression == "Expression"
-    assert st.TemplateSpans == "TemplateSpans"
+    assert st.TemplateHead.value == "TemplateHead"
+    assert st.Expression.value == "Expression"
+    assert st.TemplateSpans.value == "TemplateSpans"
 
 
 class Test_parse_SubstitutionTemplate(parse_test):
@@ -1465,26 +1489,26 @@ class Test_parse_SubstitutionTemplate(parse_test):
 #
 ##########################################################################################################################
 def test_P2_TemplateSpans_init(context):
-    ts = ecmascript.ecmascript.P2_TemplateSpans(context, "StrictArg", ["child"], "TaggedArg")
+    ts = ecmascript.ecmascript.P2_TemplateSpans(context, "StrictArg", FakeTokens("child"), "TaggedArg")
     assert ts.name == "TemplateSpans"
     assert ts.context == context
-    assert ts.children == ["child"]
+    assert [tok.value for tok in ts.children] == ["child"]
     assert ts.Tagged == "TaggedArg"
 
 
 def test_P2_TemplateSpans_TemplateTail_init(context):
-    ts = ecmascript.ecmascript.P2_TemplateSpans_TemplateTail(context, "StrictArg", ["Tail"], "T")
+    ts = ecmascript.ecmascript.P2_TemplateSpans_TemplateTail(context, "StrictArg", FakeTokens("Tail"), "T")
     assert ts.name == "TemplateSpans"
-    assert ts.TemplateTail == "Tail"
+    assert ts.TemplateTail.value == "Tail"
 
 
 def test_P2_TemplateSpans_TemplateMiddleList_TemplateTail_init(context):
     ts = ecmascript.ecmascript.P2_TemplateSpans_TemplateMiddleList_TemplateTail(
-        context, "StrictArg", ["MiddleList", "Tail"], "T"
+        context, "StrictArg", FakeTokens("MiddleList", "Tail"), "T"
     )
     assert ts.name == "TemplateSpans"
-    assert ts.TemplateMiddleList == "MiddleList"
-    assert ts.TemplateTail == "Tail"
+    assert ts.TemplateMiddleList.value == "MiddleList"
+    assert ts.TemplateTail.value == "Tail"
 
 
 class Test_parse_TemplateSpans(parse_test):
@@ -1530,36 +1554,36 @@ class Test_parse_TemplateSpans(parse_test):
 #
 #########################################################################################################################################################
 def test_P2_TemplateMiddleList_init(context):
-    tml = ecmascript.ecmascript.P2_TemplateMiddleList(context, "StrictArg", ["child"], "TaggedArg")
+    tml = ecmascript.ecmascript.P2_TemplateMiddleList(context, "StrictArg", FakeTokens("child"), "TaggedArg")
     assert tml.name == "TemplateMiddleList"
     assert tml.context == context
-    assert tml.children == ["child"]
+    assert [tok.value for tok in tml.children] == ["child"]
     assert tml.Tagged == "TaggedArg"
 
 
 def test_P2_TemplateMiddleList_TemplateMiddle_Expression_init(context):
     tml = ecmascript.ecmascript.P2_TemplateMiddleList_TemplateMiddle_Expression(
-        context, "StrictArg", ["TemplateMiddle", "Expression"], "T"
+        context, "StrictArg", FakeTokens("TemplateMiddle", "Expression"), "T"
     )
     assert tml.name == "TemplateMiddleList"
-    assert tml.TemplateMiddle == "TemplateMiddle"
-    assert tml.Expression == "Expression"
+    assert tml.TemplateMiddle.value == "TemplateMiddle"
+    assert tml.Expression.value == "Expression"
 
 
 def test_P2_TemplateMiddleList_TemplateMiddleList_TemplateMiddle_Expression_init(context):
     tml = ecmascript.ecmascript.P2_TemplateMiddleList_TemplateMiddleList_TemplateMiddle_Expression(
-        context, "StrictArg", ["TemplateMiddleList", "TemplateMiddle", "Expression"], "T"
+        context, "StrictArg", FakeTokens("TemplateMiddleList", "TemplateMiddle", "Expression"), "T"
     )
     assert tml.name == "TemplateMiddleList"
-    assert tml.TemplateMiddleList == "TemplateMiddleList"
-    assert tml.TemplateMiddle == "TemplateMiddle"
-    assert tml.Expression == "Expression"
+    assert tml.TemplateMiddleList.value == "TemplateMiddleList"
+    assert tml.TemplateMiddle.value == "TemplateMiddle"
+    assert tml.Expression.value == "Expression"
 
 
 @pytest.mark.parametrize("Tagged", (False, True))
 @strict_params
 def test_P2_TemplateMiddleList_TemplateMiddle(context, strict, Tagged):
-    tml = ecmascript.ecmascript.P2_TemplateMiddleList(context, strict, ["anything"], Tagged)
+    tml = ecmascript.ecmascript.P2_TemplateMiddleList(context, strict, FakeTokens("anything"), Tagged)
     with pytest.raises(NotImplementedError):
         tml.TemplateMiddle
 
@@ -2876,7 +2900,7 @@ class Test_HasUseStrict:
     )
     @strict_params
     def test_Literal_StringLiteral(self, context, mocker, strict, test, expected):
-        sl = mocker.Mock(src=test, span=(0, len(test)))
+        sl = mocker.Mock(src=test, span=Span(0, len(test)))
         lit = ecmascript.ecmascript.P2_Literal_StringLiteral(context, strict, [sl])
         assert lit.HasUseStrict is expected
 

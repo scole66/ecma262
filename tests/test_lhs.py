@@ -25,56 +25,56 @@ import ecmascript.lexer2 as lexer2
 #
 #######################################################################################################################################################
 def test_P2_MemberExpression_init(context):
-    me = e.P2_MemberExpression(context, "strict", ["child"])
+    me = e.P2_MemberExpression(context, "strict", FakeTokens("child"))
     assert me.name == "MemberExpression"
     assert me.context == context
-    assert me.children == ["child"]
+    assert [tok.value for tok in me.children] == ["child"]
     assert me.strict == "strict"
 
 
 def test_P2_MemberExpression_MemberExpression_PERIOD_IdentifierName_init(context):
     me = e.P2_MemberExpression_MemberExpression_PERIOD_IdentifierName(
-        context, False, ["MemberExpression_alpha", ".", "IdentifierName_beta"]
+        context, False, FakeTokens("MemberExpression_alpha", ".", "IdentifierName_beta")
     )
     assert me.name == "MemberExpression"
-    assert me.MemberExpression == "MemberExpression_alpha"
-    assert me.IdentifierName == "IdentifierName_beta"
+    assert me.MemberExpression.value == "MemberExpression_alpha"
+    assert me.IdentifierName.value == "IdentifierName_beta"
 
 
 def test_P2_MemberExpression_MemberExpression_TemplateLiteral_init(context):
     me = e.P2_MemberExpression_MemberExpression_TemplateLiteral(
-        context, False, ["MemberExpression_alpha", "TemplateLiteral_beta"]
+        context, False, FakeTokens("MemberExpression_alpha", "TemplateLiteral_beta")
     )
     assert me.name == "MemberExpression"
-    assert me.MemberExpression == "MemberExpression_alpha"
-    assert me.TemplateLiteral == "TemplateLiteral_beta"
+    assert me.MemberExpression.value == "MemberExpression_alpha"
+    assert me.TemplateLiteral.value == "TemplateLiteral_beta"
 
 
 def test_P2_MemberExpression_SuperProperty_init(context):
-    me = e.P2_MemberExpression_SuperProperty(context, False, ["SuperProp"])
+    me = e.P2_MemberExpression_SuperProperty(context, False, FakeTokens("SuperProp"))
     assert me.name == "MemberExpression"
-    assert me.SuperProperty == "SuperProp"
+    assert me.SuperProperty.value == "SuperProp"
 
 
 def test_P2_MemberExpression_MetaProperty_init(context):
-    me = e.P2_MemberExpression_MetaProperty(context, False, ["MetaProp"])
+    me = e.P2_MemberExpression_MetaProperty(context, False, FakeTokens("MetaProp"))
     assert me.name == "MemberExpression"
-    assert me.MetaProperty == "MetaProp"
+    assert me.MetaProperty.value == "MetaProp"
 
 
 def test_P2_MemberExpression_NEW_MemberExpression_Arguments_init(context):
-    me = e.P2_MemberExpression_NEW_MemberExpression_Arguments(context, False, ["new", "ME_alpha", "args"])
+    me = e.P2_MemberExpression_NEW_MemberExpression_Arguments(context, False, FakeTokens("new", "ME_alpha", "args"))
     assert me.name == "MemberExpression"
-    assert me.MemberExpression == "ME_alpha"
-    assert me.Arguments == "args"
+    assert me.MemberExpression.value == "ME_alpha"
+    assert me.Arguments.value == "args"
 
 
 class Test_P2_MemberExpression_PrimaryExpression:
     @strict_params
     def test_init(self, context, strict):
-        me = e.P2_MemberExpression_PrimaryExpression(context, strict, ["PrimaryExpression"])
+        me = e.P2_MemberExpression_PrimaryExpression(context, strict, FakeTokens("PrimaryExpression"))
         assert me.name == "MemberExpression"
-        assert me.PrimaryExpression == "PrimaryExpression"
+        assert me.PrimaryExpression.value == "PrimaryExpression"
 
     @pytest.mark.parametrize("probe, expected", ((True, True), (False, False)))
     @strict_params
@@ -97,11 +97,11 @@ class Test_P2_MemberExpression_MemberExpression_LBRACKET_Expression_RBRACKET:
     @strict_params
     def test_init(self, context, strict):
         me = e.P2_MemberExpression_MemberExpression_LBRACKET_Expression_RBRACKET(
-            context, strict, ["MemberExpression", "[", "Expression", "]"]
+            context, strict, FakeTokens("MemberExpression", "[", "Expression", "]")
         )
         assert me.name == "MemberExpression"
-        assert me.MemberExpression == "MemberExpression"
-        assert me.Expression == "Expression"
+        assert me.MemberExpression.value == "MemberExpression"
+        assert me.Expression.value == "Expression"
 
 
 class Test_parse_MemberExpression(parse_test):
@@ -169,25 +169,27 @@ class Test_parse_MemberExpression(parse_test):
 #
 ######################################################################################################################
 def test_P2_SuperProperty_init(context):
-    sp = e.P2_SuperProperty(context, "StrictArg", ["child"])
+    sp = e.P2_SuperProperty(context, "StrictArg", FakeTokens("child"))
     assert sp.name == "SuperProperty"
     assert sp.context == context
-    assert sp.children == ["child"]
+    assert [tok.value for tok in sp.children] == ["child"]
     assert sp.strict == "StrictArg"
 
 
 def test_P2_SuperProperty_SUPER_LBRACKET_Expression_RBRACKET_init(context):
     sp = e.P2_SuperProperty_SUPER_LBRACKET_Expression_RBRACKET(
-        context, "StrictArg", ["super", "[", "Expression", "]"]
+        context, "StrictArg", FakeTokens("super", "[", "Expression", "]")
     )
     assert sp.name == "SuperProperty"
-    assert sp.Expression == "Expression"
+    assert sp.Expression.value == "Expression"
 
 
 def test_P2_SuperProperty_SUPER_PERIOD_IdentifierName_init(context):
-    sp = e.P2_SuperProperty_SUPER_PERIOD_IdentifierName(context, "StrictArg", ["super", ".", "IdentifierName"])
+    sp = e.P2_SuperProperty_SUPER_PERIOD_IdentifierName(
+        context, "StrictArg", FakeTokens("super", ".", "IdentifierName")
+    )
     assert sp.name == "SuperProperty"
-    assert sp.IdentifierName == "IdentifierName"
+    assert sp.IdentifierName.value == "IdentifierName"
 
 
 class Test_parse_SuperProperty(parse_test):
@@ -228,17 +230,17 @@ class Test_parse_SuperProperty(parse_test):
 #
 ###############################################################################################################
 def test_P2_MetaProperty_init(context):
-    mp = e.P2_MetaProperty(context, "StrictArg", ["child"])
+    mp = e.P2_MetaProperty(context, "StrictArg", FakeTokens("child"))
     assert mp.name == "MetaProperty"
     assert mp.context == context
-    assert mp.children == ["child"]
+    assert [tok.value for tok in mp.children] == ["child"]
     assert mp.strict == "StrictArg"
 
 
 def test_P2_MetaProperty_NewTarget_init(context):
-    mp = e.P2_MetaProperty_NewTarget(context, "StrictArg", ["NewTarget"])
+    mp = e.P2_MetaProperty_NewTarget(context, "StrictArg", FakeTokens("NewTarget"))
     assert mp.name == "MetaProperty"
-    assert mp.NewTarget == "NewTarget"
+    assert mp.NewTarget.value == "NewTarget"
 
 
 class Test_parse_MetaProperty(parse_test):
@@ -275,15 +277,15 @@ class Test_parse_MetaProperty(parse_test):
 #
 ###########################################################################################
 def test_P2_NewTarget_init(context):
-    sp = e.P2_NewTarget(context, "StrictArg", ["child"])
+    sp = e.P2_NewTarget(context, "StrictArg", FakeTokens("child"))
     assert sp.name == "NewTarget"
     assert sp.context == context
-    assert sp.children == ["child"]
+    assert [tok.value for tok in sp.children] == ["child"]
     assert sp.strict == "StrictArg"
 
 
 def test_P2_NewTarget_NEW_PERIOD_TARGET_init(context):
-    sp = e.P2_NewTarget_NEW_PERIOD_TARGET(context, "StrictArg", ["new", ".", "target"])
+    sp = e.P2_NewTarget_NEW_PERIOD_TARGET(context, "StrictArg", FakeTokens("new", ".", "target"))
     assert sp.name == "NewTarget"
 
 
@@ -321,23 +323,23 @@ class Test_parse_NewTarget(parse_test):
 #
 ###########################################################################################################################
 def test_P2_NewExpression_init(context):
-    ne = e.P2_NewExpression(context, "StrictArg", ["child"])
+    ne = e.P2_NewExpression(context, "StrictArg", FakeTokens("child"))
     assert ne.name == "NewExpression"
     assert ne.context == context
-    assert ne.children == ["child"]
+    assert [tok.value for tok in ne.children] == ["child"]
     assert ne.strict == "StrictArg"
 
 
 def test_P2_NewExpression_MemberExpression_init(context):
-    ne = e.P2_NewExpression_MemberExpression(context, "StrictArg", ["MemberExpression"])
+    ne = e.P2_NewExpression_MemberExpression(context, "StrictArg", FakeTokens("MemberExpression"))
     assert ne.name == "NewExpression"
-    assert ne.MemberExpression == "MemberExpression"
+    assert ne.MemberExpression.value == "MemberExpression"
 
 
 def test_P2_NewExpression_NEW_NewExpression_init(context):
-    ne = e.P2_NewExpression_NEW_NewExpression(context, "StrictArg", ["new", "NewExpression"])
+    ne = e.P2_NewExpression_NEW_NewExpression(context, "StrictArg", FakeTokens("new", "NewExpression"))
     assert ne.name == "NewExpression"
-    assert ne.NewExpression == "NewExpression"
+    assert ne.NewExpression.value == "NewExpression"
 
 
 class Test_parse_NewExpression(parse_test):
@@ -378,61 +380,63 @@ class Test_parse_NewExpression(parse_test):
 #
 ####################################################################################################################
 def test_P2_CallExpression_init(context):
-    ce = e.P2_CallExpression(context, "StrictArg", ["child"])
+    ce = e.P2_CallExpression(context, "StrictArg", FakeTokens("child"))
     assert ce.name == "CallExpression"
     assert ce.context == context
-    assert ce.children == ["child"]
+    assert [tok.value for tok in ce.children] == ["child"]
     assert ce.strict == "StrictArg"
 
 
 def test_P2_CallExpression_CoverCallExpressionAndAsyncArrowHead_init(context):
     ce = e.P2_CallExpression_CoverCallExpressionAndAsyncArrowHead(
-        context, "StrictArg", ["CoverCallExpressionAndAsyncArrowHead"], "YieldArg", "AwaitArg"
+        context, "StrictArg", FakeTokens("CoverCallExpressionAndAsyncArrowHead"), "YieldArg", "AwaitArg"
     )
     assert ce.name == "CallExpression"
-    assert ce.CoverCallExpressionAndAsyncArrowHead == "CoverCallExpressionAndAsyncArrowHead"
+    assert ce.CoverCallExpressionAndAsyncArrowHead.value == "CoverCallExpressionAndAsyncArrowHead"
     assert ce.Yield == "YieldArg"
     assert ce.Await == "AwaitArg"
 
 
 def test_P2_CallExpression_SuperCall_init(context):
-    ce = e.P2_CallExpression_SuperCall(context, "StrictArg", ["SuperCall"])
+    ce = e.P2_CallExpression_SuperCall(context, "StrictArg", FakeTokens("SuperCall"))
     assert ce.name == "CallExpression"
-    assert ce.SuperCall == "SuperCall"
+    assert ce.SuperCall.value == "SuperCall"
 
 
 def test_P2_CallExpression_CallExpression_Arguments_init(context):
-    ce = e.P2_CallExpression_CallExpression_Arguments(context, "StrictArg", ["CallExpression", "Arguments"])
+    ce = e.P2_CallExpression_CallExpression_Arguments(
+        context, "StrictArg", FakeTokens("CallExpression", "Arguments")
+    )
     assert ce.name == "CallExpression"
-    assert ce.CallExpression == "CallExpression"
-    assert ce.Arguments == "Arguments"
+    assert ce.CallExpression.value == "CallExpression"
+    assert ce.Arguments.value == "Arguments"
 
 
 def test_P2_CallExpression_CallExpression_LBRACKET_Expression_RBRACKET_init(context):
     ce = e.P2_CallExpression_CallExpression_LBRACKET_Expression_RBRACKET(
-        context, "StrictArg", ["CallExpression", "[", "Expression", "]"]
+        context, "StrictArg", FakeTokens("CallExpression", "[", "Expression", "]")
     )
     assert ce.name == "CallExpression"
-    assert ce.CallExpression == "CallExpression"
-    assert ce.Expression == "Expression"
+    assert ce.CallExpression.value == "CallExpression"
+    assert ce.Expression.value == "Expression"
 
 
 def test_P2_CallExpression_CallExpression_PERIOD_IdentifierName_init(context):
     ce = e.P2_CallExpression_CallExpression_PERIOD_IdentifierName(
-        context, "StrictArg", ["CallExpression", ".", "IdentifierName"]
+        context, "StrictArg", FakeTokens("CallExpression", ".", "IdentifierName")
     )
     assert ce.name == "CallExpression"
-    assert ce.CallExpression == "CallExpression"
-    assert ce.IdentifierName == "IdentifierName"
+    assert ce.CallExpression.value == "CallExpression"
+    assert ce.IdentifierName.value == "IdentifierName"
 
 
 def test_P2_CallExpression_CallExpression_TemplateLiteral_init(context):
     ce = e.P2_CallExpression_CallExpression_TemplateLiteral(
-        context, "StrictArg", ["CallExpression", "TemplateLiteral"]
+        context, "StrictArg", FakeTokens("CallExpression", "TemplateLiteral")
     )
     assert ce.name == "CallExpression"
-    assert ce.CallExpression == "CallExpression"
-    assert ce.TemplateLiteral == "TemplateLiteral"
+    assert ce.CallExpression.value == "CallExpression"
+    assert ce.TemplateLiteral.value == "TemplateLiteral"
 
 
 class Test_parse_CallExpression(parse_test):
@@ -493,17 +497,17 @@ class Test_parse_CallExpression(parse_test):
 #
 ########################################################################################
 def test_P2_SuperCall_init(context):
-    sc = e.P2_SuperCall(context, "StrictArg", ["child"])
+    sc = e.P2_SuperCall(context, "StrictArg", FakeTokens("child"))
     assert sc.name == "SuperCall"
     assert sc.context == context
-    assert sc.children == ["child"]
+    assert [tok.value for tok in sc.children] == ["child"]
     assert sc.strict == "StrictArg"
 
 
 def test_P2_SueprCall_SUPER_Arguments_init(context):
-    sc = e.P2_SuperCall_SUPER_Arguments(context, "StrictArg", ["super", "Arguments"])
+    sc = e.P2_SuperCall_SUPER_Arguments(context, "StrictArg", FakeTokens("super", "Arguments"))
     assert sc.name == "SuperCall"
-    assert sc.Arguments == "Arguments"
+    assert sc.Arguments.value == "Arguments"
 
 
 class Test_parse_SuperCall(parse_test):
@@ -540,27 +544,29 @@ class Test_parse_SuperCall(parse_test):
 #
 #########################################################################################
 def test_P2_Arguments_init(context):
-    args = e.P2_Arguments(context, "StrictArg", ["child"])
+    args = e.P2_Arguments(context, "StrictArg", FakeTokens("child"))
     assert args.name == "Arguments"
     assert args.context == context
-    assert args.children == ["child"]
+    assert [tok.value for tok in args.children] == ["child"]
 
 
 def test_P2_Arguments_LPAREN_RPAREN_init(context):
-    args = e.P2_Arguments_LPAREN_RPAREN(context, "StrictArg", ["(", ")"])
+    args = e.P2_Arguments_LPAREN_RPAREN(context, "StrictArg", FakeTokens("(", ")"))
     assert args.name == "Arguments"
 
 
 def test_P2_Arguments_LPAREN_ArgumentList_RPAREN_init(context):
-    args = e.P2_Arguments_LPAREN_ArgumentList_RPAREN(context, "StrictArg", ["(", "ArgumentList", ")"])
+    args = e.P2_Arguments_LPAREN_ArgumentList_RPAREN(context, "StrictArg", FakeTokens("(", "ArgumentList", ")"))
     assert args.name == "Arguments"
-    assert args.ArgumentList == "ArgumentList"
+    assert args.ArgumentList.value == "ArgumentList"
 
 
 def test_P2_Arguments_LPAREN_ArgumentList_COMMA_RPAREN_init(context):
-    args = e.P2_Arguments_LPAREN_ArgumentList_COMMA_RPAREN(context, "StrictArg", ["(", "ArgumentList", ",", ")"])
+    args = e.P2_Arguments_LPAREN_ArgumentList_COMMA_RPAREN(
+        context, "StrictArg", FakeTokens("(", "ArgumentList", ",", ")")
+    )
     assert args.name == "Arguments"
-    assert args.ArgumentList == "ArgumentList"
+    assert args.ArgumentList.value == "ArgumentList"
 
 
 class Test_parse_Arguments(parse_test):
@@ -603,40 +609,42 @@ class Test_parse_Arguments(parse_test):
 #
 #############################################################################################################
 def test_P2_ArgumentList_init(context):
-    al = e.P2_ArgumentList(context, "StrictArg", ["child"])
+    al = e.P2_ArgumentList(context, "StrictArg", FakeTokens("child"))
     assert al.name == "ArgumentList"
     assert al.context == context
-    assert al.children == ["child"]
+    assert [tok.value for tok in al.children] == ["child"]
 
 
 def test_P2_ArgumentList_AssignmentExpression_init(context):
-    al = e.P2_ArgumentList_AssignmentExpression(context, "StrictArg", ["AssignmentExpression"])
+    al = e.P2_ArgumentList_AssignmentExpression(context, "StrictArg", FakeTokens("AssignmentExpression"))
     assert al.name == "ArgumentList"
-    assert al.AssignmentExpression == "AssignmentExpression"
+    assert al.AssignmentExpression.value == "AssignmentExpression"
 
 
 def test_P2_ArgumentList_DOTDOTDOT_AssignmentExpression_init(context):
-    al = e.P2_ArgumentList_DOTDOTDOT_AssignmentExpression(context, "StrictArg", ["...", "AssignmentExpression"])
+    al = e.P2_ArgumentList_DOTDOTDOT_AssignmentExpression(
+        context, "StrictArg", FakeTokens("...", "AssignmentExpression")
+    )
     assert al.name == "ArgumentList"
-    assert al.AssignmentExpression == "AssignmentExpression"
+    assert al.AssignmentExpression.value == "AssignmentExpression"
 
 
 def test_P2_ArgumentList_ArgumentList_COMMA_AssignmentExpression_init(context):
     al = e.P2_ArgumentList_ArgumentList_COMMA_AssignmentExpression(
-        context, "StrictArg", ["ArgumentList", ",", "AssignmentExpression"]
+        context, "StrictArg", FakeTokens("ArgumentList", ",", "AssignmentExpression")
     )
     assert al.name == "ArgumentList"
-    assert al.ArgumentList == "ArgumentList"
-    assert al.AssignmentExpression == "AssignmentExpression"
+    assert al.ArgumentList.value == "ArgumentList"
+    assert al.AssignmentExpression.value == "AssignmentExpression"
 
 
 def test_P2_ArgumentList_ArgumentList_COMMA_DOTDOTDOT_AssignmentExpression_init(context):
     al = e.P2_ArgumentList_ArgumentList_COMMA_DOTDOTDOT_AssignmentExpression(
-        context, "StrictArg", ["ArgumentList", ",", "...", "AssignmentExpression"]
+        context, "StrictArg", FakeTokens("ArgumentList", ",", "...", "AssignmentExpression")
     )
     assert al.name == "ArgumentList"
-    assert al.ArgumentList == "ArgumentList"
-    assert al.AssignmentExpression == "AssignmentExpression"
+    assert al.ArgumentList.value == "ArgumentList"
+    assert al.AssignmentExpression.value == "AssignmentExpression"
 
 
 class Test_parse_ArgumentList(parse_test):
@@ -685,26 +693,28 @@ class Test_parse_ArgumentList(parse_test):
 #
 ########################################################################################################################################################################################
 def test_P2_LeftHandSideExpression_init(context):
-    lhs = e.P2_LeftHandSideExpression(context, "StrictArg", ["child"], "YieldArg", "AwaitArg")
+    lhs = e.P2_LeftHandSideExpression(context, "StrictArg", FakeTokens("child"), "YieldArg", "AwaitArg")
     assert lhs.name == "LeftHandSideExpression"
     assert lhs.context == context
-    assert lhs.children == ["child"]
+    assert [tok.value for tok in lhs.children] == ["child"]
     assert lhs.Yield == "YieldArg"
     assert lhs.Await == "AwaitArg"
 
 
 def test_P2_LeftHandSideExpression_NewExpression_init(context):
-    lhs = e.P2_LeftHandSideExpression_NewExpression(context, "StrictArg", ["NewExpression"], "YieldArg", "AwaitArg")
+    lhs = e.P2_LeftHandSideExpression_NewExpression(
+        context, "StrictArg", FakeTokens("NewExpression"), "YieldArg", "AwaitArg"
+    )
     assert lhs.name == "LeftHandSideExpression"
-    assert lhs.NewExpression == "NewExpression"
+    assert lhs.NewExpression.value == "NewExpression"
 
 
 def test_P2_LeftHandSideExpression_CallExpression_init(context):
     lhs = e.P2_LeftHandSideExpression_CallExpression(
-        context, "StrictArg", ["CallExpression"], "YieldArg", "AwaitArg"
+        context, "StrictArg", FakeTokens("CallExpression"), "YieldArg", "AwaitArg"
     )
     assert lhs.name == "LeftHandSideExpression"
-    assert lhs.CallExpression == "CallExpression"
+    assert lhs.CallExpression.value == "CallExpression"
 
 
 class Test_parse_LeftHandSideExpression(parse_test):
@@ -745,19 +755,19 @@ class Test_parse_LeftHandSideExpression(parse_test):
 #
 ###################################################################################################################################################################################
 def test_P2_CallMemberExpression_init(context):
-    cme = e.P2_CallMemberExpression(context, "StrictArg", ["child"])
+    cme = e.P2_CallMemberExpression(context, "StrictArg", FakeTokens("child"))
     assert cme.name == "CallMemberExpression"
     assert cme.context == context
-    assert cme.children == ["child"]
+    assert [tok.value for tok in cme.children] == ["child"]
 
 
 def test_P2_CallMemberExpression_MemberExpression_Arguments_init(context):
     cme = e.P2_CallMemberExpression_MemberExpression_Arguments(
-        context, "StrictArg", ["MemberExpression", "Arguments"]
+        context, "StrictArg", FakeTokens("MemberExpression", "Arguments")
     )
     assert cme.name == "CallMemberExpression"
-    assert cme.MemberExpression == "MemberExpression"
-    assert cme.Arguments == "Arguments"
+    assert cme.MemberExpression.value == "MemberExpression"
+    assert cme.Arguments.value == "Arguments"
 
 
 class Test_parse_CallMemberExpression(parse_test):
@@ -1293,7 +1303,7 @@ class Test_NewOperator_Evaluation:
     #   1. Return ? EvaluateNew(NewExpression, empty).
     @strict_params
     def test_new_expression(self, context, mocker, strict):
-        newexp_child = mocker.sentinel.new_expression
+        newexp_child = mocker.Mock()
         newexp = e.P2_NewExpression_NEW_NewExpression(context, strict, [mocker.Mock(), newexp_child])
         en = mocker.patch("ecmascript.ecmascript.EvaluateNew", return_value=mocker.sentinel.return_value)
         rv = newexp.evaluate()
@@ -1304,8 +1314,8 @@ class Test_NewOperator_Evaluation:
     #   1. Return ? EvaluateNew(MemberExpression, Arguments).
     @strict_params
     def test_new_args(self, context, mocker, strict):
-        memb_child = mocker.sentinel.member_expression
-        args = mocker.sentinel.arguments
+        memb_child = mocker.Mock()
+        args = mocker.Mock()
         me = e.P2_MemberExpression_NEW_MemberExpression_Arguments(context, strict, [mocker.Mock(), memb_child, args])
         en = mocker.patch("ecmascript.ecmascript.EvaluateNew", return_value=mocker.sentinel.return_value)
         rv = me.evaluate()
@@ -1419,7 +1429,7 @@ class Test_FunctionCalls_Evaluation:
         ref = mocker.Mock(spec=e.Reference)
         memberExpr = mocker.Mock(**{"evaluate.return_value": ref})
         expr = mocker.Mock(MemberExpression=memberExpr, Arguments=mocker.sentinel.arguments)
-        cceaaah = mocker.sentinel.cceaaah
+        cceaaah = mocker.Mock()
         gv = mocker.patch("ecmascript.ecmascript.GetValue", return_value=mocker.sentinel.func)
         ipr = mocker.patch("ecmascript.ecmascript.IsPropertyReference", return_value=True)
         iitp = mocker.patch("ecmascript.ecmascript.IsInTailPosition", return_value=mocker.sentinel.tailCall)

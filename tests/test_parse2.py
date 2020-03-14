@@ -16,9 +16,11 @@ from .helpers import (
     syntax_error_test_params,
     parse_test,
     strict_params,
+    FakeTokens,
 )
 
 import ecmascript.ecmascript as e
+from ecmascript.lexer2 import Span
 
 from pprint import pprint
 
@@ -29,7 +31,7 @@ class Token:
         self.value = value
         self.newlines = tuple(newlines)
         self.src = value
-        self.span = None
+        self.span = Span(0, 10)
 
     def __repr__(self):
         return f"Token[{self.type}({self.value})]"
@@ -472,11 +474,11 @@ def test_trampoline(input, expected):
 
 class Test_ParseNode2:
     def test_init(self):
-        pn = e.ParseNode2("my context", "my_name", "strictitude", ["child1", "child2"])
+        pn = e.ParseNode2("my context", "my_name", "strictitude", FakeTokens("child1", "child2"))
 
         assert pn.name == "my_name"
         assert pn.context == "my context"
-        assert pn.children == ["child1", "child2"]
+        assert [tok.value for tok in pn.children] == ["child1", "child2"]
         assert pn.strict == "strictitude"
 
     def test_repr(self):
@@ -534,12 +536,12 @@ class Test_ParseNode2:
     def derived(self):
         class Test_Base(e.ParseNode2):
             def __init__(self, ctx, children):
-                super().__init__(ctx, "Test", children)
+                super().__init__(ctx, "Test", "StrictArg", children)
 
         class Test_Production(Test_Base):
             pass
 
-        return (Test_Production(None, ["child"]), Test_Base)
+        return (Test_Production(None, FakeTokens("child")), Test_Base)
 
     def test_Derived_self_string(self, derived):
         obj, _ = derived
@@ -574,12 +576,12 @@ class Test_ParseNode2:
 
     def test_direct_eval(self):
         p2c = e.Parse2Context(direct_eval="test string")
-        pn = e.ParseNode2(p2c, "Top", "StrictArg", ["child"])
+        pn = e.ParseNode2(p2c, "Top", "StrictArg", FakeTokens("child"))
         assert pn.direct_eval == "test string"
 
     def test_CreateSyntaxError(self):
         p2c = e.Parse2Context(syntax_error_ctor="syntax error constructor")
-        pn = e.ParseNode2(p2c, "Top", "StrictArg", ["child"])
+        pn = e.ParseNode2(p2c, "Top", "StrictArg", FakeTokens("child"))
         assert pn.CreateSyntaxError == "syntax error constructor"
 
     @pytest.mark.parametrize(
@@ -629,7 +631,7 @@ class Test_ParseNode2:
         class Child(e.ParseNode2):
             pass
 
-        child = Child(None, "Child", [])
+        child = Child(None, "Child", "StrictArg", FakeTokens("child"))
         setattr(child, callname, types.MethodType(lambda self: callname, child))
         parent = e.ParseNode2(None, "Parent", "StrictArg", [child])
         assert getattr(parent, callname)() == callname
@@ -659,40 +661,40 @@ def test_parse2context_init():
 #
 ###############################################################################################################################################
 def test_P2_UpdateExpression_init(context):
-    upe = e.P2_UpdateExpression(context, "StrictArg", ["child"])
+    upe = e.P2_UpdateExpression(context, "StrictArg", FakeTokens("child"))
     assert upe.name == "UpdateExpression"
     assert upe.context == context
-    assert upe.children == ["child"]
+    assert [tok.value for tok in upe.children] == ["child"]
 
 
 def test_P2_UpdateExpression_LeftHandSideExpression_init(context):
-    upe = e.P2_UpdateExpression_LeftHandSideExpression(context, "StrictArg", ["lhs"])
+    upe = e.P2_UpdateExpression_LeftHandSideExpression(context, "StrictArg", FakeTokens("lhs"))
     assert upe.name == "UpdateExpression"
-    assert upe.LeftHandSideExpression == "lhs"
+    assert upe.LeftHandSideExpression.value == "lhs"
 
 
 def test_P2_UpdateExpression_LeftHandSideExpression_PLUSPLUS_init(context):
-    upe = e.P2_UpdateExpression_LeftHandSideExpression_PLUSPLUS(context, "StrictArg", ["lhs", "++"])
+    upe = e.P2_UpdateExpression_LeftHandSideExpression_PLUSPLUS(context, "StrictArg", FakeTokens("lhs", "++"))
     assert upe.name == "UpdateExpression"
-    assert upe.LeftHandSideExpression == "lhs"
+    assert upe.LeftHandSideExpression.value == "lhs"
 
 
 def test_P2_UpdateExpression_LeftHandSideExpression_MINUSMINUS_init(context):
-    upe = e.P2_UpdateExpression_LeftHandSideExpression_MINUSMINUS(context, "StrictArg", ["lhs", "--"])
+    upe = e.P2_UpdateExpression_LeftHandSideExpression_MINUSMINUS(context, "StrictArg", FakeTokens("lhs", "--"))
     assert upe.name == "UpdateExpression"
-    assert upe.LeftHandSideExpression == "lhs"
+    assert upe.LeftHandSideExpression.value == "lhs"
 
 
 def test_P2_UpdateExpression_PLUSPLUS_UnaryExpression_init(context):
-    upe = e.P2_UpdateExpression_PLUSPLUS_UnaryExpression(context, "StrictArg", ["++", "unary"])
+    upe = e.P2_UpdateExpression_PLUSPLUS_UnaryExpression(context, "StrictArg", FakeTokens("++", "unary"))
     assert upe.name == "UpdateExpression"
-    assert upe.UnaryExpression == "unary"
+    assert upe.UnaryExpression.value == "unary"
 
 
 def test_P2_UpdateExpression_MINUSMINUS_UnaryExpression_init(context):
-    upe = e.P2_UpdateExpression_MINUSMINUS_UnaryExpression(context, "StrictArg", ["--", "unary"])
+    upe = e.P2_UpdateExpression_MINUSMINUS_UnaryExpression(context, "StrictArg", FakeTokens("--", "unary"))
     assert upe.name == "UpdateExpression"
-    assert upe.UnaryExpression == "unary"
+    assert upe.UnaryExpression.value == "unary"
 
 
 class Test_parse_UpdateExpression(parse_test):
@@ -739,64 +741,64 @@ class Test_parse_UpdateExpression(parse_test):
 #
 ###########################################################################################################################################
 def test_P2_UnaryExpression_init(context):
-    une = e.P2_UnaryExpression(context, "StrictArg", ["child"])
+    une = e.P2_UnaryExpression(context, "StrictArg", FakeTokens("child"))
     assert une.name == "UnaryExpression"
     assert une.context == context
-    assert une.children == ["child"]
+    assert [tok.value for tok in une.children] == ["child"]
 
 
 def test_P2_UnaryExpression_UpdateExpression_init(context):
-    une = e.P2_UnaryExpression_UpdateExpression(context, "StrictArg", ["Update"])
+    une = e.P2_UnaryExpression_UpdateExpression(context, "StrictArg", FakeTokens("Update"))
     assert une.name == "UnaryExpression"
-    assert une.UpdateExpression == "Update"
+    assert une.UpdateExpression.value == "Update"
 
 
 def test_P2_UnaryExpression_DELETE_UnaryExpression_init(context):
-    une = e.P2_UnaryExpression_DELETE_UnaryExpression(context, "StrictArg", ["delete", "Unary"])
+    une = e.P2_UnaryExpression_DELETE_UnaryExpression(context, "StrictArg", FakeTokens("delete", "Unary"))
     assert une.name == "UnaryExpression"
-    assert une.UnaryExpression == "Unary"
+    assert une.UnaryExpression.value == "Unary"
 
 
 def test_P2_UnaryExpression_VOID_UnaryExpression_init(context):
-    une = e.P2_UnaryExpression_VOID_UnaryExpression(context, "StrictArg", ["void", "Unary"])
+    une = e.P2_UnaryExpression_VOID_UnaryExpression(context, "StrictArg", FakeTokens("void", "Unary"))
     assert une.name == "UnaryExpression"
-    assert une.UnaryExpression == "Unary"
+    assert une.UnaryExpression.value == "Unary"
 
 
 def test_P2_UnaryExpression_TYPEOF_UnaryExpression_init(context):
-    une = e.P2_UnaryExpression_TYPEOF_UnaryExpression(context, "StrictArg", ["typeof", "Unary"])
+    une = e.P2_UnaryExpression_TYPEOF_UnaryExpression(context, "StrictArg", FakeTokens("typeof", "Unary"))
     assert une.name == "UnaryExpression"
-    assert une.UnaryExpression == "Unary"
+    assert une.UnaryExpression.value == "Unary"
 
 
 def test_P2_UnaryExpression_PLUS_UnaryExpression_init(context):
-    une = e.P2_UnaryExpression_PLUS_UnaryExpression(context, "StrictArg", ["+", "Unary"])
+    une = e.P2_UnaryExpression_PLUS_UnaryExpression(context, "StrictArg", FakeTokens("+", "Unary"))
     assert une.name == "UnaryExpression"
-    assert une.UnaryExpression == "Unary"
+    assert une.UnaryExpression.value == "Unary"
 
 
 def test_P2_UnaryExpression_MINUS_UnaryExpression_init(context):
-    une = e.P2_UnaryExpression_MINUS_UnaryExpression(context, "StrictArg", ["-", "Unary"])
+    une = e.P2_UnaryExpression_MINUS_UnaryExpression(context, "StrictArg", FakeTokens("-", "Unary"))
     assert une.name == "UnaryExpression"
-    assert une.UnaryExpression == "Unary"
+    assert une.UnaryExpression.value == "Unary"
 
 
 def test_P2_UnaryExpression_TILDE_UnaryExpression_init(context):
-    une = e.P2_UnaryExpression_TILDE_UnaryExpression(context, "StrictArg", ["~", "Unary"])
+    une = e.P2_UnaryExpression_TILDE_UnaryExpression(context, "StrictArg", FakeTokens("~", "Unary"))
     assert une.name == "UnaryExpression"
-    assert une.UnaryExpression == "Unary"
+    assert une.UnaryExpression.value == "Unary"
 
 
 def test_P2_UnaryExpression_BANG_UnaryExpression_init(context):
-    une = e.P2_UnaryExpression_BANG_UnaryExpression(context, "StrictArg", ["!", "Unary"])
+    une = e.P2_UnaryExpression_BANG_UnaryExpression(context, "StrictArg", FakeTokens("!", "Unary"))
     assert une.name == "UnaryExpression"
-    assert une.UnaryExpression == "Unary"
+    assert une.UnaryExpression.value == "Unary"
 
 
 def test_P2_UnaryExpression_AwaitExpression_init(context):
-    une = e.P2_UnaryExpression_AwaitExpression(context, "StrictArg", ["AwaitExpression"])
+    une = e.P2_UnaryExpression_AwaitExpression(context, "StrictArg", FakeTokens("AwaitExpression"))
     assert une.name == "UnaryExpression"
-    assert une.AwaitExpression == "AwaitExpression"
+    assert une.AwaitExpression.value == "AwaitExpression"
 
 
 def UnaryExpression_mocks(mocker):
@@ -861,28 +863,28 @@ class Test_parse_UnaryExpression(parse_test):
 #
 ##############################################################################################################################################################################################
 def test_P2_MultiplicativeExpression_init(context):
-    me = e.P2_MultiplicativeExpression(context, "StrictArg", ["child"])
+    me = e.P2_MultiplicativeExpression(context, "StrictArg", FakeTokens("child"))
     assert me.name == "MultiplicativeExpression"
     assert me.context == context
-    assert me.children == ["child"]
+    assert [tok.value for tok in me.children] == ["child"]
 
 
 def test_P2_MultiplicativeExpression_ExponentiationExpression_init(context):
-    me = e.P2_MultiplicativeExpression_ExponentiationExpression(context, "StrictArg", ["child"])
+    me = e.P2_MultiplicativeExpression_ExponentiationExpression(context, "StrictArg", FakeTokens("child"))
     assert me.name == "MultiplicativeExpression"
-    assert me.ExponentiationExpression == "child"
+    assert me.ExponentiationExpression.value == "child"
 
 
 def test_P2_MultiplicativeExpression_MultiplicativeExpression_MultiplicativeOperator_ExponentiationExpression_init(
     context,
 ):
     me = e.P2_MultiplicativeExpression_MultiplicativeExpression_MultiplicativeOperator_ExponentiationExpression(
-        context, "StrictArg", ["p1", "%", "p2"]
+        context, "StrictArg", FakeTokens("p1", "%", "p2")
     )
     assert me.name == "MultiplicativeExpression"
-    assert me.MultiplicativeExpression == "p1"
-    assert me.MultiplicativeOperator == "%"
-    assert me.ExponentiationExpression == "p2"
+    assert me.MultiplicativeExpression.value == "p1"
+    assert me.MultiplicativeOperator.value == "%"
+    assert me.ExponentiationExpression.value == "p2"
 
 
 class Test_parse_MultiplicativeExpression(parse_test):
@@ -929,24 +931,24 @@ class Test_parse_MultiplicativeExpression(parse_test):
 #
 ###############################################################################################################################################################################
 def test_P2_MultiplicativeOperator_init(context):
-    mo = e.P2_MultiplicativeOperator(context, "StrictArg", ["child"])
+    mo = e.P2_MultiplicativeOperator(context, "StrictArg", FakeTokens("child"))
     assert mo.name == "MultiplicativeOperator"
     assert mo.context == context
-    assert mo.children == ["child"]
+    assert [tok.value for tok in mo.children] == ["child"]
 
 
 def test_P2_MultiplicativeOperator_MULT_init(context):
-    mo = e.P2_MultiplicativeOperator_MULT(context, "StrictArg", ["child"])
+    mo = e.P2_MultiplicativeOperator_MULT(context, "StrictArg", FakeTokens("child"))
     assert mo.name == "MultiplicativeOperator"
 
 
 def test_P2_MultiplicativeOperator_DIV_init(context):
-    mo = e.P2_MultiplicativeOperator_DIV(context, "StrictArg", ["child"])
+    mo = e.P2_MultiplicativeOperator_DIV(context, "StrictArg", FakeTokens("child"))
     assert mo.name == "MultiplicativeOperator"
 
 
 def test_P2_MultiplicativeOperator_MOD_init(context):
-    mo = e.P2_MultiplicativeOperator_MOD(context, "StrictArg", ["child"])
+    mo = e.P2_MultiplicativeOperator_MOD(context, "StrictArg", FakeTokens("child"))
     assert mo.name == "MultiplicativeOperator"
 
 
@@ -990,35 +992,35 @@ class Test_parse_MultiplicativeOperator(parse_test):
 #
 ########################################################################################################################################################
 def test_P2_AdditiveExpression_init(context):
-    ae = e.P2_AdditiveExpression(context, "StrictArg", ["child"])
+    ae = e.P2_AdditiveExpression(context, "StrictArg", FakeTokens("child"))
     assert ae.name == "AdditiveExpression"
     assert ae.context == context
-    assert ae.children == ["child"]
+    assert [tok.value for tok in ae.children] == ["child"]
     assert ae.strict == "StrictArg"
 
 
 def test_P2_AdditiveExpression_MultiplicativeExpression_init(context):
-    ae = e.P2_AdditiveExpression_MultiplicativeExpression(context, "StrictArg", ["child"])
+    ae = e.P2_AdditiveExpression_MultiplicativeExpression(context, "StrictArg", FakeTokens("child"))
     assert ae.name == "AdditiveExpression"
-    assert ae.MultiplicativeExpression == "child"
+    assert ae.MultiplicativeExpression.value == "child"
 
 
 def test_P2_AdditiveExpression_AdditiveExpression_PLUS_MultiplicativeExpression_init(context):
     ae = e.P2_AdditiveExpression_AdditiveExpression_PLUS_MultiplicativeExpression(
-        context, "StrictArg", ["child", "+", "alice"]
+        context, "StrictArg", FakeTokens("child", "+", "alice")
     )
     assert ae.name == "AdditiveExpression"
-    assert ae.AdditiveExpression == "child"
-    assert ae.MultiplicativeExpression == "alice"
+    assert ae.AdditiveExpression.value == "child"
+    assert ae.MultiplicativeExpression.value == "alice"
 
 
 def test_P2_AdditiveExpression_AdditiveExpression_MINUS_MultiplicativeExpression_init(context):
     ae = e.P2_AdditiveExpression_AdditiveExpression_MINUS_MultiplicativeExpression(
-        context, "StrictArg", ["child", "-", "alice"]
+        context, "StrictArg", FakeTokens("child", "-", "alice")
     )
     assert ae.name == "AdditiveExpression"
-    assert ae.AdditiveExpression == "child"
-    assert ae.MultiplicativeExpression == "alice"
+    assert ae.AdditiveExpression.value == "child"
+    assert ae.MultiplicativeExpression.value == "alice"
 
 
 class Test_parse_AdditiveExpression(parse_test):
@@ -1067,43 +1069,43 @@ class Test_parse_AdditiveExpression(parse_test):
 #
 ##############################################################################################################################
 def test_P2_ShiftExpression_init(context):
-    se = e.P2_ShiftExpression(context, "StrictArg", ["child"])
+    se = e.P2_ShiftExpression(context, "StrictArg", FakeTokens("child"))
     assert se.name == "ShiftExpression"
     assert se.context == context
-    assert se.children == ["child"]
+    assert [tok.value for tok in se.children] == ["child"]
 
 
 def test_P2_ShiftExpression_AdditiveExpression_init(context):
-    se = e.P2_ShiftExpression_AdditiveExpression(context, "StrictArg", ["child"])
+    se = e.P2_ShiftExpression_AdditiveExpression(context, "StrictArg", FakeTokens("child"))
     assert se.name == "ShiftExpression"
-    assert se.AdditiveExpression == "child"
+    assert se.AdditiveExpression.value == "child"
 
 
 def test_P2_ShiftExpression_ShiftExpression_LTLT_AdditiveExpression_init(context):
     se = e.P2_ShiftExpression_ShiftExpression_LTLT_AdditiveExpression(
-        context, "StrictArg", ["ShiExp", "<<", "AddExp"]
+        context, "StrictArg", FakeTokens("ShiExp", "<<", "AddExp")
     )
     assert se.name == "ShiftExpression"
-    assert se.ShiftExpression == "ShiExp"
-    assert se.AdditiveExpression == "AddExp"
+    assert se.ShiftExpression.value == "ShiExp"
+    assert se.AdditiveExpression.value == "AddExp"
 
 
 def test_P2_ShiftExpression_ShiftExpression_GTGT_AdditiveExpression_init(context):
     se = e.P2_ShiftExpression_ShiftExpression_GTGT_AdditiveExpression(
-        context, "StrictArg", ["ShiExp", ">>", "AddExp"]
+        context, "StrictArg", FakeTokens("ShiExp", ">>", "AddExp")
     )
     assert se.name == "ShiftExpression"
-    assert se.ShiftExpression == "ShiExp"
-    assert se.AdditiveExpression == "AddExp"
+    assert se.ShiftExpression.value == "ShiExp"
+    assert se.AdditiveExpression.value == "AddExp"
 
 
 def test_P2_ShiftExpression_ShiftExpression_GTGTGT_AdditiveExpression_init(context):
     se = e.P2_ShiftExpression_ShiftExpression_GTGTGT_AdditiveExpression(
-        context, "StrictArg", ["ShiExp", ">>>", "AddExp"]
+        context, "StrictArg", FakeTokens("ShiExp", ">>>", "AddExp")
     )
     assert se.name == "ShiftExpression"
-    assert se.ShiftExpression == "ShiExp"
-    assert se.AdditiveExpression == "AddExp"
+    assert se.ShiftExpression.value == "ShiExp"
+    assert se.AdditiveExpression.value == "AddExp"
 
 
 def ShiftExpression_mocks(mocker):
@@ -1167,54 +1169,56 @@ class Test_parse_ShiftExpression(parse_test):
 #
 ###################################################################################################################################################################
 def test_P2_RelationalExpression(context):
-    re = e.P2_RelationalExpression(context, "StrictArg", ["child"])
+    re = e.P2_RelationalExpression(context, "StrictArg", FakeTokens("child"))
     assert re.name == "RelationalExpression"
     assert re.context == context
-    assert re.children == ["child"]
+    assert [tok.value for tok in re.children] == ["child"]
 
 
 def test_P2_RelationalExpression_ShiftExpression(context):
-    re = e.P2_RelationalExpression_ShiftExpression(context, "StrictArg", ["child"])
+    re = e.P2_RelationalExpression_ShiftExpression(context, "StrictArg", FakeTokens("child"))
     assert re.name == "RelationalExpression"
-    assert re.ShiftExpression == "child"
+    assert re.ShiftExpression.value == "child"
 
 
 def test_P2_RelationalExpression_RelationalExpression_OP_ShiftExpression(context):
     re = e.P2_RelationalExpression_RelationalExpression_OP_ShiftExpression(
-        context, "StrictArg", ["left", "<", "right"]
+        context, "StrictArg", FakeTokens("left", "<", "right")
     )
     assert re.name == "RelationalExpression"
-    assert re.RelationalExpression == "left"
-    assert re.ShiftExpression == "right"
+    assert re.RelationalExpression.value == "left"
+    assert re.ShiftExpression.value == "right"
 
 
 def test_P2_RelationalExpression_RelationalExpression_LT_ShiftExpression(context):
-    re = e.P2_RelationalExpression_RelationalExpression_LT_ShiftExpression(context, "StrictArg", ["child"])
+    re = e.P2_RelationalExpression_RelationalExpression_LT_ShiftExpression(context, "StrictArg", FakeTokens("child"))
     assert re.name == "RelationalExpression"
 
 
 def test_P2_RelationalExpression_RelationalExpression_GT_ShiftExpression(context):
-    re = e.P2_RelationalExpression_RelationalExpression_GT_ShiftExpression(context, "StrictArg", ["child"])
+    re = e.P2_RelationalExpression_RelationalExpression_GT_ShiftExpression(context, "StrictArg", FakeTokens("child"))
     assert re.name == "RelationalExpression"
 
 
 def test_P2_RelationalExpression_RelationalExpression_LE_ShiftExpression(context):
-    re = e.P2_RelationalExpression_RelationalExpression_LE_ShiftExpression(context, "StrictArg", ["child"])
+    re = e.P2_RelationalExpression_RelationalExpression_LE_ShiftExpression(context, "StrictArg", FakeTokens("child"))
     assert re.name == "RelationalExpression"
 
 
 def test_P2_RelationalExpression_RelationalExpression_GE_ShiftExpression(context):
-    re = e.P2_RelationalExpression_RelationalExpression_GE_ShiftExpression(context, "StrictArg", ["child"])
+    re = e.P2_RelationalExpression_RelationalExpression_GE_ShiftExpression(context, "StrictArg", FakeTokens("child"))
     assert re.name == "RelationalExpression"
 
 
 def test_P2_RelationalExpression_RelationalExpression_INSTANCEOF_ShiftExpression(context):
-    re = e.P2_RelationalExpression_RelationalExpression_INSTANCEOF_ShiftExpression(context, "StrictArg", ["child"])
+    re = e.P2_RelationalExpression_RelationalExpression_INSTANCEOF_ShiftExpression(
+        context, "StrictArg", FakeTokens("child")
+    )
     assert re.name == "RelationalExpression"
 
 
 def test_P2_RelationalExpression_RelationalExpression_IN_ShiftExpression(context):
-    re = e.P2_RelationalExpression_RelationalExpression_IN_ShiftExpression(context, "StrictArg", ["child"])
+    re = e.P2_RelationalExpression_RelationalExpression_IN_ShiftExpression(context, "StrictArg", FakeTokens("child"))
     assert re.name == "RelationalExpression"
 
 
@@ -1289,44 +1293,52 @@ class Test_parse_RelationalExpression(parse_test):
 #
 ######################################################################################################################################################
 def test_P2_EqualityExpression_init(context):
-    ee = e.P2_EqualityExpression(context, "StrictArg", ["child"])
+    ee = e.P2_EqualityExpression(context, "StrictArg", FakeTokens("child"))
     assert ee.name == "EqualityExpression"
     assert ee.context == context
-    assert ee.children == ["child"]
+    assert [tok.value for tok in ee.children] == ["child"]
 
 
 def test_P2_EqualityExpression_RelationalExpression_init(context):
-    ee = e.P2_EqualityExpression_RelationalExpression(context, "StrictArg", ["child"])
+    ee = e.P2_EqualityExpression_RelationalExpression(context, "StrictArg", FakeTokens("child"))
     assert ee.name == "EqualityExpression"
-    assert ee.RelationalExpression == "child"
+    assert ee.RelationalExpression.value == "child"
 
 
 def test_P2_EqualityExpression_EqualityExpression_OP_RelationalExpression_init(context):
     ee = e.P2_EqualityExpression_EqualityExpression_OP_RelationalExpression(
-        context, "StrictArg", ["child", "==", "vampire"]
+        context, "StrictArg", FakeTokens("child", "==", "vampire")
     )
     assert ee.name == "EqualityExpression"
-    assert ee.EqualityExpression == "child"
-    assert ee.RelationalExpression == "vampire"
+    assert ee.EqualityExpression.value == "child"
+    assert ee.RelationalExpression.value == "vampire"
 
 
 def test_P2_EqualityExpression_EqualityExpression_EQEQ_RelationalExpression_init(context):
-    ee = e.P2_EqualityExpression_EqualityExpression_EQEQ_RelationalExpression(context, "StrictArg", ["child"])
+    ee = e.P2_EqualityExpression_EqualityExpression_EQEQ_RelationalExpression(
+        context, "StrictArg", FakeTokens("child")
+    )
     assert ee.name == "EqualityExpression"
 
 
 def test_P2_EqualityExpression_EqualityExpression_BANGEQ_RelationalExpression_init(context):
-    ee = e.P2_EqualityExpression_EqualityExpression_BANGEQ_RelationalExpression(context, "StrictArg", ["child"])
+    ee = e.P2_EqualityExpression_EqualityExpression_BANGEQ_RelationalExpression(
+        context, "StrictArg", FakeTokens("child")
+    )
     assert ee.name == "EqualityExpression"
 
 
 def test_P2_EqualityExpression_EqualityExpression_EQEQEQ_RelationalExpression_init(context):
-    ee = e.P2_EqualityExpression_EqualityExpression_EQEQEQ_RelationalExpression(context, "StrictArg", ["child"])
+    ee = e.P2_EqualityExpression_EqualityExpression_EQEQEQ_RelationalExpression(
+        context, "StrictArg", FakeTokens("child")
+    )
     assert ee.name == "EqualityExpression"
 
 
 def test_P2_EqualityExpression_EqualityExpression_BANGEQEQ_RelationalExpression_init(context):
-    ee = e.P2_EqualityExpression_EqualityExpression_BANGEQEQ_RelationalExpression(context, "StrictArg", ["child"])
+    ee = e.P2_EqualityExpression_EqualityExpression_BANGEQEQ_RelationalExpression(
+        context, "StrictArg", FakeTokens("child")
+    )
     assert ee.name == "EqualityExpression"
 
 
@@ -1388,25 +1400,25 @@ class Test_parse_EqualityExpression(parse_test):
 #
 ######################################################################################################################################################################################
 def test_P2_BitwiseANDExpression_init(context):
-    bae = e.P2_BitwiseANDExpression(context, "StrictArg", ["child"])
+    bae = e.P2_BitwiseANDExpression(context, "StrictArg", FakeTokens("child"))
     assert bae.name == "BitwiseANDExpression"
     assert bae.context == context
-    assert bae.children == ["child"]
+    assert [tok.value for tok in bae.children] == ["child"]
 
 
 def test_P2_BitwiseANDExpression_EqualityExpression_init(context):
-    bae = e.P2_BitwiseANDExpression_EqualityExpression(context, "StrictArg", ["child"])
+    bae = e.P2_BitwiseANDExpression_EqualityExpression(context, "StrictArg", FakeTokens("child"))
     assert bae.name == "BitwiseANDExpression"
-    assert bae.EqualityExpression == "child"
+    assert bae.EqualityExpression.value == "child"
 
 
 def test_P2_BitwiseANDExpression_BitwiseANDExpression_AMP_EqualityExpression_init(context):
     bae = e.P2_BitwiseANDExpression_BitwiseANDExpression_AMP_EqualityExpression(
-        context, "StrictArg", ["child", "&", "right"]
+        context, "StrictArg", FakeTokens("child", "&", "right")
     )
     assert bae.name == "BitwiseANDExpression"
-    assert bae.BitwiseANDExpression == "child"
-    assert bae.EqualityExpression == "right"
+    assert bae.BitwiseANDExpression.value == "child"
+    assert bae.EqualityExpression.value == "right"
 
 
 #### BitwiseXORExpression ###########################################################################################################################################################
@@ -1425,25 +1437,25 @@ def test_P2_BitwiseANDExpression_BitwiseANDExpression_AMP_EqualityExpression_ini
 #
 #####################################################################################################################################################################################
 def test_P2_BitwiseXORExpression_init(context):
-    bxe = e.P2_BitwiseXORExpression(context, "StrictArg", ["child"])
+    bxe = e.P2_BitwiseXORExpression(context, "StrictArg", FakeTokens("child"))
     assert bxe.name == "BitwiseXORExpression"
     assert bxe.context == context
-    assert bxe.children == ["child"]
+    assert [tok.value for tok in bxe.children] == ["child"]
 
 
 def test_P2_BitwiseXORExpression_BitwiseANDExpression_init(context):
-    bxe = e.P2_BitwiseXORExpression_BitwiseANDExpression(context, "StrictArg", ["child"])
+    bxe = e.P2_BitwiseXORExpression_BitwiseANDExpression(context, "StrictArg", FakeTokens("child"))
     assert bxe.name == "BitwiseXORExpression"
-    assert bxe.BitwiseANDExpression == "child"
+    assert bxe.BitwiseANDExpression.value == "child"
 
 
 def test_P2_BitwiseXORExpression_BitwiseXORExpression_CARET_BitwiseANDExpression_init(context):
     bxe = e.P2_BitwiseXORExpression_BitwiseXORExpression_CARET_BitwiseANDExpression(
-        context, "StrictArg", ["child", "^", "0x10"]
+        context, "StrictArg", FakeTokens("child", "^", "0x10")
     )
     assert bxe.name == "BitwiseXORExpression"
-    assert bxe.BitwiseXORExpression == "child"
-    assert bxe.BitwiseANDExpression == "0x10"
+    assert bxe.BitwiseXORExpression.value == "child"
+    assert bxe.BitwiseANDExpression.value == "0x10"
 
 
 #### BitwiseORExpression ################################################################################################################################################
@@ -1462,25 +1474,25 @@ def test_P2_BitwiseXORExpression_BitwiseXORExpression_CARET_BitwiseANDExpression
 #
 #########################################################################################################################################################################
 def test_P2_BitwiseORExpression_init(context):
-    boe = e.P2_BitwiseORExpression(context, "StrictArg", ["child"])
+    boe = e.P2_BitwiseORExpression(context, "StrictArg", FakeTokens("child"))
     assert boe.name == "BitwiseORExpression"
     assert boe.context == context
-    assert boe.children == ["child"]
+    assert [tok.value for tok in boe.children] == ["child"]
 
 
 def test_P2_BitwiseORExpression_BitwiseXORExpression_init(context):
-    boe = e.P2_BitwiseORExpression_BitwiseXORExpression(context, "StrictArg", ["child"])
+    boe = e.P2_BitwiseORExpression_BitwiseXORExpression(context, "StrictArg", FakeTokens("child"))
     assert boe.name == "BitwiseORExpression"
-    assert boe.BitwiseXORExpression == "child"
+    assert boe.BitwiseXORExpression.value == "child"
 
 
 def test_P2_BitwiseORExpression_BitwiseORExpression_PIPE_BitwiseXORExpression_init(context):
     boe = e.P2_BitwiseORExpression_BitwiseORExpression_PIPE_BitwiseXORExpression(
-        context, "StrictArg", ["child", "|", "bxe"]
+        context, "StrictArg", FakeTokens("child", "|", "bxe")
     )
     assert boe.name == "BitwiseORExpression"
-    assert boe.BitwiseORExpression == "child"
-    assert boe.BitwiseXORExpression == "bxe"
+    assert boe.BitwiseORExpression.value == "child"
+    assert boe.BitwiseXORExpression.value == "bxe"
 
 
 #### LogicalANDExpression #######################################################################################################################################################
@@ -1499,25 +1511,25 @@ def test_P2_BitwiseORExpression_BitwiseORExpression_PIPE_BitwiseXORExpression_in
 #
 #################################################################################################################################################################################
 def test_P2_LogicalANDExpression_init(context):
-    lae = e.P2_LogicalANDExpression(context, "StrictArg", ["child"])
+    lae = e.P2_LogicalANDExpression(context, "StrictArg", FakeTokens("child"))
     assert lae.name == "LogicalANDExpression"
     assert lae.context == context
-    assert lae.children == ["child"]
+    assert [tok.value for tok in lae.children] == ["child"]
 
 
 def test_P2_LogicalANDExpression_BitwiseORExpression_init(context):
-    lae = e.P2_LogicalANDExpression_BitwiseORExpression(context, "StrictArg", ["child"])
+    lae = e.P2_LogicalANDExpression_BitwiseORExpression(context, "StrictArg", FakeTokens("child"))
     assert lae.name == "LogicalANDExpression"
-    assert lae.BitwiseORExpression == "child"
+    assert lae.BitwiseORExpression.value == "child"
 
 
 def test_P2_LogicalANDExpression_LogicalANDExpression_AMPAMP_BitwiseORExpression_init(context):
     lae = e.P2_LogicalANDExpression_LogicalANDExpression_AMPAMP_BitwiseORExpression(
-        context, "StrictArg", ["child", "&&", "lemon"]
+        context, "StrictArg", FakeTokens("child", "&&", "lemon")
     )
     assert lae.name == "LogicalANDExpression"
-    assert lae.LogicalANDExpression == "child"
-    assert lae.BitwiseORExpression == "lemon"
+    assert lae.LogicalANDExpression.value == "child"
+    assert lae.BitwiseORExpression.value == "lemon"
 
 
 #### LogicalORExpression ###########################################################################################################################################
@@ -1536,25 +1548,25 @@ def test_P2_LogicalANDExpression_LogicalANDExpression_AMPAMP_BitwiseORExpression
 #
 ####################################################################################################################################################################
 def test_P2_LogicalORExpression_init(context):
-    loe = e.P2_LogicalORExpression(context, "StrictArg", ["child"])
+    loe = e.P2_LogicalORExpression(context, "StrictArg", FakeTokens("child"))
     assert loe.name == "LogicalORExpression"
     assert loe.context == context
-    assert loe.children == ["child"]
+    assert [tok.value for tok in loe.children] == ["child"]
 
 
 def test_P2_LogicalORExpression_LogicalANDExpression_init(context):
-    loe = e.P2_LogicalORExpression_LogicalANDExpression(context, "StrictArg", ["child"])
+    loe = e.P2_LogicalORExpression_LogicalANDExpression(context, "StrictArg", FakeTokens("child"))
     assert loe.name == "LogicalORExpression"
-    assert loe.LogicalANDExpression == "child"
+    assert loe.LogicalANDExpression.value == "child"
 
 
 def test_P2_LogicalORExpression_LogicalORExpression_PIPEPIPE_LogicalANDExpression_init(context):
     loe = e.P2_LogicalORExpression_LogicalORExpression_PIPEPIPE_LogicalANDExpression(
-        context, "StrictArg", ["child", "||", "right"]
+        context, "StrictArg", FakeTokens("child", "||", "right")
     )
     assert loe.name == "LogicalORExpression"
-    assert loe.LogicalORExpression == "child"
-    assert loe.LogicalANDExpression == "right"
+    assert loe.LogicalORExpression.value == "child"
+    assert loe.LogicalANDExpression.value == "right"
 
 
 #### ConditionalExpression #################################################################################################################################################
@@ -1573,28 +1585,28 @@ def test_P2_LogicalORExpression_LogicalORExpression_PIPEPIPE_LogicalANDExpressio
 #
 ############################################################################################################################################################################
 def test_P2_ConditionalExpression_init(context):
-    ce = e.P2_ConditionalExpression(context, "StrictArg", ["child"])
+    ce = e.P2_ConditionalExpression(context, "StrictArg", FakeTokens("child"))
     assert ce.name == "ConditionalExpression"
     assert ce.context == context
-    assert ce.children == ["child"]
+    assert [tok.value for tok in ce.children] == ["child"]
 
 
 def test_P2_ConditionalExpression_LogicalORExpression_init(context):
-    ce = e.P2_ConditionalExpression_LogicalORExpression(context, "StrictArg", ["child"])
+    ce = e.P2_ConditionalExpression_LogicalORExpression(context, "StrictArg", FakeTokens("child"))
     assert ce.name == "ConditionalExpression"
-    assert ce.LogicalORExpression == "child"
+    assert ce.LogicalORExpression.value == "child"
 
 
 def test_P2_ConditionalExpression_LogicalORExpression_QUESTION_AssignmentExpression_COLON_AssignmentExpression_init(
     context,
 ):
     ce = e.P2_ConditionalExpression_LogicalORExpression_QUESTION_AssignmentExpression_COLON_AssignmentExpression(
-        context, "StrictArg", ["child", "?", "true_result", ":", "false_result"]
+        context, "StrictArg", FakeTokens("child", "?", "true_result", ":", "false_result")
     )
     assert ce.name == "ConditionalExpression"
-    assert ce.LogicalORExpression == "child"
-    assert ce.AssignmentExpression1 == "true_result"
-    assert ce.AssignmentExpression2 == "false_result"
+    assert ce.LogicalORExpression.value == "child"
+    assert ce.AssignmentExpression1.value == "true_result"
+    assert ce.AssignmentExpression2.value == "false_result"
     assert ce.strict == "StrictArg"
 
 
@@ -1614,53 +1626,53 @@ def test_P2_ConditionalExpression_LogicalORExpression_QUESTION_AssignmentExpress
 #
 ####################################################################################################################################################################################
 def test_P2_AssignmentExpression_init(context):
-    ae = e.P2_AssignmentExpression(context, "StrictArg", ["child"])
+    ae = e.P2_AssignmentExpression(context, "StrictArg", FakeTokens("child"))
     assert ae.name == "AssignmentExpression"
     assert ae.context == context
-    assert ae.children == ["child"]
+    assert [tok.value for tok in ae.children] == ["child"]
 
 
 def test_P2_AssignmentExpression_ConditionalExpression_init(context):
-    ae = e.P2_AssignmentExpression_ConditionalExpression(context, "StrictArg", ["child"])
+    ae = e.P2_AssignmentExpression_ConditionalExpression(context, "StrictArg", FakeTokens("child"))
     assert ae.name == "AssignmentExpression"
-    assert ae.ConditionalExpression == "child"
+    assert ae.ConditionalExpression.value == "child"
 
 
 def test_P2_AssignmentExpression_YieldExpression_init(context):
-    ae = e.P2_AssignmentExpression_YieldExpression(context, "StrictArg", ["child"])
+    ae = e.P2_AssignmentExpression_YieldExpression(context, "StrictArg", FakeTokens("child"))
     assert ae.name == "AssignmentExpression"
-    assert ae.YieldExpression == "child"
+    assert ae.YieldExpression.value == "child"
 
 
 def test_P2_AssignmentExpression_ArrowFunction_init(context):
-    ae = e.P2_AssignmentExpression_ArrowFunction(context, "StrictArg", ["child"])
+    ae = e.P2_AssignmentExpression_ArrowFunction(context, "StrictArg", FakeTokens("child"))
     assert ae.name == "AssignmentExpression"
-    assert ae.ArrowFunction == "child"
+    assert ae.ArrowFunction.value == "child"
 
 
 def test_P2_AssignmentExpression_AsyncArrowFunction_init(context):
-    ae = e.P2_AssignmentExpression_AsyncArrowFunction(context, "StrictArg", ["child"])
+    ae = e.P2_AssignmentExpression_AsyncArrowFunction(context, "StrictArg", FakeTokens("child"))
     assert ae.name == "AssignmentExpression"
-    assert ae.AsyncArrowFunction == "child"
+    assert ae.AsyncArrowFunction.value == "child"
 
 
 def test_P2_AssignmentExpression_LeftHandSideExpression_EQ_AssignmentExpression_init(context):
     ae = e.P2_AssignmentExpression_LeftHandSideExpression_EQ_AssignmentExpression(
-        context, "StrictArg", ["child", "=", "right"]
+        context, "StrictArg", FakeTokens("child", "=", "right")
     )
     assert ae.name == "AssignmentExpression"
-    assert ae.LeftHandSideExpression == "child"
-    assert ae.AssignmentExpression == "right"
+    assert ae.LeftHandSideExpression.value == "child"
+    assert ae.AssignmentExpression.value == "right"
 
 
 def test_P2_AssignmentExpression_LeftHandSideExpression_AssignmentOperator_AssignmentExpression_init(context):
     ae = e.P2_AssignmentExpression_LeftHandSideExpression_AssignmentOperator_AssignmentExpression(
-        context, "StrictArg", ["child", "+=", "right"]
+        context, "StrictArg", FakeTokens("child", "+=", "right")
     )
     assert ae.name == "AssignmentExpression"
-    assert ae.LeftHandSideExpression == "child"
-    assert ae.AssignmentOperator == "+="
-    assert ae.AssignmentExpression == "right"
+    assert ae.LeftHandSideExpression.value == "child"
+    assert ae.AssignmentOperator.value == "+="
+    assert ae.AssignmentExpression.value == "right"
 
 
 #### AssignmentPattern ###################################################################################################################################
@@ -1679,22 +1691,22 @@ def test_P2_AssignmentExpression_LeftHandSideExpression_AssignmentOperator_Assig
 #
 ##########################################################################################################################################################
 def test_P2_AssignmentPattern_init(context):
-    ap = e.P2_AssignmentPattern(context, "StrictArg", ["child"])
+    ap = e.P2_AssignmentPattern(context, "StrictArg", FakeTokens("child"))
     assert ap.name == "AssignmentPattern"
     assert ap.context == context
-    assert ap.children == ["child"]
+    assert [tok.value for tok in ap.children] == ["child"]
 
 
 def test_P2_AssignmentPattern_ObjectAssignmentPattern_init(context):
-    ap = e.P2_AssignmentPattern_ObjectAssignmentPattern(context, "StrictArg", ["child"])
+    ap = e.P2_AssignmentPattern_ObjectAssignmentPattern(context, "StrictArg", FakeTokens("child"))
     assert ap.name == "AssignmentPattern"
-    assert ap.ObjectAssignmentPattern == "child"
+    assert ap.ObjectAssignmentPattern.value == "child"
 
 
 def test_P2_AssignmentPattern_ArrayAssignmentPattern_init(context):
-    ap = e.P2_AssignmentPattern_ArrayAssignmentPattern(context, "StrictArg", ["child"])
+    ap = e.P2_AssignmentPattern_ArrayAssignmentPattern(context, "StrictArg", FakeTokens("child"))
     assert ap.name == "AssignmentPattern"
-    assert ap.ArrayAssignmentPattern == "child"
+    assert ap.ArrayAssignmentPattern.value == "child"
 
 
 #### ObjectAssignmentPattern ##################################################################################################################################################################################
@@ -1713,36 +1725,36 @@ def test_P2_AssignmentPattern_ArrayAssignmentPattern_init(context):
 #
 ###############################################################################################################################################################################################################
 def test_P2_ObjectAssignmentPattern_init(context):
-    oap = e.P2_ObjectAssignmentPattern(context, "StrictArg", ["child"])
+    oap = e.P2_ObjectAssignmentPattern(context, "StrictArg", FakeTokens("child"))
     assert oap.name == "ObjectAssignmentPattern"
     assert oap.context == context
-    assert oap.children == ["child"]
+    assert [tok.value for tok in oap.children] == ["child"]
 
 
 def test_P2_ObjectAssignmentPattern_Empty_init(context):
-    oap = e.P2_ObjectAssignmentPattern_Empty(context, "StrictArg", ["{", "}"])
+    oap = e.P2_ObjectAssignmentPattern_Empty(context, "StrictArg", FakeTokens("{", "}"))
     assert oap.name == "ObjectAssignmentPattern"
 
 
 def test_P2_ObjectAssignmentPattern_AssignmentRestProperty_init(context):
-    oap = e.P2_ObjectAssignmentPattern_AssignmentRestProperty(context, "StrictArg", ["{", "child", "}"])
+    oap = e.P2_ObjectAssignmentPattern_AssignmentRestProperty(context, "StrictArg", FakeTokens("{", "child", "}"))
     assert oap.name == "ObjectAssignmentPattern"
-    assert oap.AssignmentRestProperty == "child"
+    assert oap.AssignmentRestProperty.value == "child"
 
 
 def test_P2_ObjectAssignmentPattern_AssignmentPropertyList_init(context):
-    oap = e.P2_ObjectAssignmentPattern_AssignmentPropertyList(context, "StrictArg", ["{", "child", "}"])
+    oap = e.P2_ObjectAssignmentPattern_AssignmentPropertyList(context, "StrictArg", FakeTokens("{", "child", "}"))
     assert oap.name == "ObjectAssignmentPattern"
-    assert oap.AssignmentPropertyList == "child"
+    assert oap.AssignmentPropertyList.value == "child"
 
 
 def test_P2_ObjectAssignmentPattern_AssignmentPropertyList_AssignmentRestProperty_init(context):
     oap = e.P2_ObjectAssignmentPattern_AssignmentPropertyList_AssignmentRestProperty(
-        context, "StrictArg", ["{", "child", ",", "right", "}"]
+        context, "StrictArg", FakeTokens("{", "child", ",", "right", "}")
     )
     assert oap.name == "ObjectAssignmentPattern"
-    assert oap.AssignmentPropertyList == "child"
-    assert oap.AssignmentRestProperty == "right"
+    assert oap.AssignmentPropertyList.value == "child"
+    assert oap.AssignmentRestProperty.value == "right"
 
 
 #### ArrayAssignmentPattern #############################################################################################################################################################################
@@ -1761,17 +1773,17 @@ def test_P2_ObjectAssignmentPattern_AssignmentPropertyList_AssignmentRestPropert
 #
 #########################################################################################################################################################################################################
 def test_P2_ArrayAssignmentPattern_init(context):
-    aap = e.P2_ArrayAssignmentPattern(context, "StrictArg", ["child"])
+    aap = e.P2_ArrayAssignmentPattern(context, "StrictArg", FakeTokens("child"))
     assert aap.name == "ArrayAssignmentPattern"
     assert aap.context == context
-    assert aap.children == ["child"]
+    assert [tok.value for tok in aap.children] == ["child"]
     assert aap.Elision is None
     assert aap.AssignmentRestElement is None
     assert aap.AssignmentElementList is None
 
 
 def test_P2_ArrayAssignmentPattern_Empty_init(context):
-    aap = e.P2_ArrayAssignmentPattern_Empty(context, "StrictArg", ["[", "]"])
+    aap = e.P2_ArrayAssignmentPattern_Empty(context, "StrictArg", FakeTokens("[", "]"))
     assert aap.name == "ArrayAssignmentPattern"
     assert aap.Elision is None
     assert aap.AssignmentRestElement is None
@@ -1779,67 +1791,66 @@ def test_P2_ArrayAssignmentPattern_Empty_init(context):
 
 
 def test_P2_ArrayAssignmentPattern_AssignmentRestElement_init(context):
-    aap = e.P2_ArrayAssignmentPattern_AssignmentRestElement(context, "StrictArg", ["[", "ARE", "]"])
-    assert aap.name == "ArrayAssignmentPattern"
+    aap = e.P2_ArrayAssignmentPattern_AssignmentRestElement(context, "StrictArg", FakeTokens("[", "ARE", "]"))
     assert aap.Elision is None
-    assert aap.AssignmentRestElement == "ARE"
+    assert aap.AssignmentRestElement.value == "ARE"
     assert aap.AssignmentElementList is None
 
 
 def test_P2_ArrayAssignmentPattern_Elision_init(context):
-    aap = e.P2_ArrayAssignmentPattern_Elision(context, "StrictArg", ["[", "ELISION", "]"])
+    aap = e.P2_ArrayAssignmentPattern_Elision(context, "StrictArg", FakeTokens("[", "ELISION", "]"))
     assert aap.name == "ArrayAssignmentPattern"
-    assert aap.Elision == "ELISION"
+    assert aap.Elision.value == "ELISION"
     assert aap.AssignmentRestElement is None
     assert aap.AssignmentElementList is None
 
 
 def test_P2_ArrayAssignmentPattern_Elision_AssignmentRestElement_init(context):
     aap = e.P2_ArrayAssignmentPattern_Elision_AssignmentRestElement(
-        context, "StrictArg", ["[", "ELISION", "ARE", "]"]
+        context, "StrictArg", FakeTokens("[", "ELISION", "ARE", "]")
     )
     assert aap.name == "ArrayAssignmentPattern"
-    assert aap.Elision == "ELISION"
-    assert aap.AssignmentRestElement == "ARE"
+    assert aap.Elision.value == "ELISION"
+    assert aap.AssignmentRestElement.value == "ARE"
     assert aap.AssignmentElementList is None
 
 
 def test_P2_ArrayAssignmentPattern_AssignmentElementList_init(context):
-    aap = e.P2_ArrayAssignmentPattern_AssignmentElementList(context, "StrictArg", ["[", "AEL", "]"])
+    aap = e.P2_ArrayAssignmentPattern_AssignmentElementList(context, "StrictArg", FakeTokens("[", "AEL", "]"))
     assert aap.name == "ArrayAssignmentPattern"
     assert aap.Elision is None
     assert aap.AssignmentRestElement is None
-    assert aap.AssignmentElementList == "AEL"
+    assert aap.AssignmentElementList.value == "AEL"
 
 
 def test_P2_ArrayAssignmentPattern_AssignmentElementList_Elision_init(context):
     aap = e.P2_ArrayAssignmentPattern_AssignmentElementList_Elision(
-        context, "StrictArg", ["[", "AEL", ",", "ELISION", "]"]
+        context, "StrictArg", FakeTokens("[", "AEL", ",", "ELISION", "]")
     )
     assert aap.name == "ArrayAssignmentPattern"
-    assert aap.Elision == "ELISION"
+    assert aap.Elision.value == "ELISION"
     assert aap.AssignmentRestElement is None
-    assert aap.AssignmentElementList == "AEL"
+    assert aap.AssignmentElementList.value == "AEL"
 
 
 def test_P2_ArrayAssignmentPattern_AssignmentElementList_AssignmentRestElement_init(context):
     aap = e.P2_ArrayAssignmentPattern_AssignmentElementList_AssignmentRestElement(
-        context, "StrictArg", ["[", "AEL", ",", "ARE", "]"]
+        context, "StrictArg", FakeTokens("[", "AEL", ",", "ARE", "]")
     )
     assert aap.name == "ArrayAssignmentPattern"
     assert aap.Elision is None
-    assert aap.AssignmentRestElement == "ARE"
-    assert aap.AssignmentElementList == "AEL"
+    assert aap.AssignmentRestElement.value == "ARE"
+    assert aap.AssignmentElementList.value == "AEL"
 
 
 def test_P2_ArrayAssignmentPattern_AssignmentElementList_Elision_AssignmentRestElement_init(context):
     aap = e.P2_ArrayAssignmentPattern_AssignmentElementList_Elision_AssignmentRestElement(
-        context, "StrictArg", ["[", "AEL", ",", "ELISION", "ARE", "]"]
+        context, "StrictArg", FakeTokens("[", "AEL", ",", "ELISION", "ARE", "]")
     )
     assert aap.name == "ArrayAssignmentPattern"
-    assert aap.Elision == "ELISION"
-    assert aap.AssignmentRestElement == "ARE"
-    assert aap.AssignmentElementList == "AEL"
+    assert aap.Elision.value == "ELISION"
+    assert aap.AssignmentRestElement.value == "ARE"
+    assert aap.AssignmentElementList.value == "AEL"
 
 
 #### AssignmentRestProperty ############################################################################################################################################################################
@@ -1858,16 +1869,16 @@ def test_P2_ArrayAssignmentPattern_AssignmentElementList_Elision_AssignmentRestE
 #
 ########################################################################################################################################################################################################
 def test_P2_AssignmentRestProperty_init(context):
-    arp = e.P2_AssignmentRestProperty(context, "StrictArg", ["child"])
+    arp = e.P2_AssignmentRestProperty(context, "StrictArg", FakeTokens("child"))
     assert arp.name == "AssignmentRestProperty"
     assert arp.context == context
-    assert arp.children == ["child"]
+    assert [tok.value for tok in arp.children] == ["child"]
 
 
 def test_P2_AssignmentRestProperty_DestructuringAssignmentTarget_init(context):
-    arp = e.P2_AssignmentRestProperty_DestructuringAssignmentTarget(context, "StrictArg", ["...", "DAT"])
+    arp = e.P2_AssignmentRestProperty_DestructuringAssignmentTarget(context, "StrictArg", FakeTokens("...", "DAT"))
     assert arp.name == "AssignmentRestProperty"
-    assert arp.DestructuringAssignmentTarget == "DAT"
+    assert arp.DestructuringAssignmentTarget.value == "DAT"
 
 
 #### AssignmentPropertyList #####################################################################################################################################################################
@@ -1886,25 +1897,25 @@ def test_P2_AssignmentRestProperty_DestructuringAssignmentTarget_init(context):
 #
 #################################################################################################################################################################################################
 def test_P2_AssignmentPropertyList_init(context):
-    apl = e.P2_AssignmentPropertyList(context, "StrictArg", ["child"])
+    apl = e.P2_AssignmentPropertyList(context, "StrictArg", FakeTokens("child"))
     assert apl.name == "AssignmentPropertyList"
     assert apl.context == context
-    assert apl.children == ["child"]
+    assert [tok.value for tok in apl.children] == ["child"]
 
 
 def test_P2_AssignmentPropertyList_AssignmentProperty_init(context):
-    apl = e.P2_AssignmentPropertyList_AssignmentProperty(context, "StrictArg", ["child"])
+    apl = e.P2_AssignmentPropertyList_AssignmentProperty(context, "StrictArg", FakeTokens("child"))
     assert apl.name == "AssignmentPropertyList"
-    assert apl.AssignmentProperty == "child"
+    assert apl.AssignmentProperty.value == "child"
 
 
 def test_P2_AssignmentPropertyList_AssignmentPropertyList_AssignmentProperty_init(context):
     apl = e.P2_AssignmentPropertyList_AssignmentPropertyList_AssignmentProperty(
-        context, "StrictArg", ["APL", ",", "AP"]
+        context, "StrictArg", FakeTokens("APL", ",", "AP")
     )
     assert apl.name == "AssignmentPropertyList"
-    assert apl.AssignmentPropertyList == "APL"
-    assert apl.AssignmentProperty == "AP"
+    assert apl.AssignmentPropertyList.value == "APL"
+    assert apl.AssignmentProperty.value == "AP"
 
 
 #### AssignmentElementList ###############################################################################################################################################################
@@ -1923,25 +1934,25 @@ def test_P2_AssignmentPropertyList_AssignmentPropertyList_AssignmentProperty_ini
 #
 ##########################################################################################################################################################################################
 def test_P2_AssignmentElementList_init(context):
-    ael = e.P2_AssignmentElementList(context, "StrictArg", ["child"])
+    ael = e.P2_AssignmentElementList(context, "StrictArg", FakeTokens("child"))
     assert ael.name == "AssignmentElementList"
     assert ael.context == context
-    assert ael.children == ["child"]
+    assert [tok.value for tok in ael.children] == ["child"]
 
 
 def test_P2_AssignmentElementList_AssignmentElisionElement_init(context):
-    ael = e.P2_AssignmentElementList_AssignmentElisionElement(context, "StrictArg", ["child"])
+    ael = e.P2_AssignmentElementList_AssignmentElisionElement(context, "StrictArg", FakeTokens("child"))
     assert ael.name == "AssignmentElementList"
-    assert ael.AssignmentElisionElement == "child"
+    assert ael.AssignmentElisionElement.value == "child"
 
 
 def test_P2_AssignmentElementList_AssignmentElementList_AssignmentElisionElement_init(context):
     ael = e.P2_AssignmentElementList_AssignmentElementList_AssignmentElisionElement(
-        context, "StrictArg", ["child", ",", "sibling"]
+        context, "StrictArg", FakeTokens("child", ",", "sibling")
     )
     assert ael.name == "AssignmentElementList"
-    assert ael.AssignmentElementList == "child"
-    assert ael.AssignmentElisionElement == "sibling"
+    assert ael.AssignmentElementList.value == "child"
+    assert ael.AssignmentElisionElement.value == "sibling"
 
 
 #### AssignmentElisionElement #################################################################################################################################################################################
@@ -1960,23 +1971,23 @@ def test_P2_AssignmentElementList_AssignmentElementList_AssignmentElisionElement
 #
 ###############################################################################################################################################################################################################
 def test_P2_AssignmentElisionElement_init(context):
-    aee = e.P2_AssignmentElisionElement(context, "StrictArg", ["child"])
+    aee = e.P2_AssignmentElisionElement(context, "StrictArg", FakeTokens("child"))
     assert aee.name == "AssignmentElisionElement"
     assert aee.context == context
-    assert aee.children == ["child"]
+    assert [tok.value for tok in aee.children] == ["child"]
 
 
 def test_P2_AssignmentElisionElement_Elision_AssignmentElement_init(context):
-    aee = e.P2_AssignmentElisionElement_Elision_AssignmentElement(context, "StrictArg", ["Elision", "ae"])
+    aee = e.P2_AssignmentElisionElement_Elision_AssignmentElement(context, "StrictArg", FakeTokens("Elision", "ae"))
     assert aee.name == "AssignmentElisionElement"
-    assert aee.Elision == "Elision"
-    assert aee.AssignmentElement == "ae"
+    assert aee.Elision.value == "Elision"
+    assert aee.AssignmentElement.value == "ae"
 
 
 def test_P2_AssignmentElisionElement_AssignmentElement_init(context):
-    aee = e.P2_AssignmentElisionElement_AssignmentElement(context, "StrictArg", ["child"])
+    aee = e.P2_AssignmentElisionElement_AssignmentElement(context, "StrictArg", FakeTokens("child"))
     assert aee.name == "AssignmentElisionElement"
-    assert aee.AssignmentElement == "child"
+    assert aee.AssignmentElement.value == "child"
 
 
 #### AssignmentProperty ############################################################################################################################################
@@ -1995,30 +2006,32 @@ def test_P2_AssignmentElisionElement_AssignmentElement_init(context):
 #
 ####################################################################################################################################################################
 def test_P2_AssignmentProperty_init(context):
-    ap = e.P2_AssignmentProperty(context, "StrictArg", ["child"])
+    ap = e.P2_AssignmentProperty(context, "StrictArg", FakeTokens("child"))
     assert ap.name == "AssignmentProperty"
     assert ap.context == context
-    assert ap.children == ["child"]
+    assert [tok.value for tok in ap.children] == ["child"]
 
 
 def test_P2_AssignmentProperty_IdentifierReference_init(context):
-    ap = e.P2_AssignmentProperty_IdentifierReference(context, "StrictArg", ["child"])
+    ap = e.P2_AssignmentProperty_IdentifierReference(context, "StrictArg", FakeTokens("child"))
     assert ap.name == "AssignmentProperty"
-    assert ap.IdentifierReference == "child"
+    assert ap.IdentifierReference.value == "child"
 
 
 def test_P2_AssignmentProperty_IdentifierReference_Initializer_init(context):
-    ap = e.P2_AssignmentProperty_IdentifierReference_Initializer(context, "StrictArg", ["child", "init"])
+    ap = e.P2_AssignmentProperty_IdentifierReference_Initializer(context, "StrictArg", FakeTokens("child", "init"))
     assert ap.name == "AssignmentProperty"
-    assert ap.IdentifierReference == "child"
-    assert ap.Initializer == "init"
+    assert ap.IdentifierReference.value == "child"
+    assert ap.Initializer.value == "init"
 
 
 def test_P2_AssignmentProperty_PropertyName_AssignmentElement_init(context):
-    ap = e.P2_AssignmentProperty_PropertyName_AssignmentElement(context, "StrictArg", ["child", ":", "bob"])
+    ap = e.P2_AssignmentProperty_PropertyName_AssignmentElement(
+        context, "StrictArg", FakeTokens("child", ":", "bob")
+    )
     assert ap.name == "AssignmentProperty"
-    assert ap.PropertyName == "child"
-    assert ap.AssignmentElement == "bob"
+    assert ap.PropertyName.value == "child"
+    assert ap.AssignmentElement.value == "bob"
 
 
 #### AssignmentElement ######################################################################################################################################
@@ -2037,29 +2050,29 @@ def test_P2_AssignmentProperty_PropertyName_AssignmentElement_init(context):
 #
 #############################################################################################################################################################
 def test_P2_AssignmentElement_init(context):
-    ae = e.P2_AssignmentElement(context, "StrictArg", ["child"])
+    ae = e.P2_AssignmentElement(context, "StrictArg", FakeTokens("child"))
     assert ae.name == "AssignmentElement"
     assert ae.context == context
-    assert ae.children == ["child"]
+    assert [tok.value for tok in ae.children] == ["child"]
 
 
 def test_P2_AssignmentElement_DestructuringAssignmentTarget_init(context):
     ae = e.P2_AssignmentElement_DestructuringAssignmentTarget(
-        context, "StrictArg", ["child"], "yieldarg", "awaitarg"
+        context, "StrictArg", FakeTokens("child"), "yieldarg", "awaitarg"
     )
     assert ae.name == "AssignmentElement"
-    assert ae.DestructuringAssignmentTarget == "child"
+    assert ae.DestructuringAssignmentTarget.value == "child"
     assert ae.Yield == "yieldarg"
     assert ae.Await == "awaitarg"
 
 
 def test_P2_AssignmentElement_DestructuringAssignmentTarget_Initializer_init(context):
     ae = e.P2_AssignmentElement_DestructuringAssignmentTarget_Initializer(
-        context, "StrictArg", ["child", "init"], "yieldarg", "awaitarg"
+        context, "StrictArg", FakeTokens("child", "init"), "yieldarg", "awaitarg"
     )
     assert ae.name == "AssignmentElement"
-    assert ae.DestructuringAssignmentTarget == "child"
-    assert ae.Initializer == "init"
+    assert ae.DestructuringAssignmentTarget.value == "child"
+    assert ae.Initializer.value == "init"
     assert ae.Yield == "yieldarg"
     assert ae.Await == "awaitarg"
 
@@ -2080,18 +2093,18 @@ def test_P2_AssignmentElement_DestructuringAssignmentTarget_Initializer_init(con
 #
 #################################################################################################################################################################################################
 def test_P2_AssignmentRestElement_init(context):
-    are = e.P2_AssignmentRestElement(context, "StrictArg", ["child"])
+    are = e.P2_AssignmentRestElement(context, "StrictArg", FakeTokens("child"))
     assert are.name == "AssignmentRestElement"
     assert are.context == context
-    assert are.children == ["child"]
+    assert [tok.value for tok in are.children] == ["child"]
 
 
 def test_P2_AssignmentRestElement_DestructuringAssignmentTarget_init(context):
     are = e.P2_AssignmentRestElement_DestructuringAssignmentTarget(
-        context, "StrictArg", ["...", "child"], "yieldarg", "awaitarg"
+        context, "StrictArg", FakeTokens("...", "child"), "yieldarg", "awaitarg"
     )
     assert are.name == "AssignmentRestElement"
-    assert are.DestructuringAssignmentTarget == "child"
+    assert are.DestructuringAssignmentTarget.value == "child"
     assert are.Yield == "yieldarg"
     assert are.Await == "awaitarg"
 
@@ -2112,16 +2125,16 @@ def test_P2_AssignmentRestElement_DestructuringAssignmentTarget_init(context):
 #
 ################################################################################################################################################################################################################################################################
 def test_P2_DestructuringAssignmentTarget_init(context):
-    dat = e.P2_DestructuringAssignmentTarget(context, "StrictArg", ["child"])
+    dat = e.P2_DestructuringAssignmentTarget(context, "StrictArg", FakeTokens("child"))
     assert dat.name == "DestructuringAssignmentTarget"
     assert dat.context == context
-    assert dat.children == ["child"]
+    assert [tok.value for tok in dat.children] == ["child"]
 
 
 def test_P2_DestructuringAssignmentTarget_LeftHandSideExpression_init(context):
-    dat = e.P2_DestructuringAssignmentTarget_LeftHandSideExpression(context, "StrictArg", ["child"])
+    dat = e.P2_DestructuringAssignmentTarget_LeftHandSideExpression(context, "StrictArg", FakeTokens("child"))
     assert dat.name == "DestructuringAssignmentTarget"
-    assert dat.LeftHandSideExpression == "child"
+    assert dat.LeftHandSideExpression.value == "child"
 
 
 #### Statement #####################################################################
@@ -2140,94 +2153,94 @@ def test_P2_DestructuringAssignmentTarget_LeftHandSideExpression_init(context):
 #
 ####################################################################################
 def test_P2_Statement_init(context):
-    statement = e.P2_Statement(context, "StrictArg", ["child"])
+    statement = e.P2_Statement(context, "StrictArg", FakeTokens("child"))
     assert statement.name == "Statement"
     assert statement.context == context
-    assert statement.children == ["child"]
+    assert [tok.value for tok in statement.children] == ["child"]
 
 
 def test_P2_Statement_BlockStatement_init(context):
-    statement = e.P2_Statement_BlockStatement(context, "StrictArg", ["child"])
+    statement = e.P2_Statement_BlockStatement(context, "StrictArg", FakeTokens("child"))
     assert statement.name == "Statement"
-    assert statement.BlockStatement == "child"
+    assert statement.BlockStatement.value == "child"
 
 
 def test_P2_Statement_VariableStatement_init(context):
-    statement = e.P2_Statement_VariableStatement(context, "StrictArg", ["child"])
+    statement = e.P2_Statement_VariableStatement(context, "StrictArg", FakeTokens("child"))
     assert statement.name == "Statement"
-    assert statement.VariableStatement == "child"
+    assert statement.VariableStatement.value == "child"
 
 
 def test_P2_Statement_EmptyStatement_init(context):
-    statement = e.P2_Statement_EmptyStatement(context, "StrictArg", ["child"])
+    statement = e.P2_Statement_EmptyStatement(context, "StrictArg", FakeTokens("child"))
     assert statement.name == "Statement"
-    assert statement.EmptyStatement == "child"
+    assert statement.EmptyStatement.value == "child"
 
 
 def test_P2_Statement_ExpressionStatement_init(context):
-    statement = e.P2_Statement_ExpressionStatement(context, "StrictArg", ["child"])
+    statement = e.P2_Statement_ExpressionStatement(context, "StrictArg", FakeTokens("child"))
     assert statement.name == "Statement"
-    assert statement.ExpressionStatement == "child"
+    assert statement.ExpressionStatement.value == "child"
 
 
 def test_P2_Statement_IfStatement_init(context):
-    statement = e.P2_Statement_IfStatement(context, "StrictArg", ["child"])
+    statement = e.P2_Statement_IfStatement(context, "StrictArg", FakeTokens("child"))
     assert statement.name == "Statement"
-    assert statement.IfStatement == "child"
+    assert statement.IfStatement.value == "child"
 
 
 def test_P2_Statement_BreakableStatement_init(context):
-    statement = e.P2_Statement_BreakableStatement(context, "StrictArg", ["child"])
+    statement = e.P2_Statement_BreakableStatement(context, "StrictArg", FakeTokens("child"))
     assert statement.name == "Statement"
-    assert statement.BreakableStatement == "child"
+    assert statement.BreakableStatement.value == "child"
 
 
 def test_P2_Statement_ContinueStatement_init(context):
-    statement = e.P2_Statement_ContinueStatement(context, "StrictArg", ["child"])
+    statement = e.P2_Statement_ContinueStatement(context, "StrictArg", FakeTokens("child"))
     assert statement.name == "Statement"
-    assert statement.ContinueStatement == "child"
+    assert statement.ContinueStatement.value == "child"
 
 
 def test_P2_Statement_BreakStatement_init(context):
-    statement = e.P2_Statement_BreakStatement(context, "StrictArg", ["child"])
+    statement = e.P2_Statement_BreakStatement(context, "StrictArg", FakeTokens("child"))
     assert statement.name == "Statement"
-    assert statement.BreakStatement == "child"
+    assert statement.BreakStatement.value == "child"
 
 
 def test_P2_Statement_ReturnStatement_init(context):
-    statement = e.P2_Statement_ReturnStatement(context, "StrictArg", ["child"])
+    statement = e.P2_Statement_ReturnStatement(context, "StrictArg", FakeTokens("child"))
     assert statement.name == "Statement"
-    assert statement.ReturnStatement == "child"
+    assert statement.ReturnStatement.value == "child"
 
 
 def test_P2_Statement_WithStatement_init(context):
-    statement = e.P2_Statement_WithStatement(context, "StrictArg", ["child"])
+    statement = e.P2_Statement_WithStatement(context, "StrictArg", FakeTokens("child"))
     assert statement.name == "Statement"
-    assert statement.WithStatement == "child"
+    assert statement.WithStatement.value == "child"
 
 
 def test_P2_Statement_LabelledStatement_init(context):
-    statement = e.P2_Statement_LabelledStatement(context, "StrictArg", ["child"])
+    statement = e.P2_Statement_LabelledStatement(context, "StrictArg", FakeTokens("child"))
     assert statement.name == "Statement"
-    assert statement.LabelledStatement == "child"
+    assert statement.LabelledStatement.value == "child"
 
 
 def test_P2_Statement_ThrowStatement_init(context):
-    statement = e.P2_Statement_ThrowStatement(context, "StrictArg", ["child"])
+    statement = e.P2_Statement_ThrowStatement(context, "StrictArg", FakeTokens("child"))
     assert statement.name == "Statement"
-    assert statement.ThrowStatement == "child"
+    assert statement.ThrowStatement.value == "child"
 
 
 def test_P2_Statement_TryStatement_init(context):
-    statement = e.P2_Statement_TryStatement(context, "StrictArg", ["child"])
+    statement = e.P2_Statement_TryStatement(context, "StrictArg", FakeTokens("child"))
     assert statement.name == "Statement"
-    assert statement.TryStatement == "child"
+    assert statement.TryStatement.value == "child"
 
 
 def test_P2_Statement_DebuggerStatement_init(context):
-    statement = e.P2_Statement_DebuggerStatement(context, "StrictArg", ["child"])
+    statement = e.P2_Statement_DebuggerStatement(context, "StrictArg", FakeTokens("child"))
     assert statement.name == "Statement"
-    assert statement.DebuggerStatement == "child"
+    assert statement.DebuggerStatement.value == "child"
 
 
 #### Declaration #########################################################################
@@ -2246,28 +2259,28 @@ def test_P2_Statement_DebuggerStatement_init(context):
 #
 ##########################################################################################
 def test_P2_Declaration_init(context):
-    decl = e.P2_Declaration(context, "StrictArg", ["child"])
+    decl = e.P2_Declaration(context, "StrictArg", FakeTokens("child"))
     assert decl.name == "Declaration"
     assert decl.context == context
-    assert decl.children == ["child"]
+    assert [tok.value for tok in decl.children] == ["child"]
 
 
 def test_P2_Declaration_HoistableDeclaration_init(context):
-    decl = e.P2_Declaration_HoistableDeclaration(context, "StrictArg", ["child"])
+    decl = e.P2_Declaration_HoistableDeclaration(context, "StrictArg", FakeTokens("child"))
     assert decl.name == "Declaration"
-    assert decl.HoistableDeclaration == "child"
+    assert decl.HoistableDeclaration.value == "child"
 
 
 def test_P2_Declaration_ClassDeclaration_init(context):
-    decl = e.P2_Declaration_ClassDeclaration(context, "StrictArg", ["child"])
+    decl = e.P2_Declaration_ClassDeclaration(context, "StrictArg", FakeTokens("child"))
     assert decl.name == "Declaration"
-    assert decl.ClassDeclaration == "child"
+    assert decl.ClassDeclaration.value == "child"
 
 
 def test_P2_Declaration_LexicalDeclaration_init(context):
-    decl = e.P2_Declaration_LexicalDeclaration(context, "StrictArg", ["child"])
+    decl = e.P2_Declaration_LexicalDeclaration(context, "StrictArg", FakeTokens("child"))
     assert decl.name == "Declaration"
-    assert decl.LexicalDeclaration == "child"
+    assert decl.LexicalDeclaration.value == "child"
 
 
 #### HoistableDeclaration #######################################################################################################################################
@@ -2286,34 +2299,34 @@ def test_P2_Declaration_LexicalDeclaration_init(context):
 #
 #################################################################################################################################################################
 def test_P2_HoistableDeclaration_init(context):
-    hd = e.P2_HoistableDeclaration(context, "StrictArg", ["child"])
+    hd = e.P2_HoistableDeclaration(context, "StrictArg", FakeTokens("child"))
     assert hd.name == "HoistableDeclaration"
     assert hd.context == context
-    assert hd.children == ["child"]
+    assert [tok.value for tok in hd.children] == ["child"]
 
 
 def test_P2_HoistableDeclaration_FunctionDeclaration_init(context):
-    hd = e.P2_HoistableDeclaration_FunctionDeclaration(context, "StrictArg", ["child"])
+    hd = e.P2_HoistableDeclaration_FunctionDeclaration(context, "StrictArg", FakeTokens("child"))
     assert hd.name == "HoistableDeclaration"
-    assert hd.FunctionDeclaration == "child"
+    assert hd.FunctionDeclaration.value == "child"
 
 
 def test_P2_HoistableDeclaration_GeneratorDeclaration_init(context):
-    hd = e.P2_HoistableDeclaration_GeneratorDeclaration(context, "StrictArg", ["child"])
+    hd = e.P2_HoistableDeclaration_GeneratorDeclaration(context, "StrictArg", FakeTokens("child"))
     assert hd.name == "HoistableDeclaration"
-    assert hd.GeneratorDeclaration == "child"
+    assert hd.GeneratorDeclaration.value == "child"
 
 
 def test_P2_HoistableDeclaration_AsyncFunctionDeclaration_init(context):
-    hd = e.P2_HoistableDeclaration_AsyncFunctionDeclaration(context, "StrictArg", ["child"])
+    hd = e.P2_HoistableDeclaration_AsyncFunctionDeclaration(context, "StrictArg", FakeTokens("child"))
     assert hd.name == "HoistableDeclaration"
-    assert hd.AsyncFunctionDeclaration == "child"
+    assert hd.AsyncFunctionDeclaration.value == "child"
 
 
 def test_P2_HoistableDeclaration_AsyncGeneratorDeclaration_init(context):
-    hd = e.P2_HoistableDeclaration_AsyncGeneratorDeclaration(context, "StrictArg", ["child"])
+    hd = e.P2_HoistableDeclaration_AsyncGeneratorDeclaration(context, "StrictArg", FakeTokens("child"))
     assert hd.name == "HoistableDeclaration"
-    assert hd.AsyncGeneratorDeclaration == "child"
+    assert hd.AsyncGeneratorDeclaration.value == "child"
 
 
 #### BreakableStatement #########################################################################################################################################
@@ -2332,22 +2345,22 @@ def test_P2_HoistableDeclaration_AsyncGeneratorDeclaration_init(context):
 #
 #################################################################################################################################################################
 def test_P2_BreakableStatement_init(context):
-    bs = e.P2_BreakableStatement(context, "StrictArg", ["child"])
+    bs = e.P2_BreakableStatement(context, "StrictArg", FakeTokens("child"))
     assert bs.name == "BreakableStatement"
     assert bs.context == context
-    assert bs.children == ["child"]
+    assert [tok.value for tok in bs.children] == ["child"]
 
 
 def test_P2_BreakableStatement_IterationStatement_init(context):
-    bs = e.P2_BreakableStatement_IterationStatement(context, "StrictArg", ["child"])
+    bs = e.P2_BreakableStatement_IterationStatement(context, "StrictArg", FakeTokens("child"))
     assert bs.name == "BreakableStatement"
-    assert bs.IterationStatement == "child"
+    assert bs.IterationStatement.value == "child"
 
 
 def test_P2_BreakableStatement_SwitchStatement_init(context):
-    bs = e.P2_BreakableStatement_SwitchStatement(context, "StrictArg", ["child"])
+    bs = e.P2_BreakableStatement_SwitchStatement(context, "StrictArg", FakeTokens("child"))
     assert bs.name == "BreakableStatement"
-    assert bs.SwitchStatement == "child"
+    assert bs.SwitchStatement.value == "child"
 
 
 #### BlockStatement ##########################################################################################################
@@ -2366,16 +2379,16 @@ def test_P2_BreakableStatement_SwitchStatement_init(context):
 #
 ##############################################################################################################################
 def test_P2_BlockStatement_init(context):
-    bs = e.P2_BlockStatement(context, "StrictArg", ["child"])
+    bs = e.P2_BlockStatement(context, "StrictArg", FakeTokens("child"))
     assert bs.name == "BlockStatement"
     assert bs.context == context
-    assert bs.children == ["child"]
+    assert [tok.value for tok in bs.children] == ["child"]
 
 
 def test_P2_BlockStatement_Block_init(context):
-    bs = e.P2_BlockStatement_Block(context, "StrictArg", ["child"])
+    bs = e.P2_BlockStatement_Block(context, "StrictArg", FakeTokens("child"))
     assert bs.name == "BlockStatement"
-    assert bs.Block == "child"
+    assert bs.Block.value == "child"
 
 
 #### Block #################################
@@ -2394,21 +2407,21 @@ def test_P2_BlockStatement_Block_init(context):
 #
 ############################################
 def test_P2_Block_init(context):
-    block = e.P2_Block(context, "StrictArg", ["child"])
+    block = e.P2_Block(context, "StrictArg", FakeTokens("child"))
     assert block.name == "Block"
     assert block.context == context
-    assert block.children == ["child"]
+    assert [tok.value for tok in block.children] == ["child"]
 
 
 def test_P2_Block_Empty_init(context):
-    block = e.P2_Block_Empty(context, "StrictArg", ["child"])
+    block = e.P2_Block_Empty(context, "StrictArg", FakeTokens("child"))
     assert block.name == "Block"
 
 
 def test_P2_Block_StatementList_init(context):
-    block = e.P2_Block_StatementList(context, "StrictArg", ["{", "stmt", "}"])
+    block = e.P2_Block_StatementList(context, "StrictArg", FakeTokens("{", "stmt", "}"))
     assert block.name == "Block"
-    assert block.StatementList == "stmt"
+    assert block.StatementList.value == "stmt"
 
 
 #### StatementList ##############################################################################################
@@ -2427,23 +2440,23 @@ def test_P2_Block_StatementList_init(context):
 #
 #################################################################################################################
 def test_P2_StatementList_init(context):
-    sl = e.P2_StatementList(context, "StrictArg", ["child"])
+    sl = e.P2_StatementList(context, "StrictArg", FakeTokens("child"))
     assert sl.name == "StatementList"
     assert sl.context == context
-    assert sl.children == ["child"]
+    assert [tok.value for tok in sl.children] == ["child"]
 
 
 def test_P2_StatementList_StatementListItem_init(context):
-    sl = e.P2_StatementList_StatementListItem(context, "StrictArg", ["child"])
+    sl = e.P2_StatementList_StatementListItem(context, "StrictArg", FakeTokens("child"))
     assert sl.name == "StatementList"
-    assert sl.StatementListItem == "child"
+    assert sl.StatementListItem.value == "child"
 
 
 def test_P2_StatementList_StatementList_StatementListItem_init(context):
-    sl = e.P2_StatementList_StatementList_StatementListItem(context, "StrictArg", ["sl", "sli"])
+    sl = e.P2_StatementList_StatementList_StatementListItem(context, "StrictArg", FakeTokens("sl", "sli"))
     assert sl.name == "StatementList"
-    assert sl.StatementList == "sl"
-    assert sl.StatementListItem == "sli"
+    assert sl.StatementList.value == "sl"
+    assert sl.StatementListItem.value == "sli"
 
 
 #### StatementListItem ################################################################################################################################
@@ -2462,22 +2475,22 @@ def test_P2_StatementList_StatementList_StatementListItem_init(context):
 #
 #######################################################################################################################################################
 def test_P2_StatementListItem_init(context):
-    sli = e.P2_StatementListItem(context, "StrictArg", ["child"])
+    sli = e.P2_StatementListItem(context, "StrictArg", FakeTokens("child"))
     assert sli.name == "StatementListItem"
     assert sli.context == context
-    assert sli.children == ["child"]
+    assert [tok.value for tok in sli.children] == ["child"]
 
 
 def test_P2_StatementListItem_Statement_init(context):
-    sli = e.P2_StatementListItem_Statement(context, "StrictArg", ["child"])
+    sli = e.P2_StatementListItem_Statement(context, "StrictArg", FakeTokens("child"))
     assert sli.name == "StatementListItem"
-    assert sli.Statement == "child"
+    assert sli.Statement.value == "child"
 
 
 def test_P2_StatementListItem_Declaration_init(context):
-    sli = e.P2_StatementListItem_Declaration(context, "StrictArg", ["child"])
+    sli = e.P2_StatementListItem_Declaration(context, "StrictArg", FakeTokens("child"))
     assert sli.name == "StatementListItem"
-    assert sli.Declaration == "child"
+    assert sli.Declaration.value == "child"
 
 
 #### LexicalDeclaration #######################################################################################################################
@@ -2496,17 +2509,17 @@ def test_P2_StatementListItem_Declaration_init(context):
 #
 ###############################################################################################################################################
 def test_P2_LexicalDeclaration_init(context):
-    ld = e.P2_LexicalDeclaration(context, "StrictArg", ["child"])
+    ld = e.P2_LexicalDeclaration(context, "StrictArg", FakeTokens("child"))
     assert ld.name == "LexicalDeclaration"
     assert ld.context == context
-    assert ld.children == ["child"]
+    assert [tok.value for tok in ld.children] == ["child"]
 
 
 def test_P2_LexicalDeclaration_LetOrConst_BindingList_init(context):
-    ld = e.P2_LexicalDeclaration_LetOrConst_BindingList(context, "StrictArg", ["const", "bindings", ";"])
+    ld = e.P2_LexicalDeclaration_LetOrConst_BindingList(context, "StrictArg", FakeTokens("const", "bindings", ";"))
     assert ld.name == "LexicalDeclaration"
-    assert ld.LetOrConst == "const"
-    assert ld.BindingList == "bindings"
+    assert ld.LetOrConst.value == "const"
+    assert ld.BindingList.value == "bindings"
 
 
 #### LetOrConst ############################################################################
@@ -2525,19 +2538,19 @@ def test_P2_LexicalDeclaration_LetOrConst_BindingList_init(context):
 #
 ############################################################################################
 def test_P2_LetOrConst_init(context):
-    loc = e.P2_LetOrConst(context, "StrictArg", ["child"])
+    loc = e.P2_LetOrConst(context, "StrictArg", FakeTokens("child"))
     assert loc.name == "LetOrConst"
     assert loc.context == context
-    assert loc.children == ["child"]
+    assert [tok.value for tok in loc.children] == ["child"]
 
 
 def test_P2_LetOrConst_Let_init(context):
-    loc = e.P2_LetOrConst_Let(context, "StrictArg", ["child"])
+    loc = e.P2_LetOrConst_Let(context, "StrictArg", FakeTokens("child"))
     assert loc.name == "LetOrConst"
 
 
 def test_P2_LetOrConst_Const_init(context):
-    loc = e.P2_LetOrConst_Const(context, "StrictArg", ["child"])
+    loc = e.P2_LetOrConst_Const(context, "StrictArg", FakeTokens("child"))
     assert loc.name == "LetOrConst"
 
 
@@ -2557,23 +2570,23 @@ def test_P2_LetOrConst_Const_init(context):
 #
 ######################################################################################
 def test_P2_BindingList_init(context):
-    bl = e.P2_BindingList(context, "StrictArg", ["child"])
+    bl = e.P2_BindingList(context, "StrictArg", FakeTokens("child"))
     assert bl.name == "BindingList"
     assert bl.context == context
-    assert bl.children == ["child"]
+    assert [tok.value for tok in bl.children] == ["child"]
 
 
 def test_P2_BindingList_LexicalBinding_init(context):
-    bl = e.P2_BindingList_LexicalBinding(context, "StrictArg", ["child"])
+    bl = e.P2_BindingList_LexicalBinding(context, "StrictArg", FakeTokens("child"))
     assert bl.name == "BindingList"
-    assert bl.LexicalBinding == "child"
+    assert bl.LexicalBinding.value == "child"
 
 
 def test_P2_BindingList_BindingList_LexicalBinding_init(context):
-    bl = e.P2_BindingList_BindingList_LexicalBinding(context, "StrictArg", ["child", ",", "sibling"])
+    bl = e.P2_BindingList_BindingList_LexicalBinding(context, "StrictArg", FakeTokens("child", ",", "sibling"))
     assert bl.name == "BindingList"
-    assert bl.LexicalBinding == "sibling"
-    assert bl.BindingList == "child"
+    assert bl.LexicalBinding.value == "sibling"
+    assert bl.BindingList.value == "child"
 
 
 #### LexicalBinding ##########################################################################################
@@ -2592,30 +2605,30 @@ def test_P2_BindingList_BindingList_LexicalBinding_init(context):
 #
 ##############################################################################################################
 def test_P2_LexicalBinding_init(context):
-    lb = e.P2_LexicalBinding(context, "StrictArg", ["child"])
+    lb = e.P2_LexicalBinding(context, "StrictArg", FakeTokens("child"))
     assert lb.name == "LexicalBinding"
     assert lb.context == context
-    assert lb.children == ["child"]
+    assert [tok.value for tok in lb.children] == ["child"]
 
 
 def test_P2_LexicalBinding_BindingIdentifier_init(context):
-    lb = e.P2_LexicalBinding_BindingIdentifier(context, "StrictArg", ["child"])
+    lb = e.P2_LexicalBinding_BindingIdentifier(context, "StrictArg", FakeTokens("child"))
     assert lb.name == "LexicalBinding"
-    assert lb.BindingIdentifier == "child"
+    assert lb.BindingIdentifier.value == "child"
 
 
 def test_P2_LexicalBinding_BindingIdentifier_Initializer_init(context):
-    lb = e.P2_LexicalBinding_BindingIdentifier_Initializer(context, "StrictArg", ["child", "init"])
+    lb = e.P2_LexicalBinding_BindingIdentifier_Initializer(context, "StrictArg", FakeTokens("child", "init"))
     assert lb.name == "LexicalBinding"
-    assert lb.BindingIdentifier == "child"
-    assert lb.Initializer == "init"
+    assert lb.BindingIdentifier.value == "child"
+    assert lb.Initializer.value == "init"
 
 
 def test_P2_LexicalBinding_BindingPattern_Initializer_init(context):
-    lb = e.P2_LexicalBinding_BindingPattern_Initializer(context, "StrictArg", ["child", "init"])
+    lb = e.P2_LexicalBinding_BindingPattern_Initializer(context, "StrictArg", FakeTokens("child", "init"))
     assert lb.name == "LexicalBinding"
-    assert lb.BindingPattern == "child"
-    assert lb.Initializer == "init"
+    assert lb.BindingPattern.value == "child"
+    assert lb.Initializer.value == "init"
 
 
 #### VariableStatement #############################################################################################################################
@@ -2634,16 +2647,16 @@ def test_P2_LexicalBinding_BindingPattern_Initializer_init(context):
 #
 ####################################################################################################################################################
 def test_P2_VariableStatement_init(context):
-    vs = e.P2_VariableStatement(context, "StrictArg", ["child"])
+    vs = e.P2_VariableStatement(context, "StrictArg", FakeTokens("child"))
     assert vs.name == "VariableStatement"
     assert vs.context == context
-    assert vs.children == ["child"]
+    assert [tok.value for tok in vs.children] == ["child"]
 
 
 def test_P2_VariableStatement_VariableDeclarationList_init(context):
-    vs = e.P2_VariableStatement_VariableDeclarationList(context, "StrictArg", ["var", "vdl", ";"])
+    vs = e.P2_VariableStatement_VariableDeclarationList(context, "StrictArg", FakeTokens("var", "vdl", ";"))
     assert vs.name == "VariableStatement"
-    assert vs.VariableDeclarationList == "vdl"
+    assert vs.VariableDeclarationList.value == "vdl"
 
 
 #### VariableDeclarationList ##########################################################################################################################################################
@@ -2662,25 +2675,25 @@ def test_P2_VariableStatement_VariableDeclarationList_init(context):
 #
 #######################################################################################################################################################################################
 def test_P2_VariableDeclarationList_init(context):
-    vdl = e.P2_VariableDeclarationList(context, "StrictArg", ["child"])
+    vdl = e.P2_VariableDeclarationList(context, "StrictArg", FakeTokens("child"))
     assert vdl.name == "VariableDeclarationList"
     assert vdl.context == context
-    assert vdl.children == ["child"]
+    assert [tok.value for tok in vdl.children] == ["child"]
 
 
 def test_P2_VariableDeclarationList_VariableDeclaration_init(context):
-    vdl = e.P2_VariableDeclarationList_VariableDeclaration(context, "StrictArg", ["child"])
+    vdl = e.P2_VariableDeclarationList_VariableDeclaration(context, "StrictArg", FakeTokens("child"))
     assert vdl.name == "VariableDeclarationList"
-    assert vdl.VariableDeclaration == "child"
+    assert vdl.VariableDeclaration.value == "child"
 
 
 def test_P2_VariableDeclarationList_VariableDeclarationList_VariableDeclaration_init(context):
     vdl = e.P2_VariableDeclarationList_VariableDeclarationList_VariableDeclaration(
-        context, "StrictArg", ["child", ",", "sibling"]
+        context, "StrictArg", FakeTokens("child", ",", "sibling")
     )
     assert vdl.name == "VariableDeclarationList"
-    assert vdl.VariableDeclarationList == "child"
-    assert vdl.VariableDeclaration == "sibling"
+    assert vdl.VariableDeclarationList.value == "child"
+    assert vdl.VariableDeclaration.value == "sibling"
 
 
 #### VariableDeclaration #################################################################################################################################
@@ -2699,30 +2712,30 @@ def test_P2_VariableDeclarationList_VariableDeclarationList_VariableDeclaration_
 #
 ##########################################################################################################################################################
 def test_P2_VariableDeclaration_init(context):
-    vd = e.P2_VariableDeclaration(context, "StrictArg", ["child"])
+    vd = e.P2_VariableDeclaration(context, "StrictArg", FakeTokens("child"))
     assert vd.name == "VariableDeclaration"
     assert vd.context == context
-    assert vd.children == ["child"]
+    assert [tok.value for tok in vd.children] == ["child"]
 
 
 def test_P2_VariableDeclaration_BindingIdentifier_init(context):
-    vd = e.P2_VariableDeclaration_BindingIdentifier(context, "StrictArg", ["child"])
+    vd = e.P2_VariableDeclaration_BindingIdentifier(context, "StrictArg", FakeTokens("child"))
     assert vd.name == "VariableDeclaration"
-    assert vd.BindingIdentifier == "child"
+    assert vd.BindingIdentifier.value == "child"
 
 
 def test_P2_VariableDeclaration_BindingIdentifier_Initializer_init(context):
-    vd = e.P2_VariableDeclaration_BindingIdentifier_Initializer(context, "StrictArg", ["child", "init"])
+    vd = e.P2_VariableDeclaration_BindingIdentifier_Initializer(context, "StrictArg", FakeTokens("child", "init"))
     assert vd.name == "VariableDeclaration"
-    assert vd.BindingIdentifier == "child"
-    assert vd.Initializer == "init"
+    assert vd.BindingIdentifier.value == "child"
+    assert vd.Initializer.value == "init"
 
 
 def test_P2_VariableDeclaration_BindingPattern_Initializer_init(context):
-    vd = e.P2_VariableDeclaration_BindingPattern_Initializer(context, "StrictArg", ["child", "init"])
+    vd = e.P2_VariableDeclaration_BindingPattern_Initializer(context, "StrictArg", FakeTokens("child", "init"))
     assert vd.name == "VariableDeclaration"
-    assert vd.BindingPattern == "child"
-    assert vd.Initializer == "init"
+    assert vd.BindingPattern.value == "child"
+    assert vd.Initializer.value == "init"
 
 
 #### BindingPattern #################################################################################################
@@ -2741,22 +2754,22 @@ def test_P2_VariableDeclaration_BindingPattern_Initializer_init(context):
 #
 #####################################################################################################################
 def test_P2_BindingPattern_init(context):
-    bp = e.P2_BindingPattern(context, "StrictArg", ["child"])
+    bp = e.P2_BindingPattern(context, "StrictArg", FakeTokens("child"))
     assert bp.name == "BindingPattern"
     assert bp.context == context
-    assert bp.children == ["child"]
+    assert [tok.value for tok in bp.children] == ["child"]
 
 
 def test_P2_BindingPattern_ObjectBindingPattern_init(context):
-    bp = e.P2_BindingPattern_ObjectBindingPattern(context, "StrictArg", ["child"])
+    bp = e.P2_BindingPattern_ObjectBindingPattern(context, "StrictArg", FakeTokens("child"))
     assert bp.name == "BindingPattern"
-    assert bp.ObjectBindingPattern == "child"
+    assert bp.ObjectBindingPattern.value == "child"
 
 
 def test_P2_BindingPattern_ArrayBindingPattern_init(context):
-    bp = e.P2_BindingPattern_ArrayBindingPattern(context, "StrictArg", ["child"])
+    bp = e.P2_BindingPattern_ArrayBindingPattern(context, "StrictArg", FakeTokens("child"))
     assert bp.name == "BindingPattern"
-    assert bp.ArrayBindingPattern == "child"
+    assert bp.ArrayBindingPattern.value == "child"
 
 
 #### ObjectBindingPattern ################################################################################################################################################
@@ -2775,36 +2788,36 @@ def test_P2_BindingPattern_ArrayBindingPattern_init(context):
 #
 ##########################################################################################################################################################################
 def test_P2_ObjectBindingPattern_init(context):
-    obp = e.P2_ObjectBindingPattern(context, "StrictArg", ["child"])
+    obp = e.P2_ObjectBindingPattern(context, "StrictArg", FakeTokens("child"))
     assert obp.name == "ObjectBindingPattern"
     assert obp.context == context
-    assert obp.children == ["child"]
+    assert [tok.value for tok in obp.children] == ["child"]
 
 
 def test_P2_ObjectBindingPattern_Empty_init(context):
-    obp = e.P2_ObjectBindingPattern_Empty(context, "StrictArg", ["child"])
+    obp = e.P2_ObjectBindingPattern_Empty(context, "StrictArg", FakeTokens("child"))
     assert obp.name == "ObjectBindingPattern"
 
 
 def test_P2_ObjectBindingPattern_BindingRestProperty_init(context):
-    obp = e.P2_ObjectBindingPattern_BindingRestProperty(context, "StrictArg", ["{", "child", "}"])
+    obp = e.P2_ObjectBindingPattern_BindingRestProperty(context, "StrictArg", FakeTokens("{", "child", "}"))
     assert obp.name == "ObjectBindingPattern"
-    assert obp.BindingRestProperty == "child"
+    assert obp.BindingRestProperty.value == "child"
 
 
 def test_P2_ObjectBindingPattern_BindingPropertyList_init(context):
-    obp = e.P2_ObjectBindingPattern_BindingPropertyList(context, "StrictArg", ["{", "child", "}"])
+    obp = e.P2_ObjectBindingPattern_BindingPropertyList(context, "StrictArg", FakeTokens("{", "child", "}"))
     assert obp.name == "ObjectBindingPattern"
-    assert obp.BindingPropertyList == "child"
+    assert obp.BindingPropertyList.value == "child"
 
 
 def test_P2_ObjectBindingPattern_BindingPropertyList_BindingRestProperty_init(context):
     obp = e.P2_ObjectBindingPattern_BindingPropertyList_BindingRestProperty(
-        context, "StrictArg", ["{", "child", ",", "sibling", "}"]
+        context, "StrictArg", FakeTokens("{", "child", ",", "sibling", "}")
     )
     assert obp.name == "ObjectBindingPattern"
-    assert obp.BindingPropertyList == "child"
-    assert obp.BindingRestProperty == "sibling"
+    assert obp.BindingPropertyList.value == "child"
+    assert obp.BindingRestProperty.value == "sibling"
 
 
 #### ArrayBindingPattern ###########################################################################################################################################
@@ -2823,66 +2836,70 @@ def test_P2_ObjectBindingPattern_BindingPropertyList_BindingRestProperty_init(co
 #
 ####################################################################################################################################################################
 def test_P2_ArrayBindingPattern_init(context):
-    abp = e.P2_ArrayBindingPattern(context, "StrictArg", ["child"])
+    abp = e.P2_ArrayBindingPattern(context, "StrictArg", FakeTokens("child"))
     assert abp.name == "ArrayBindingPattern"
     assert abp.context == context
-    assert abp.children == ["child"]
+    assert [tok.value for tok in abp.children] == ["child"]
 
 
 def test_P2_ArrayBindingPattern_Empty_init(context):
-    abp = e.P2_ArrayBindingPattern_Empty(context, "StrictArg", ["child"])
+    abp = e.P2_ArrayBindingPattern_Empty(context, "StrictArg", FakeTokens("child"))
     assert abp.name == "ArrayBindingPattern"
 
 
 def test_P2_ArrayBindingPattern_Elision_init(context):
-    abp = e.P2_ArrayBindingPattern_Elision(context, "StrictArg", ["[", "child", "]"])
+    abp = e.P2_ArrayBindingPattern_Elision(context, "StrictArg", FakeTokens("[", "child", "]"))
     assert abp.name == "ArrayBindingPattern"
-    assert abp.Elision == "child"
+    assert abp.Elision.value == "child"
 
 
 def test_P2_ArrayBindingPattern_BindingRestElement_init(context):
-    abp = e.P2_ArrayBindingPattern_BindingRestElement(context, "StrictArg", ["[", "child", "]"])
+    abp = e.P2_ArrayBindingPattern_BindingRestElement(context, "StrictArg", FakeTokens("[", "child", "]"))
     assert abp.name == "ArrayBindingPattern"
-    assert abp.BindingRestElement == "child"
+    assert abp.BindingRestElement.value == "child"
 
 
 def test_P2_ArrayBindingPattern_Elision_BindingRestElement_init(context):
-    abp = e.P2_ArrayBindingPattern_Elision_BindingRestElement(context, "StrictArg", ["[", ",,,", "child", "]"])
+    abp = e.P2_ArrayBindingPattern_Elision_BindingRestElement(
+        context, "StrictArg", FakeTokens("[", ",,,", "child", "]")
+    )
     assert abp.name == "ArrayBindingPattern"
-    assert abp.Elision == ",,,"
-    assert abp.BindingRestElement == "child"
+    assert abp.Elision.value == ",,,"
+    assert abp.BindingRestElement.value == "child"
 
 
 def test_P2_ArrayBindingPattern_BindingElementList_init(context):
-    abp = e.P2_ArrayBindingPattern_BindingElementList(context, "StrictArg", ["[", "child", "]"])
+    abp = e.P2_ArrayBindingPattern_BindingElementList(context, "StrictArg", FakeTokens("[", "child", "]"))
     assert abp.name == "ArrayBindingPattern"
-    assert abp.BindingElementList == "child"
+    assert abp.BindingElementList.value == "child"
 
 
 def test_P2_ArrayBindingPattern_BindingElementList_Elision_init(context):
-    abp = e.P2_ArrayBindingPattern_BindingElementList_Elision(context, "StrictArg", ["[", "child", ",", ",,,", "]"])
+    abp = e.P2_ArrayBindingPattern_BindingElementList_Elision(
+        context, "StrictArg", FakeTokens("[", "child", ",", ",,,", "]")
+    )
     assert abp.name == "ArrayBindingPattern"
-    assert abp.BindingElementList == "child"
-    assert abp.Elision == ",,,"
+    assert abp.BindingElementList.value == "child"
+    assert abp.Elision.value == ",,,"
 
 
 def test_P2_ArrayBindingPattern_BindingElementList_BindingRestElement_init(context):
     abp = e.P2_ArrayBindingPattern_BindingElementList_BindingRestElement(
-        context, "StrictArg", ["[", "child", ",", "...bre", "]"]
+        context, "StrictArg", FakeTokens("[", "child", ",", "...bre", "]")
     )
     assert abp.name == "ArrayBindingPattern"
-    assert abp.BindingElementList == "child"
-    assert abp.BindingRestElement == "...bre"
+    assert abp.BindingElementList.value == "child"
+    assert abp.BindingRestElement.value == "...bre"
 
 
 def test_P2_ArrayBindingPattern_BindingElementList_Elision_BindingRestElement_init(context):
     abp = e.P2_ArrayBindingPattern_BindingElementList_Elision_BindingRestElement(
-        context, "StrictArg", ["[", "child", ",", ",,,", "...bre", "]"]
+        context, "StrictArg", FakeTokens("[", "child", ",", ",,,", "...bre", "]")
     )
     assert abp.name == "ArrayBindingPattern"
-    assert abp.BindingElementList == "child"
-    assert abp.Elision == ",,,"
-    assert abp.BindingRestElement == "...bre"
+    assert abp.BindingElementList.value == "child"
+    assert abp.Elision.value == ",,,"
+    assert abp.BindingRestElement.value == "...bre"
 
 
 #### BindingRestProperty ##########################################################################################################################################
@@ -2901,16 +2918,16 @@ def test_P2_ArrayBindingPattern_BindingElementList_Elision_BindingRestElement_in
 #
 ###################################################################################################################################################################
 def test_P2_BindingRestProperty_init(context):
-    brp = e.P2_BindingRestProperty(context, "StrictArg", ["child"])
+    brp = e.P2_BindingRestProperty(context, "StrictArg", FakeTokens("child"))
     assert brp.name == "BindingRestProperty"
     assert brp.context == context
-    assert brp.children == ["child"]
+    assert [tok.value for tok in brp.children] == ["child"]
 
 
 def test_P2_BindingRestProperty_BindingIdentifier_init(context):
-    brp = e.P2_BindingRestProperty_BindingIdentifier(context, "StrictArg", ["...", "child"])
+    brp = e.P2_BindingRestProperty_BindingIdentifier(context, "StrictArg", FakeTokens("...", "child"))
     assert brp.name == "BindingRestProperty"
-    assert brp.BindingIdentifier == "child"
+    assert brp.BindingIdentifier.value == "child"
 
 
 #### BindingPropertyList ###################################################################################################################################
@@ -2929,23 +2946,25 @@ def test_P2_BindingRestProperty_BindingIdentifier_init(context):
 #
 ############################################################################################################################################################
 def test_P2_BindingPropertyList_init(context):
-    bpl = e.P2_BindingPropertyList(context, "StrictArg", ["child"])
+    bpl = e.P2_BindingPropertyList(context, "StrictArg", FakeTokens("child"))
     assert bpl.name == "BindingPropertyList"
     assert bpl.context == context
-    assert bpl.children == ["child"]
+    assert [tok.value for tok in bpl.children] == ["child"]
 
 
 def test_P2_BindingPropertyList_BindingProperty_init(context):
-    bpl = e.P2_BindingPropertyList_BindingProperty(context, "StrictArg", ["child"])
+    bpl = e.P2_BindingPropertyList_BindingProperty(context, "StrictArg", FakeTokens("child"))
     assert bpl.name == "BindingPropertyList"
-    assert bpl.BindingProperty == "child"
+    assert bpl.BindingProperty.value == "child"
 
 
 def test_P2_BindingPropertyList_BindingPropertyList_BindingProperty_init(context):
-    bpl = e.P2_BindingPropertyList_BindingPropertyList_BindingProperty(context, "StrictArg", ["list", ",", "child"])
+    bpl = e.P2_BindingPropertyList_BindingPropertyList_BindingProperty(
+        context, "StrictArg", FakeTokens("list", ",", "child")
+    )
     assert bpl.name == "BindingPropertyList"
-    assert bpl.BindingPropertyList == "list"
-    assert bpl.BindingProperty == "child"
+    assert bpl.BindingPropertyList.value == "list"
+    assert bpl.BindingProperty.value == "child"
 
 
 #### BindingElementList #############################################################################################################################
@@ -2964,25 +2983,25 @@ def test_P2_BindingPropertyList_BindingPropertyList_BindingProperty_init(context
 #
 #####################################################################################################################################################
 def test_P2_BindingElementList_init(context):
-    bel = e.P2_BindingElementList(context, "StrictArg", ["child"])
+    bel = e.P2_BindingElementList(context, "StrictArg", FakeTokens("child"))
     assert bel.name == "BindingElementList"
     assert bel.context == context
-    assert bel.children == ["child"]
+    assert [tok.value for tok in bel.children] == ["child"]
 
 
 def test_P2_BindingElementList_BindingElement_init(context):
-    bel = e.P2_BindingElementList_BindingElisionElement(context, "StrictArg", ["child"])
+    bel = e.P2_BindingElementList_BindingElisionElement(context, "StrictArg", FakeTokens("child"))
     assert bel.name == "BindingElementList"
-    assert bel.BindingElisionElement == "child"
+    assert bel.BindingElisionElement.value == "child"
 
 
 def test_P2_BindingElementList_BindingElementList_BindingElisionElement_init(context):
     bel = e.P2_BindingElementList_BindingElementList_BindingElisionElement(
-        context, "StrictArg", ["list", ",", "child"]
+        context, "StrictArg", FakeTokens("list", ",", "child")
     )
     assert bel.name == "BindingElementList"
-    assert bel.BindingElementList == "list"
-    assert bel.BindingElisionElement == "child"
+    assert bel.BindingElementList.value == "list"
+    assert bel.BindingElisionElement.value == "child"
 
 
 #### BindingElisionElement ###############################################################################################################################################
@@ -3001,23 +3020,23 @@ def test_P2_BindingElementList_BindingElementList_BindingElisionElement_init(con
 #
 ##########################################################################################################################################################################
 def test_P2_BindingElisionElement(context):
-    bee = e.P2_BindingElisionElement(context, "StrictArg", ["child"])
+    bee = e.P2_BindingElisionElement(context, "StrictArg", FakeTokens("child"))
     assert bee.name == "BindingElisionElement"
     assert bee.context == context
-    assert bee.children == ["child"]
+    assert [tok.value for tok in bee.children] == ["child"]
 
 
 def test_P2_BindingElisionElement_BindingElement(context):
-    bee = e.P2_BindingElisionElement_BindingElement(context, "StrictArg", ["child"])
+    bee = e.P2_BindingElisionElement_BindingElement(context, "StrictArg", FakeTokens("child"))
     assert bee.name == "BindingElisionElement"
-    assert bee.BindingElement == "child"
+    assert bee.BindingElement.value == "child"
 
 
 def test_P2_BindingElisionElement_Elision_BindingElement(context):
-    bee = e.P2_BindingElisionElement_Elision_BindingElement(context, "StrictArg", [",,,", "child"])
+    bee = e.P2_BindingElisionElement_Elision_BindingElement(context, "StrictArg", FakeTokens(",,,", "child"))
     assert bee.name == "BindingElisionElement"
-    assert bee.Elision == ",,,"
-    assert bee.BindingElement == "child"
+    assert bee.Elision.value == ",,,"
+    assert bee.BindingElement.value == "child"
 
 
 #### BindingProperty ##########################################################################################################
@@ -3036,23 +3055,23 @@ def test_P2_BindingElisionElement_Elision_BindingElement(context):
 #
 ###############################################################################################################################
 def test_P2_BindingProperty(context):
-    bp = e.P2_BindingProperty(context, "StrictArg", ["child"])
+    bp = e.P2_BindingProperty(context, "StrictArg", FakeTokens("child"))
     assert bp.name == "BindingProperty"
     assert bp.context == context
-    assert bp.children == ["child"]
+    assert [tok.value for tok in bp.children] == ["child"]
 
 
 def test_P2_BindingProperty_SingleNameBinding(context):
-    bp = e.P2_BindingProperty_SingleNameBinding(context, "StrictArg", ["child"])
+    bp = e.P2_BindingProperty_SingleNameBinding(context, "StrictArg", FakeTokens("child"))
     assert bp.name == "BindingProperty"
-    assert bp.SingleNameBinding == "child"
+    assert bp.SingleNameBinding.value == "child"
 
 
 def test_P2_BindingProperty_PropertyName_BindingElement(context):
-    bp = e.P2_BindingProperty_PropertyName_BindingElement(context, "StrictArg", ["prop", ":", "child"])
+    bp = e.P2_BindingProperty_PropertyName_BindingElement(context, "StrictArg", FakeTokens("prop", ":", "child"))
     assert bp.name == "BindingProperty"
-    assert bp.PropertyName == "prop"
-    assert bp.BindingElement == "child"
+    assert bp.PropertyName.value == "prop"
+    assert bp.BindingElement.value == "child"
 
 
 #### BindingElement ####################################################################################################
@@ -3071,29 +3090,29 @@ def test_P2_BindingProperty_PropertyName_BindingElement(context):
 #
 ########################################################################################################################
 def test_P2_BindingElement_init(context):
-    be = e.P2_BindingElement(context, "StrictArg", ["child"])
+    be = e.P2_BindingElement(context, "StrictArg", FakeTokens("child"))
     assert be.name == "BindingElement"
     assert be.context == context
-    assert be.children == ["child"]
+    assert [tok.value for tok in be.children] == ["child"]
 
 
 def test_P2_BindingElement_SingleNameBinding_init(context):
-    be = e.P2_BindingElement_SingleNameBinding(context, "StrictArg", ["child"])
+    be = e.P2_BindingElement_SingleNameBinding(context, "StrictArg", FakeTokens("child"))
     assert be.name == "BindingElement"
-    assert be.SingleNameBinding == "child"
+    assert be.SingleNameBinding.value == "child"
 
 
 def test_P2_BindingElement_BindingPattern_init(context):
-    be = e.P2_BindingElement_BindingPattern(context, "StrictArg", ["pattern"])
+    be = e.P2_BindingElement_BindingPattern(context, "StrictArg", FakeTokens("pattern"))
     assert be.name == "BindingElement"
-    assert be.BindingPattern == "pattern"
+    assert be.BindingPattern.value == "pattern"
 
 
 def test_P2_BindingElement_BindingPattern_Initializer_init(context):
-    be = e.P2_BindingElement_BindingPattern_Initializer(context, "StrictArg", ["pattern", "=child"])
+    be = e.P2_BindingElement_BindingPattern_Initializer(context, "StrictArg", FakeTokens("pattern", "=child"))
     assert be.name == "BindingElement"
-    assert be.BindingPattern == "pattern"
-    assert be.Initializer == "=child"
+    assert be.BindingPattern.value == "pattern"
+    assert be.Initializer.value == "=child"
 
 
 #### SingleNameBinding ############################################################################################################################
@@ -3113,21 +3132,21 @@ def test_P2_BindingElement_BindingPattern_Initializer_init(context):
 ###################################################################################################################################################
 class Test_SingleNameBinding:
     def test_P2_SingleNameBinding_init(self, context):
-        snb = e.P2_SingleNameBinding(context, "StrictArg", ["child"])
+        snb = e.P2_SingleNameBinding(context, "StrictArg", FakeTokens("child"))
         assert snb.name == "SingleNameBinding"
         assert snb.context == context
-        assert snb.children == ["child"]
+        assert [tok.value for tok in snb.children] == ["child"]
 
     def test_P2_SingleNameBinding_BindingIdentifier_init(self, context):
-        snb = e.P2_SingleNameBinding_BindingIdentifier(context, "StrictArg", ["child"])
+        snb = e.P2_SingleNameBinding_BindingIdentifier(context, "StrictArg", FakeTokens("child"))
         assert snb.name == "SingleNameBinding"
-        assert snb.BindingIdentifier == "child"
+        assert snb.BindingIdentifier.value == "child"
 
     def test_P2_SingleNameBinding_BindingIdentifier_Initializer_init(self, context):
-        snb = e.P2_SingleNameBinding_BindingIdentifier_Initializer(context, "StrictArg", ["child", "=3"])
+        snb = e.P2_SingleNameBinding_BindingIdentifier_Initializer(context, "StrictArg", FakeTokens("child", "=3"))
         assert snb.name == "SingleNameBinding"
-        assert snb.BindingIdentifier == "child"
-        assert snb.Initializer == "=3"
+        assert snb.BindingIdentifier.value == "child"
+        assert snb.Initializer.value == "=3"
 
 
 #### BindingRestElement ####################################################################################################################################
@@ -3148,22 +3167,22 @@ class Test_SingleNameBinding:
 class Test_BindingRestElement:
     @staticmethod
     def test_P2_BindingRestElement_init(context):
-        bre = e.P2_BindingRestElement(context, "StrictArg", ["child"])
+        bre = e.P2_BindingRestElement(context, "StrictArg", FakeTokens("child"))
         assert bre.name == "BindingRestElement"
         assert bre.context == context
-        assert bre.children == ["child"]
+        assert [tok.value for tok in bre.children] == ["child"]
 
     @staticmethod
     def test_P2_BindingRestElement_BindingIdentifier_init(context):
-        bre = e.P2_BindingRestElement_BindingIdentifier(context, "StrictArg", ["...", "child"])
+        bre = e.P2_BindingRestElement_BindingIdentifier(context, "StrictArg", FakeTokens("...", "child"))
         assert bre.name == "BindingRestElement"
-        assert bre.BindingIdentifier == "child"
+        assert bre.BindingIdentifier.value == "child"
 
     @staticmethod
     def test_P2_BindingRestElement_BindingPattern_init(context):
-        bre = e.P2_BindingRestElement_BindingPattern(context, "StrictArg", ["...", "child"])
+        bre = e.P2_BindingRestElement_BindingPattern(context, "StrictArg", FakeTokens("...", "child"))
         assert bre.name == "BindingRestElement"
-        assert bre.BindingPattern == "child"
+        assert bre.BindingPattern.value == "child"
 
 
 #### EmptyStatement ##################################################################################################################
@@ -3182,14 +3201,14 @@ class Test_BindingRestElement:
 #
 ######################################################################################################################################
 def test_P2_EmptyStatement_init(context):
-    es = e.P2_EmptyStatement(context, "StrictArg", ["child"])
+    es = e.P2_EmptyStatement(context, "StrictArg", FakeTokens("child"))
     assert es.name == "EmptyStatement"
     assert es.context == context
-    assert es.children == ["child"]
+    assert [tok.value for tok in es.children] == ["child"]
 
 
 def test_P2_EmptyStatement_SEMICOLON_init(context):
-    es = e.P2_EmptyStatement_SEMICOLON(context, "StrictArg", ["child"])
+    es = e.P2_EmptyStatement_SEMICOLON(context, "StrictArg", FakeTokens("child"))
     assert es.name == "EmptyStatement"
 
 
@@ -3209,16 +3228,16 @@ def test_P2_EmptyStatement_SEMICOLON_init(context):
 #
 ##########################################################################################################################################################################
 def test_P2_ExpressionStatement_init(context):
-    es = e.P2_ExpressionStatement(context, "StrictArg", ["child"])
+    es = e.P2_ExpressionStatement(context, "StrictArg", FakeTokens("child"))
     assert es.name == "ExpressionStatement"
     assert es.context == context
-    assert es.children == ["child"]
+    assert [tok.value for tok in es.children] == ["child"]
 
 
 def test_P2_ExpressionStatement_Expression_SEMICOLON_init(context):
-    es = e.P2_ExpressionStatement_Expression_SEMICOLON(context, "StrictArg", ["exp_stmt", ";"])
+    es = e.P2_ExpressionStatement_Expression_SEMICOLON(context, "StrictArg", FakeTokens("exp_stmt", ";"))
     assert es.name == "ExpressionStatement"
-    assert es.Expression == "exp_stmt"
+    assert es.Expression.value == "exp_stmt"
 
 
 #### IfStatement ##################################################################################
@@ -3238,17 +3257,17 @@ def test_P2_ExpressionStatement_Expression_SEMICOLON_init(context):
 ###################################################################################################
 class Test_IfStatement:
     def test_P2_IfStatement_init(self, context):
-        ifs = e.P2_IfStatement(context, "StrictArg", ["child"])
+        ifs = e.P2_IfStatement(context, "StrictArg", FakeTokens("child"))
         assert ifs.name == "IfStatement"
         assert ifs.context == context
-        assert ifs.children == ["child"]
+        assert [tok.value for tok in ifs.children] == ["child"]
 
     def test_P2_IfStatement_Expression_Statement_Statement_init(self, context):
-        ifs = e.P2_IfStatement_Expression_Statement_Statement(context, "StrictArg", ["child"])
+        ifs = e.P2_IfStatement_Expression_Statement_Statement(context, "StrictArg", FakeTokens("child"))
         assert ifs.name == "IfStatement"
 
     def test_P2_IfStatement_Expression_Statement_init(self, context):
-        ifs = e.P2_IfStatement_Expression_Statement(context, "StrictArg", ["child"])
+        ifs = e.P2_IfStatement_Expression_Statement(context, "StrictArg", FakeTokens("child"))
         assert ifs.name == "IfStatement"
 
 
@@ -3273,37 +3292,37 @@ ALT_EXPRESSION = 2
 
 class Test_IterationStatement:
     def test_P2_IterationStatement_init(self, context):
-        istmt = e.P2_IterationStatement(context, "StrictArg", ["child"])
+        istmt = e.P2_IterationStatement(context, "StrictArg", FakeTokens("child"))
         assert istmt.name == "IterationStatement"
         assert istmt.context == context
-        assert istmt.children == ["child"]
+        assert [tok.value for tok in istmt.children] == ["child"]
         assert istmt.strict == "StrictArg"
 
     def test_P2_IterationStatement_DO_Statement_WHILE_Expression_init(self, context):
         istmt = e.P2_IterationStatement_DO_Statement_WHILE_Expression(
-            context, "StrictArg", ["do", "Statement", "while", "(", "Expression", ")", ";"]
+            context, "StrictArg", FakeTokens("do", "Statement", "while", "(", "Expression", ")", ";")
         )
         assert istmt.name == "IterationStatement"
-        assert istmt.Statement == "Statement"
-        assert istmt.Expression == "Expression"
+        assert istmt.Statement.value == "Statement"
+        assert istmt.Expression.value == "Expression"
 
     def test_P2_IterationStatement_WHILE_Expression_Statement_init(self, context):
         istmt = e.P2_IterationStatement_WHILE_Expression_Statement(
-            context, "StrictArg", ["while", "(", "Expression", ")", "Statement"]
+            context, "StrictArg", FakeTokens("while", "(", "Expression", ")", "Statement")
         )
         assert istmt.name == "IterationStatement"
-        assert istmt.Expression == "Expression"
-        assert istmt.Statement == "Statement"
+        assert istmt.Expression.value == "Expression"
+        assert istmt.Statement.value == "Statement"
 
     def test_P2_IterationStatement_FOR_ExpressionInit_ExpressionTest_ExpressionInc_Statement_init(self, context):
         istmt = e.P2_IterationStatement_FOR_ExpressionInit_ExpressionTest_ExpressionInc_Statement(
-            context, "StrictArg", ["for", "(", "ExpInit", ";", "ExpTest", ";", "ExpInc", ")", "Statement"]
+            context, "StrictArg", FakeTokens("for", "(", "ExpInit", ";", "ExpTest", ";", "ExpInc", ")", "Statement")
         )
         assert istmt.name == "IterationStatement"
-        assert istmt.ExpressionInit == "ExpInit"
-        assert istmt.ExpressionTest == "ExpTest"
-        assert istmt.ExpressionInc == "ExpInc"
-        assert istmt.Statement == "Statement"
+        assert istmt.ExpressionInit.value == "ExpInit"
+        assert istmt.ExpressionTest.value == "ExpTest"
+        assert istmt.ExpressionInc.value == "ExpInc"
+        assert istmt.Statement.value == "Statement"
 
     def test_P2_IterationStatement_FOR_VAR_VariableDeclarationList_ExpressionTest_ExpressionInc_Statement_init(
         self, context
@@ -3311,7 +3330,7 @@ class Test_IterationStatement:
         istmt = e.P2_IterationStatement_FOR_VAR_VariableDeclarationList_ExpressionTest_ExpressionInc_Statement(
             context,
             "StrictArg",
-            [
+            FakeTokens(
                 "for",
                 "(",
                 "var",
@@ -3322,81 +3341,89 @@ class Test_IterationStatement:
                 "Expression_Increment",
                 ")",
                 "Statement",
-            ],
+            ),
         )
         assert istmt.name == "IterationStatement"
-        assert istmt.VariableDeclarationList == "VariableDeclarationList"
-        assert istmt.ExpressionTest == "Expression_Test"
-        assert istmt.ExpressionInc == "Expression_Increment"
-        assert istmt.Statement == "Statement"
+        assert istmt.VariableDeclarationList.value == "VariableDeclarationList"
+        assert istmt.ExpressionTest.value == "Expression_Test"
+        assert istmt.ExpressionInc.value == "Expression_Increment"
+        assert istmt.Statement.value == "Statement"
 
     def test_P2_IterationStatement_FOR_LexicalDeclaration_ExpressionTest_ExpressionInc_Statement_init(self, context):
         istmt = e.P2_IterationStatement_FOR_LexicalDeclaration_ExpressionTest_ExpressionInc_Statement(
             context,
             "StrictArg",
-            ["for", "(", "LexicalDeclaration", "Expression_Test", ";", "Expression_Increment", ")", "Statement"],
+            FakeTokens(
+                "for", "(", "LexicalDeclaration", "Expression_Test", ";", "Expression_Increment", ")", "Statement"
+            ),
         )
         assert istmt.name == "IterationStatement"
-        assert istmt.LexicalDeclaration == "LexicalDeclaration"
-        assert istmt.ExpressionTest == "Expression_Test"
-        assert istmt.ExpressionInc == "Expression_Increment"
-        assert istmt.Statement == "Statement"
+        assert istmt.LexicalDeclaration.value == "LexicalDeclaration"
+        assert istmt.ExpressionTest.value == "Expression_Test"
+        assert istmt.ExpressionInc.value == "Expression_Increment"
+        assert istmt.Statement.value == "Statement"
 
     def test_P2_IterationStatement_FOR_LeftHandSideExpression_IN_Expression_Statement_init(self, context):
         istmt = e.P2_IterationStatement_FOR_LeftHandSideExpression_IN_Expression_Statement(
-            context, "StrictArg", ["for", "(", "LeftHandSideExpression", "in", "Expression", ")", "Statement"]
+            context,
+            "StrictArg",
+            FakeTokens("for", "(", "LeftHandSideExpression", "in", "Expression", ")", "Statement"),
         )
         assert istmt.name == "IterationStatement"
-        assert istmt.LeftHandSideExpression == "LeftHandSideExpression"
-        assert istmt.Expression == "Expression"
-        assert istmt.Statement == "Statement"
+        assert istmt.LeftHandSideExpression.value == "LeftHandSideExpression"
+        assert istmt.Expression.value == "Expression"
+        assert istmt.Statement.value == "Statement"
 
     def test_P2_IterationStatement_FOR_VAR_ForBinding_IN_Expression_Statement_init(self, context):
         istmt = e.P2_IterationStatement_FOR_VAR_ForBinding_IN_Expression_Statement(
-            context, "StrictArg", ["for", "(", "var", "ForBinding", "in", "Expression", ")", "Statement"]
+            context, "StrictArg", FakeTokens("for", "(", "var", "ForBinding", "in", "Expression", ")", "Statement")
         )
         assert istmt.name == "IterationStatement"
-        assert istmt.ForBinding == "ForBinding"
-        assert istmt.Expression == "Expression"
-        assert istmt.Statement == "Statement"
+        assert istmt.ForBinding.value == "ForBinding"
+        assert istmt.Expression.value == "Expression"
+        assert istmt.Statement.value == "Statement"
 
     def test_P2_IterationStatement_FOR_ForDeclaration_IN_Expression_Statement_init(self, context):
         istmt = e.P2_IterationStatement_FOR_ForDeclaration_IN_Expression_Statement(
-            context, "StrictArg", ["for", "(", "ForDeclaration", "in", "Expression", ")", "Statement"]
+            context, "StrictArg", FakeTokens("for", "(", "ForDeclaration", "in", "Expression", ")", "Statement")
         )
         assert istmt.name == "IterationStatement"
-        assert istmt.ForDeclaration == "ForDeclaration"
-        assert istmt.Expression == "Expression"
-        assert istmt.Statement == "Statement"
+        assert istmt.ForDeclaration.value == "ForDeclaration"
+        assert istmt.Expression.value == "Expression"
+        assert istmt.Statement.value == "Statement"
 
     def test_P2_IterationStatement_FOR_LeftHandSideExpression_OF_AssignmentExpression_Statement_init(self, context):
         istmt = e.P2_IterationStatement_FOR_LeftHandSideExpression_OF_AssignmentExpression_Statement(
             context,
             "StrictArg",
-            ["for", "(", "LeftHandSideExpression", "of", "AssignmentExpression", ")", "Statement"],
+            FakeTokens("for", "(", "LeftHandSideExpression", "of", "AssignmentExpression", ")", "Statement"),
         )
         assert istmt.name == "IterationStatement"
-        assert istmt.LeftHandSideExpression == "LeftHandSideExpression"
-        assert istmt.AssignmentExpression == "AssignmentExpression"
-        assert istmt.Statement == "Statement"
+        assert istmt.LeftHandSideExpression.value == "LeftHandSideExpression"
+        assert istmt.AssignmentExpression.value == "AssignmentExpression"
+        assert istmt.Statement.value == "Statement"
 
     def test_P2_IterationStatement_FOR_VAR_ForBinding_OF_AssignmentExpression_Statement_init(self, context):
         istmt = e.P2_IterationStatement_FOR_VAR_ForBinding_OF_AssignmentExpression_Statement(
-            context, "StrictArg", ["for", "(", "var", "ForBinding", "of", "AssignmentExpression", ")", "Statement"]
+            context,
+            "StrictArg",
+            FakeTokens("for", "(", "var", "ForBinding", "of", "AssignmentExpression", ")", "Statement"),
         )
         assert istmt.name == "IterationStatement"
-        assert istmt.ForBinding == "ForBinding"
-        assert istmt.AssignmentExpression == "AssignmentExpression"
-        assert istmt.Statement == "Statement"
+        assert istmt.ForBinding.value == "ForBinding"
+        assert istmt.AssignmentExpression.value == "AssignmentExpression"
+        assert istmt.Statement.value == "Statement"
 
     def test_P2_IterationStatement_FOR_ForDeclaration_OF_AssignmentExpression_Statement_init(self, context):
         istmt = e.P2_IterationStatement_FOR_ForDeclaration_OF_AssignmentExpression_Statement(
-            context, "StrictArg", ["for", "(", "ForDeclaration", "of", "AssignmentExpression", ")", "Statement"]
+            context,
+            "StrictArg",
+            FakeTokens("for", "(", "ForDeclaration", "of", "AssignmentExpression", ")", "Statement"),
         )
         assert istmt.name == "IterationStatement"
-        assert istmt.ForDeclaration == "ForDeclaration"
-        assert istmt.AssignmentExpression == "AssignmentExpression"
-        assert istmt.Statement == "Statement"
+        assert istmt.ForDeclaration.value == "ForDeclaration"
+        assert istmt.AssignmentExpression.value == "AssignmentExpression"
+        assert istmt.Statement.value == "Statement"
 
     def test_P2_IterationStatement_FOR_AWAIT_LeftHandSideExpression_OF_AssignmentExpression_Statement_init(
         self, context
@@ -3404,34 +3431,36 @@ class Test_IterationStatement:
         istmt = e.P2_IterationStatement_FOR_AWAIT_LeftHandSideExpression_OF_AssignmentExpression_Statement(
             context,
             "StrictArg",
-            ["for", "await", "(", "LeftHandSideExpression", "of", "AssignmentExpression", ")", "Statement"],
+            FakeTokens(
+                "for", "await", "(", "LeftHandSideExpression", "of", "AssignmentExpression", ")", "Statement"
+            ),
         )
         assert istmt.name == "IterationStatement"
-        assert istmt.LeftHandSideExpression == "LeftHandSideExpression"
-        assert istmt.AssignmentExpression == "AssignmentExpression"
-        assert istmt.Statement == "Statement"
+        assert istmt.LeftHandSideExpression.value == "LeftHandSideExpression"
+        assert istmt.AssignmentExpression.value == "AssignmentExpression"
+        assert istmt.Statement.value == "Statement"
 
     def test_P2_IterationStatement_FOR_AWAIT_VAR_ForBinding_OF_AssignmentExpression_Statement_init(self, context):
         istmt = e.P2_IterationStatement_FOR_AWAIT_VAR_ForBinding_OF_AssignmentExpression_Statement(
             context,
             "StrictArg",
-            ["for", "await", "(", "var", "ForBinding", "of", "AssignmentExpression", ")", "Statement"],
+            FakeTokens("for", "await", "(", "var", "ForBinding", "of", "AssignmentExpression", ")", "Statement"),
         )
         assert istmt.name == "IterationStatement"
-        assert istmt.ForBinding == "ForBinding"
-        assert istmt.AssignmentExpression == "AssignmentExpression"
-        assert istmt.Statement == "Statement"
+        assert istmt.ForBinding.value == "ForBinding"
+        assert istmt.AssignmentExpression.value == "AssignmentExpression"
+        assert istmt.Statement.value == "Statement"
 
     def test_P2_IterationStatement_FOR_AWAIT_ForDeclaration_OF_AssignmentExpression_Statement_init(self, context):
         istmt = e.P2_IterationStatement_FOR_AWAIT_ForDeclaration_OF_AssignmentExpression_Statement(
             context,
             "StrictArg",
-            ["for", "await", "(", "ForDeclaration", "of", "AssignmentExpression", ")", "Statement"],
+            FakeTokens("for", "await", "(", "ForDeclaration", "of", "AssignmentExpression", ")", "Statement"),
         )
         assert istmt.name == "IterationStatement"
-        assert istmt.ForDeclaration == "ForDeclaration"
-        assert istmt.AssignmentExpression == "AssignmentExpression"
-        assert istmt.Statement == "Statement"
+        assert istmt.ForDeclaration.value == "ForDeclaration"
+        assert istmt.AssignmentExpression.value == "AssignmentExpression"
+        assert istmt.Statement.value == "Statement"
 
 
 #### ForDeclaration ##################################################################################################
@@ -3451,16 +3480,16 @@ class Test_IterationStatement:
 ######################################################################################################################
 class Test_ForDeclaration:
     def test_P2_ForDeclaration_init(self, context):
-        fd = e.P2_ForDeclaration(context, "StrictArg", ["child"])
+        fd = e.P2_ForDeclaration(context, "StrictArg", FakeTokens("child"))
         assert fd.name == "ForDeclaration"
         assert fd.context == context
-        assert fd.children == ["child"]
+        assert [tok.value for tok in fd.children] == ["child"]
 
     def test_P2_ForDeclaration_LetOrConst_ForBinding_init(self, context):
-        fd = e.P2_ForDeclaration_LetOrConst_ForBinding(context, "StrictArg", ["loc", "forbinding"])
+        fd = e.P2_ForDeclaration_LetOrConst_ForBinding(context, "StrictArg", FakeTokens("loc", "forbinding"))
         assert fd.name == "ForDeclaration"
-        assert fd.LetOrConst == "loc"
-        assert fd.ForBinding == "forbinding"
+        assert fd.LetOrConst.value == "loc"
+        assert fd.ForBinding.value == "forbinding"
 
 
 #### ForBinding #####################################################################
@@ -3480,20 +3509,20 @@ class Test_ForDeclaration:
 #####################################################################################
 class Test_ForBinding:
     def test_P2_ForBinding_init(self, context):
-        fb = e.P2_ForBinding(context, "StrictArg", ["child"])
+        fb = e.P2_ForBinding(context, "StrictArg", FakeTokens("child"))
         assert fb.name == "ForBinding"
         assert fb.context == context
-        assert fb.children == ["child"]
+        assert [tok.value for tok in fb.children] == ["child"]
 
     def test_P2_ForBinding_BindingIdentifier_init(self, context):
-        fb = e.P2_ForBinding_BindingIdentifier(context, "StrictArg", ["child"])
+        fb = e.P2_ForBinding_BindingIdentifier(context, "StrictArg", FakeTokens("child"))
         assert fb.name == "ForBinding"
-        assert fb.BindingIdentifier == "child"
+        assert fb.BindingIdentifier.value == "child"
 
     def test_P2_ForBinding_BindingPattern_init(self, context):
-        fb = e.P2_ForBinding_BindingPattern(context, "StrictArg", ["child"])
+        fb = e.P2_ForBinding_BindingPattern(context, "StrictArg", FakeTokens("child"))
         assert fb.name == "ForBinding"
-        assert fb.BindingPattern == "child"
+        assert fb.BindingPattern.value == "child"
 
 
 #### ContinueStatement ################################################################################################################################
@@ -3513,19 +3542,21 @@ class Test_ForBinding:
 #######################################################################################################################################################
 class Test_ContinueStatement:
     def test_P2_ContinueStatement_init(self, context):
-        cs = e.P2_ContinueStatement(context, "StrictArg", ["child"])
+        cs = e.P2_ContinueStatement(context, "StrictArg", FakeTokens("child"))
         assert cs.name == "ContinueStatement"
         assert cs.context == context
-        assert cs.children == ["child"]
+        assert [tok.value for tok in cs.children] == ["child"]
 
     def test_P2_ContinueStatement_CONTINUE_init(self, context):
-        cs = e.P2_ContinueStatement_CONTINUE(context, "StrictArg", ["continue", ";"])
+        cs = e.P2_ContinueStatement_CONTINUE(context, "StrictArg", FakeTokens("continue", ";"))
         assert cs.name == "ContinueStatement"
 
     def test_P2_ContinueStatement_CONTINUE_LabelIdentifier_init(self, context):
-        cs = e.P2_ContinueStatement_CONTINUE_LabelIdentifier(context, "StrictArg", ["continue", "superduper", ";"])
+        cs = e.P2_ContinueStatement_CONTINUE_LabelIdentifier(
+            context, "StrictArg", FakeTokens("continue", "superduper", ";")
+        )
         assert cs.name == "ContinueStatement"
-        assert cs.LabelIdentifier == "superduper"
+        assert cs.LabelIdentifier.value == "superduper"
 
 
 #### BreakStatement ##############################################################################################################
@@ -3545,18 +3576,18 @@ class Test_ContinueStatement:
 ##################################################################################################################################
 class Test_BreakStatement:
     def test_P2_BreakStatement_init(self, context):
-        bs = e.P2_BreakStatement(context, "StrictArg", ["child"])
+        bs = e.P2_BreakStatement(context, "StrictArg", FakeTokens("child"))
         assert bs.name == "BreakStatement"
         assert bs.context == context
-        assert bs.children == ["child"]
+        assert [tok.value for tok in bs.children] == ["child"]
 
     def test_P2_BreakStatement_BREAK_LabelIdentifier_init(self, context):
-        bs = e.P2_BreakStatement_BREAK_LabelIdentifier(context, "StrictArg", ["continue", "ident", ";"])
+        bs = e.P2_BreakStatement_BREAK_LabelIdentifier(context, "StrictArg", FakeTokens("continue", "ident", ";"))
         assert bs.name == "BreakStatement"
-        assert bs.LabelIdentifier == "ident"
+        assert bs.LabelIdentifier.value == "ident"
 
     def test_P2_BreakStatement_BREAK_init(self, context):
-        bs = e.P2_BreakStatement_BREAK(context, "StrictArg", ["break", ";"])
+        bs = e.P2_BreakStatement_BREAK(context, "StrictArg", FakeTokens("break", ";"))
         assert bs.name == "BreakStatement"
 
 
@@ -3577,19 +3608,19 @@ class Test_BreakStatement:
 #########################################################################################################################################
 class Test_ReturnStatement:
     def test_P2_ReturnStatement_init(self, context):
-        rs = e.P2_ReturnStatement(context, "StrictArg", ["child"])
+        rs = e.P2_ReturnStatement(context, "StrictArg", FakeTokens("child"))
         assert rs.name == "ReturnStatement"
         assert rs.context == context
-        assert rs.children == ["child"]
+        assert [tok.value for tok in rs.children] == ["child"]
 
     def test_P2_ReturnStatement_RETURN_init(self, context):
-        rs = e.P2_ReturnStatement_RETURN(context, "StrictArg", ["return", ";"])
+        rs = e.P2_ReturnStatement_RETURN(context, "StrictArg", FakeTokens("return", ";"))
         assert rs.name == "ReturnStatement"
 
     def test_P2_ReturnStatement_RETURN_Expression_init(self, context):
-        rs = e.P2_ReturnStatement_RETURN_Expression(context, "StrictArg", ["return", "Expression", ";"])
+        rs = e.P2_ReturnStatement_RETURN_Expression(context, "StrictArg", FakeTokens("return", "Expression", ";"))
         assert rs.name == "ReturnStatement"
-        assert rs.Expression == "Expression"
+        assert rs.Expression.value == "Expression"
 
 
 #### WithStatement ###################################################################################################
@@ -3609,18 +3640,18 @@ class Test_ReturnStatement:
 ######################################################################################################################
 class Test_WithStatement:
     def test_P2_WithStatement_init(self, context):
-        ws = e.P2_WithStatement(context, "StrictArg", ["child"])
+        ws = e.P2_WithStatement(context, "StrictArg", FakeTokens("child"))
         assert ws.name == "WithStatement"
         assert ws.context == context
-        assert ws.children == ["child"]
+        assert [tok.value for tok in ws.children] == ["child"]
 
     def test_P2_WithStatement_WITH_Expression_Statement_init(self, context):
         ws = e.P2_WithStatement_WITH_Expression_Statement(
-            context, "StrictArg", ["with", "(", "Expression", ")", "Statement"]
+            context, "StrictArg", FakeTokens("with", "(", "Expression", ")", "Statement")
         )
         assert ws.name == "WithStatement"
-        assert ws.Expression == "Expression"
-        assert ws.Statement == "Statement"
+        assert ws.Expression.value == "Expression"
+        assert ws.Statement.value == "Statement"
 
 
 #### SwitchStatement #####################################################################################################################
@@ -3640,18 +3671,18 @@ class Test_WithStatement:
 ##########################################################################################################################################
 class Test_SwitchStatement:
     def test_P2_SwitchStatement_init(self, context):
-        ss = e.P2_SwitchStatement(context, "StrictArg", ["child"])
+        ss = e.P2_SwitchStatement(context, "StrictArg", FakeTokens("child"))
         assert ss.name == "SwitchStatement"
         assert ss.context == context
-        assert ss.children == ["child"]
+        assert [tok.value for tok in ss.children] == ["child"]
 
     def test_P2_SwitchStatement_SWITCH_Expression_CaseBlock_init(self, context):
         ss = e.P2_SwitchStatement_SWITCH_Expression_CaseBlock(
-            context, "StrictArg", ["switch", "(", "Expression", ")", "CaseBlock"]
+            context, "StrictArg", FakeTokens("switch", "(", "Expression", ")", "CaseBlock")
         )
         assert ss.name == "SwitchStatement"
-        assert ss.Expression == "Expression"
-        assert ss.CaseBlock == "CaseBlock"
+        assert ss.Expression.value == "Expression"
+        assert ss.CaseBlock.value == "CaseBlock"
 
 
 #### CaseBlock ###################################################################
@@ -3671,54 +3702,58 @@ class Test_SwitchStatement:
 ##################################################################################
 class Test_CaseBlock:
     def test_P2_CaseBlock_init(self, context):
-        cb = e.P2_CaseBlock(context, "StrictArg", ["child"])
+        cb = e.P2_CaseBlock(context, "StrictArg", FakeTokens("child"))
         assert cb.name == "CaseBlock"
         assert cb.context == context
-        assert cb.children == ["child"]
+        assert [tok.value for tok in cb.children] == ["child"]
 
     def test_P2_CaseBlock_EMPTY_init(self, context):
-        cb = e.P2_CaseBlock_EMPTY(context, "StrictArg", ["{", "}"])
+        cb = e.P2_CaseBlock_EMPTY(context, "StrictArg", FakeTokens("{", "}"))
         assert cb.name == "CaseBlock"
         assert cb.DefaultClause is None
         assert cb.CaseClausesBefore is None
         assert cb.CaseClausesAfter is None
 
     def test_P2_CaseBlock_DefaultClause_init(self, context):
-        cb = e.P2_CaseBlock_DefaultClause(context, "StrictArg", ["{", "default", "}"])
+        cb = e.P2_CaseBlock_DefaultClause(context, "StrictArg", FakeTokens("{", "default", "}"))
         assert cb.name == "CaseBlock"
-        assert cb.DefaultClause == "default"
+        assert cb.DefaultClause.value == "default"
         assert cb.CaseClausesAfter is None
         assert cb.CaseClausesBefore is None
 
     def test_P2_CaseBlock_CaseClauses_init(self, context):
-        cb = e.P2_CaseBlock_CaseClauses(context, "StrictArg", ["{", "caseclauses", "}"])
+        cb = e.P2_CaseBlock_CaseClauses(context, "StrictArg", FakeTokens("{", "caseclauses", "}"))
         assert cb.name == "CaseBlock"
         assert cb.DefaultClause is None
-        assert cb.CaseClausesBefore == "caseclauses"
+        assert cb.CaseClausesBefore.value == "caseclauses"
         assert cb.CaseClausesAfter is None
 
     def test_P2_CaseBlock_CaseClauses_DefaultClause_init(self, context):
-        cb = e.P2_CaseBlock_CaseClauses_DefaultClause(context, "StrictArg", ["{", "caseclauses", "default", "}"])
+        cb = e.P2_CaseBlock_CaseClauses_DefaultClause(
+            context, "StrictArg", FakeTokens("{", "caseclauses", "default", "}")
+        )
         assert cb.name == "CaseBlock"
-        assert cb.CaseClausesBefore == "caseclauses"
-        assert cb.DefaultClause == "default"
+        assert cb.CaseClausesBefore.value == "caseclauses"
+        assert cb.DefaultClause.value == "default"
         assert cb.CaseClausesAfter is None
 
     def test_P2_CaseBlock_DefaultClause_CaseClauses_init(self, context):
-        cb = e.P2_CaseBlock_DefaultClause_CaseClauses(context, "StrictArg", ["{", "default", "caseclauses", "}"])
+        cb = e.P2_CaseBlock_DefaultClause_CaseClauses(
+            context, "StrictArg", FakeTokens("{", "default", "caseclauses", "}")
+        )
         assert cb.name == "CaseBlock"
         assert cb.CaseClausesBefore is None
-        assert cb.DefaultClause == "default"
-        assert cb.CaseClausesAfter == "caseclauses"
+        assert cb.DefaultClause.value == "default"
+        assert cb.CaseClausesAfter.value == "caseclauses"
 
     def test_P2_CaseBlock_CaseClauses_DefaultClause_CaseClauses_init(self, context):
         cb = e.P2_CaseBlock_CaseClauses_DefaultClause_CaseClauses(
-            context, "StrictArg", ["{", "before", "default", "after", "}"]
+            context, "StrictArg", FakeTokens("{", "before", "default", "after", "}")
         )
         assert cb.name == "CaseBlock"
-        assert cb.CaseClausesBefore == "before"
-        assert cb.DefaultClause == "default"
-        assert cb.CaseClausesAfter == "after"
+        assert cb.CaseClausesBefore.value == "before"
+        assert cb.DefaultClause.value == "default"
+        assert cb.CaseClausesAfter.value == "after"
 
 
 #### CaseClauses ###################################################################################
@@ -3738,21 +3773,21 @@ class Test_CaseBlock:
 ####################################################################################################
 class Test_CaseClauses:
     def test_P2_CaseClauses_init(self, context):
-        cc = e.P2_CaseClauses(context, "StrictArg", ["child"])
+        cc = e.P2_CaseClauses(context, "StrictArg", FakeTokens("child"))
         assert cc.name == "CaseClauses"
         assert cc.context == context
-        assert cc.children == ["child"]
+        assert [tok.value for tok in cc.children] == ["child"]
 
     def test_P2_CaseClauses_CaseClause_init(self, context):
-        cc = e.P2_CaseClauses_CaseClause(context, "StrictArg", ["caseclause"])
+        cc = e.P2_CaseClauses_CaseClause(context, "StrictArg", FakeTokens("caseclause"))
         assert cc.name == "CaseClauses"
-        assert cc.CaseClause == "caseclause"
+        assert cc.CaseClause.value == "caseclause"
 
     def test_P2_CaseClauses_CaseClauses_CaseClause_init(self, context):
-        cc = e.P2_CaseClauses_CaseClauses_CaseClause(context, "StrictArg", ["clauses", "clause"])
+        cc = e.P2_CaseClauses_CaseClauses_CaseClause(context, "StrictArg", FakeTokens("clauses", "clause"))
         assert cc.name == "CaseClauses"
-        assert cc.CaseClauses == "clauses"
-        assert cc.CaseClause == "clause"
+        assert cc.CaseClauses.value == "clauses"
+        assert cc.CaseClause.value == "clause"
 
 
 #### CaseClause ###########################################################################
@@ -3772,21 +3807,23 @@ class Test_CaseClauses:
 ###########################################################################################
 class Test_CaseClause:
     def test_P2_CaseClause_init(self, context):
-        cc = e.P2_CaseClause(context, "StrictArg", ["child"])
+        cc = e.P2_CaseClause(context, "StrictArg", FakeTokens("child"))
         assert cc.name == "CaseClause"
         assert cc.context == context
-        assert cc.children == ["child"]
+        assert [tok.value for tok in cc.children] == ["child"]
 
     def test_P2_CaseClause_CASE_Expression_StatementList_init(self, context):
-        cc = e.P2_CaseClause_CASE_Expression_StatementList(context, "StrictArg", ["case", "Exp", ":", "Stmts"])
+        cc = e.P2_CaseClause_CASE_Expression_StatementList(
+            context, "StrictArg", FakeTokens("case", "Exp", ":", "Stmts")
+        )
         assert cc.name == "CaseClause"
-        assert cc.Expression == "Exp"
-        assert cc.StatementList == "Stmts"
+        assert cc.Expression.value == "Exp"
+        assert cc.StatementList.value == "Stmts"
 
     def test_P2_CaseClause_CASE_Expression_init(self, context):
-        cc = e.P2_CaseClause_CASE_Expression(context, "StrictArg", ["case", "Exp", ":"])
+        cc = e.P2_CaseClause_CASE_Expression(context, "StrictArg", FakeTokens("case", "Exp", ":"))
         assert cc.name == "CaseClause"
-        assert cc.Expression == "Exp"
+        assert cc.Expression.value == "Exp"
 
 
 #### DefaultClause ##########################################################################################
@@ -3806,20 +3843,20 @@ class Test_CaseClause:
 #############################################################################################################
 class Test_DefaultClause:
     def test_P2_DefaultClause_init(self, context):
-        dc = e.P2_DefaultClause(context, "StrictArg", ["child"])
+        dc = e.P2_DefaultClause(context, "StrictArg", FakeTokens("child"))
         assert dc.name == "DefaultClause"
         assert dc.context == context
-        assert dc.children == ["child"]
+        assert [tok.value for tok in dc.children] == ["child"]
 
     def test_P2_DefaultClause_DEFAULT_init(self, context):
-        dc = e.P2_DefaultClause_DEFAULT(context, "StrictArg", ["default", ":"])
+        dc = e.P2_DefaultClause_DEFAULT(context, "StrictArg", FakeTokens("default", ":"))
         assert dc.name == "DefaultClause"
         assert dc.StatementList is None
 
     def test_P2_DefaultClause_DEFAULT_StatementList_init(self, context):
-        dc = e.P2_DefaultClause_DEFAULT_StatementList(context, "StrictArg", ["default", ":", "Stmts"])
+        dc = e.P2_DefaultClause_DEFAULT_StatementList(context, "StrictArg", FakeTokens("default", ":", "Stmts"))
         assert dc.name == "DefaultClause"
-        assert dc.StatementList == "Stmts"
+        assert dc.StatementList.value == "Stmts"
 
 
 #### LabelledStatement ###########################################################################################################################
@@ -3839,16 +3876,16 @@ class Test_DefaultClause:
 ##################################################################################################################################################
 class Test_LabelledStatement:
     def test_P2_LabelledStatement_init(self, context):
-        ls = e.P2_LabelledStatement(context, "StrictArg", ["child"])
+        ls = e.P2_LabelledStatement(context, "StrictArg", FakeTokens("child"))
         assert ls.name == "LabelledStatement"
         assert ls.context == context
-        assert ls.children == ["child"]
+        assert [tok.value for tok in ls.children] == ["child"]
 
     def test_P2_LabelledStatement_LabelIdentifier_LabelledItem_init(self, context):
-        ls = e.P2_LabelledStatement_LabelIdentifier_LabelledItem(context, "StrictArg", ["id", ":", "item"])
+        ls = e.P2_LabelledStatement_LabelIdentifier_LabelledItem(context, "StrictArg", FakeTokens("id", ":", "item"))
         assert ls.name == "LabelledStatement"
-        assert ls.LabelIdentifier == "id"
-        assert ls.LabelledItem == "item"
+        assert ls.LabelIdentifier.value == "id"
+        assert ls.LabelledItem.value == "item"
 
 
 #### LabelledItem ####################################################################################
@@ -3868,20 +3905,20 @@ class Test_LabelledStatement:
 ######################################################################################################
 class Test_LabelledItem:
     def test_P2_LabelledItem_init(self, context):
-        li = e.P2_LabelledItem(context, "StrictArg", ["child"])
+        li = e.P2_LabelledItem(context, "StrictArg", FakeTokens("child"))
         assert li.name == "LabelledItem"
         assert li.context == context
-        assert li.children == ["child"]
+        assert [tok.value for tok in li.children] == ["child"]
 
     def test_P2_LabelledItem_Statement_init(self, context):
-        li = e.P2_LabelledItem_Statement(context, "StrictArg", ["child"])
+        li = e.P2_LabelledItem_Statement(context, "StrictArg", FakeTokens("child"))
         assert li.name == "LabelledItem"
-        assert li.Statement == "child"
+        assert li.Statement.value == "child"
 
     def test_P2_LabelledItem_FunctionDeclaration_init(self, context):
-        li = e.P2_LabelledItem_FunctionDeclaration(context, "StrictArg", ["child"])
+        li = e.P2_LabelledItem_FunctionDeclaration(context, "StrictArg", FakeTokens("child"))
         assert li.name == "LabelledItem"
-        assert li.FunctionDeclaration == "child"
+        assert li.FunctionDeclaration.value == "child"
 
 
 #### ThrowStatement ####################################################################################################################
@@ -3901,15 +3938,15 @@ class Test_LabelledItem:
 ########################################################################################################################################
 class Test_ThrowStatement:
     def P2_ThrowStatement_init(self, context):
-        ts = e.P2_ThrowStatement(context, "StrictArg", ["child"])
+        ts = e.P2_ThrowStatement(context, "StrictArg", FakeTokens("child"))
         assert ts.name == "ThrowStatement"
         assert ts.context == context
-        assert ts.children == ["child"]
+        assert [tok.value for tok in ts.children] == ["child"]
 
     def P2_ThrowStatement_THROW_Expression_init(self, context):
-        ts = e.P2_ThrowStatement_THROW_Expression(context, "StrictArg", ["throw", "exp", ";"])
+        ts = e.P2_ThrowStatement_THROW_Expression(context, "StrictArg", FakeTokens("throw", "exp", ";"))
         assert ts.name == "ThrowStatement"
-        assert ts.Expression == "exp"
+        assert ts.Expression.value == "exp"
 
 
 #### TryStatement ###############################################################################################
@@ -3931,31 +3968,33 @@ class Test_ThrowStatement:
 
 class Test_TryStatement:
     def test_P2_TryStatement_init(self, context):
-        ts = e.P2_TryStatement(context, "StrictArg", ["child"])
+        ts = e.P2_TryStatement(context, "StrictArg", FakeTokens("child"))
         assert ts.name == "TryStatement"
         assert ts.context == context
-        assert ts.children == ["child"]
+        assert [tok.value for tok in ts.children] == ["child"]
 
     def test_P2_TryStatement_TRY_Block_Catch_init(self, context):
-        ts = e.P2_TryStatement_TRY_Block_Catch(context, "StrictArg", ["try", "block", "catch"])
+        ts = e.P2_TryStatement_TRY_Block_Catch(context, "StrictArg", FakeTokens("try", "block", "catch"))
         assert ts.name == "TryStatement"
-        assert ts.Block == "block"
-        assert ts.Catch == "catch"
+        assert ts.Block.value == "block"
+        assert ts.Catch.value == "catch"
         assert ts.Finally is None
 
     def test_P2_TryStatement_TRY_Block_Finally_init(self, context):
-        ts = e.P2_TryStatement_TRY_Block_Finally(context, "StrictArg", ["try", "block", "finally"])
+        ts = e.P2_TryStatement_TRY_Block_Finally(context, "StrictArg", FakeTokens("try", "block", "finally"))
         assert ts.name == "TryStatement"
-        assert ts.Block == "block"
+        assert ts.Block.value == "block"
         assert ts.Catch is None
-        assert ts.Finally == "finally"
+        assert ts.Finally.value == "finally"
 
     def test_P2_TryStatement_TRY_Block_Catch_Finally_init(self, context):
-        ts = e.P2_TryStatement_TRY_Block_Catch_Finally(context, "StrictArg", ["try", "block", "catch", "finally"])
+        ts = e.P2_TryStatement_TRY_Block_Catch_Finally(
+            context, "StrictArg", FakeTokens("try", "block", "catch", "finally")
+        )
         assert ts.name == "TryStatement"
-        assert ts.Block == "block"
-        assert ts.Catch == "catch"
-        assert ts.Finally == "finally"
+        assert ts.Block.value == "block"
+        assert ts.Catch.value == "catch"
+        assert ts.Finally.value == "finally"
 
 
 #### Catch ####################################
@@ -3975,21 +4014,23 @@ class Test_TryStatement:
 ###############################################
 class Test_Catch:
     def test_P2_Catch_init(self, context):
-        cat = e.P2_Catch(context, "StrictArg", ["child"])
+        cat = e.P2_Catch(context, "StrictArg", FakeTokens("child"))
         assert cat.name == "Catch"
         assert cat.context == context
-        assert cat.children == ["child"]
+        assert [tok.value for tok in cat.children] == ["child"]
 
     def test_P2_Catch_CATCH_CatchParameter_Block_init(self, context):
-        cat = e.P2_Catch_CATCH_CatchParameter_Block(context, "StrictArg", ["catch", "(", "param", ")", "block"])
+        cat = e.P2_Catch_CATCH_CatchParameter_Block(
+            context, "StrictArg", FakeTokens("catch", "(", "param", ")", "block")
+        )
         assert cat.name == "Catch"
-        assert cat.CatchParameter == "param"
-        assert cat.Block == "block"
+        assert cat.CatchParameter.value == "param"
+        assert cat.Block.value == "block"
 
     def test_P2_Catch_CATCH_Block_init(self, context):
-        cat = e.P2_Catch_CATCH_Block(context, "StrictArg", ["catch", "block"])
+        cat = e.P2_Catch_CATCH_Block(context, "StrictArg", FakeTokens("catch", "block"))
         assert cat.name == "Catch"
-        assert cat.Block == "block"
+        assert cat.Block.value == "block"
         assert cat.CatchParameter is None
 
 
@@ -4010,15 +4051,15 @@ class Test_Catch:
 ####################################################
 class Test_Finally:
     def test_P2_Finally_init(self, context):
-        fin = e.P2_Finally(context, "StrictArg", ["child"])
+        fin = e.P2_Finally(context, "StrictArg", FakeTokens("child"))
         assert fin.name == "Finally"
         assert fin.context == context
-        assert fin.children == ["child"]
+        assert [tok.value for tok in fin.children] == ["child"]
 
     def test_P2_Finally_FINALLY_Block_init(self, context):
-        fin = e.P2_Finally_FINALLY_Block(context, "StrictArg", ["finally", "block"])
+        fin = e.P2_Finally_FINALLY_Block(context, "StrictArg", FakeTokens("finally", "block"))
         assert fin.name == "Finally"
-        assert fin.Block == "block"
+        assert fin.Block.value == "block"
 
 
 #### CatchParameter ###############################################################################################################
@@ -4038,20 +4079,20 @@ class Test_Finally:
 ###################################################################################################################################
 class Test_CatchParameter:
     def test_P2_CatchParameter_init(self, context):
-        cp = e.P2_CatchParameter(context, "StrictArg", ["child"])
+        cp = e.P2_CatchParameter(context, "StrictArg", FakeTokens("child"))
         assert cp.name == "CatchParameter"
         assert cp.context == context
-        assert cp.children == ["child"]
+        assert [tok.value for tok in cp.children] == ["child"]
 
     def test_P2_CatchParameter_BindingIdentifier_init(self, context):
-        cp = e.P2_CatchParameter_BindingIdentifier(context, "StrictArg", ["child"])
+        cp = e.P2_CatchParameter_BindingIdentifier(context, "StrictArg", FakeTokens("child"))
         assert cp.name == "CatchParameter"
-        assert cp.BindingIdentifier == "child"
+        assert cp.BindingIdentifier.value == "child"
 
     def test_P2_CatchParameter_BindingPattern_init(self, context):
-        cp = e.P2_CatchParameter_BindingPattern(context, "StrictArg", ["child"])
+        cp = e.P2_CatchParameter_BindingPattern(context, "StrictArg", FakeTokens("child"))
         assert cp.name == "CatchParameter"
-        assert cp.BindingPattern == "child"
+        assert cp.BindingPattern.value == "child"
 
 
 #### DebuggerStatement ######################################################################################################################################
@@ -4071,13 +4112,13 @@ class Test_CatchParameter:
 #############################################################################################################################################################
 class Test_DebuggerStatement:
     def test_P2_DebuggerStatement_init(self, context):
-        ds = e.P2_DebuggerStatement(context, "StrictArg", ["child"])
+        ds = e.P2_DebuggerStatement(context, "StrictArg", FakeTokens("child"))
         assert ds.name == "DebuggerStatement"
         assert ds.context == context
-        assert ds.children == ["child"]
+        assert [tok.value for tok in ds.children] == ["child"]
 
     def test_P2_DebuggerStatement_DEBUGGER_init(self, context):
-        ds = e.P2_DebuggerStatement_DEBUGGER(context, "StrictArg", ["child"])
+        ds = e.P2_DebuggerStatement_DEBUGGER(context, "StrictArg", FakeTokens("child"))
         assert ds.name == "DebuggerStatement"
 
 
@@ -4098,29 +4139,29 @@ class Test_DebuggerStatement:
 #############################################################################################################################################################
 class Test_FunctionDeclaration:
     def test_P2_FunctionDeclaration_init(self, context):
-        fd = e.P2_FunctionDeclaration(context, "StrictArg", ["child"])
+        fd = e.P2_FunctionDeclaration(context, "StrictArg", FakeTokens("child"))
         assert fd.name == "FunctionDeclaration"
         assert fd.context == context
-        assert fd.children == ["child"]
+        assert [tok.value for tok in fd.children] == ["child"]
 
     def test_P2_FunctionDeclaration_FUNCTION_BindingIdentifier_FormalParameters_FunctionBody_init(self, context):
         fd = e.P2_FunctionDeclaration_FUNCTION_BindingIdentifier_FormalParameters_FunctionBody(
             context,
             "StrictArg",
-            ["function", "BindingIdentifier", "(", "FormalParameters", ")", "{", "FunctionBody", "}"],
+            FakeTokens("function", "BindingIdentifier", "(", "FormalParameters", ")", "{", "FunctionBody", "}"),
         )
         assert fd.name == "FunctionDeclaration"
-        assert fd.BindingIdentifier == "BindingIdentifier"
-        assert fd.FormalParameters == "FormalParameters"
-        assert fd.FunctionBody == "FunctionBody"
+        assert fd.BindingIdentifier.value == "BindingIdentifier"
+        assert fd.FormalParameters.value == "FormalParameters"
+        assert fd.FunctionBody.value == "FunctionBody"
 
     def test_P2_FunctionDeclaration_FUNCTION_FormalParameters_FunctionBody_init(self, context):
         fd = e.P2_FunctionDeclaration_FUNCTION_FormalParameters_FunctionBody(
-            context, "StrictArg", ["function", "(", "FormalParameters", ")", "{", "FunctionBody", "}"]
+            context, "StrictArg", FakeTokens("function", "(", "FormalParameters", ")", "{", "FunctionBody", "}")
         )
         assert fd.name == "FunctionDeclaration"
-        assert fd.FormalParameters == "FormalParameters"
-        assert fd.FunctionBody == "FunctionBody"
+        assert fd.FormalParameters.value == "FormalParameters"
+        assert fd.FunctionBody.value == "FunctionBody"
 
 
 #### FunctionExpression ###################################################################################################################################
@@ -4140,29 +4181,29 @@ class Test_FunctionDeclaration:
 ###########################################################################################################################################################
 class Test_FunctionExpression:
     def test_P2_FunctionExpression_init(self, context):
-        fe = e.P2_FunctionExpression(context, "StrictArg", ["child"])
+        fe = e.P2_FunctionExpression(context, "StrictArg", FakeTokens("child"))
         assert fe.name == "FunctionExpression"
         assert fe.context == context
-        assert fe.children == ["child"]
+        assert [tok.value for tok in fe.children] == ["child"]
 
     def test_P2_FunctionExpression_FUNCTION_BindingIdentifier_FormalParameters_FunctionBody_init(self, context):
         fe = e.P2_FunctionExpression_FUNCTION_BindingIdentifier_FormalParameters_FunctionBody(
             context,
             "StrictArg",
-            ["function", "BindingIdentifier", "(", "FormalParameters", ")", "{", "FunctionBody", "}"],
+            FakeTokens("function", "BindingIdentifier", "(", "FormalParameters", ")", "{", "FunctionBody", "}"),
         )
         assert fe.name == "FunctionExpression"
-        assert fe.BindingIdentifier == "BindingIdentifier"
-        assert fe.FormalParameters == "FormalParameters"
-        assert fe.FunctionBody == "FunctionBody"
+        assert fe.BindingIdentifier.value == "BindingIdentifier"
+        assert fe.FormalParameters.value == "FormalParameters"
+        assert fe.FunctionBody.value == "FunctionBody"
 
     def test_P2_FunctionExpression_FUNCTION_FormalParameters_FunctionBody_init(self, context):
         fe = e.P2_FunctionExpression_FUNCTION_FormalParameters_FunctionBody(
-            context, "StrictArg", ["function", "(", "FormalParameters", ")", "{", "FunctionBody", "}"]
+            context, "StrictArg", FakeTokens("function", "(", "FormalParameters", ")", "{", "FunctionBody", "}")
         )
         assert fe.name == "FunctionExpression"
-        assert fe.FormalParameters == "FormalParameters"
-        assert fe.FunctionBody == "FunctionBody"
+        assert fe.FormalParameters.value == "FormalParameters"
+        assert fe.FunctionBody.value == "FunctionBody"
 
 
 #### UniqueFormalParameters ##############################################################################################################################################################################
@@ -4182,15 +4223,15 @@ class Test_FunctionExpression:
 ##########################################################################################################################################################################################################
 class Test_UniqueFormalParameters:
     def test_P2_UniqueFormalParameters_init(self, context):
-        ufp = e.P2_UniqueFormalParameters(context, "StrictArg", ["child"])
+        ufp = e.P2_UniqueFormalParameters(context, "StrictArg", FakeTokens("child"))
         assert ufp.name == "UniqueFormalParameters"
         assert ufp.context == context
-        assert ufp.children == ["child"]
+        assert [tok.value for tok in ufp.children] == ["child"]
 
     def test_P2_UniqueFormalParameters_FormalParameters_init(self, context):
-        ufp = e.P2_UniqueFormalParameters_FormalParameters(context, "StrictArg", ["child"])
+        ufp = e.P2_UniqueFormalParameters_FormalParameters(context, "StrictArg", FakeTokens("child"))
         assert ufp.name == "UniqueFormalParameters"
-        assert ufp.FormalParameters == "child"
+        assert ufp.FormalParameters.value == "child"
 
 
 #### FormalParameters ################################################################################################################################
@@ -4210,36 +4251,36 @@ class Test_UniqueFormalParameters:
 ######################################################################################################################################################
 class Test_FormalParameters:
     def test_P2_FormalParameters_init(self, context):
-        fp = e.P2_FormalParameters(context, "StrictArg", ["child"])
+        fp = e.P2_FormalParameters(context, "StrictArg", FakeTokens("child"))
         assert fp.name == "FormalParameters"
         assert fp.context == context
-        assert fp.children == ["child"]
+        assert [tok.value for tok in fp.children] == ["child"]
 
     def test_P2_FormalParameters_EMPTY_init(self, context):
-        fp = e.P2_FormalParameters_EMPTY(context, "StrictArg", ["child"])
+        fp = e.P2_FormalParameters_EMPTY(context, "StrictArg", FakeTokens("child"))
         assert fp.name == "FormalParameters"
         assert fp.FormalParameterList is None
         assert fp.FunctionRestParameter is None
 
     def test_P2_FormalParameters_FunctionRestParameter_init(self, context):
-        fp = e.P2_FormalParameters_FunctionRestParameter(context, "StrictArg", ["child"])
+        fp = e.P2_FormalParameters_FunctionRestParameter(context, "StrictArg", FakeTokens("child"))
         assert fp.name == "FormalParameters"
         assert fp.FormalParameterList is None
-        assert fp.FunctionRestParameter == "child"
+        assert fp.FunctionRestParameter.value == "child"
 
     def test_P2_FormalParameters_FormalParameterList_init(self, context):
-        fp = e.P2_FormalParameters_FormalParameterList(context, "StrictArg", ["child"])
+        fp = e.P2_FormalParameters_FormalParameterList(context, "StrictArg", FakeTokens("child"))
         assert fp.name == "FormalParameters"
-        assert fp.FormalParameterList == "child"
+        assert fp.FormalParameterList.value == "child"
         assert fp.FunctionRestParameter is None
 
     def test_P2_FormalParameters_FormalParameterList_FunctionRestParameter_init(self, context):
         fp = e.P2_FormalParameters_FormalParameterList_FunctionRestParameter(
-            context, "StrictArg", ["FormalParameterList", ",", "FunctionRestParameter"]
+            context, "StrictArg", FakeTokens("FormalParameterList", ",", "FunctionRestParameter")
         )
         assert fp.name == "FormalParameters"
-        assert fp.FormalParameterList == "FormalParameterList"
-        assert fp.FunctionRestParameter == "FunctionRestParameter"
+        assert fp.FormalParameterList.value == "FormalParameterList"
+        assert fp.FunctionRestParameter.value == "FunctionRestParameter"
 
 
 #### FormalParameterList #################################################################################################################################################
@@ -4259,23 +4300,23 @@ class Test_FormalParameters:
 ##########################################################################################################################################################################
 class Test_FormalParameterList:
     def test_P2_FormalParameterList_init(self, context):
-        fpl = e.P2_FormalParameterList(context, "StrictArg", ["child"])
+        fpl = e.P2_FormalParameterList(context, "StrictArg", FakeTokens("child"))
         assert fpl.name == "FormalParameterList"
         assert fpl.context == context
-        assert fpl.children == ["child"]
+        assert [tok.value for tok in fpl.children] == ["child"]
 
     def test_P2_FormalParameterList_FormalParameter_init(self, context):
-        fpl = e.P2_FormalParameterList_FormalParameter(context, "StrictArg", ["child"])
+        fpl = e.P2_FormalParameterList_FormalParameter(context, "StrictArg", FakeTokens("child"))
         assert fpl.name == "FormalParameterList"
-        assert fpl.FormalParameter == "child"
+        assert fpl.FormalParameter.value == "child"
 
     def test_P2_FormalParameterList_FormalParameterList_FormalParameter_init(self, context):
         fpl = e.P2_FormalParameterList_FormalParameterList_FormalParameter(
-            context, "StrictArg", ["FormalParameterList", ",", "FormalParameter"]
+            context, "StrictArg", FakeTokens("FormalParameterList", ",", "FormalParameter")
         )
         assert fpl.name == "FormalParameterList"
-        assert fpl.FormalParameterList == "FormalParameterList"
-        assert fpl.FormalParameter == "FormalParameter"
+        assert fpl.FormalParameterList.value == "FormalParameterList"
+        assert fpl.FormalParameter.value == "FormalParameter"
 
 
 #### FunctionRestParameter ##################################################################################################################################################################
@@ -4295,15 +4336,15 @@ class Test_FormalParameterList:
 #############################################################################################################################################################################################
 class Test_FunctionRestParameter:
     def test_P2_FunctionRestParameter_init(self, context):
-        frp = e.P2_FunctionRestParameter(context, "StrictArg", ["child"])
+        frp = e.P2_FunctionRestParameter(context, "StrictArg", FakeTokens("child"))
         assert frp.name == "FunctionRestParameter"
         assert frp.context == context
-        assert frp.children == ["child"]
+        assert [tok.value for tok in frp.children] == ["child"]
 
     def test_P2_FunctionRestParameter_BindingRestElement_init(self, context):
-        frp = e.P2_FunctionRestParameter_BindingRestElement(context, "StrictArg", ["child"])
+        frp = e.P2_FunctionRestParameter_BindingRestElement(context, "StrictArg", FakeTokens("child"))
         assert frp.name == "FunctionRestParameter"
-        assert frp.BindingRestElement == "child"
+        assert frp.BindingRestElement.value == "child"
 
 
 #### FormalParameter ########################################################################################################################
@@ -4323,15 +4364,15 @@ class Test_FunctionRestParameter:
 #############################################################################################################################################
 class Test_FormalParameter:
     def test_P2_FormalParameter_init(self, context):
-        fp = e.P2_FormalParameter(context, "StrictArg", ["child"])
+        fp = e.P2_FormalParameter(context, "StrictArg", FakeTokens("child"))
         assert fp.name == "FormalParameter"
         assert fp.context == context
-        assert fp.children == ["child"]
+        assert [tok.value for tok in fp.children] == ["child"]
 
     def test_P2_FormalParameter_BindingElement_init(self, context):
-        fp = e.P2_FormalParameter_BindingElement(context, "StrictArg", ["child"])
+        fp = e.P2_FormalParameter_BindingElement(context, "StrictArg", FakeTokens("child"))
         assert fp.name == "FormalParameter"
-        assert fp.BindingElement == "child"
+        assert fp.BindingElement.value == "child"
 
 
 #### FunctionBody #########################################################################################
@@ -4351,15 +4392,15 @@ class Test_FormalParameter:
 ###########################################################################################################
 class Test_FunctionBody:
     def test_P2_FunctionBody_init(self, context):
-        fb = e.P2_FunctionBody(context, "StrictArg", ["child"])
+        fb = e.P2_FunctionBody(context, "StrictArg", FakeTokens("child"))
         assert fb.name == "FunctionBody"
         assert fb.context == context
-        assert fb.children == ["child"]
+        assert [tok.value for tok in fb.children] == ["child"]
 
     def test_P2_FunctionBody_FunctionStatementList_init(self, context):
-        fb = e.P2_FunctionBody_FunctionStatementList(context, "StrictArg", ["child"])
+        fb = e.P2_FunctionBody_FunctionStatementList(context, "StrictArg", FakeTokens("child"))
         assert fb.name == "FunctionBody"
-        assert fb.FunctionStatementList == "child"
+        assert fb.FunctionStatementList.value == "child"
 
 
 #### FunctionStatementList #########################################################################################################################################################
@@ -4379,18 +4420,18 @@ class Test_FunctionBody:
 ####################################################################################################################################################################################
 class Test_FunctionStatementList:
     def test_P2_FunctionStatementList_init(self, context):
-        fsl = e.P2_FunctionStatementList(context, "StrictArg", ["child"])
+        fsl = e.P2_FunctionStatementList(context, "StrictArg", FakeTokens("child"))
         assert fsl.name == "FunctionStatementList"
         assert fsl.context == context
-        assert fsl.children == ["child"]
+        assert [tok.value for tok in fsl.children] == ["child"]
 
     def test_P2_FunctionStatementList_StatementList_init(self, context):
-        fsl = e.P2_FunctionStatementList_StatementList(context, "StrictArg", ["child"])
+        fsl = e.P2_FunctionStatementList_StatementList(context, "StrictArg", FakeTokens("child"))
         assert fsl.name == "FunctionStatementList"
-        assert fsl.StatementList == "child"
+        assert fsl.StatementList.value == "child"
 
     def test_P2_FunctionStatementList_EMPTY_init(self, context):
-        fsl = e.P2_FunctionStatementList_EMPTY(context, "StrictArg", ["child"])
+        fsl = e.P2_FunctionStatementList_EMPTY(context, "StrictArg", FakeTokens("child"))
         assert fsl.name == "FunctionStatementList"
         assert fsl.StatementList is None
 
@@ -4412,18 +4453,18 @@ class Test_FunctionStatementList:
 #########################################################################################################################
 class Test_ArrowFunction:
     def test_P2_ArrowFunction_init(self, context):
-        af = e.P2_ArrowFunction(context, "StrictArg", ["child"])
+        af = e.P2_ArrowFunction(context, "StrictArg", FakeTokens("child"))
         assert af.name == "ArrowFunction"
         assert af.context == context
-        assert af.children == ["child"]
+        assert [tok.value for tok in af.children] == ["child"]
 
     def test_P2_ArrowFunction_ArrowParameters_ConciseBody_init(self, context):
         af = e.P2_ArrowFunction_ArrowParameters_ConciseBody(
-            context, "StrictArg", ["arrowparameters", "=>", "concisebody"]
+            context, "StrictArg", FakeTokens("arrowparameters", "=>", "concisebody")
         )
         assert af.name == "ArrowFunction"
-        assert af.ArrowParameters == "arrowparameters"
-        assert af.ConciseBody == "concisebody"
+        assert af.ArrowParameters.value == "arrowparameters"
+        assert af.ConciseBody.value == "concisebody"
 
 
 #### ArrowParameters ##############################################################################################################################
@@ -4443,20 +4484,22 @@ class Test_ArrowFunction:
 ###################################################################################################################################################
 class Test_ArrowParameters:
     def test_P2_ArrowParameters_init(self, context):
-        ap = e.P2_ArrowParameters(context, "StrictArg", ["child"])
+        ap = e.P2_ArrowParameters(context, "StrictArg", FakeTokens("child"))
         assert ap.name == "ArrowParameters"
         assert ap.context == context
-        assert ap.children == ["child"]
+        assert [tok.value for tok in ap.children] == ["child"]
 
     def test_P2_ArrowParameters_BindingIdentifier_init(self, context):
-        ap = e.P2_ArrowParameters_BindingIdentifier(context, "StrictArg", ["child"])
+        ap = e.P2_ArrowParameters_BindingIdentifier(context, "StrictArg", FakeTokens("child"))
         assert ap.name == "ArrowParameters"
-        assert ap.BindingIdentifier == "child"
+        assert ap.BindingIdentifier.value == "child"
 
     def test_P2_ArrowParameters_CoverParenthesizedExpressionAndArrowParameterList_init(self, context):
-        ap = e.P2_ArrowParameters_CoverParenthesizedExpressionAndArrowParameterList(context, "StrictArg", ["child"])
+        ap = e.P2_ArrowParameters_CoverParenthesizedExpressionAndArrowParameterList(
+            context, "StrictArg", FakeTokens("child")
+        )
         assert ap.name == "ArrowParameters"
-        assert ap.CoverParenthesizedExpressionAndArrowParameterList == "child"
+        assert ap.CoverParenthesizedExpressionAndArrowParameterList.value == "child"
 
 
 #### Script ######################################
@@ -4475,22 +4518,22 @@ class Test_ArrowParameters:
 #
 ##################################################
 def test_P2_Script_init(context):
-    script = e.P2_Script(context, "StrictArg", ["child"])
+    script = e.P2_Script(context, "StrictArg", FakeTokens("child"))
     assert script.name == "Script"
     assert script.context == context
-    assert script.children == ["child"]
+    assert [tok.value for tok in script.children] == ["child"]
 
 
 def test_P2_Script_Empty_init(context):
-    script = e.P2_Script_Empty(context, "StrictArg", ["child"])
+    script = e.P2_Script_Empty(context, "StrictArg", FakeTokens("child"))
     assert script.name == "Script"
     assert script.ScriptBody is None
 
 
 def test_P2_Script_ScriptBody_init(context):
-    script = e.P2_Script_ScriptBody(context, "StrictArg", ["child"])
+    script = e.P2_Script_ScriptBody(context, "StrictArg", FakeTokens("child"))
     assert script.name == "Script"
-    assert script.ScriptBody == "child"
+    assert script.ScriptBody.value == "child"
 
 
 #### ScriptBody ########################################################################
@@ -4509,16 +4552,16 @@ def test_P2_Script_ScriptBody_init(context):
 #
 ########################################################################################
 def test_P2_ScriptBody_init(context):
-    sb = e.P2_ScriptBody(context, "StrictArg", ["child"])
+    sb = e.P2_ScriptBody(context, "StrictArg", FakeTokens("child"))
     assert sb.name == "ScriptBody"
     assert sb.context == context
-    assert sb.children == ["child"]
+    assert [tok.value for tok in sb.children] == ["child"]
 
 
 def test_P2_ScriptBody_StatementList_init(context):
-    sb = e.P2_ScriptBody_StatementList(context, "StrictArg", ["child"])
+    sb = e.P2_ScriptBody_StatementList(context, "StrictArg", FakeTokens("child"))
     assert sb.name == "ScriptBody"
-    assert sb.StatementList == "child"
+    assert sb.StatementList.value == "child"
 
 
 ##########################################################################################
