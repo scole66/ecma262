@@ -225,7 +225,7 @@ def test_CreateStringPrototype_03(realm):
         ("trimEnd", "StringPrototype_trimEnd", 0),
         ("trimStart", "StringPrototype_trimStart", 0),
         ("valueOf", "StringPrototype_valueOf", 0),
-        pytest.param(e.wks_iterator, "StringPrototype_iterator", 0, marks=pytest.mark.xfail),
+        (e.wks_iterator, "StringPrototype_iterator", 0),
     ],
 )
 def test_CreateStringPrototype_04(realm, fname, fcn, length):

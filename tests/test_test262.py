@@ -246,6 +246,7 @@ passing = (
     "built-ins/Set",
     "built-ins/SetIteratorPrototype",
     "built-ins/String",
+    "built-ins/StringIteratorPrototype",
     "built-ins/TypedArray",
     "built-ins/TypedArrayConstructors",
     "language/arguments-object",
@@ -904,10 +905,6 @@ xfail_tests = (
     "/test/built-ins/String/prototype/replace/S15.5.4.11_A3_T1.js",  # Needs Regex Character Class Escape
     "/test/built-ins/String/prototype/replace/S15.5.4.11_A3_T2.js",  # Needs Regex Character Class Escape
     "/test/built-ins/String/prototype/replace/S15.5.4.11_A3_T3.js",  # Needs Regex Character Class Escape
-    "/test/built-ins/String/prototype/Symbol.iterator/length.js",  # Needs String.prototype.@@iterator
-    "/test/built-ins/String/prototype/Symbol.iterator/name.js",  # Needs String.prototype.@@iterator
-    "/test/built-ins/String/prototype/Symbol.iterator/prop-desc.js",  # Needs String.prototype.@@iterator
-    "/test/built-ins/String/prototype/Symbol.iterator/this-val-to-str-err.js",  # Needs String.prototype.@@iterator
     "/test/built-ins/TypedArray/prototype/copyWithin/this-is-not-typedarray-instance.js",  # Needs DataView
     "/test/built-ins/TypedArray/prototype/entries/this-is-not-typedarray-instance.js",  # Needs DataView
     "/test/built-ins/TypedArray/prototype/every/this-is-not-typedarray-instance.js",  # Needs DataView
@@ -975,8 +972,6 @@ xfail_tests = (
     "/test/language/expressions/assignment/dstr/array-elem-nested-obj-invalid.js",  # Something is Wrong
     "/test/language/expressions/assignment/dstr/array-elem-nested-obj-yield-ident-valid.js",  # ???
     "/test/language/expressions/assignment/dstr/array-elem-target-simple-strict.js",  # An early error is failing
-    "/test/language/expressions/assignment/dstr/array-elision-val-string.js",  # ???
-    "/test/language/expressions/assignment/dstr/array-empty-val-string.js",  # ???
     "/test/language/expressions/assignment/dstr/array-rest-nested-array-invalid.js",  # ???
     "/test/language/expressions/assignment/dstr/array-rest-nested-obj-invalid.js",  # ???
     "/test/language/expressions/assignment/dstr/array-rest-nested-obj-yield-ident-valid.js",  # ???

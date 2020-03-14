@@ -4226,6 +4226,7 @@ def CreateIntrinsics(realm_rec):
     intrinsics["%String%"] = CreateStringConstructor(realm_rec)
     intrinsics["%StringPrototype%"] = CreateStringPrototype(realm_rec)
     StringFixups(realm_rec)
+    intrinsics["%StringIteratorPrototype%"] = CreateStringIteratorPrototype(realm_rec)
     intrinsics["%Array%"] = CreateArrayConstructor(realm_rec)
     intrinsics["%ArrayPrototype%"] = CreateArrayPrototype(realm_rec)
     ArrayFixups(realm_rec)
@@ -33863,6 +33864,7 @@ def CreateStringPrototype(realm):
             ("trimEnd", StringPrototype_trimEnd, None),
             ("trimStart", StringPrototype_trimStart, None),
             ("valueOf", StringPrototype_valueOf, None),
+            (wks_iterator, StringPrototype_iterator, None),
         ),
     )
     return string_prototype
@@ -35117,6 +35119,20 @@ def StringPrototype_valueOf(this_value, new_target, *_):
 StringPrototype_valueOf.length = 0
 StringPrototype_valueOf.name = "valueOf"
 
+# 21.1.3.31 String.prototype [ @@iterator ] ( )
+def StringPrototype_iterator(this_value, new_target, *_):
+    # When the @@iterator method is called it returns an Iterator object (25.1.1.2) that iterates over the code
+    # points of a String value, returning each code point as a String value. The following steps are taken:
+    #   1. Let O be ? RequireObjectCoercible(this value).
+    #   2. Let S be ? ToString(O).
+    #   3. Return CreateStringIterator(S).
+    # The value of the name property of this function is "[Symbol.iterator]".
+    return CreateStringIterator(ToString(RequireObjectCoercible(this_value)))
+
+
+StringPrototype_iterator.name = "[Symbol.iterator]"
+StringPrototype_iterator.length = 0
+
 
 def StringFixups(realm):
     string_constructor = realm.intrinsics["%String%"]
@@ -35126,6 +35142,100 @@ def StringFixups(realm):
     const_desc = PropertyDescriptor(value=string_constructor, writable=True, enumerable=False, configurable=True)
     DefinePropertyOrThrow(string_prototype, "constructor", const_desc)
     return None
+
+
+# 21.1.5 String Iterator Objects
+# A String Iterator is an object, that represents a specific iteration over some specific String instance object.
+# There is not a named constructor for String Iterator objects. Instead, String iterator objects are created by
+# calling certain methods of String instance objects.
+
+# 21.1.5.1 CreateStringIterator ( string )
+def CreateStringIterator(string):
+    # Several methods of String objects return Iterator objects. The abstract operation CreateStringIterator with
+    # argument string is used to create such iterator objects. It performs the following steps:
+    #   1. Assert: Type(string) is String.
+    #   2. Let iterator be ObjectCreate(%StringIteratorPrototype%, « [[IteratedString]], [[StringIteratorNextIndex]] »).
+    #   3. Set iterator.[[IteratedString]] to string.
+    #   4. Set iterator.[[StringIteratorNextIndex]] to 0.
+    #   5. Return iterator.
+    iterator = ObjectCreate(
+        surrounding_agent.running_ec.realm.intrinsics["%StringIteratorPrototype%"],
+        ["IteratedString", "StringIteratorNextIndex"],
+    )
+    iterator.IteratedString = string
+    iterator.StringIteratorNextIndex = 0
+    return iterator
+
+
+# 21.1.5.2 The %StringIteratorPrototype% Object
+# The %StringIteratorPrototype% object:
+#   * has properties that are inherited by all String Iterator Objects.
+#   * is an ordinary object.
+#   * has a [[Prototype]] internal slot whose value is the intrinsic object %IteratorPrototype%.
+#   * has the following properties:
+
+
+def CreateStringIteratorPrototype(realm):
+    obj = ObjectCreate(realm.intrinsics["%IteratorPrototype%"])
+    BindBuiltinFunctions(realm, obj, (("next", StringIteratorPrototype_next, None),))
+
+    # 21.1.5.2.2 %StringIteratorPrototype% [ @@toStringTag ]
+    # The initial value of the @@toStringTag property is the String value "String Iterator".
+    # This property has the attributes { [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true }.
+    DefinePropertyOrThrow(
+        obj,
+        wks_to_string_tag,
+        PropertyDescriptor(value="String Iterator", writable=False, enumerable=False, configurable=True),
+    )
+
+    return obj
+
+
+# 21.1.5.2.1 %StringIteratorPrototype%.next ( )
+def StringIteratorPrototype_next(O, new_target, *_):
+    #   1. Let O be the this value.
+    #   2. If Type(O) is not Object, throw a TypeError exception.
+    #   3. If O does not have all of the internal slots of a String Iterator Instance (21.1.5.3), throw a TypeError
+    #      exception.
+    #   4. Let s be O.[[IteratedString]].
+    #   5. If s is undefined, return CreateIterResultObject(undefined, true).
+    #   6. Let position be O.[[StringIteratorNextIndex]].
+    #   7. Let len be the length of s.
+    #   8. If position ≥ len, then
+    #       a. Set O.[[IteratedString]] to undefined.
+    #       b. Return CreateIterResultObject(undefined, true).
+    #   9. Let first be the numeric value of the code unit at index position within s.
+    #   10. If first < 0xD800 or first > 0xDBFF or position + 1 = len, let resultString be the String value
+    #       consisting of the single code unit first.
+    #   11. Else,
+    #       a. Let second be the numeric value of the code unit at index position + 1 within the String s.
+    #       b. If second < 0xDC00 or second > 0xDFFF, let resultString be the String value consisting of the single
+    #          code unit first.
+    #       c. Else, let resultString be the string-concatenation of the code unit first and the code unit second.
+    #   12. Let resultSize be the number of code units in resultString.
+    #   13. Set O.[[StringIteratorNextIndex]] to position + resultSize.
+    #   14. Return CreateIterResultObject(resultString, false).
+    if not (isObject(O) and all(hasattr(O, x) for x in ("IteratedString", "StringIteratorNextIndex"))):
+        raise ESTypeError(f"%StringIteratorProtoype%.next: Not a string iterator object: {ToRepr(O)}")
+    s = O.IteratedString
+    if s is None:
+        return CreateIterResultObject(None, True)
+    position = O.StringIteratorNextIndex
+    length = len(s)
+    if position >= length:
+        O.IteratedString = None
+        return CreateIterResultObject(None, True)
+    first = ord(s[position])
+    if first < 0xD800 or first > 0xDBFF or position + 1 == length:
+        resultString = chr(first)
+    else:
+        second = ord(s[position + 1])
+        if second < 0xDC00 or second > 0xDFFF:
+            resultString = chr(first)
+        else:
+            resultString = s[position : position + 2]
+    O.StringIteratorNextIndex = position + len(resultString)
+    return CreateIterResultObject(resultString, False)
 
 
 #######################################################################################################################
