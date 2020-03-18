@@ -349,8 +349,8 @@ class JSObject:
             return (
                 "Property("
                 + ", ".join(
-                    f"{name}={getattr(self,name)!r}"
-                    for name in ["Get", "Set", "value", "writable", "enumerable", "configurable"]
+                    f"{name}={ToRepr(getattr(self,name))}"
+                    for name in ("Get", "Set", "value", "writable", "enumerable", "configurable")
                     if hasattr(self, name)
                 )
                 + ")"
@@ -360,6 +360,14 @@ class JSObject:
         self.Prototype = JSNull.NULL
         self.Extensible = False
         self.properties = {}
+
+    def __repr__(self):
+        # sep = ",\n    "
+        # items = sep.join(f"{ToRepr(key)}: {value!r}" for key, value in self.properties.items())
+        # if items != "":
+        #    return "{\n    " + items + "\n})"
+        # return "{}"
+        return "{" + "; ".join(f"{ToRepr(key)}: {value!r}" for key, value in self.properties.items()) + "}"
 
 
 JSValue = Union[None, bool, str, float, int, JSSymbol, JSObject]
@@ -1491,7 +1499,7 @@ def ToRepr(arg, avoid_subcalls=False):
     if isNumber(arg):
         return NumberToString(arg)
     if isString(arg):
-        return arg
+        return repr(arg)
     if isSymbol(arg):
         return f"Symbol: {arg.description}"
     # isObject
@@ -2407,7 +2415,6 @@ def CreateArrayFromList(elements):
     #    b. Assert: status is true.
     #    c. Increment n by 1.
     # 5. Return array.
-    assert isinstance(elements, list)
     assert all(isEcmaValue(x) for x in elements)
     array = ArrayCreate(0)
     for n, e in enumerate(elements):
@@ -4274,6 +4281,7 @@ def CreateIntrinsics(realm_rec):
     intrinsics["%SetPrototype%"] = CreateSetPrototype(realm_rec)
     SetFixups(realm_rec)
     intrinsics["%SetIteratorPrototype%"] = CreateSetIteratorPrototype(realm_rec)
+    intrinsics["%Proxy%"] = CreateProxyConstructor(realm_rec)
 
     # 14. Return intrinsics.
     return intrinsics
@@ -5327,28 +5335,34 @@ def isIntegerIndex(key):
     return n is not None and IsInteger(n) and math.copysign(1.0, n) == 1.0 and n <= 2 ** 53 - 1
 
 
+def isArrayIndex(key):
+    # An array index is an integer index whose numeric value i is in the range +0 ≤ i < 2^32 - 1.
+    return isIntegerIndex(key) and ToNumber(key) < 2 ** 32 - 1
+
+
 # 9.1.11.1 OrdinaryOwnPropertyKeys ( O )
 def OrdinaryOwnPropertyKeys(obj):
     # When the abstract operation OrdinaryOwnPropertyKeys is called with Object O, the following steps are taken:
     #
-    # 1. Let keys be a new empty List.
+    #   1. Let keys be a new empty List.
+    #   2. For each own property key P of O that is an array index, in ascending numeric index order, do
+    #       a. Add P as the last element of keys.
+    #   3. For each own property key P of O that is a String but is not an array index, in ascending chronological
+    #      order of property creation, do
+    #       a. Add P as the last element of keys.
+    #   4. For each own property key P of O that is a Symbol, in ascending chronological order of property creation,
+    #      do
+    #       a. Add P as the last element of keys.
+    #   5. Return keys.
     keys = []
-    # 2. For each own property key P of O that is an integer index, in ascending numeric index order, do
-    index_keys = [key for key in obj.properties.keys() if isIntegerIndex(key)]
+    index_keys = [key for key in obj.properties.keys() if isArrayIndex(key)]
     index_keys.sort(key=lambda k: CanonicalNumericIndexString(k))
     for p in index_keys:
-        # a. Add P as the last element of keys.
         keys.append(p)
-    # 3. For each own property key P of O that is a String but is not an integer index, in ascending chronological
-    # order of property creation, do
-    for p in (key for key in obj.properties.keys() if isString(key) and not isIntegerIndex(key)):
-        # a. Add P as the last element of keys.
+    for p in (key for key in obj.properties.keys() if isString(key) and not isArrayIndex(key)):
         keys.append(p)
-    # 4. For each own property key P of O that is a Symbol, in ascending chronological order of property creation, do
     for p in (key for key in obj.properties.keys() if isSymbol(key)):
-        # a. Add P as the last element of keys.
         keys.append(p)
-    # 5. Return keys.
     return keys
 
 
@@ -6882,7 +6896,7 @@ def ArraySetLength(A, Desc):
     if not succeeded:
         return False
     props_to_delete = sorted(
-        (x for x in (int(x) for x in A.OwnPropertyKeys() if isIntegerIndex(x)) if newLen <= x < oldLen), reverse=True
+        (x for x in (int(x) for x in A.OwnPropertyKeys() if isArrayIndex(x)) if newLen <= x < oldLen), reverse=True
     )
     for p in props_to_delete:
         deleteSucceeded = A.Delete(str(p))
@@ -6991,14 +7005,10 @@ class StringObject(JSObject):
         # 8. Return keys.
         g1 = (ToString(i) for i in range(len(self.StringData)))
         g2 = sorted(
-            (
-                key
-                for key in self.properties.keys()
-                if isIntegerIndex(key) and ToInteger(key) >= len(self.StringData)
-            ),
+            (key for key in self.properties.keys() if isArrayIndex(key) and ToInteger(key) >= len(self.StringData)),
             key=lambda x: ToInteger(x),
         )
-        g3 = (key for key in self.properties.keys() if isString(key) and not isIntegerIndex(key))
+        g3 = (key for key in self.properties.keys() if isString(key) and not isArrayIndex(key))
         g4 = (key for key in self.properties.keys() if isSymbol(key))
         return list(chain(g1, g2, g3, g4))
 
@@ -7742,9 +7752,722 @@ def SetImmutablePrototype(obj, value):
     return SameValue(value, current)
 
 
-# 9.5 ProxyObjects
+# 9.5 Proxy Object Internal Methods and Internal Slots
+#
+# A proxy object is an exotic object whose essential internal methods are partially implemented using ECMAScript
+# code. Every proxy object has an internal slot called [[ProxyHandler]]. The value of [[ProxyHandler]] is an object,
+# called the proxy's handler object, or null. Methods (see Table 30) of a handler object may be used to augment the
+# implementation for one or more of the proxy object's internal methods. Every proxy object also has an internal
+# slot called [[ProxyTarget]] whose value is either an object or the null value. This object is called the proxy's
+# target object.
+#
+# Table 30: Proxy Handler Methods
+# | Internal Method       | Handler Method
+# +-----------------------+----------------------------
+# | [[GetPrototypeOf]]    | getPrototypeOf
+# | [[SetPrototypeOf]]    | setPrototypeOf
+# | [[IsExtensible]]      | isExtensible
+# | [[PreventExtensions]] | preventExtensions
+# | [[GetOwnProperty]]    | getOwnPropertyDescriptor
+# | [[DefineOwnProperty]] | defineProperty
+# | [[HasProperty]]       | has
+# | [[Get]]               | get
+# | [[Set]]               | set
+# | [[Delete]]            | deleteProperty
+# | [[OwnPropertyKeys]]   | ownKeys
+# | [[Call]]              | apply
+# | [[Construct]]         | construct
+# +-----------------------+----------------------------
+#
+# When a handler method is called to provide the implementation of a proxy object internal method, the handler
+# method is passed the proxy's target object as a parameter. A proxy's handler object does not necessarily have a
+# method corresponding to every essential internal method. Invoking an internal method on the proxy results in the
+# invocation of the corresponding internal method on the proxy's target object if the handler object does not have a
+# method corresponding to the internal trap.
+#
+# The [[ProxyHandler]] and [[ProxyTarget]] internal slots of a proxy object are always initialized when the object
+# is created and typically may not be modified. Some proxy objects are created in a manner that permits them to be
+# subsequently revoked. When a proxy is revoked, its [[ProxyHandler]] and [[ProxyTarget]] internal slots are set to
+# null causing subsequent invocations of internal methods on that proxy object to throw a TypeError exception.
+#
+# Because proxy objects permit the implementation of internal methods to be provided by arbitrary ECMAScript code,
+# it is possible to define a proxy object whose handler methods violates the invariants defined in 6.1.7.3. Some of
+# the internal method invariants defined in 6.1.7.3 are essential integrity invariants. These invariants are
+# explicitly enforced by the proxy object internal methods specified in this section. An ECMAScript implementation
+# must be robust in the presence of all possible invariant violations.
+#
+# In the following algorithm descriptions, assume O is an ECMAScript proxy object, P is a property key value, V is
+# any ECMAScript language value and Desc is a Property Descriptor record.
 class ProxyObject(JSObject):
-    pass
+    def __init__(self):
+        super().__init__()
+        self.ProxyHandler = JSNull.NULL
+        self.ProxyTarget = JSNull.NULL
+
+    def __repr__(self):
+        return f"Proxy(ProxyHandler: {ToRepr(self.ProxyHandler)}; ProxyTarget: {ToRepr(self.ProxyTarget)}; {super().__repr__()})"
+
+    # 9.5.1 [[GetPrototypeOf]] ( )
+    def GetPrototypeOf(self):
+        # When the [[GetPrototypeOf]] internal method of a Proxy exotic object O is called, the following steps are
+        # taken:
+        #
+        #   1. Let handler be O.[[ProxyHandler]].
+        #   2. If handler is null, throw a TypeError exception.
+        #   3. Assert: Type(handler) is Object.
+        #   4. Let target be O.[[ProxyTarget]].
+        #   5. Let trap be ? GetMethod(handler, "getPrototypeOf").
+        #   6. If trap is undefined, then
+        #       a. Return ? target.[[GetPrototypeOf]]().
+        #   7. Let handlerProto be ? Call(trap, handler, « target »).
+        #   8. If Type(handlerProto) is neither Object nor Null, throw a TypeError exception.
+        #   9. Let extensibleTarget be ? IsExtensible(target).
+        #   10. If extensibleTarget is true, return handlerProto.
+        #   11. Let targetProto be ? target.[[GetPrototypeOf]]().
+        #   12. If SameValue(handlerProto, targetProto) is false, throw a TypeError exception.
+        #   13. Return handlerProto.
+        #
+        # NOTE  | [[GetPrototypeOf]] for proxy objects enforces the following invariants:
+        #       |   * The result of [[GetPrototypeOf]] must be either an Object or null.
+        #       |   * If the target object is not extensible, [[GetPrototypeOf]] applied to the proxy object must
+        #       |     return the same value as [[GetPrototypeOf]] applied to the proxy object's target object.
+        O = self
+        handler = O.ProxyHandler
+        target = O.ProxyTarget
+        trap = GetMethod(handler, "getPrototypeOf")
+        if trap is None:
+            return target.GetPrototypeOf()
+        handlerProto = Call(trap, handler, [target])
+        if not isObject(handlerProto) and not isNull(handlerProto):
+            raise ESTypeError(
+                f"Bad getPrototypeOf proxy ({ToRepr(trap)}): result must be an Object or null (got {ToRepr(handlerProto)})"
+            )
+        extensibleTarget = IsExtensible(target)
+        if extensibleTarget:
+            return handlerProto
+        targetProto = target.GetPrototypeOf()
+        if not SameValue(handlerProto, targetProto):
+            raise ESTypeError(
+                f"Bad getPrototypeOf proxy ({ToRepr(trap)}): non-extensible targets must match return values (got {ToRepr(handlerProto)} instead of {ToRepr(targetProto)}"
+            )
+        return handlerProto
+
+    # 9.5.2 [[SetPrototypeOf]] ( V )
+    def SetPrototypeOf(self, V):
+        # When the [[SetPrototypeOf]] internal method of a Proxy exotic object O is called with argument V, the
+        # following steps are taken:
+        #
+        #   1. Assert: Either Type(V) is Object or Type(V) is Null.
+        #   2. Let handler be O.[[ProxyHandler]].
+        #   3. If handler is null, throw a TypeError exception.
+        #   4. Assert: Type(handler) is Object.
+        #   5. Let target be O.[[ProxyTarget]].
+        #   6. Let trap be ? GetMethod(handler, "setPrototypeOf").
+        #   7. If trap is undefined, then
+        #       a. Return ? target.[[SetPrototypeOf]](V).
+        #   8. Let booleanTrapResult be ToBoolean(? Call(trap, handler, « target, V »)).
+        #   9. If booleanTrapResult is false, return false.
+        #   10. Let extensibleTarget be ? IsExtensible(target).
+        #   11. If extensibleTarget is true, return true.
+        #   12. Let targetProto be ? target.[[GetPrototypeOf]]().
+        #   13. If SameValue(V, targetProto) is false, throw a TypeError exception.
+        #   14. Return true.
+        #
+        # NOTE  | [[SetPrototypeOf]] for proxy objects enforces the following invariants:
+        #       |   * The result of [[SetPrototypeOf]] is a Boolean value.
+        #       |   * If the target object is not extensible, the argument value must be the same as the result of
+        #       |     [[GetPrototypeOf]] applied to target object.
+        handler = self.ProxyHandler
+        if isNull(handler):
+            raise ESTypeError("Proxy is revoked")
+        target = self.ProxyTarget
+        trap = GetMethod(handler, "setPrototypeOf")
+        if trap is None:
+            return target.SetPrototypeOf(V)
+        booleanTrapResult = ToBoolean(Call(trap, handler, [target, V]))
+        if not booleanTrapResult:
+            return False
+        extensibleTarget = IsExtensible(target)
+        if extensibleTarget:
+            return True
+        targetProto = target.GetPrototypeOf()
+        if not SameValue(V, targetProto):
+            raise ESTypeError("Proxy invariant violated. Target is not extensible in SetPrototypeOf.")
+        return True
+
+    # 9.5.3 [[IsExtensible]] ( )
+    def IsExtensible(self):
+        # When the [[IsExtensible]] internal method of a Proxy exotic object O is called, the following steps are
+        # taken:
+        #
+        #   1. Let handler be O.[[ProxyHandler]].
+        #   2. If handler is null, throw a TypeError exception.
+        #   3. Assert: Type(handler) is Object.
+        #   4. Let target be O.[[ProxyTarget]].
+        #   5. Let trap be ? GetMethod(handler, "isExtensible").
+        #   6. If trap is undefined, then
+        #       a. Return ? target.[[IsExtensible]]().
+        #   7. Let booleanTrapResult be ToBoolean(? Call(trap, handler, « target »)).
+        #   8. Let targetResult be ? target.[[IsExtensible]]().
+        #   9. If SameValue(booleanTrapResult, targetResult) is false, throw a TypeError exception.
+        #   10. Return booleanTrapResult.
+        #
+        # NOTE  | [[IsExtensible]] for proxy objects enforces the following invariants:
+        #       |   * The result of [[IsExtensible]] is a Boolean value.
+        #       |   * [[IsExtensible]] applied to the proxy object must return the same value as [[IsExtensible]]
+        #       |     applied to the proxy object's target object with the same argument.
+        handler = self.ProxyHandler
+        if isNull(handler):
+            raise ESTypeError("Proxy has been revoked")
+        target = self.ProxyTarget
+        trap = GetMethod(handler, "isExtensible")
+        if trap is None:
+            return target.IsExtensible()
+        booleanTrapResult = ToBoolean(Call(trap, handler, [target]))
+        targetResult = target.IsExtensible()
+        if not SameValue(booleanTrapResult, targetResult):
+            raise ESTypeError("Proxy invariant violated. Target is not extensible in IsExtensible.")
+        return booleanTrapResult
+
+    # 9.5.4 [[PreventExtensions]] ( )
+    def PreventExtensions(self):
+        # When the [[PreventExtensions]] internal method of a Proxy exotic object O is called, the following
+        # steps are taken:
+        #
+        #   1. Let handler be O.[[ProxyHandler]].
+        #   2. If handler is null, throw a TypeError exception.
+        #   3. Assert: Type(handler) is Object.
+        #   4. Let target be O.[[ProxyTarget]].
+        #   5. Let trap be ? GetMethod(handler, "preventExtensions").
+        #   6. If trap is undefined, then
+        #       a. Return ? target.[[PreventExtensions]]().
+        #   7. Let booleanTrapResult be ToBoolean(? Call(trap, handler, « target »)).
+        #   8. If booleanTrapResult is true, then
+        #       a. Let targetIsExtensible be ? target.[[IsExtensible]]().
+        #       b. If targetIsExtensible is true, throw a TypeError exception.
+        #   9. Return booleanTrapResult.
+        #
+        # NOTE  | [[PreventExtensions]] for proxy objects enforces the following invariants:
+        #       |   * The result of [[PreventExtensions]] is a Boolean value.
+        #       |   * [[PreventExtensions]] applied to the proxy object only returns true if [[IsExtensible]]
+        #       |     applied to the proxy object's target object is false.
+        handler = self.ProxyHandler
+        if isNull(handler):
+            raise ESTypeError("Proxy has been revoked")
+        target = self.ProxyTarget
+        trap = GetMethod(handler, "preventExtensions")
+        if trap is None:
+            return target.PreventExtensions()
+        booleanTrapResult = ToBoolean(Call(trap, handler, [target]))
+        if booleanTrapResult:
+            targetIsExtensible = target.IsExtensible()
+            if targetIsExtensible:
+                raise ESTypeError(
+                    "Proxy invariant violated. Target still extensible after PreventExtensions called."
+                )
+        return booleanTrapResult
+
+    # 9.5.5 [[GetOwnProperty]] ( P )
+    def GetOwnProperty(self, P):
+        # When the [[GetOwnProperty]] internal method of a Proxy exotic object O is called with property key P, the
+        # following steps are taken:
+        #
+        #   1. Assert: IsPropertyKey(P) is true.
+        #   2. Let handler be O.[[ProxyHandler]].
+        #   3. If handler is null, throw a TypeError exception.
+        #   4. Assert: Type(handler) is Object.
+        #   5. Let target be O.[[ProxyTarget]].
+        #   6. Let trap be ? GetMethod(handler, "getOwnPropertyDescriptor").
+        #   7. If trap is undefined, then
+        #       a. Return ? target.[[GetOwnProperty]](P).
+        #   8. Let trapResultObj be ? Call(trap, handler, « target, P »).
+        #   9. If Type(trapResultObj) is neither Object nor Undefined, throw a TypeError exception.
+        #   10. Let targetDesc be ? target.[[GetOwnProperty]](P).
+        #   11. If trapResultObj is undefined, then
+        #       a. If targetDesc is undefined, return undefined.
+        #       b. If targetDesc.[[Configurable]] is false, throw a TypeError exception.
+        #       c. Let extensibleTarget be ? IsExtensible(target).
+        #       d. If extensibleTarget is false, throw a TypeError exception.
+        #       e. Return undefined.
+        #   12. Let extensibleTarget be ? IsExtensible(target).
+        #   13. Let resultDesc be ? ToPropertyDescriptor(trapResultObj).
+        #   14. Call CompletePropertyDescriptor(resultDesc).
+        #   15. Let valid be IsCompatiblePropertyDescriptor(extensibleTarget, resultDesc, targetDesc).
+        #   16. If valid is false, throw a TypeError exception.
+        #   17. If resultDesc.[[Configurable]] is false, then
+        #       a. If targetDesc is undefined or targetDesc.[[Configurable]] is true, then
+        #           i. Throw a TypeError exception.
+        #   18. Return resultDesc.
+        #
+        # NOTE  | [[GetOwnProperty]] for proxy objects enforces the following invariants:
+        #       |   * The result of [[GetOwnProperty]] must be either an Object or undefined.
+        #       |   * A property cannot be reported as non-existent, if it exists as a non-configurable own property
+        #       |     of the target object.
+        #       |   * A property cannot be reported as non-existent, if it exists as an own property of the target
+        #       |     object and the target object is not extensible.
+        #       |   * A property cannot be reported as existent, if it does not exist as an own property of the
+        #       |     target object and the target object is not extensible.
+        #       |   * A property cannot be reported as non-configurable, if it does not exist as an own property of
+        #       |     the target object or if it exists as a configurable own property of the target object.
+        handler = self.ProxyHandler
+        if isNull(handler):
+            raise ESTypeError("Proxy is revoked")
+        target = self.ProxyTarget
+        trap = GetMethod(handler, "getOwnPropertyDescriptor")
+        if trap is None:
+            return target.GetOwnProperty(P)
+        trapResultObj = Call(trap, handler, [target, P])
+        if not isObject(trapResultObj) and trapResultObj is not None:
+            raise ESTypeError("Proxy invariant violated")
+        targetDesc = target.GetOwnProperty(P)
+        if trapResultObj is None:
+            if targetDesc is None:
+                return None
+            if not targetDesc.configurable:
+                raise ESTypeError("Proxy invariant violated")
+            extensibleTarget = IsExtensible(target)
+            if not extensibleTarget:
+                raise ESTypeError("Proxy invariant violated")
+            return None
+        extensibleTarget = IsExtensible(target)
+        resultDesc = ToPropertyDescriptor(trapResultObj)
+        CompletePropertyDescriptor(resultDesc)
+        valid = IsCompatiblePropertyDescriptor(extensibleTarget, resultDesc, targetDesc)
+        if not valid:
+            raise ESTypeError("Proxy invariant violated")
+        if not resultDesc.configurable:
+            if targetDesc is None or targetDesc.configurable:
+                raise ESTypeError("Proxy invariant violated")
+        return resultDesc
+
+    # 9.5.6 [[DefineOwnProperty]] ( P, Desc )
+    def DefineOwnProperty(self, P, Desc):
+        # When the [[DefineOwnProperty]] internal method of a Proxy exotic object O is called with property key P
+        # and Property Descriptor Desc, the following steps are taken:
+        #
+        #   1. Assert: IsPropertyKey(P) is true.
+        #   2. Let handler be O.[[ProxyHandler]].
+        #   3. If handler is null, throw a TypeError exception.
+        #   4. Assert: Type(handler) is Object.
+        #   5. Let target be O.[[ProxyTarget]].
+        #   6. Let trap be ? GetMethod(handler, "defineProperty").
+        #   7. If trap is undefined, then
+        #       a. Return ? target.[[DefineOwnProperty]](P, Desc).
+        #   8. Let descObj be FromPropertyDescriptor(Desc).
+        #   9. Let booleanTrapResult be ToBoolean(? Call(trap, handler, « target, P, descObj »)).
+        #   10. If booleanTrapResult is false, return false.
+        #   11. Let targetDesc be ? target.[[GetOwnProperty]](P).
+        #   12. Let extensibleTarget be ? IsExtensible(target).
+        #   13. If Desc has a [[Configurable]] field and if Desc.[[Configurable]] is false, then
+        #       a. Let settingConfigFalse be true.
+        #   14. Else, let settingConfigFalse be false.
+        #   15. If targetDesc is undefined, then
+        #       a. If extensibleTarget is false, throw a TypeError exception.
+        #       b. If settingConfigFalse is true, throw a TypeError exception.
+        #   16. Else targetDesc is not undefined,
+        #       a. If IsCompatiblePropertyDescriptor(extensibleTarget, Desc, targetDesc) is false, throw a TypeError
+        #          exception.
+        #       b. If settingConfigFalse is true and targetDesc.[[Configurable]] is true, throw a TypeError
+        #          exception.
+        #   17. Return true.
+        #
+        # NOTE  | [[DefineOwnProperty]] for proxy objects enforces the following invariants:
+        #       |   * The result of [[DefineOwnProperty]] is a Boolean value.
+        #       |   * A property cannot be added, if the target object is not extensible.
+        #       |   * A property cannot be non-configurable, unless there exists a corresponding non-configurable
+        #       |     own property of the target object.
+        #       |   * If a property has a corresponding target object property then applying the Property Descriptor
+        #       |     of the property to the target object using [[DefineOwnProperty]] will not throw an exception.
+        handler = self.ProxyHandler
+        if isNull(handler):
+            raise ESTypeError("Revoked proxy")
+        target = self.ProxyTarget
+        trap = GetMethod(handler, "defineProperty")
+        if trap is None:
+            return target.DefineOwnProperty(P, Desc)
+        descObj = FromPropertyDescriptor(Desc)
+        booleanTrapResult = ToBoolean(Call(trap, handler, [target, P, descObj]))
+        if not booleanTrapResult:
+            return False
+        targetDesc = target.GetOwnProperty(P)
+        extensibleTarget = IsExtensible(target)
+        settingConfigFalse = hasattr(Desc, "configurable") and not Desc.configurable
+        if targetDesc is None:
+            if not extensibleTarget or settingConfigFalse:
+                raise ESTypeError("Proxy invariant violated")
+        else:
+            if not IsCompatiblePropertyDescriptor(extensibleTarget, Desc, targetDesc) or (
+                settingConfigFalse and targetDesc.configurable
+            ):
+                raise ESTypeError("Proxy invariant violated")
+        return True
+
+    # 9.5.7 [[HasProperty]] ( P )
+    def HasProperty(self, P):
+        # When the [[HasProperty]] internal method of a Proxy exotic object O is called with property key P, the
+        # following steps are taken:
+        #
+        #   1. Assert: IsPropertyKey(P) is true.
+        #   2. Let handler be O.[[ProxyHandler]].
+        #   3. If handler is null, throw a TypeError exception.
+        #   4. Assert: Type(handler) is Object.
+        #   5. Let target be O.[[ProxyTarget]].
+        #   6. Let trap be ? GetMethod(handler, "has").
+        #   7. If trap is undefined, then
+        #       a. Return ? target.[[HasProperty]](P).
+        #   8. Let booleanTrapResult be ToBoolean(? Call(trap, handler, « target, P »)).
+        #   9. If booleanTrapResult is false, then
+        #       a. Let targetDesc be ? target.[[GetOwnProperty]](P).
+        #       b. If targetDesc is not undefined, then
+        #           i. If targetDesc.[[Configurable]] is false, throw a TypeError exception.
+        #           ii. Let extensibleTarget be ? IsExtensible(target).
+        #           iii. If extensibleTarget is false, throw a TypeError exception.
+        #   10. Return booleanTrapResult.
+        #
+        # NOTE  | [[HasProperty]] for proxy objects enforces the following invariants:
+        #       |   * The result of [[HasProperty]] is a Boolean value.
+        #       |   * A property cannot be reported as non-existent, if it exists as a non-configurable own property
+        #       |     of the target object.
+        #       |   * A property cannot be reported as non-existent, if it exists as an own property of the target
+        #       |     object and the target object is not extensible.
+        handler = self.ProxyHandler
+        if isNull(handler):
+            raise ESTypeError("Proxy is revoked")
+        target = self.ProxyTarget
+        trap = GetMethod(handler, "has")
+        if trap is None:
+            return target.HasProperty(P)
+        booleanTrapResult = ToBoolean(Call(trap, handler, [target, P]))
+        if not booleanTrapResult:
+            targetDesc = target.GetOwnProperty(P)
+            if targetDesc is not None:
+                if not targetDesc.configurable:
+                    raise ESTypeError("Proxy invariant violated")
+                extensibleTarget = IsExtensible(target)
+                if not extensibleTarget:
+                    raise ESTypeError("Proxy invariant violated")
+        return booleanTrapResult
+
+    # 9.5.8 [[Get]] ( P, Receiver )
+    def Get(self, P, Receiver):
+        # When the [[Get]] internal method of a Proxy exotic object O is called with property key P and ECMAScript
+        # language value Receiver, the following steps are taken:
+        #
+        #   1. Assert: IsPropertyKey(P) is true.
+        #   2. Let handler be O.[[ProxyHandler]].
+        #   3. If handler is null, throw a TypeError exception.
+        #   4. Assert: Type(handler) is Object.
+        #   5. Let target be O.[[ProxyTarget]].
+        #   6. Let trap be ? GetMethod(handler, "get").
+        #   7. If trap is undefined, then
+        #       a. Return ? target.[[Get]](P, Receiver).
+        #   8. Let trapResult be ? Call(trap, handler, « target, P, Receiver »).
+        #   9. Let targetDesc be ? target.[[GetOwnProperty]](P).
+        #   10. If targetDesc is not undefined and targetDesc.[[Configurable]] is false, then
+        #       a. If IsDataDescriptor(targetDesc) is true and targetDesc.[[Writable]] is false, then
+        #           i. If SameValue(trapResult, targetDesc.[[Value]]) is false, throw a TypeError exception.
+        #       b. If IsAccessorDescriptor(targetDesc) is true and targetDesc.[[Get]] is undefined, then
+        #           i. If trapResult is not undefined, throw a TypeError exception.
+        #   11. Return trapResult.
+        #
+        # NOTE  | [[Get]] for proxy objects enforces the following invariants:
+        #       |   * The value reported for a property must be the same as the value of the corresponding target
+        #       |     object property if the target object property is a non-writable, non-configurable own data
+        #       |     property.
+        #       |   * The value reported for a property must be undefined if the corresponding target object
+        #       |     property is a non-configurable own accessor property that has undefined as its [[Get]]
+        #       |     attribute.
+        handler = self.ProxyHandler
+        if isNull(handler):
+            raise ESTypeError("Proxy is revoked")
+        target = self.ProxyTarget
+        trap = GetMethod(handler, "get")
+        if trap is None:
+            return target.Get(P, Receiver)
+        trapResult = Call(trap, handler, [target, P, Receiver])
+        targetDesc = target.GetOwnProperty(P)
+        if targetDesc is not None and not targetDesc.configurable:
+            if (
+                IsDataDescriptor(targetDesc)
+                and not targetDesc.writable
+                and not SameValue(trapResult, targetDesc.value)
+            ):
+                raise ESTypeError("Proxy invariant violated")
+            if IsAccessorDescriptor(targetDesc) and targetDesc.Get is None and trapResult is not None:
+                raise ESTypeError("Proxy invariant violated")
+        return trapResult
+
+    # 9.5.9 [[Set]] ( P, V, Receiver )
+    def Set(self, P, V, Receiver):
+        # When the [[Set]] internal method of a Proxy exotic object O is called with property key P, value V, and
+        # ECMAScript language value Receiver, the following steps are taken:
+        #
+        #   1. Assert: IsPropertyKey(P) is true.
+        #   2. Let handler be O.[[ProxyHandler]].
+        #   3. If handler is null, throw a TypeError exception.
+        #   4. Assert: Type(handler) is Object.
+        #   5. Let target be O.[[ProxyTarget]].
+        #   6. Let trap be ? GetMethod(handler, "set").
+        #   7. If trap is undefined, then
+        #       a. Return ? target.[[Set]](P, V, Receiver).
+        #   8. Let booleanTrapResult be ToBoolean(? Call(trap, handler, « target, P, V, Receiver »)).
+        #   9. If booleanTrapResult is false, return false.
+        #   10. Let targetDesc be ? target.[[GetOwnProperty]](P).
+        #   11. If targetDesc is not undefined and targetDesc.[[Configurable]] is false, then
+        #       a. If IsDataDescriptor(targetDesc) is true and targetDesc.[[Writable]] is false, then
+        #           i. If SameValue(V, targetDesc.[[Value]]) is false, throw a TypeError exception.
+        #       b. If IsAccessorDescriptor(targetDesc) is true, then
+        #           i. If targetDesc.[[Set]] is undefined, throw a TypeError exception.
+        #   12. Return true.
+        #
+        # NOTE  | [[Set]] for proxy objects enforces the following invariants:
+        #       |   * The result of [[Set]] is a Boolean value.
+        #       |   * Cannot change the value of a property to be different from the value of the corresponding
+        #       |     target object property if the corresponding target object property is a non-writable,
+        #       |     non-configurable own data property.
+        #       |   * Cannot set the value of a property if the corresponding target object property is a
+        #       |     non-configurable own accessor property that has undefined as its [[Set]] attribute.
+        handler = self.ProxyHandler
+        if isNull(handler):
+            raise ESTypeError("Proxy is revoked")
+        target = self.ProxyTarget
+        trap = GetMethod(handler, "set")
+        if trap is None:
+            return target.Set(P, V, Receiver)
+        booleanTrapResult = ToBoolean(Call(trap, handler, [target, P, V, Receiver]))
+        if not booleanTrapResult:
+            return False
+        targetDesc = target.GetOwnProperty(P)
+        if targetDesc is not None and not targetDesc.configurable:
+            if IsDataDescriptor(targetDesc) and not targetDesc.writable and not SameValue(V, targetDesc.value):
+                raise ESTypeError("Proxy invariant violated")
+            if IsAccessorDescriptor(targetDesc) and targetDesc.Set is None:
+                raise ESTypeError("Proxy invariant violated")
+        return True
+
+    # 9.5.10 [[Delete]] ( P )
+    def Delete(self, P):
+        # When the [[Delete]] internal method of a Proxy exotic object O is called with property key P, the
+        # following steps are taken:
+        #
+        #   1. Assert: IsPropertyKey(P) is true.
+        #   2. Let handler be O.[[ProxyHandler]].
+        #   3. If handler is null, throw a TypeError exception.
+        #   4. Assert: Type(handler) is Object.
+        #   5. Let target be O.[[ProxyTarget]].
+        #   6. Let trap be ? GetMethod(handler, "deleteProperty").
+        #   7. If trap is undefined, then
+        #   a. Return ? target.[[Delete]](P).
+        #   8. Let booleanTrapResult be ToBoolean(? Call(trap, handler, « target, P »)).
+        #   9. If booleanTrapResult is false, return false.
+        #   10. Let targetDesc be ? target.[[GetOwnProperty]](P).
+        #   11. If targetDesc is undefined, return true.
+        #   12. If targetDesc.[[Configurable]] is false, throw a TypeError exception.
+        #   13. Return true.
+        #
+        # NOTE  | [[Delete]] for proxy objects enforces the following invariants:
+        #       |   * The result of [[Delete]] is a Boolean value.
+        #       |   * A property cannot be reported as deleted, if it exists as a non-configurable own property of
+        #       |     the target object.
+        handler = self.ProxyHandler
+        if isNull(handler):
+            raise ESTypeError("Proxy revoked")
+        target = self.ProxyTarget
+        trap = GetMethod(handler, "deleteProperty")
+        if trap is None:
+            return target.Delete(P)
+        booleanTrapResult = ToBoolean(Call(trap, handler, [target, P,]))
+        if not booleanTrapResult:
+            return False
+        targetDesc = target.GetOwnProperty(P)
+        if targetDesc is None:
+            return True
+        if not targetDesc.configurable:
+            raise ESTypeError("Proxy invariant violation")
+        return True
+
+    # 9.5.11 [[OwnPropertyKeys]] ( )
+    def OwnPropertyKeys(self):
+        # When the [[OwnPropertyKeys]] internal method of a Proxy exotic object O is called, the following steps are
+        # taken:
+        #
+        #   1. Let handler be O.[[ProxyHandler]].
+        #   2. If handler is null, throw a TypeError exception.
+        #   3. Assert: Type(handler) is Object.
+        #   4. Let target be O.[[ProxyTarget]].
+        #   5. Let trap be ? GetMethod(handler, "ownKeys").
+        #   6. If trap is undefined, then
+        #       a. Return ? target.[[OwnPropertyKeys]]().
+        #   7. Let trapResultArray be ? Call(trap, handler, « target »).
+        #   8. Let trapResult be ? CreateListFromArrayLike(trapResultArray, « String, Symbol »).
+        #   9. If trapResult contains any duplicate entries, throw a TypeError exception.
+        #   10. Let extensibleTarget be ? IsExtensible(target).
+        #   11. Let targetKeys be ? target.[[OwnPropertyKeys]]().
+        #   12. Assert: targetKeys is a List containing only String and Symbol values.
+        #   13. Assert: targetKeys contains no duplicate entries.
+        #   14. Let targetConfigurableKeys be a new empty List.
+        #   15. Let targetNonconfigurableKeys be a new empty List.
+        #   16. For each element key of targetKeys, do
+        #       a. Let desc be ? target.[[GetOwnProperty]](key).
+        #       b. If desc is not undefined and desc.[[Configurable]] is false, then
+        #           i. Append key as an element of targetNonconfigurableKeys.
+        #       c. Else,
+        #           i. Append key as an element of targetConfigurableKeys.
+        #   17. If extensibleTarget is true and targetNonconfigurableKeys is empty, then
+        #       a. Return trapResult.
+        #   18. Let uncheckedResultKeys be a new List which is a copy of trapResult.
+        #   19. For each key that is an element of targetNonconfigurableKeys, do
+        #       a. If key is not an element of uncheckedResultKeys, throw a TypeError exception.
+        #       b. Remove key from uncheckedResultKeys.
+        #   20. If extensibleTarget is true, return trapResult.
+        #   21. For each key that is an element of targetConfigurableKeys, do
+        #       a. If key is not an element of uncheckedResultKeys, throw a TypeError exception.
+        #       b. Remove key from uncheckedResultKeys.
+        #   22. If uncheckedResultKeys is not empty, throw a TypeError exception.
+        #   23. Return trapResult.
+        #
+        # NOTE  | [[OwnPropertyKeys]] for proxy objects enforces the following invariants:
+        #       |   * The result of [[OwnPropertyKeys]] is a List.
+        #       |   * The returned List contains no duplicate entries.
+        #       |   * The Type of each result List element is either String or Symbol.
+        #       |   * The result List must contain the keys of all non-configurable own properties of the target
+        #       |     object.
+        #       |   * If the target object is not extensible, then the result List must contain all the keys of the
+        #       |     own properties of the target object and no other values.
+        handler = self.ProxyHandler
+        if isNull(handler):
+            raise ESTypeError("Proxy is revoked")
+        target = self.ProxyTarget
+        trap = GetMethod(handler, "ownKeys")
+        if trap is None:
+            return target.OwnPropertyKeys()
+        trapResultArray = Call(trap, handler, [target])
+        trapResult = CreateListFromArrayLike(trapResultArray, [T_STRING, T_SYMBOL])
+        if len(trapResult) != len(set(trapResult)):
+            raise ESTypeError("Proxy invariant violated")
+        extensibleTarget = IsExtensible(target)
+        targetKeys = target.OwnPropertyKeys()
+        descriptors = {key: target.GetOwnProperty(key) for key in targetKeys}
+        targetConfigurableKeys = [key for key, desc in descriptors.items() if desc is None or desc.configurable]
+        targetNonconfigurableKeys = [
+            key for key, desc in descriptors.items() if desc is not None and not desc.configurable
+        ]
+        if extensibleTarget and targetNonconfigurableKeys == []:
+            return trapResult
+        uncheckedResultKeys = trapResult[:]
+        for key in targetNonconfigurableKeys:
+            if key not in uncheckedResultKeys:
+                raise ESTypeError("Proxy invariant violated")
+            uncheckedResultKeys.remove(key)
+        if extensibleTarget:
+            return trapResult
+        for key in targetConfigurableKeys:
+            if key not in uncheckedResultKeys:
+                raise ESTypeError("Proxy invariant violated")
+            uncheckedResultKeys.remove(key)
+        if len(uncheckedResultKeys) != 0:
+            raise ESTypeError("Proxy invariant violated")
+        return trapResult
+
+
+# 9.5.12 [[Call]] ( thisArgument, argumentsList )
+def Proxy_Call(O, thisArgument, argumentsList):
+    # The [[Call]] internal method of a Proxy exotic object O is called with parameters thisArgument and
+    # argumentsList, a List of ECMAScript language values. The following steps are taken:
+    #
+    #   1. Let handler be O.[[ProxyHandler]].
+    #   2. If handler is null, throw a TypeError exception.
+    #   3. Assert: Type(handler) is Object.
+    #   4. Let target be O.[[ProxyTarget]].
+    #   5. Let trap be ? GetMethod(handler, "apply").
+    #   6. If trap is undefined, then
+    #       a. Return ? Call(target, thisArgument, argumentsList).
+    #   7. Let argArray be CreateArrayFromList(argumentsList).
+    #   8. Return ? Call(trap, handler, « target, thisArgument, argArray »).
+    #
+    # NOTE  | A Proxy exotic object only has a [[Call]] internal method if the initial value of its [[ProxyTarget]]
+    #       | internal slot is an object that has a [[Call]] internal method.
+    handler = O.ProxyHandler
+    if isNull(handler):
+        raise ESTypeError("Proxy revoked")
+    target = O.ProxyTarget
+    trap = GetMethod(handler, "apply")
+    if trap is None:
+        return Call(target, thisArgument, argumentsList)
+    argArray = CreateArrayFromList(argumentsList)
+    return Call(trap, handler, [target, thisArgument, argArray])
+
+
+# 9.5.13 [[Construct]] ( argumentsList, newTarget )
+def Proxy_Construct(O, argumentsList, newTarget):
+    # The [[Construct]] internal method of a Proxy exotic object O is called with parameters argumentsList which is
+    # a possibly empty List of ECMAScript language values and newTarget. The following steps are taken:
+    #
+    #   1. Let handler be O.[[ProxyHandler]].
+    #   2. If handler is null, throw a TypeError exception.
+    #   3. Assert: Type(handler) is Object.
+    #   4. Let target be O.[[ProxyTarget]].
+    #   5. Assert: IsConstructor(target) is true.
+    #   6. Let trap be ? GetMethod(handler, "construct").
+    #   7. If trap is undefined, then
+    #       a. Return ? Construct(target, argumentsList, newTarget).
+    #   8. Let argArray be CreateArrayFromList(argumentsList).
+    #   9. Let newObj be ? Call(trap, handler, « target, argArray, newTarget »).
+    #   10. If Type(newObj) is not Object, throw a TypeError exception.
+    #   11. Return newObj.
+    #
+    # NOTE 1    | A Proxy exotic object only has a [[Construct]] internal method if the initial value of its
+    #           | [[ProxyTarget]] internal slot is an object that has a [[Construct]] internal method.
+    # NOTE 2    | [[Construct]] for proxy objects enforces the following invariants:
+    #           |   * The result of [[Construct]] must be an Object.
+    handler = O.ProxyHandler
+    if isNull(handler):
+        raise ESTypeError("Proxy revoked")
+    target = O.ProxyTarget
+    trap = GetMethod(handler, "construct")
+    if trap is None:
+        return Construct(target, argumentsList, newTarget)
+    argArray = CreateArrayFromList(argumentsList)
+    newObj = Call(trap, handler, [target, argArray, newTarget])
+    if not isObject(newObj):
+        raise ESTypeError("Proxy invariant violated")
+    return newObj
+
+
+# 9.5.14 ProxyCreate ( target, handler )
+def ProxyCreate(target, handler):
+    # The abstract operation ProxyCreate with arguments target and handler is used to specify the creation of new
+    # Proxy exotic objects. It performs the following steps:
+    #
+    #   1. If Type(target) is not Object, throw a TypeError exception.
+    #   2. If target is a Proxy exotic object and target.[[ProxyHandler]] is null, throw a TypeError exception.
+    #   3. If Type(handler) is not Object, throw a TypeError exception.
+    #   4. If handler is a Proxy exotic object and handler.[[ProxyHandler]] is null, throw a TypeError exception.
+    #   5. Let P be a newly created object.
+    #   6. Set P's essential internal methods (except for [[Call]] and [[Construct]]) to the definitions specified in 9.5.
+    #   7. If IsCallable(target) is true, then
+    #       a. Set P.[[Call]] as specified in 9.5.12.
+    #       b. If IsConstructor(target) is true, then
+    #           i. Set P.[[Construct]] as specified in 9.5.13.
+    #   8. Set P.[[ProxyTarget]] to target.
+    #   9. Set P.[[ProxyHandler]] to handler.
+    #   10. Return P.
+    if not isObject(target):
+        raise ESTypeError(f"Proxy targets must be objects. Got {ToRepr(target)}")
+    if isinstance(target, ProxyObject) and isNull(target.ProxyHandler):
+        raise ESTypeError(f"Proxy target must not be a revoked proxy")
+    if not isObject(handler):
+        raise ESTypeError(f"Proxy handlers must be objects. Got {ToRepr(handler)}")
+    if isinstance(handler, ProxyObject) and isNull(handler.ProxyHandler):
+        raise ESTypeError(f"Proxy handler must not be a revoked proxy")
+    P = ProxyObject()
+    if IsCallable(target):
+        P.Call = types.MethodType(Proxy_Call, P)
+        if IsConstructor(target):
+            P.Construct = types.MethodType(Proxy_Construct, P)
+    P.ProxyTarget = target
+    P.ProxyHandler = handler
+    return P
 
 
 def prep_for_bitwise(lval, rval):
@@ -43696,6 +44419,96 @@ def Reflect_setPrototypeOf(this_value, new_target, target=None, proto=None, *_):
     if not isObject(proto) and not isNull(proto):
         raise err("proto")
     return target.SetPrototypeOf(proto)
+
+
+# 26.2 Proxy Objects
+# 26.2.1 The Proxy Constructor
+# The Proxy constructor:
+#   * is the intrinsic object %Proxy%.
+#   * is the initial value of the Proxy property of the global object.
+#   * creates and initializes a new proxy exotic object when called as a constructor.
+#   * is not intended to be called as a function and will throw an exception when called in that manner.
+
+
+def CreateProxyConstructor(realm):
+    obj = CreateBuiltinFunction(ProxyFunction, ["Construct"], realm=realm)
+    for key, value in [("length", 2), ("name", "Proxy")]:
+        desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)
+        DefinePropertyOrThrow(obj, key, desc)
+    BindBuiltinFunctions(
+        realm, obj, [("revocable", Proxy_revocable, None),],
+    )
+    return obj
+
+
+# 26.2.1.1 Proxy ( target, handler )
+def ProxyFunction(this_value, new_target, target=None, handler=None, *_):
+    # When Proxy is called with arguments target and handler, it performs the following steps:
+    #
+    #   1. If NewTarget is undefined, throw a TypeError exception.
+    #   2. Return ? ProxyCreate(target, handler).
+    if new_target is None:
+        raise ESTypeError("Proxy must be called as a constructor")
+    return ProxyCreate(target, handler)
+
+
+# 26.2.2 Properties of the Proxy Constructor
+# The Proxy constructor:
+#   * has a [[Prototype]] internal slot whose value is the intrinsic object %FunctionPrototype%.
+#   * does not have a prototype property because proxy exotic objects do not have a [[Prototype]] internal slot that
+#     requires initialization.
+#   * has the following properties:
+
+# 26.2.2.1 Proxy.revocable ( target, handler )
+def Proxy_revocable(this_value, new_target, target=None, handler=None, *_):
+    # The Proxy.revocable function is used to create a revocable Proxy object. When Proxy.revocable is called with
+    # arguments target and handler, the following steps are taken:
+    #   1. Let p be ? ProxyCreate(target, handler).
+    #   2. Let steps be the algorithm steps defined in Proxy Revocation Functions.
+    #   3. Let revoker be CreateBuiltinFunction(steps, « [[RevocableProxy]] »).
+    #   4. Set revoker.[[RevocableProxy]] to p.
+    #   5. Let result be ObjectCreate(%ObjectPrototype%).
+    #   6. Perform CreateDataProperty(result, "proxy", p).
+    #   7. Perform CreateDataProperty(result, "revoke", revoker).
+    #   8. Return result.
+    p = ProxyCreate(target, handler)
+    revoker = CreateBuiltinFunction(revocation, ["RevocableProxy"])
+    for propname, value in (("length", 0), ("name", "")):
+        DefinePropertyOrThrow(
+            revoker, propname, PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)
+        )
+    revoker.RevocableProxy = p
+    result = ObjectCreate(surrounding_agent.running_ec.realm.intrinsics["%ObjectPrototype%"])
+    CreateDataProperty(result, "proxy", p)
+    CreateDataProperty(result, "revoke", revoker)
+    return result
+
+
+# 26.2.2.1.1 Proxy Revocation Functions
+def revocation(this_value, new_target, *_):
+    # A Proxy revocation function is an anonymous function that has the ability to invalidate a specific Proxy
+    # object.
+    #
+    # Each Proxy revocation function has a [[RevocableProxy]] internal slot.
+    #
+    # When a Proxy revocation function is called, the following steps are taken:
+    #   1. Let F be the active function object.
+    #   2. Let p be F.[[RevocableProxy]].
+    #   3. If p is null, return undefined.
+    #   4. Set F.[[RevocableProxy]] to null.
+    #   5. Assert: p is a Proxy object.
+    #   6. Set p.[[ProxyTarget]] to null.
+    #   7. Set p.[[ProxyHandler]] to null.
+    #   8. Return undefined.
+    # The "length" property of a Proxy revocation function is 0.
+    F = GetActiveFunction()
+    p = F.RevocableProxy
+    if isNull(p):
+        return None
+    F.RevocableProxy = JSNull.NULL
+    p.ProxyTarget = JSNull.NULL
+    p.ProxyHandler = JSNull.NULL
+    return None
 
 
 #######################################################################################################################################################

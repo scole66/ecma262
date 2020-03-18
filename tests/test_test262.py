@@ -242,6 +242,8 @@ passing = (
     "built-ins/Object",
     "built-ins/parseFloat",
     "built-ins/parseInt",
+    "built-ins/Proxy",
+    "built-ins/Reflect",
     "built-ins/RegExp",
     "built-ins/Set",
     "built-ins/SetIteratorPrototype",
@@ -328,7 +330,6 @@ if test_passing:
 # test_files.extend(glob.glob(f"{base_path}/test/harness/*.js"))
 # for suite in lang_tests:
 #     test_files.extend(glob.glob(f"{base_path}/test/language/{suite}/**/*.js", recursive=True))
-# test_files.extend(glob.glob(f"{base_path}/test/built-ins/Array/**/*.js", recursive=True))
 # test_files.extend(glob.glob(f"{base_path}/test/built-ins/Symbol/**/*.js", recursive=True)) # Needs Map
 # test_files.extend(glob.glob(f"{base_path}/test/language/expressions/arrow-function/**/*.js", recursive=True)) # 109 tests failing
 # test_files.extend(glob.glob(f"{base_path}/test/language/expressions/compound-assignment/**/*.js", recursive=True)) # 78 failing
@@ -353,7 +354,6 @@ features_to_avoid = (
     "async-functions",
     "tail-call-optimization",
     "generators",
-    "Proxy",
     # proposals not actually part of the spec yet
     "proxy-missing-checks",
     "Promise.allSettled",
@@ -825,13 +825,8 @@ skip_tests = (
 
 xfail_tests = (
     "/test/harness/timer.js",  # Needs Promise
-    "/test/built-ins/Array/prototype/flat/proxy-access-count.js",  # Needs Proxy
-    "/test/built-ins/Array/prototype/flatMap/proxy-access-count.js",  # Needs Proxy
-    "/test/built-ins/Array/prototype/reverse/length-exceeding-integer-limit-with-proxy.js",  # Needs Proxy
-    "/test/built-ins/Array/prototype/slice/length-exceeding-integer-limit-proxied-array.js",  # Needs Proxy
     "/test/built-ins/Array/prototype/sort/stability-2048-elements.js",  # Recursion Limit
     "/test/built-ins/Array/prototype/sort/stability-513-elements.js",  # Recursion Limit
-    "/test/built-ins/Array/prototype/splice/create-species-length-exceeding-integer-limit.js",  # Needs Proxy
     "/test/built-ins/Date/parse/zero.js",  # Wants a bit more flexible Date.parse
     "/test/built-ins/Date/prototype/getTimezoneOffset/this-value-valid-date.js",  # Overflow in LocalTZA
     "/test/built-ins/Date/prototype/setDate/new-value-time-clip.js",  # Overflow in LocalTZA
@@ -859,6 +854,7 @@ xfail_tests = (
     "/test/built-ins/Function/prototype/toString/built-in-function-object.js",  # Needs Generators
     "/test/built-ins/Function/prototype/toString/generator-function-expression.js",  # Needs Generators
     "/test/built-ins/Function/prototype/toString/method-computed-property-name.js",  # Needs better Function.prototype.toString
+    "/test/built-ins/Function/prototype/toString/proxy-non-callable-throws.js",  # Needs better Function.prototype.toString
     "/test/built-ins/Function/prototype/toString/S15.3.4.2_A12.js",  # Needs better Function.prototype.toString
     "/test/built-ins/Function/prototype/toString/S15.3.4.2_A13.js",  # Needs better Function.prototype.toString
     "/test/built-ins/Function/prototype/toString/S15.3.4.2_A14.js",  # Needs better Function.prototype.toString
@@ -875,7 +871,6 @@ xfail_tests = (
     "/test/built-ins/Map/prototype/set/does-not-have-mapdata-internal-slot-weakmap.js",  # Needs WeakMap
     "/test/built-ins/Map/prototype/size/does-not-have-mapdata-internal-slot-weakmap.js",  # Needs WeakMap
     "/test/built-ins/Map/prototype/values/does-not-have-mapdata-internal-slot-weakmap.js",  # Needs WeakMap
-    "/test/built-ins/Object/freeze/throws-when-false.js",  # Needs Proxy
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-10.js",  # Needs decodeURIComponent
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-11.js",  # Needs encodeURIComponent
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-9.js",  # Needs decodeURI
@@ -884,9 +879,6 @@ xfail_tests = (
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-92.js",  # Needs Number.prototype.toExponential
     "/test/built-ins/Object/getOwnPropertyDescriptor/15.2.3.3-4-93.js",  # Needs Number.prototype.toPrecision
     "/test/built-ins/Object/getOwnPropertyNames/15.2.3.4-4-1.js",  # Needs all the globals
-    "/test/built-ins/Object/keys/proxy-keys.js",  # Needs Proxy
-    "/test/built-ins/Object/preventExtensions/throws-when-false.js",  # Needs Proxy
-    "/test/built-ins/Object/seal/throws-when-false.js",  # Needs Proxy
     "/test/built-ins/RegExp/S15.10.2.8_A3_T15.js",  # Recursion Limit
     "/test/built-ins/RegExp/S15.10.2.8_A3_T16.js",  # Recursion Limit
     "/test/built-ins/RegExp/S15.10.2.8_A3_T18.js",  # Recursion Limit

@@ -29,7 +29,7 @@ def test_Property_repr():
     p = JSObject.Property(value=100, enumerable=True, polio_vaccine="useful")
     s = repr(p)
     assert "value=100" in s
-    assert "enumerable=True" in s
+    assert "enumerable=true" in s
     assert "polio_vaccine" not in s
 
 
@@ -957,8 +957,8 @@ def test_OrdinaryOwnPropertyKeys_01(obj):
     # There's a bunch of sorting activity that goes on here, so I'm making lots of properties.
     symbol_1 = JSSymbol("Symbol.unittest")
     symbol_2 = JSSymbol("Symbol.elephant")
-    big = ToString(2 ** 53 - 1)
-    toobig = ToString(2 ** 53)
+    big = ToString(2 ** 32 - 2)
+    toobig = ToString(2 ** 32 - 1)
     for propkey in [
         "first",
         "100",
