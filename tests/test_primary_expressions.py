@@ -317,8 +317,10 @@ def test_P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_
 
 
 def test_P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_COMMA_RPAREN_init(context):
-    cpeaapl = ecmascript.ecmascript.P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_COMMA_RPAREN(
-        context, "StrictArg", FakeTokens("(", "Expression", ")", ","), "Y", "A"
+    cpeaapl = (
+        ecmascript.ecmascript.P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_COMMA_RPAREN(
+            context, "StrictArg", FakeTokens("(", "Expression", ")", ","), "Y", "A"
+        )
     )
     assert cpeaapl.name == "CoverParenthesizedExpressionAndArrowParameterList"
     assert cpeaapl.Expression.value == "Expression"
@@ -1335,7 +1337,10 @@ class Test_parse_Initializer(parse_test):
     target = staticmethod(ecmascript.ecmascript.parse_Initializer)
     target_argnames = ("In", "Yield", "Await")
     productions = (
-        (("=", "AssignmentExpression"), ecmascript.ecmascript.P2_Initializer_EQUALS_AssignmentExpression,),
+        (
+            ("=", "AssignmentExpression"),
+            ecmascript.ecmascript.P2_Initializer_EQUALS_AssignmentExpression,
+        ),
     )
     called_argnames = {
         "AssignmentExpression": ("?In", "?Yield", "?Await"),
@@ -1642,8 +1647,10 @@ class Test_Semantics_CoveredParenthesizedExpression:
     @pytest.mark.parametrize("Yield", (False, True))
     @strict_params
     def test_normal(self, context, mocker, strict, Yield, Await):
-        cpeaapl = ecmascript.ecmascript.P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_RPAREN(
-            context, strict, [mocker.Mock(), mocker.Mock(), mocker.Mock()], Yield, Await
+        cpeaapl = (
+            ecmascript.ecmascript.P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_Expression_RPAREN(
+                context, strict, [mocker.Mock(), mocker.Mock(), mocker.Mock()], Yield, Await
+            )
         )
         cpeaapl.covering = mocker.Mock(return_value=mocker.sentinel.return_value)
         rv = cpeaapl.CoveredParenthesizedExpression
@@ -1805,11 +1812,11 @@ class Test_Semantics_IsIdentifierRef:
             pytest.param(FunctionExpression, False, id="FunctionExpression"),
             pytest.param(ClassExpression, False, id="ClassExpression"),
             pytest.param(GeneratorExpression, False, id="GeneratorExpression"),
-            pytest.param(AsyncFunctionExpression, False, id="AsyncFunctionExpression",),
-            pytest.param(AsyncGeneratorExpression, False, id="AsyncGeneratorExpression",),
-            pytest.param(RegularExpressionLiteral, False, id="RegularExpressionLiteral",),
+            pytest.param(AsyncFunctionExpression, False, id="AsyncFunctionExpression"),
+            pytest.param(AsyncGeneratorExpression, False, id="AsyncGeneratorExpression"),
+            pytest.param(RegularExpressionLiteral, False, id="RegularExpressionLiteral"),
             pytest.param(TemplateLiteral, False, id="TemplateLiteral"),
-            pytest.param(CPEAAPL, False, id="CoverParenthesizedExpressionAndArrowParameterList",),
+            pytest.param(CPEAAPL, False, id="CoverParenthesizedExpressionAndArrowParameterList"),
             pytest.param(IdentifierReference, True, id="IdentifierReference"),
         ),
     )
@@ -1873,9 +1880,9 @@ class Test_Semantics_AssignmentTargetType:
             pytest.param(FunctionExpression, id="FunctionExpression"),
             pytest.param(ClassExpression, id="ClassExpression"),
             pytest.param(GeneratorExpression, id="GeneratorExpression"),
-            pytest.param(AsyncFunctionExpression, id="AsyncFunctionExpression",),
-            pytest.param(AsyncGeneratorExpression, id="AsyncGeneratorExpression",),
-            pytest.param(RegularExpressionLiteral, id="RegularExpressionLiteral",),
+            pytest.param(AsyncFunctionExpression, id="AsyncFunctionExpression"),
+            pytest.param(AsyncGeneratorExpression, id="AsyncGeneratorExpression"),
+            pytest.param(RegularExpressionLiteral, id="RegularExpressionLiteral"),
             pytest.param(TemplateLiteral, id="TemplateLiteral"),
         ),
     )
@@ -2444,7 +2451,7 @@ class Test_ObjectInitializer_Contains:
     @pytest.mark.parametrize(
         "symbol, expected",
         [pytest.param(rw, False, id=rw) for rw in lexer2.Lexer.reserved_words]
-        + [("IdentifierName", True), ("bob", False),],
+        + [("IdentifierName", True), ("bob", False)],
     )
     @strict_params
     def test_LiteralPropertyName_IdentifierName_Contains(self, context, mocker, strict, symbol, expected):
@@ -2562,7 +2569,7 @@ class Test_ObjectInitializer_PropName:
     # ComputedPropertyName : [ AssignmentExpression ]
     #   1. Return empty.
     @strict_params
-    def test_ComputedPropertyName_AssignmentExpression(context, mocker, strict):
+    def test_ComputedPropertyName_AssignmentExpression(self, context, mocker, strict):
         cpn = ecmascript.ecmascript.P2_ComputedPropertyName_LBRACKET_AssignmentExpression_RBRACKET(
             context, strict, [mocker.Mock(), mocker.Mock(), mocker.Mock()]
         )

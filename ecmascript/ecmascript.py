@@ -3142,7 +3142,7 @@ class DeclarativeEnvironmentRecord:
     # 8.1.1.1.1 HasBinding ( N )
     def HasBinding(self, N):
         """Determine if an Environment Record has a binding for the String value N. Return true if it does and false if
-           it does not."""
+        it does not."""
         # The concrete Environment Record method HasBinding for declarative Environment Records simply determines if
         # the argument identifier is one of the identifiers bound by the record:
         # 1. Let envRec be the declarative Environment Record for which the method was invoked.
@@ -3153,7 +3153,7 @@ class DeclarativeEnvironmentRecord:
     # 8.1.1.1.2 CreateMutableBinding ( N, D )
     def CreateMutableBinding(self, N, D):
         """Create a new but uninitialized mutable binding in an Environment Record. The String value N is the text of
-           the bound name. If the Boolean argument D is true the binding may be subsequently deleted."""
+        the bound name. If the Boolean argument D is true the binding may be subsequently deleted."""
         # The concrete Environment Record method CreateMutableBinding for declarative Environment Records creates a new
         # mutable binding for the name N that is uninitialized. A binding must not already exist in this Environment
         # Record for N. If Boolean argument D has the value true the new binding is marked as being subject to deletion.
@@ -3169,8 +3169,8 @@ class DeclarativeEnvironmentRecord:
     # 8.1.1.1.3 CreateImmutableBinding ( N, S )
     def CreateImmutableBinding(self, N, S):
         """Create a new but uninitialized immutable binding in an Environment Record. The String value N is the text of
-           the bound name. If S is true then attempts to set it after it has been initialized will always throw an
-           exception, regardless of the strict mode setting of operations that reference that binding."""
+        the bound name. If S is true then attempts to set it after it has been initialized will always throw an
+        exception, regardless of the strict mode setting of operations that reference that binding."""
         # The concrete Environment Record method CreateImmutableBinding for declarative Environment Records creates a
         # new immutable binding for the name N that is uninitialized. A binding must not already exist in this
         # Environment Record for N. If the Boolean argument S has the value true the new binding is marked as a strict
@@ -3187,8 +3187,8 @@ class DeclarativeEnvironmentRecord:
     # 8.1.1.1.4 InitializeBinding ( N, V )
     def InitializeBinding(self, N, V):
         """Set the value of an already existing but uninitialized binding in an Environment
-           Record. The String value N is the text of the bound name. V is the value for the
-           binding and is a value of any ECMAScript language type."""
+        Record. The String value N is the text of the bound name. V is the value for the
+        binding and is a value of any ECMAScript language type."""
         # The concrete Environment Record method InitializeBinding for declarative Environment Records is used to set
         # the bound value of the current binding of the identifier whose name is the value of the argument N to the
         # value of argument V. An uninitialized binding for N must already exist.
@@ -4861,7 +4861,7 @@ def connect_JSObject_methods(cls):
     # 9.1.1 [[GetPrototypeOf]] ( )
     def GetPrototypeOf(self):
         """Determine the object that provides inherited properties for this object. A null value indicates that there are no
-           inherited properties."""
+        inherited properties."""
         # 1. Return O.[[Prototype]].
         return self.Prototype
 
@@ -4870,8 +4870,8 @@ def connect_JSObject_methods(cls):
     # 9.1.2 [[SetPrototypeOf]] ( V )
     def SetPrototypeOf(self, value):
         """Associate this object with another object that provides inherited properties. Passing null indicates that there are
-           no inherited properties. Returns true indicating that the operation was completed successfully or false indicating
-           that the operation was not successful."""
+        no inherited properties. Returns true indicating that the operation was completed successfully or false indicating
+        that the operation was not successful."""
         # When the abstract operation OrdinarySetPrototypeOf is called with Object O and value V, the following steps
         # are taken:
         # 1. Assert: Either Type(V) is Object or Type(V) is Null.
@@ -4928,7 +4928,7 @@ def connect_JSObject_methods(cls):
     # 9.1.4 [[PreventExtensions]] ( )
     def PreventExtensions(self):
         """Control whether new properties may be added to this object. Returns true if the operation was successful or false if
-           the operation was unsuccessful."""
+        the operation was unsuccessful."""
         # 1. Set O.[[Extensible]] to false.
         self.Extensible = False
         # 2. Return true.
@@ -4939,7 +4939,7 @@ def connect_JSObject_methods(cls):
     # 9.1.5 [[GetOwnProperty]] ( P )
     def GetOwnProperty(self, propkey):
         """Return a Property Descriptor for the own property of this object whose key is propertyKey, or undefined if no such
-           property exists."""
+        property exists."""
         return OrdinaryGetOwnProperty(self, propkey)
 
     cls.GetOwnProperty = GetOwnProperty
@@ -4947,8 +4947,8 @@ def connect_JSObject_methods(cls):
     # 9.1.6 [[DefineOwnProperty]] ( P, Desc )
     def DefineOwnProperty(self, propkey, desc):
         """Create or alter the own property, whose key is propertyKey, to have the state described by PropertyDescriptor.
-           Return true if that property was successfully created/updated or false if the property could not be created or
-           updated."""
+        Return true if that property was successfully created/updated or false if the property could not be created or
+        updated."""
         return OrdinaryDefineOwnProperty(self, propkey, desc)
 
     cls.DefineOwnProperty = DefineOwnProperty
@@ -4956,7 +4956,7 @@ def connect_JSObject_methods(cls):
     # 9.1.7 [[HasProperty]] ( P )
     def HasProperty(self, propkey):
         """Return a Boolean value indicating whether this object already has either an own or inherited property whose key is
-           propertyKey."""
+        propertyKey."""
         return OrdinaryHasProperty(self, propkey)
 
     cls.HasProperty = HasProperty
@@ -4964,7 +4964,7 @@ def connect_JSObject_methods(cls):
     # 9.1.8 [[Get]] ( P, Receiver )
     def Get(self, propkey, receiver):
         """Return the value of the property whose key is propertyKey from this object. If any ECMAScript code must be executed
-           to retrieve the property value, Receiver is used as the this value when evaluating the code."""
+        to retrieve the property value, Receiver is used as the this value when evaluating the code."""
         return OrdinaryGet(self, propkey, receiver)
 
     cls.Get = Get
@@ -4972,8 +4972,8 @@ def connect_JSObject_methods(cls):
     # 9.1.9 [[Set]] ( P, V, Receiver )
     def Set(self, propkey, value, receiver):
         """Set the value of the property whose key is propertyKey to value. If any ECMAScript code must be executed to set the
-           property value, Receiver is used as the this value when evaluating the code. Returns true if the property value was
-           set or false if it could not be set."""
+        property value, Receiver is used as the this value when evaluating the code. Returns true if the property value was
+        set or false if it could not be set."""
         # When the [[Set]] internal method of O is called with property key P, value V, and ECMAScript language value
         # Receiver, the following steps are taken:
         #
@@ -4985,7 +4985,7 @@ def connect_JSObject_methods(cls):
     # 9.1.10 [[Delete]] ( P )
     def Delete(self, propkey):
         """Remove the own property whose key is propertyKey from this object. Return false if the property was not deleted and
-           is still present. Return true if the property was deleted or is not present."""
+        is still present. Return true if the property was deleted or is not present."""
         # When the [[Delete]] internal method of O is called with property key P, the following steps are taken:
         #
         # 1. Return ? OrdinaryDelete(O, P).
@@ -8276,7 +8276,7 @@ class ProxyObject(JSObject):
         trap = GetMethod(handler, "deleteProperty")
         if trap is None:
             return target.Delete(P)
-        booleanTrapResult = ToBoolean(Call(trap, handler, [target, P,]))
+        booleanTrapResult = ToBoolean(Call(trap, handler, [target, P]))
         if not booleanTrapResult:
             return False
         targetDesc = target.GetOwnProperty(P)
@@ -10068,8 +10068,10 @@ def parse_CoverParenthesizedExpressionAndArrowParameterList(ctx, lexer, pos, str
             if bp:
                 rp7 = lexer.token_if(bp.after, ")")
                 if rp7:
-                    return P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_DOTDOTDOT_BindingPattern_RPAREN(
-                        ctx, strict, [lp, dots, bp, rp7], Yield, Await
+                    return (
+                        P2_CoverParenthesizedExpressionAndArrowParameterList_LPAREN_DOTDOTDOT_BindingPattern_RPAREN(
+                            ctx, strict, [lp, dots, bp, rp7], Yield, Await
+                        )
                     )
     return None
 
@@ -22504,10 +22506,12 @@ def parse_IterationStatement(context, lexer, pos, strict, Yield, Await, Return):
                     if rp_ld:
                         stmt_ld = parse_Statement(context, lexer, rp_ld.span.after, strict, Yield, Await, Return)
                         if stmt_ld:
-                            return P2_IterationStatement_FOR_LexicalDeclaration_ExpressionTest_ExpressionInc_Statement(
-                                context,
-                                strict,
-                                [for_token, lp3, ld, exp_test_ld, semi_ld, exp_inc_ld, rp_ld, stmt_ld],
+                            return (
+                                P2_IterationStatement_FOR_LexicalDeclaration_ExpressionTest_ExpressionInc_Statement(
+                                    context,
+                                    strict,
+                                    [for_token, lp3, ld, exp_test_ld, semi_ld, exp_inc_ld, rp_ld, stmt_ld],
+                                )
                             )
 
             # LHS IN Expr style:
@@ -22610,10 +22614,21 @@ def parse_IterationStatement(context, lexer, pos, strict, Yield, Await, Return):
                                     context, lexer, rp_fb_of.span.after, strict, Yield, Await, Return
                                 )
                                 if stmt_fb_of:
-                                    return P2_IterationStatement_FOR_VAR_ForBinding_OF_AssignmentExpression_Statement(
-                                        context,
-                                        strict,
-                                        [for_token, lp3, var_fb_of, fb_of, of_fb, ae_fb_of, rp_fb_of, stmt_fb_of],
+                                    return (
+                                        P2_IterationStatement_FOR_VAR_ForBinding_OF_AssignmentExpression_Statement(
+                                            context,
+                                            strict,
+                                            [
+                                                for_token,
+                                                lp3,
+                                                var_fb_of,
+                                                fb_of,
+                                                of_fb,
+                                                ae_fb_of,
+                                                rp_fb_of,
+                                                stmt_fb_of,
+                                            ],
+                                        )
                                     )
 
             # ForDeclaration OF Expression style
@@ -27540,10 +27555,12 @@ def parse_MethodDefinition(context, lexer, pos, strict, Yield, Await):
                             if fb_set:
                                 rc_set = lexer.token_if(fb_set.after, "}")
                                 if rc_set:
-                                    return P2_MethodDefinition_SET_PropertyName_PropertySetParameterList_FunctionBody(
-                                        context,
-                                        fb_set.strict,
-                                        [set_tok, pn_set, lp_set, pspl, rp_set, lc_set, fb_set, rc_set],
+                                    return (
+                                        P2_MethodDefinition_SET_PropertyName_PropertySetParameterList_FunctionBody(
+                                            context,
+                                            fb_set.strict,
+                                            [set_tok, pn_set, lp_set, pspl, rp_set, lc_set, fb_set, rc_set],
+                                        )
                                     )
     return None
 
@@ -37177,7 +37194,9 @@ def CreateArrayConstructor(realm):
         desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)
         DefinePropertyOrThrow(obj, key, desc)
     BindBuiltinFunctions(
-        realm, obj, [("from", Array_from, None), ("isArray", Array_isArray, None), ("of", Array_of, None),],
+        realm,
+        obj,
+        [("from", Array_from, None), ("isArray", Array_isArray, None), ("of", Array_of, None)],
     )
 
     # 22.1.2.5 get Array [ @@species ]
@@ -37191,7 +37210,7 @@ def CreateArrayConstructor(realm):
     get_species = lambda this_value, new_target, *_: this_value
     get_species.length = 0
     get_species.name = "get [Symbol.species]"
-    BindBuiltinAccessors(realm, obj, [(wks_species, get_species, None),])
+    BindBuiltinAccessors(realm, obj, [(wks_species, get_species, None)])
 
     return obj
 
@@ -39645,7 +39664,14 @@ TA_ElementTypeName = {
 
 def CreateTypedArrayIntrinsicObject(realm: Realm):
     obj = CreateAnnotatedFunctionObject(realm, TypedArrayFunction, ["Construct"])
-    BindBuiltinFunctions(realm, obj, (("from", TypedArray_from, None), ("of", TypedArray_of, None),))
+    BindBuiltinFunctions(
+        realm,
+        obj,
+        (
+            ("from", TypedArray_from, None),
+            ("of", TypedArray_of, None),
+        ),
+    )
     BindBuiltinAccessors(realm, obj, ((wks_species, TypedArray_getSpecies, None),))
     return obj
 
@@ -41535,7 +41561,7 @@ def CreateMapConstructor(realm):
     get = lambda this_value, new_target, *_: this_value
     get.length = 0
     get.name = "get [Symbol.species]"
-    BindBuiltinAccessors(realm, obj, [(wks_species, get, None),])
+    BindBuiltinAccessors(realm, obj, [(wks_species, get, None)])
 
     return obj
 
@@ -42084,7 +42110,7 @@ def CreateSetConstructor(realm):
     get = lambda this_value, new_target, *_: this_value
     get.length = 0
     get.name = "get [Symbol.species]"
-    BindBuiltinAccessors(realm, obj, [(wks_species, get, None),])
+    BindBuiltinAccessors(realm, obj, [(wks_species, get, None)])
 
     return obj
 
@@ -44436,7 +44462,9 @@ def CreateProxyConstructor(realm):
         desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)
         DefinePropertyOrThrow(obj, key, desc)
     BindBuiltinFunctions(
-        realm, obj, [("revocable", Proxy_revocable, None),],
+        realm,
+        obj,
+        [("revocable", Proxy_revocable, None)],
     )
     return obj
 
