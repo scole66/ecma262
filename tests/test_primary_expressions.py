@@ -3038,14 +3038,14 @@ class Test_TemplateLiterals_EarlyErrors:
     # TemplateLiteral : SubstitutionTemplate
     #   * It is a Syntax Error if the number of elements in the result of TemplateStrings of TemplateLiteral with
     #     argument false is greater than 2^32-1.
-    @pytest.mark.parametrize("numelem", (1, 2 ** 32 - 1, 2 ** 32))
+    @pytest.mark.parametrize("numelem", (1, 2**32 - 1, 2**32))
     @pytest.mark.parametrize("Tagged", (False, True))
     @strict_params
     def test_TemplateLiteral_SubstitutionTemplate(self, context, mocker, strict, numelem, Tagged):
         tl = ecmascript.ecmascript.P2_TemplateLiteral_SubstitutionTemplate(context, strict, [mocker.Mock()], Tagged)
         tl.TemplateStrings = mocker.Mock(return_value=mocker.Mock(__len__=mocker.Mock(return_value=numelem)))
         errs = tl.EarlyErrors()
-        expected_count = 1 if numelem > 2 ** 32 - 1 else 0
+        expected_count = 1 if numelem > 2**32 - 1 else 0
         assert len(errs) == expected_count
         tl.TemplateStrings.assert_called_with(False)
 

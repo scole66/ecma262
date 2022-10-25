@@ -80,7 +80,7 @@ def cleanup():
         ("1 * 1;", 1),
         ("121 / 11;", 11),
         ("67 % 16;", 3),
-        ("4**16;", 4 ** 16),
+        ("4**16;", 4**16),
         ("xyz=8881; delete xyz;", True),
         ("foo=NaN; typeof foo;", "number"),
         ("typeof missing;", "undefined"),

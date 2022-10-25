@@ -957,8 +957,8 @@ def test_OrdinaryOwnPropertyKeys_01(obj):
     # There's a bunch of sorting activity that goes on here, so I'm making lots of properties.
     symbol_1 = JSSymbol("Symbol.unittest")
     symbol_2 = JSSymbol("Symbol.elephant")
-    big = ToString(2 ** 32 - 2)
-    toobig = ToString(2 ** 32 - 1)
+    big = ToString(2**32 - 2)
+    toobig = ToString(2**32 - 1)
     for propkey in [
         "first",
         "100",

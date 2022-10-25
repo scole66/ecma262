@@ -40,7 +40,6 @@ if TYPE_CHECKING:
     def cached_property(f: Callable[..., Any]) -> Callable[..., Any]:
         pass
 
-
 else:
     from functools import lru_cache, cached_property
 
@@ -3142,7 +3141,7 @@ class Pattern(Production):
                 filter(
                     None,
                     [
-                        self.NcapturingParens >= 2 ** 32 - 1 and "Too many captures",
+                        self.NcapturingParens >= 2**32 - 1 and "Too many captures",
                         self.group_name_clashes
                         and f"Duplicate group names not allowed ({', '.join(f'{n!r}' for n in self.group_name_clashes)})",
                         self.unresolved_group_names

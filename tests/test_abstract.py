@@ -520,8 +520,8 @@ def test_ToString_04(obj):
         (5.25, "5.25"),
         (0.00390625, "0.00390625"),
         (5e21, "5e+21"),
-        (2 ** -19, "0.0000019073486328125"),
-        (2 ** -20, "9.5367431640625e-7"),
+        (2**-19, "0.0000019073486328125"),
+        (2**-20, "9.5367431640625e-7"),
         (0.1, "0.1"),
         (100111122133144155, "100111122133144160"),
         (0.0012345, "0.0012345"),
@@ -658,7 +658,7 @@ def test_IsPropertyKey(arg, expected):
         (17.5, False),
         (-2391.2, False),
         (-78, True),
-        (2 ** 50, True),
+        (2**50, True),
     ],
 )
 def test_IsInteger(arg, expected):
@@ -757,7 +757,7 @@ def test_ToPropertyKey_03(realm, mocker):
 # 1. Let len be ? ToInteger(argument).
 # 2. If len ≤ +0, return +0.
 # 3. Return min(len, 2^53-1).
-@pytest.mark.parametrize("inp, expected", [(10, 10), (-10, 0), (2 ** 53 - 1, 2 ** 53 - 1), (2 ** 53, 2 ** 53 - 1)])
+@pytest.mark.parametrize("inp, expected", [(10, 10), (-10, 0), (2**53 - 1, 2**53 - 1), (2**53, 2**53 - 1)])
 def test_ToLength_01(realm, inp, expected):
     result = ToLength(inp)
     assert result == expected
