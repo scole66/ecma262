@@ -1385,9 +1385,9 @@ def ToInt32(arg):
     this_int = math.floor(abs(number))
     if number < 0:
         this_int = -this_int
-    int32bit = this_int % 2 ** 32
-    if int32bit >= 2 ** 31:
-        return int32bit - 2 ** 32
+    int32bit = this_int % 2**32
+    if int32bit >= 2**31:
+        return int32bit - 2**32
     return int32bit
 
 
@@ -1399,7 +1399,7 @@ def ToUint32(arg):
     this_int = math.floor(abs(number))
     if number < 0:
         this_int = -this_int
-    int32bit = this_int % 2 ** 32
+    int32bit = this_int % 2**32
     return int32bit
 
 
@@ -1411,9 +1411,9 @@ def ToInt16(arg):
     this_int = math.floor(abs(number))
     if number < 0:
         this_int = -this_int
-    int16bit = this_int % 2 ** 16
-    if int16bit >= 2 ** 15:
-        return int16bit - 2 ** 16
+    int16bit = this_int % 2**16
+    if int16bit >= 2**15:
+        return int16bit - 2**16
     return int16bit
 
 
@@ -1425,7 +1425,7 @@ def ToUint16(arg):
     this_int = math.floor(abs(number))
     if number < 0:
         this_int = -this_int
-    int16bit = this_int % 2 ** 16
+    int16bit = this_int % 2**16
     return int16bit
 
 
@@ -1437,9 +1437,9 @@ def ToInt8(arg):
     this_int = math.floor(abs(number))
     if number < 0:
         this_int = -this_int
-    int8bit = this_int % 2 ** 8
-    if int8bit >= 2 ** 7:
-        return int8bit - 2 ** 8
+    int8bit = this_int % 2**8
+    if int8bit >= 2**7:
+        return int8bit - 2**8
     return int8bit
 
 
@@ -1451,7 +1451,7 @@ def ToUint8(arg):
     this_int = math.floor(abs(number))
     if number < 0:
         this_int = -this_int
-    int8bit = this_int % 2 ** 8
+    int8bit = this_int % 2**8
     return int8bit
 
 
@@ -1652,7 +1652,7 @@ def ToLength(argument):
     length = ToInteger(argument)
     if length <= 0:
         return 0
-    return min(length, 2 ** 53 - 1)
+    return min(length, 2**53 - 1)
 
 
 # 7.1.16 CanonicalNumericIndexString ( argument )
@@ -5332,12 +5332,12 @@ def isIntegerIndex(key):
     if not isString(key):
         return False
     n = CanonicalNumericIndexString(key)
-    return n is not None and IsInteger(n) and math.copysign(1.0, n) == 1.0 and n <= 2 ** 53 - 1
+    return n is not None and IsInteger(n) and math.copysign(1.0, n) == 1.0 and n <= 2**53 - 1
 
 
 def isArrayIndex(key):
     # An array index is an integer index whose numeric value i is in the range +0 ≤ i < 2^32 - 1.
-    return isIntegerIndex(key) and ToNumber(key) < 2 ** 32 - 1
+    return isIntegerIndex(key) and ToNumber(key) < 2**32 - 1
 
 
 # 9.1.11.1 OrdinaryOwnPropertyKeys ( O )
@@ -11503,7 +11503,7 @@ class P2_TemplateLiteral_SubstitutionTemplate(P2_TemplateLiteral):
         return [
             err
             for err in (
-                len(self.TemplateStrings(False)) > 2 ** 32 - 1
+                len(self.TemplateStrings(False)) > 2**32 - 1
                 and self.CreateSyntaxError("Too many substitutions in template. (Boy are we impressed.)"),
             )
             if err
@@ -11945,7 +11945,7 @@ def GetTemplateObject(templateLiteral):
     rawStrings = templateLiteral.TemplateStrings(True)
     cookedStrings = templateLiteral.TemplateStrings(False)
     count = len(cookedStrings)
-    assert count <= 2 ** 32 - 1
+    assert count <= 2**32 - 1
     template = ArrayCreate(count)
     rawObj = ArrayCreate(count)
     for index in range(count):
@@ -14189,7 +14189,7 @@ def ExponentiationOperation(lval, rval):
                         and (isinstance(rnum, int) or rnum.is_integer())
                         and int(rnum) % 2 == 1
                     )
-                    else lnum ** rnum
+                    else lnum**rnum
                 )
             )
         )
@@ -32261,7 +32261,7 @@ def CreateNumberConstructor(realm):
         # NOTE: The value of Number.MAX_SAFE_INTEGER is the largest integer n such that n and n + 1 are both exactly
         # representable as a Number value.
         # The value of Number.MAX_SAFE_INTEGER is 9007199254740991 (2^53-1).
-        ("MAX_SAFE_INTEGER", 2 ** 53 - 1),
+        ("MAX_SAFE_INTEGER", 2**53 - 1),
         # 20.1.2.7 Number.MAX_VALUE
         # The value of Number.MAX_VALUE is the largest positive finite value of the Number type, which is approximately
         # 1.7976931348623157 × 10^308.
@@ -32270,7 +32270,7 @@ def CreateNumberConstructor(realm):
         # NOTE The value of Number.MIN_SAFE_INTEGER is the smallest integer n such that n and n - 1 are both exactly
         # representable as a Number value.
         # The value of Number.MIN_SAFE_INTEGER is -9007199254740991 (-(2^53-1)).
-        ("MIN_SAFE_INTEGER", -(2 ** 53 - 1)),
+        ("MIN_SAFE_INTEGER", -(2**53 - 1)),
         # 20.1.2.9 Number.MIN_VALUE
         # The value of Number.MIN_VALUE is the smallest positive value of the Number type, which is approximately
         # 5 × 10^-324.
@@ -32375,7 +32375,7 @@ def Number_isSafeInteger(this_value, new_target, number=None, *_):
     if not isNumber(number) or not math.isfinite(number):
         return False
     integer = ToInteger(number)
-    return integer == number and abs(integer) <= 2 ** 53 - 1
+    return integer == number and abs(integer) <= 2**53 - 1
 
 
 # 20.1.3 Properties of the Number Prototype Object
@@ -32692,9 +32692,9 @@ Math_hypot.name = "hypot"
 def Math_imul(this_value, new_target, x=None, y=None, *_):
     a = ToUint32(x)
     b = ToUint32(y)
-    product = (a * b) % (2 ** 32)
-    if product >= (2 ** 31):
-        return product - (2 ** 32)
+    product = (a * b) % (2**32)
+    if product >= (2**31):
+        return product - (2**32)
     return product
 
 
@@ -35502,7 +35502,7 @@ def StringPrototype_split(this_value, new_target, separator=None, limit=None, *_
     A = ArrayCreate(0)
     lengthA = 0
     if isUndefined(limit):
-        lim = 2 ** 32 - 1
+        lim = 2**32 - 1
     else:
         lim = ToUint32(limit)
     s = len(S)
@@ -36487,7 +36487,7 @@ def RegExpBuiltinExec(R, S):
     if global_ or sticky:
         Set(R, "lastIndex", e, True)
     n = len(r.captures)
-    assert n < 2 ** 32 - 1
+    assert n < 2**32 - 1
     A = ArrayCreate(n + 1)
     assert Get(A, "length") == n + 1
     CreateDataProperty(A, "index", lastIndex)
@@ -36529,7 +36529,7 @@ def AdvanceStringIndex(S, index, unicode):
     #   10. If second < 0xDC00 or second > 0xDFFF, return index + 1.
     #   11. Return index + 2.
     assert isString(S)
-    assert IsInteger(index) and 0 <= index <= 2 ** 53 - 1
+    assert IsInteger(index) and 0 <= index <= 2**53 - 1
     assert isBoolean(unicode)
 
     if not unicode:
@@ -37028,7 +37028,7 @@ def RegExpPrototype_split(this_value, new_target, string=None, limit=None, *_):
     A = ArrayCreate(0)
     lengthA = 0
     if limit is None:
-        lim = 2 ** 32 - 1
+        lim = 2**32 - 1
     else:
         lim = ToUint32(limit)
     if lim == 0:
@@ -37385,7 +37385,7 @@ def Array_from(this_value, new_target, items=None, mapfn=None, thisArg=None, *_)
         iteratorRecord = GetIterator(items, SYNC, usingIterator)
         k = 0
         while 1:
-            if k >= 2 ** 53 - 1:
+            if k >= 2**53 - 1:
                 IteratorClose(iteratorRecord, True)
                 raise ESTypeError("Array.from: too many items")
             Pk = ToString(k)
@@ -37593,7 +37593,7 @@ def ArrayPrototype_concat(this_value, new_target, *arguments):
         if spreadable:
             k = 0
             length = ToLength(Get(E, "length"))
-            if n + length > 2 ** 53 - 1:
+            if n + length > 2**53 - 1:
                 raise ESTypeError("Array.prototype.concat: length too large")
             while k < length:
                 P = ToString(k)
@@ -37604,7 +37604,7 @@ def ArrayPrototype_concat(this_value, new_target, *arguments):
                 n += 1
                 k += 1
         else:
-            if n >= 2 ** 53 - 1:
+            if n >= 2**53 - 1:
                 raise ESTypeError("Array.prototype.concat: length too large")
             CreateDataPropertyOrThrow(A, ToString(n), E)
             n += 1
@@ -38050,7 +38050,7 @@ def FlattenIntoArray(target, source, sourceLen, start, depth, mapperFunction=...
                 elementLen = ToLength(Get(element, "length"))
                 targetIndex = FlattenIntoArray(target, element, elementLen, targetIndex, depth - 1)
             else:
-                if targetIndex >= 2 ** 53 - 1:
+                if targetIndex >= 2**53 - 1:
                     raise ESTypeError("Array too large in flattener")
                 CreateDataPropertyOrThrow(target, str(targetIndex), element)
                 targetIndex += 1
@@ -38456,7 +38456,7 @@ def ArrayPrototype_push(this_value, new_target, *items):
     obj = ToObject(this_value)
     length = ToLength(Get(obj, "length"))
     argCount = len(items)
-    if length + argCount > 2 ** 53 - 1:
+    if length + argCount > 2**53 - 1:
         raise ESTypeError("Array too large")
     for idx, item in enumerate(items):
         Set(obj, ToString(idx + length), item, True)
@@ -39142,7 +39142,7 @@ def ArrayPrototype_splice(this_value, new_target, start=..., deleteCount=..., *i
         insertCount = len(items)
         dc = ToInteger(deleteCount)
         actualDeleteCount = int(min(max(dc, 0), length - actualStart))
-    if length + insertCount - actualDeleteCount > 2 ** 53 - 1:
+    if length + insertCount - actualDeleteCount > 2**53 - 1:
         raise ESTypeError("Array.prototype.splice: Too many array items")
     A = ArraySpeciesCreate(O, actualDeleteCount)
     for k in range(actualDeleteCount):
@@ -39294,7 +39294,7 @@ def ArrayPrototype_unshift(this_value, new_target, *items):
     length = int(ToLength(Get(O, "length")))
     argCount = len(items)
     if argCount > 0:
-        if length + argCount > 2 ** 53 - 1:
+        if length + argCount > 2**53 - 1:
             raise ESTypeError("Array.prototype.unshift: resulting list too large")
         for k in range(length, 0, -1):
             fromKey = str(k - 1)

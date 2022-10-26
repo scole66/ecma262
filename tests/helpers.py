@@ -507,7 +507,7 @@ def synerror2_streams(productions):
 
 _gp_src = r"(\[(?P<flag>[+~])(?P<name>[A-Z][a-z]+)\])"
 _guard_pattern = regex.compile(_gp_src)
-_guardtok_pattern = regex.compile(fr"(?P<guard>{_gp_src})?(?P<core>.*)")
+_guardtok_pattern = regex.compile(rf"(?P<guard>{_gp_src})?(?P<core>.*)")
 
 
 def _guardsplit(tokenstream):
