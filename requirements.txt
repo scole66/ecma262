@@ -20,8 +20,6 @@ coverage[toml]==6.5.0
     # via pytest-cov
 dill==0.3.6
     # via pylint
-exceptiongroup==1.0.0rc9
-    # via pytest
 execnet==1.9.0
     # via pytest-xdist
 executing==1.1.1
@@ -50,7 +48,7 @@ platformdirs==2.5.2
     #   pylint
 pluggy==1.0.0
     # via pytest
-pygments==2.13.0
+pygments==2.15.0
     # via snoop
 pylint==2.15.5
     # via -r requirements.in
@@ -81,20 +79,9 @@ six==1.16.0
     #   snoop
 snoop==0.4.2
     # via -r requirements.in
-tomli==2.0.1
-    # via
-    #   black
-    #   coverage
-    #   mypy
-    #   pylint
-    #   pytest
 tomlkit==0.11.5
     # via pylint
 typing-extensions==4.4.0
-    # via
-    #   astroid
-    #   black
-    #   mypy
-    #   pylint
+    # via mypy
 wrapt==1.14.1
     # via astroid
