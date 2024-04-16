@@ -3,6 +3,7 @@ from itertools import chain
 
 import ecmascript.ecmascript
 
+
 # 6.2.7.1 CreateByteDataBlock ( size )
 # When the abstract operation CreateByteDataBlock is called with integer argument size, the following steps are
 # taken:
