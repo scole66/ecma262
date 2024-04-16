@@ -47,6 +47,7 @@ else:
 A = TypeVar("A")
 B = TypeVar("B")
 
+
 #
 # The fundamental data object here is a span of characters in an input string.
 #
@@ -714,6 +715,7 @@ def parse_NonemptyClassRangesNoDash(src: str, position: int, U: bool) -> Optiona
 #
 #######################################################################################################################
 
+
 # 21.2.2.15.1 Runtime Semantics: CharacterRange ( A, B )
 def CharacterRange(A: CharSet, B: CharSet) -> CharSet:
     # The abstract operation CharacterRange takes two CharSet parameters A and B and performs the following steps:
@@ -921,6 +923,7 @@ def parse_ClassRanges(src: str, position: int, U: bool) -> Optional[ClassRanges]
 #######################################################################################################################
 #######################################################################################################################
 #######################################################################################################################
+
 
 # 21.2.2.6.2 Runtime Semantics: IsWordChar ( e )
 def IsWordChar(context: Context, e: int) -> bool:

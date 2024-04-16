@@ -138,6 +138,7 @@ T_OBJECT = JSType.OBJECT
 # value "undefined".
 # Implementation: we shall use the python value "None" to represent "undefined".
 
+
 # 6.1.2 The Null Type
 @unique
 class JSNull(Enum):
@@ -155,6 +156,7 @@ class JSNull(Enum):
 # ECMAScript program, in which case each element in the String is treated as a UTF-16 code unit value. Each element is
 # regarded as occupying a position within the sequence.
 # Implementation: we shall use the python str type to be an ECMAScript String.
+
 
 # 6.1.5 The Symbol Type
 # The Symbol type is the set of all non-String values that may be used as the key of an Object property (6.1.7).
@@ -372,6 +374,7 @@ class JSObject:
 
 JSValue = Union[None, bool, str, float, int, JSSymbol, JSObject]
 
+
 # Type checkers
 def isUndefined(arg: JSValue) -> bool:
     return arg is None
@@ -452,6 +455,7 @@ def TypeOf(arg: JSValue) -> JSType:
 #
 ##############################################################################################################################################################
 # 6.2 ECMAScript Specification Types
+
 
 # 6.2.1 The List and Record Specification Types
 #
@@ -1009,6 +1013,7 @@ def CompletePropertyDescriptor(desc):
 #
 # The following abstract operations are used in this specification to operate upon Data Block values:
 
+
 # 6.2.7.1 CreateByteDataBlock ( size )
 def CreateByteDataBlock(size):
     # When the abstract operation CreateByteDataBlock is called with integer argument size, the following steps are
@@ -1166,6 +1171,7 @@ class ESReturn(ESAbrupt):
 # constructs it is useful to define a set of conversion abstract operations. The conversion abstract operations are
 # polymorphic; they can accept a value of any ECMAScript language type. But no other specification types are used with
 # these operations.
+
 
 # 7.1.1 ToPrimitive ( input [ , PreferredType ] )
 def ToPrimitive(input, preferred_type="default"):
@@ -2725,6 +2731,7 @@ def CopyDataProperties(target, source, excludedItems):
 #
 #######################################################################################################################
 
+
 # ------------------------------------ 𝟕.𝟒.𝟏 𝑮𝒆𝒕𝑰𝒕𝒆𝒓𝒂𝒕𝒐𝒓 ( 𝒐𝒃𝒋 [ , 𝒉𝒊𝒏𝒕 [ , 𝒎𝒆𝒕𝒉𝒐𝒅 ] ] ) ------------------------------------
 # 7.4.1 GetIterator ( obj [ , hint [ , method ] ] )
 class IteratorRecord(Record):
@@ -3126,6 +3133,7 @@ def ListIterator_next(this_value, new_target):
 # | WithBaseObject()             | If this Environment Record is associated with a with statement, return the with
 # |                              | object. Otherwise, return undefined.
 # +------------------------------+-------------------------------------------------------------------------------------
+
 
 # 8.1.1.1 Declarative Environment Records
 #
@@ -4672,6 +4680,7 @@ def GetGlobalObject():
 # the current Job completes and all Job Queues are empty. Alternatively, it might choose to wait for a some
 # implementation specific agent or mechanism to enqueue new PendingJob requests.
 
+
 # 8.4.1 EnqueueJob ( queueName, job, arguments )
 def EnqueueJob(queue_name, job, arguments):
     # The EnqueueJob abstract operation requires three arguments: queueName, job, and arguments. It performs the
@@ -4802,6 +4811,7 @@ def RunJobs(scripts=[], modules=[], add_host_defined_globals: Callable[[Realm], 
 # independently of other agents, except that an executing thread may be used as the executing thread by multiple
 # agents, provided none of the agents sharing the thread have an Agent Record whose [[CanBlock]] property is true.
 
+
 # While an agent's executing thread executes the jobs in the agent's job queues, the agent is the surrounding agent
 # for the code in those jobs. The code uses the surrounding agent to access the specification level execution objects
 # held within the agent: the running execution context, the execution context stack, the named job queues, and the
@@ -4832,6 +4842,7 @@ class Agent(object):
 # Global: the "surrounding agent". (We only have one agent, so it's always the surrounding agent.)
 surrounding_agent: Agent
 surrounding_agent = Agent()
+
 
 # 8.7.1 AgentSignifier()
 def AgentSignifier() -> uuid.UUID:
@@ -5005,6 +5016,7 @@ def connect_JSObject_methods(cls):
 
 
 connect_JSObject_methods(JSObject)
+
 
 # 9.1.5.1 OrdinaryGetOwnProperty ( O, P )
 def OrdinaryGetOwnProperty(obj, propkey):
@@ -9464,6 +9476,7 @@ def InitializeBoundName(name, value, environment, strict):
 #################################################################################
 # 12.2 Primary Expression
 
+
 # --------======= 𝓟𝓻𝓲𝓶𝓪𝓻𝔂𝓔𝔁𝓹𝓻𝓮𝓼𝓼𝓲𝓸𝓷 =======--------
 # Syntax
 #   PrimaryExpression :
@@ -10251,6 +10264,7 @@ def parse_Literal(ctx, lexer, pos, strict):
 # elements are not defined. If an element is elided at the end of an array, that element does not contribute to the
 # length of the Array.
 
+
 # --------======= 𝓐𝓻𝓻𝓪𝔂𝓛𝓲𝓽𝓮𝓻𝓪𝓵 =======--------
 # Syntax
 #   ArrayLiteral:
@@ -10791,6 +10805,7 @@ def parse_SpreadElement(ctx, lexer, pos, strict, Yield, Await):
 # NOTE 3    In certain contexts, ObjectLiteral is used as a cover grammar for a more restricted secondary grammar. The
 #           CoverInitializedName production is necessary to fully cover these secondary grammars. However, use of this
 #           production results in an early Syntax Error in normal contexts where an actual ObjectLiteral is expected.
+
 
 # --------======= 𝓞𝓫𝓳𝓮𝓬𝓽𝓛𝓲𝓽𝓮𝓻𝓪𝓵 =======--------
 # Syntax
@@ -14542,6 +14557,7 @@ def ModuloOperation(lval, rval):
 # `·._.·●.._.·●.._.·●..... 12.8 Additive Operators .....●·._..●·._..●·._.·´  #
 ####################################################################################
 
+
 # --------======= 𝓐𝓭𝓭𝓲𝓽𝓲𝓿𝓮𝓔𝔁𝓹𝓻𝓮𝓼𝓼𝓲𝓸𝓷 =======--------
 # Syntax
 #   AdditiveExpression :
@@ -17540,6 +17556,7 @@ def parse_DestructuringAssignmentTarget(context, lexer, pos, strict, Yield, Awai
 ####################################################################################
 # 12.16 Comma Operator ( , )
 
+
 # --------======= 𝓔𝔁𝓹𝓻𝓮𝓼𝓼𝓲𝓸𝓷 =======--------
 # Syntax
 #   Expression :
@@ -17711,6 +17728,7 @@ def parse_Expression(ctx, lexer, pos, strict, In, Yield, Await):
 # `·._.·●.._.·●.._.·●..... 𝟏𝟑 𝓔𝓒𝓜𝓐𝓢𝓬𝓻𝓲𝓹𝓽 𝓛𝓪𝓷𝓰𝓾𝓪𝓰𝓮: 𝓢𝓽𝓪𝓽𝓮𝓶𝓮𝓷𝓽𝓼 𝓪𝓷𝓭 𝓓𝓮𝓬𝓵𝓪𝓻𝓪𝓽𝓲𝓸𝓷𝓼 .....●·._..●·._..●·._.·´ #
 ##################################################################################################################
 # 13 ECMAScript Language: Statements and Declarations
+
 
 # --------======= 𝓢𝓽𝓪𝓽𝓮𝓶𝓮𝓷𝓽 =======--------
 # Syntax
@@ -20128,15 +20146,11 @@ def parse_ArrayBindingPattern(context, lexer, pos, strict, Yield, Await):
             Await,
         )
         rb = lexer.token_if(
-            bre.after
-            if bre
-            else elision.after
-            if elision
-            else comma.span.after
-            if comma
-            else bel.after
-            if bel
-            else lb.span.after,
+            (
+                bre.after
+                if bre
+                else elision.after if elision else comma.span.after if comma else bel.after if bel else lb.span.after
+            ),
             "]",
         )
         if rb:
@@ -21151,6 +21165,7 @@ def parse_BindingRestElement(context, lexer, pos, strict, Yield, Await):
 ##############################################################################
 # 13.4 Empty Statement
 
+
 # --------======= 𝓔𝓶𝓹𝓽𝔂𝓢𝓽𝓪𝓽𝓮𝓶𝓮𝓷𝓽 =======--------
 # Syntax
 #   EmptyStatement :
@@ -21227,6 +21242,7 @@ def parse_EmptyStatement(ctx, lexer, pos, strict):
 # `·._.·●.._.·●.._.·●..... 𝟏𝟑.𝟓 𝓔𝔁𝓹𝓻𝓮𝓼𝓼𝓲𝓸𝓷 𝓢𝓽𝓪𝓽𝓮𝓶𝓮𝓷𝓽 .....●·._..●·._..●·._.·´ #
 ##################################################################################
 # 13.5 Expression Statement
+
 
 # --------======= 𝓔𝔁𝓹𝓻𝓮𝓼𝓼𝓲𝓸𝓷𝓢𝓽𝓪𝓽𝓮𝓶𝓮𝓷𝓽 =======--------
 # Syntax
@@ -29399,6 +29415,7 @@ d8888   888            d8888       d88P  Y88b                  Y8P          888
 ###################################################################
 # 15.1 Scripts
 
+
 # --------======= 𝓢𝓬𝓻𝓲𝓹𝓽 =======--------
 # Syntax
 #   Script :
@@ -30287,6 +30304,7 @@ def global_isFinite(this_value, new_target, number=None, *_):
 global_isFinite.length = 1
 global_isFinite.name = "isFinite"
 
+
 # 18.2.3 isNaN ( number )
 def global_isNaN(this_value, new_target, number=None, *_):
     # The isNaN function is the %isNaN% intrinsic object. When the isNaN function is called with one argument number,
@@ -30312,6 +30330,8 @@ _StrUnsignedDecimalLiteral = (
 _StrDecimalLiteral = rf"([-+]?{_StrUnsignedDecimalLiteral})"
 
 _parseFloat_pattern = regex.compile(_StrDecimalLiteral)
+
+
 # 18.2.4 parseFloat ( string )
 def global_parseFloat(this_value, new_target, string=None, *_):
     # The parseFloat function produces a Number value dictated by interpretation of the contents of the string
@@ -30346,6 +30366,7 @@ def global_parseFloat(this_value, new_target, string=None, *_):
 
 global_parseFloat.length = 1
 global_parseFloat.name = "parseFloat"
+
 
 # 18.2.5 parseInt ( string, radix )
 def global_parseInt(this_value, new_target, string=None, radix=None, *_):
@@ -30670,6 +30691,7 @@ def ObjectMethod_assign(_a, _b, target=None, *sources):
 
 ObjectMethod_assign.length = 2
 ObjectMethod_assign.name = "assign"
+
 
 # 19.1.2.2 Object.create ( O, Properties )
 def ObjectMethod_create(_a, _b, o_value=None, properties=None, *_):
@@ -31093,6 +31115,7 @@ def ObjectPrototype_toLocaleString(this_value, _nt, reserved1=EMPTY, reserved2=E
 ObjectPrototype_toLocaleString.length = 0
 ObjectPrototype_toLocaleString.name = "toLocaleString"
 
+
 # 19.1.3.6 Object.prototype.toString ( )
 def ObjectPrototype_toString(this_value, new_target, *_):
     # When the toString method is called, the following steps are taken:
@@ -31193,6 +31216,7 @@ def ObjectPrototype_valueOf(this_value, new_target, *_):
 #   behaviour. All ECMAScript syntactic forms for defining function objects create instances of Function. There is no
 #   syntactic means to create instances of Function subclasses except for the built-in GeneratorFunction,
 #   AsyncFunction, and AsyncGeneratorFunction subclasses.
+
 
 # ------------------------------------ 𝟏𝟗.𝟐.𝟏.𝟏 𝑭𝒖𝒏𝒄𝒕𝒊𝒐𝒏 ( 𝒑𝟏, 𝒑𝟐, … , 𝒑𝒏, 𝒃𝒐𝒅𝒚 ) ------------------------------------
 # 19.2.1.1 Function ( p1, p2, … , pn, body )
@@ -31869,6 +31893,7 @@ def SymbolFor(this_value, new_target, key=None, *_):
 SymbolFor.name = "for"
 SymbolFor.length = 1
 
+
 # 19.4.2.6 Symbol.keyFor ( sym )
 def SymbolKeyFor(this_value, new_target, sym=None, *_):
     # When Symbol.keyFor is called with argument sym it performs the following steps:
@@ -31947,6 +31972,7 @@ def SymbolPrototype_getDescription(this_value, new_target, *_):
 SymbolPrototype_getDescription.length = 0
 SymbolPrototype_getDescription.name = "get description"
 
+
 # 19.4.3.3 Symbol.prototype.toString ( )
 def SymbolPrototype_toString(this_value, new_target, *_):
     # The following steps are taken:
@@ -32002,6 +32028,7 @@ def SymbolPrototype_valueOf(this_value, new_target, *_):
 SymbolPrototype_valueOf.length = 0
 SymbolPrototype_valueOf.name = "valueOf"
 
+
 # 19.4.3.5 Symbol.prototype [ @@toPrimitive ] ( hint )
 def SymbolPrototype_toPrimitive(this_value, new_target, hint=None, *_):
     # This function is called by ECMAScript language operators to convert a Symbol object to a primitive value. The
@@ -32017,6 +32044,7 @@ def SymbolPrototype_toPrimitive(this_value, new_target, hint=None, *_):
 SymbolPrototype_toPrimitive.length = 1
 SymbolPrototype_toPrimitive.name = "[Symbol.toPrimitive]"
 SymbolPrototype_toPrimitive.attributes = Record(writable=False, enumerable=False, configurable=True)
+
 
 ##################################################################################################################################################################################
 #
@@ -32219,6 +32247,7 @@ def CreateNativeErrorPrototype(realm, name):
 ##################################################################################################################################################################################
 ##################################################################################################################################################################################
 
+
 #######################################################################################################################################################################
 #
 #  .d8888b.   .d8888b.       d888       888b    888                        888                            .d88888b.  888         d8b                   888
@@ -32326,6 +32355,7 @@ def NumberFunction(this_value, new_target, value=EMPTY, *_):
 
 
 # 20.1.2 Properties of the Number Constructor
+
 
 # 20.1.2.2 Number.isFinite ( number )
 def Number_isFinite(this_value, new_target, number=None, *_):
@@ -33325,6 +33355,7 @@ def Date_now(this_value, new_target, *_):
 Date_now.name = "now"
 Date_now.length = 0
 
+
 # 20.3.3.2 Date.parse ( string )
 def Date_parse(this_value, new_target, string=None, *_):
     # The parse function applies the ToString operator to its argument. If ToString results in an abrupt completion
@@ -33422,6 +33453,7 @@ def ToDateString(tv):
 
 weekday_names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
 
 # 20.3.4.41.2 Runtime Semantics: DateString ( tv )
 def DateString(tv):
@@ -34202,6 +34234,7 @@ def DatePrototype_toLocaleDateString(this_value, new_target, reserved1=EMPTY, re
 DatePrototype_toLocaleDateString.length = 0
 DatePrototype_toLocaleDateString.name = "toLocaleDateString"
 
+
 # 20.3.4.39 Date.prototype.toLocaleString ( [ reserved1 [ , reserved2 ] ] )
 def DatePrototype_toLocaleString(this_value, new_target, reserved1=EMPTY, reserved2=EMPTY, *_):
     # An ECMAScript implementation that includes the ECMA-402 Internationalization API must implement the
@@ -34246,6 +34279,7 @@ def DatePrototype_toLocaleTimeString(this_value, new_target, reserved1=EMPTY, re
 
 DatePrototype_toLocaleTimeString.length = 0
 DatePrototype_toLocaleTimeString.name = "toLocaleTimeString"
+
 
 # 20.3.4.41 Date.prototype.toString ( )
 def DatePrototype_toString(this_value, new_target, *_):
@@ -34436,6 +34470,7 @@ def StringFunction(this_value, new_target, value=MISSING, *_):
 #   * has a [[Prototype]] internal slot whose value is the intrinsic object %FunctionPrototype%.
 #   * has the following properties:
 
+
 # ------------------------------------ 𝟐𝟏.𝟏.𝟐.𝟏 𝑺𝒕𝒓𝒊𝒏𝒈.𝒇𝒓𝒐𝒎𝑪𝒉𝒂𝒓𝑪𝒐𝒅𝒆 ( ...𝒄𝒐𝒅𝒆𝑼𝒏𝒊𝒕𝒔 ) ------------------------------------
 # 21.1.2.1 String.fromCharCode ( ...codeUnits )
 def String_fromCharCode(this_value, new_target, *codeUnits):
@@ -34463,6 +34498,7 @@ def String_fromCharCode(this_value, new_target, *codeUnits):
 
 String_fromCharCode.length = 1
 String_fromCharCode.name = "fromCharCode"
+
 
 # ------------------------------------ 𝟐𝟏.𝟏.𝟐.𝟐 𝑺𝒕𝒓𝒊𝒏𝒈.𝒇𝒓𝒐𝒎𝑪𝒐𝒅𝒆𝑷𝒐𝒊𝒏𝒕 ( ...𝒄𝒐𝒅𝒆𝑷𝒐𝒊𝒏𝒕𝒔 ) ------------------------------------
 # 21.1.2.2 String.fromCodePoint ( ...codePoints )
@@ -34498,6 +34534,7 @@ def String_fromCodePoint(this_value, new_target, *codePoints):
 
 String_fromCodePoint.length = 1
 String_fromCodePoint.name = "fromCodePoint"
+
 
 # 21.1.2.4 String.raw ( template, ...substitutions )
 def String_raw(this_value, new_target, template=None, *substitutions):
@@ -34658,6 +34695,7 @@ def StringPrototype_charAt(this_value, new_target, pos=None, *_):
 StringPrototype_charAt.name = "charAt"
 StringPrototype_charAt.length = 1
 
+
 # 21.1.3.2 String.prototype.charCodeAt ( pos )
 def StringPrototype_charCodeAt(this_value, new_target, pos=None, *_):
     # NOTE 1    | Returns a Number (a nonnegative integer less than 2^16) that is the numeric value of the code unit
@@ -34687,6 +34725,7 @@ def StringPrototype_charCodeAt(this_value, new_target, pos=None, *_):
 
 StringPrototype_charCodeAt.name = "charCodeAt"
 StringPrototype_charCodeAt.length = 1
+
 
 # 21.1.3.3 String.prototype.codePointAt ( pos )
 def StringPrototype_codePointAt(this_value, new_target, pos=None, *_):
@@ -34763,6 +34802,7 @@ def StringPrototype_concat(this_value, new_target, *args):
 
 StringPrototype_concat.name = "concat"
 StringPrototype_concat.length = 1
+
 
 # 21.1.3.6 String.prototype.endsWith ( searchString [ , endPosition ] )
 def StringPrototype_endsWith(this_value, new_target, searchString=None, endPosition=None, *_):
@@ -34893,6 +34933,7 @@ def StringPrototype_indexOf(this_value, new_target, searchString=None, position=
 StringPrototype_indexOf.length = 1
 StringPrototype_indexOf.name = "indexOf"
 
+
 # 21.1.3.9 String.prototype.lastIndexOf ( searchString [ , position ] )
 def StringPrototype_lastIndexOf(this_value, new_target, searchString=None, position=None, *_):
     # NOTE 1    | If searchString appears as a substring of the result of converting this object to a String at one
@@ -34933,6 +34974,7 @@ def StringPrototype_lastIndexOf(this_value, new_target, searchString=None, posit
 
 StringPrototype_lastIndexOf.name = "lastIndexOf"
 StringPrototype_lastIndexOf.length = 1
+
 
 # 21.1.3.10 String.prototype.localeCompare ( that [ , reserved1 [ , reserved2 ] ] )
 def StringPrototype_localeCompare(this_value, new_target, that=None, reserved1=..., reserved2=..., *_):
@@ -34990,6 +35032,7 @@ def StringPrototype_localeCompare(this_value, new_target, that=None, reserved1=.
 StringPrototype_localeCompare.name = "localeCompare"
 StringPrototype_localeCompare.length = 1
 
+
 # 21.1.3.11 String.prototype.match ( regexp )
 def StringPrototype_match(this_value, new_target, regexp=None, *_):
     # When the match method is called with argument regexp, the following steps are taken:
@@ -35018,6 +35061,7 @@ def StringPrototype_match(this_value, new_target, regexp=None, *_):
 StringPrototype_match.name = "match"
 StringPrototype_match.length = 1
 
+
 # 21.1.3.12 String.prototype.normalize ( [ form ] )
 def StringPrototype_normalize(this_value, new_target, form=None, *_):
     # When the normalize method is called with one argument form, the following steps are taken:
@@ -35045,6 +35089,7 @@ def StringPrototype_normalize(this_value, new_target, form=None, *_):
 
 StringPrototype_normalize.name = "normalize"
 StringPrototype_normalize.length = 0
+
 
 # 21.1.3.13 String.prototype.padEnd ( maxLength [ , fillString ] )
 def StringPrototype_padEnd(this_value, new_target, maxLength=None, fillString=None, *_):
@@ -35089,6 +35134,7 @@ def StringPrototype_padEnd(this_value, new_target, maxLength=None, fillString=No
 StringPrototype_padEnd.name = "padEnd"
 StringPrototype_padEnd.length = 1
 
+
 # 21.1.3.14 String.prototype.padStart ( maxLength [ , fillString ] )
 def StringPrototype_padStart(this_value, new_target, maxLength=None, fillString=None, *_):
     # When the padStart method is called, the following steps are taken:
@@ -35132,6 +35178,7 @@ def StringPrototype_padStart(this_value, new_target, maxLength=None, fillString=
 StringPrototype_padStart.name = "padStart"
 StringPrototype_padStart.length = 1
 
+
 # 21.1.3.18 String.prototype.slice ( start, end )
 def StringPrototype_slice(this_value, new_target, start=None, end=None, *_):
     # The slice method takes two arguments, start and end, and returns a substring of the result of converting this
@@ -35166,6 +35213,7 @@ def StringPrototype_slice(this_value, new_target, start=None, end=None, *_):
 StringPrototype_slice.length = 2
 StringPrototype_slice.name = "slice"
 
+
 # 21.1.3.15 String.prototype.repeat ( count )
 def StringPrototype_repeat(this_value, new_target, count=None, *_):
     # The following steps are taken:
@@ -35197,6 +35245,7 @@ def StringPrototype_repeat(this_value, new_target, count=None, *_):
 
 StringPrototype_repeat.name = "repeat"
 StringPrototype_repeat.legnth = 1
+
 
 # 21.1.3.16 String.prototype.replace ( searchValue, replaceValue )
 def StringPrototype_replace(this_value, new_target, searchValue=None, replaceValue=None, *_):
@@ -35402,6 +35451,7 @@ def GetSubstitution(matched, string, position, captures, namedCaptures, replacem
 # |                | above.             |
 # +----------------+--------------------+---------------------------------------------------------------------------
 
+
 # 21.1.3.17 String.prototype.search ( regexp )
 def StringPrototype_search(this_value, new_target, regexp=None, *_):
     # When the search method is called with argument regexp, the following steps are taken:
@@ -35427,6 +35477,7 @@ def StringPrototype_search(this_value, new_target, regexp=None, *_):
 
 StringPrototype_search.name = "search"
 StringPrototype_search.length = 1
+
 
 # 21.1.3.19 String.prototype.split ( separator, limit )
 def StringPrototype_split(this_value, new_target, separator=None, limit=None, *_):
@@ -35606,6 +35657,7 @@ def StringPrototype_startsWith(this_value, new_target, searchString=None, positi
 StringPrototype_startsWith.name = "startsWith"
 StringPrototype_startsWith.length = 1
 
+
 # 21.1.3.21 String.prototype.substring ( start, end )
 def StringPrototype_substring(this_value, new_target, start=None, end=None, *_):
     # The substring method takes two arguments, start and end, and returns a substring of the result of converting
@@ -35650,6 +35702,7 @@ def StringPrototype_substring(this_value, new_target, start=None, end=None, *_):
 StringPrototype_substring.name = "substring"
 StringPrototype_substring.length = 2
 
+
 # 21.1.3.22 String.prototype.toLocaleLowerCase ( [ reserved1 [ , reserved2 ] ] )
 def StringPrototype_toLocaleLowerCase(this_value, new_target, *args):
     # An ECMAScript implementation that includes the ECMA-402 Internationalization API must implement the
@@ -35676,6 +35729,7 @@ def StringPrototype_toLocaleLowerCase(this_value, new_target, *args):
 StringPrototype_toLocaleLowerCase.name = "toLocaleLowerCase"
 StringPrototype_toLocaleLowerCase.length = 0
 
+
 # 21.1.3.23 String.prototype.toLocaleUpperCase ( [ reserved1 [ , reserved2 ] ] )
 def StringPrototype_toLocaleUpperCase(this_value, new_target, *args):
     # An ECMAScript implementation that includes the ECMA-402 Internationalization API must implement the
@@ -35699,6 +35753,7 @@ def StringPrototype_toLocaleUpperCase(this_value, new_target, *args):
 
 StringPrototype_toLocaleUpperCase.name = "toLocaleUpperCase"
 StringPrototype_toLocaleUpperCase.length = 0
+
 
 # 21.1.3.24 String.prototype.toLowerCase ( )
 def StringPrototype_toLowerCase(this_value, new_target, *_):
@@ -35750,6 +35805,7 @@ def StringPrototype_toString(this_value, new_target, *_):
 StringPrototype_toString.length = 0
 StringPrototype_toString.name = "toString"
 
+
 # 21.1.3.26 String.prototype.toUpperCase ( )
 def StringPrototype_toUpperCase(this_value, new_target, *_):
     # This function interprets a String value as a sequence of UTF-16 encoded code points, as described in 6.1.4.
@@ -35768,6 +35824,7 @@ def StringPrototype_toUpperCase(this_value, new_target, *_):
 
 StringPrototype_toUpperCase.name = "toUpperCase"
 StringPrototype_toUpperCase.length = 0
+
 
 # 21.1.3.27 String.prototype.trim ( )
 def StringPrototype_trim(this_value, new_target, *_):
@@ -35791,6 +35848,8 @@ _trim_patterns = {
     "end": regex.compile(f"^(?P<result>.*?){_trimmable}*$", regex.DOTALL),
     "start+end": regex.compile(f"^{_trimmable}*(?P<result>.*?){_trimmable}*$", regex.DOTALL),
 }
+
+
 # 21.1.3.27.1 Runtime Semantics: TrimString ( string, where )
 def TrimString(string, where):
     # The abstract operation TrimString is called with arguments string and where, and interprets the String value
@@ -35830,6 +35889,7 @@ def StringPrototype_trimEnd(this_value, new_target, *_):
 StringPrototype_trimEnd.name = "trimEnd"
 StringPrototype_trimEnd.length = 0
 
+
 # 21.1.3.29 String.prototype.trimStart ( )
 def StringPrototype_trimStart(this_value, new_target, *_):
     # This function interprets a String value as a sequence of UTF-16 encoded code points, as described in 6.1.4.
@@ -35858,6 +35918,7 @@ def StringPrototype_valueOf(this_value, new_target, *_):
 
 StringPrototype_valueOf.length = 0
 StringPrototype_valueOf.name = "valueOf"
+
 
 # 21.1.3.31 String.prototype [ @@iterator ] ( )
 def StringPrototype_iterator(this_value, new_target, *_):
@@ -35888,6 +35949,7 @@ def StringFixups(realm):
 # A String Iterator is an object, that represents a specific iteration over some specific String instance object.
 # There is not a named constructor for String Iterator objects. Instead, String iterator objects are created by
 # calling certain methods of String instance objects.
+
 
 # 21.1.5.1 CreateStringIterator ( string )
 def CreateStringIterator(string):
@@ -36062,6 +36124,7 @@ def StringIteratorPrototype_next(O, new_target, *_):
 # 21.2.6 Properties of RegExp Instances
 # 21.2.6.1 lastIndex
 #######################################################################################################################
+
 
 # 21.2.3 The RegExp Constructor
 # The RegExp constructor:
@@ -36287,6 +36350,7 @@ def RegExp_species(this_value, new_target, *_):
 RegExp_species.length = 0
 RegExp_species.name = "get [Symbol.species]"
 
+
 # 21.2.5 Properties of the RegExp Prototype Object
 # The RegExp prototype object:
 #   * is the intrinsic object %RegExpPrototype%.
@@ -36348,6 +36412,7 @@ def RegExpPrototype_exec(this_value, new_target, string=None, *_):
 
 RegExpPrototype_exec.length = 1
 RegExpPrototype_exec.name = "exec"
+
 
 # 21.2.5.2.1 Runtime Semantics: RegExpExec ( R, S )
 def RegExpExec(R, S):
@@ -36581,6 +36646,7 @@ def RegExpPrototype_getDotAll(this_value, new_target, *_):
 RegExpPrototype_getDotAll.length = 0
 RegExpPrototype_getDotAll.name = "get dotAll"
 
+
 # 21.2.5.4 get RegExp.prototype.flags
 def RegExpPrototype_getFlags(this_value, new_target, *_):
     # RegExp.prototype.flags is an accessor property whose set accessor function is undefined. Its get accessor
@@ -36620,6 +36686,7 @@ def RegExpPrototype_getFlags(this_value, new_target, *_):
 RegExpPrototype_getFlags.length = 0
 RegExpPrototype_getFlags.name = "get flags"
 
+
 # 21.2.5.5 get RegExp.prototype.global
 def RegExpPrototype_getGlobal(this_value, new_target, *_):
     # RegExp.prototype.global is an accessor property whose set accessor function is undefined. Its get accessor function performs the following steps:
@@ -36636,6 +36703,7 @@ def RegExpPrototype_getGlobal(this_value, new_target, *_):
 
 RegExpPrototype_getGlobal.length = 0
 RegExpPrototype_getGlobal.name = "get global"
+
 
 # 21.2.5.6 get RegExp.prototype.ignoreCase
 def RegExpPrototype_getIgnoreCase(this_value, new_target, *_):
@@ -36654,6 +36722,7 @@ def RegExpPrototype_getIgnoreCase(this_value, new_target, *_):
 
 RegExpPrototype_getIgnoreCase.length = 0
 RegExpPrototype_getIgnoreCase.name = "get ignoreCase"
+
 
 # 21.2.5.7 RegExp.prototype [ @@match ] ( string )
 def RegExpPrototype_match(this_value, new_target, string=None, *_):
@@ -36713,6 +36782,7 @@ RegExpPrototype_match.name = "[Symbol.match]"
 #       | behaviour of regular expressions. The absence of a @@match property or the existence of such a property
 #       | whose value does not Boolean coerce to true indicates that the object is not intended to be used as a
 #       | regular expression object.
+
 
 # 21.2.5.8 get RegExp.prototype.multiline
 def RegExpPrototype_getMultiline(this_value, new_target, *_):
@@ -36868,6 +36938,7 @@ def RegExpPrototype_replace(this_value, new_target, string=None, replaceValue=No
 RegExpPrototype_replace.length = 2
 RegExpPrototype_replace.name = "[Symbol.replace]"
 
+
 # 21.2.5.10 RegExp.prototype [ @@search ] ( string )
 def RegExpPrototype_search(this_value, new_target, string=None, *_):
     # When the @@search method is called with argument string, the following steps are taken:
@@ -36906,6 +36977,7 @@ def RegExpPrototype_search(this_value, new_target, string=None, *_):
 RegExpPrototype_search.length = 1
 RegExpPrototype_search.name = "[Symbol.search]"
 
+
 # 21.2.5.11 get RegExp.prototype.source
 def RegExpPrototype_getSource(this_value, new_target, *_):
     # RegExp.prototype.source is an accessor property whose set accessor function is undefined. Its get accessor
@@ -36926,6 +36998,7 @@ def RegExpPrototype_getSource(this_value, new_target, *_):
 
 RegExpPrototype_getSource.length = 0
 RegExpPrototype_getSource.name = "get source"
+
 
 # 21.2.5.12 RegExp.prototype [ @@split ] ( string, limit )
 def RegExpPrototype_split(this_value, new_target, string=None, limit=None, *_):
@@ -37079,6 +37152,7 @@ def RegExpPrototype_split(this_value, new_target, string=None, limit=None, *_):
 RegExpPrototype_split.length = 2
 RegExpPrototype_split.name = "[Symbol.split]"
 
+
 # 21.2.5.13 get RegExp.prototype.sticky
 def RegExpPrototype_getSticky(this_value, new_target, *_):
     # RegExp.prototype.sticky is an accessor property whose set accessor function is undefined. Its get accessor
@@ -37096,6 +37170,7 @@ def RegExpPrototype_getSticky(this_value, new_target, *_):
 
 RegExpPrototype_getSticky.length = 0
 RegExpPrototype_getSticky.name = "get sticky"
+
 
 # 21.2.5.14 RegExp.prototype.test ( S )
 def RegExpPrototype_test(this_value, new_target, S=None, *_):
@@ -37115,6 +37190,7 @@ def RegExpPrototype_test(this_value, new_target, S=None, *_):
 
 RegExpPrototype_test.length = 1
 RegExpPrototype_test.name = "test"
+
 
 # 21.2.5.15 RegExp.prototype.toString ( )
 def RegExpPrototype_toString(this_value, new_target, *_):
@@ -37136,6 +37212,7 @@ def RegExpPrototype_toString(this_value, new_target, *_):
 RegExpPrototype_toString.length = 0
 RegExpPrototype_toString.name = "toString"
 
+
 # 21.2.5.16 get RegExp.prototype.unicode
 def RegExpPrototype_getUnicode(this_value, new_target, *_):
     # RegExp.prototype.unicode is an accessor property whose set accessor function is undefined. Its get accessor function performs the following steps:
@@ -37152,6 +37229,7 @@ def RegExpPrototype_getUnicode(this_value, new_target, *_):
 
 RegExpPrototype_getUnicode.length = 0
 RegExpPrototype_getUnicode.name = "get unicode"
+
 
 # ------------------------------------ 𝟐𝟐 𝑰𝒏𝒅𝒆𝒙𝒆𝒅 𝑪𝒐𝒍𝒍𝒆𝒄𝒕𝒊𝒐𝒏𝒔 ------------------------------------
 # ------------------------------------ 𝟐𝟐.𝟏 𝑨𝒓𝒓𝒂𝒚 𝑶𝒃𝒋𝒆𝒄𝒕𝒔 ------------------------------------
@@ -37308,6 +37386,7 @@ def ArrayFunction(this_value, new_target, *items):
 #   * has a [[Prototype]] internal slot whose value is the intrinsic object %FunctionPrototype%.
 #   * has the following properties:
 
+
 # ------------------------------------ 𝟐𝟐.𝟏.𝟐.𝟏 𝑨𝒓𝒓𝒂𝒚.𝒇𝒓𝒐𝒎 ( 𝒊𝒕𝒆𝒎𝒔 [ , 𝒎𝒂𝒑𝒇𝒏 [ , 𝒕𝒉𝒊𝒔𝑨𝒓𝒈 ] ] ) ------------------------------------
 # 22.1.2.1 Array.from ( items [ , mapfn [ , thisArg ] ] )
 def Array_from(this_value, new_target, items=None, mapfn=None, thisArg=None, *_):
@@ -37431,6 +37510,7 @@ def Array_from(this_value, new_target, items=None, mapfn=None, thisArg=None, *_)
 Array_from.length = 1
 Array_from.name = "from"
 
+
 # 22.1.2.2 Array.isArray ( arg )
 def Array_isArray(this_value, new_target, arg=None, *_):
     # The isArray function takes one argument arg, and performs the following steps:
@@ -37440,6 +37520,7 @@ def Array_isArray(this_value, new_target, arg=None, *_):
 
 Array_isArray.length = 1
 Array_isArray.name = "isArray"
+
 
 # 22.1.2.3 Array.of ( ...items )
 def Array_of(this_value, new_target, *items):
@@ -37615,6 +37696,7 @@ def ArrayPrototype_concat(this_value, new_target, *arguments):
 ArrayPrototype_concat.length = 1
 ArrayPrototype_concat.name = "concat"
 
+
 # 22.1.3.1.1 Runtime Semantics: IsConcatSpreadable ( O )
 def IsConcatSpreadable(O):
     # The abstract operation IsConcatSpreadable with argument O performs the following steps:
@@ -37714,6 +37796,7 @@ def ArrayPrototype_copyWithin(this_value, new_target, target=None, start=None, e
 ArrayPrototype_copyWithin.name = "copyWithin"
 ArrayPrototype_copyWithin.length = 2
 
+
 # 22.1.3.4 Array.prototype.entries ( )
 def ArrayPrototype_entries(this_value, new_target, *_):
     # The following steps are taken:
@@ -37725,6 +37808,7 @@ def ArrayPrototype_entries(this_value, new_target, *_):
 
 ArrayPrototype_entries.name = "entries"
 ArrayPrototype_entries.length = 0
+
 
 # 22.1.3.5 Array.prototype.every ( callbackfn [ , thisArg ] )
 def ArrayPrototype_every(this_value, new_target, callbackfn=None, thisArg=None, *_):
@@ -37786,6 +37870,7 @@ def ArrayPrototype_every(this_value, new_target, callbackfn=None, thisArg=None, 
 ArrayPrototype_every.name = "every"
 ArrayPrototype_every.length = 1
 
+
 # 22.1.3.6 Array.prototype.fill ( value [ , start [ , end ] ] )
 def ArrayPrototype_fill(this_value, new_target, value=None, start=None, end=None, *_):
     # The fill method takes up to three arguments value, start and end.
@@ -37828,6 +37913,7 @@ def ArrayPrototype_fill(this_value, new_target, value=None, start=None, end=None
 
 ArrayPrototype_fill.name = "fill"
 ArrayPrototype_fill.length = 1
+
 
 # 22.1.3.7 Array.prototype.filter ( callbackfn [ , thisArg ] )
 def ArrayPrototype_filter(this_value, new_target, callbackfn=None, thisArg=None, *_):
@@ -37891,6 +37977,7 @@ def ArrayPrototype_filter(this_value, new_target, callbackfn=None, thisArg=None,
 ArrayPrototype_filter.name = "filter"
 ArrayPrototype_filter.length = 1
 
+
 # 22.1.3.8 Array.prototype.find ( predicate [ , thisArg ] )
 def ArrayPrototype_find(this_value, new_target, predicate=None, thisArg=None, *_):
     # The find method is called with one or two arguments, predicate and thisArg.
@@ -37942,6 +38029,7 @@ def ArrayPrototype_find(this_value, new_target, predicate=None, thisArg=None, *_
 ArrayPrototype_find.name = "find"
 ArrayPrototype_find.length = 1
 
+
 # 22.1.3.9 Array.prototype.findIndex ( predicate [ , thisArg ] )
 def ArrayPrototype_findIndex(this_value, new_target, predicate=None, thisArg=None, *_):
     # NOTE 1    | predicate should be a function that accepts three arguments and returns a value that is coercible
@@ -37991,6 +38079,7 @@ def ArrayPrototype_findIndex(this_value, new_target, predicate=None, thisArg=Non
 ArrayPrototype_findIndex.name = "findIndex"
 ArrayPrototype_findIndex.length = 1
 
+
 # 22.1.3.10 Array.prototype.flat( [ depth ] )
 def ArrayPrototype_flat(this_value, new_target, depth=None, *_):
     # When the flat method is called with zero or one arguments, the following steps are taken:
@@ -38012,6 +38101,7 @@ def ArrayPrototype_flat(this_value, new_target, depth=None, *_):
 
 ArrayPrototype_flat.name = "flat"
 ArrayPrototype_flat.length = 0
+
 
 # 22.1.3.10.1 FlattenIntoArray(target, source, sourceLen, start, depth [ , mapperFunction, thisArg ])
 def FlattenIntoArray(target, source, sourceLen, start, depth, mapperFunction=..., thisArg=..., *_):
@@ -38079,6 +38169,7 @@ def ArrayPrototype_flatMap(this_value, new_target, mapperFunction=None, thisArg=
 
 ArrayPrototype_flatMap.name = "flatMap"
 ArrayPrototype_flatMap.length = 1
+
 
 # 22.1.3.12 Array.prototype.forEach ( callbackfn [ , thisArg ] )
 def ArrayPrototype_forEach(this_value, new_target, callbackfn=None, thisArg=None, *_):
@@ -38235,6 +38326,7 @@ def ArrayPrototype_indexOf(this_value, new_target, searchElement=None, fromIndex
 
 ArrayPrototype_indexOf.name = "indexOf"
 ArrayPrototype_indexOf.length = 1
+
 
 # 22.1.3.15 Array.prototype.join ( separator )
 def ArrayPrototype_join(this_value, new_target, separator=None, *_):
@@ -38432,6 +38524,7 @@ def ArrayPrototype_pop(this_value, new_target, *_):
 ArrayPrototype_pop.name = "pop"
 ArrayPrototype_pop.length = 0
 
+
 # 22.1.3.20 Array.prototype.push ( ...items )
 def ArrayPrototype_push(this_value, new_target, *items):
     # NOTE 1    | The arguments are appended to the end of the array, in the order in which they appear. The new length
@@ -38466,6 +38559,7 @@ def ArrayPrototype_push(this_value, new_target, *items):
 
 ArrayPrototype_push.length = 1
 ArrayPrototype_push.name = "push"
+
 
 # 22.1.3.21 Array.prototype.reduce ( callbackfn [ , initialValue ] )
 def ArrayPrototype_reduce(this_value, new_target, callbackfn=None, initialValue=..., *_):
@@ -38748,6 +38842,7 @@ def ArrayPrototype_shift(this_value, new_target, *_):
 ArrayPrototype_shift.name = "shift"
 ArrayPrototype_shift.length = 0
 
+
 # 22.1.3.25 Array.prototype.slice ( start, end )
 def ArrayPrototype_slice(this_value, new_target, start=None, end=None, *_):
     # NOTE 1    | The slice method takes two arguments, start and end, and returns an array containing the elements
@@ -38871,6 +38966,7 @@ def ArrayPrototype_some(this_value, new_target, callbackfn=None, thisArg=None, *
 
 ArrayPrototype_some.name = "some"
 ArrayPrototype_some.length = 1
+
 
 # 22.1.3.27 Array.prototype.sort ( comparefn )
 def ArrayPrototype_sort(this_value, new_target, comparefn=None, *_):
@@ -39234,6 +39330,7 @@ def ArrayPrototype_toLocaleString(this_value, new_target, *_):
 ArrayPrototype_toLocaleString.name = "toLocaleString"
 ArrayPrototype_toLocaleString.length = 0
 
+
 # 22.1.3.30 Array.prototype.toString ( )
 def ArrayPrototype_toString(this_value, new_target, *_):
     # When the toString method is called, the following steps are taken:
@@ -39381,6 +39478,7 @@ def ArrayFixups(realm):
 # An Array Iterator is an object, that represents a specific iteration over some specific Array instance object. There
 # is not a named constructor for Array Iterator objects. Instead, Array iterator objects are created by calling certain
 # methods of Array instance objects.
+
 
 # 22.1.5.1 CreateArrayIterator ( array, kind )
 def CreateArrayIterator(array, kind):
@@ -39693,6 +39791,7 @@ TypedArrayFunction.length = 0
 #   * has a name property whose value is "TypedArray".
 #   * has the following properties:
 
+
 # 22.2.2.1 %TypedArray%.from ( source [ , mapfn [ , thisArg ] ] )
 def TypedArray_from(this_value, new_target, source=None, mapfn=None, thisArg=None, *_):
     # When the from method is called with argument source, and optional arguments mapfn and thisArg, the following
@@ -39773,6 +39872,7 @@ def TypedArray_from(this_value, new_target, source=None, mapfn=None, thisArg=Non
 TypedArray_from.name = "from"
 TypedArray_from.length = 1
 
+
 # 22.2.2.1.1 Runtime Semantics: IterableToList ( items, method )
 def IterableToList(items, method):
     # The abstract operation IterableToList performs the following steps:
@@ -39828,6 +39928,7 @@ TypedArray_of.length = 0
 # 22.2.2.3 %TypedArray%.prototype
 # The initial value of %TypedArray%.prototype is the %TypedArrayPrototype% intrinsic object.
 # This property has the attributes { [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: false }.
+
 
 # 22.2.3.4 %TypedArray%.prototype.constructor
 # The initial value of %TypedArray%.prototype.constructor is the %TypedArray% intrinsic object.
@@ -39940,6 +40041,7 @@ def TypedArrayPrototype_getBuffer(this_value, new_target, *_):
 TypedArrayPrototype_getBuffer.length = 0
 TypedArrayPrototype_getBuffer.name = "get buffer"
 
+
 # 22.2.3.2 get %TypedArray%.prototype.byteLength
 def TypedArrayPrototype_getByteLength(this_value, new_target, *_):
     # %TypedArray%.prototype.byteLength is an accessor property whose set accessor function is undefined. Its get
@@ -39964,6 +40066,7 @@ def TypedArrayPrototype_getByteLength(this_value, new_target, *_):
 
 TypedArrayPrototype_getByteLength.length = 0
 TypedArrayPrototype_getByteLength.name = "get byteLength"
+
 
 # 22.2.3.3 get %TypedArray%.prototype.byteOffset
 def TypedArrayPrototype_getByteOffset(this_value, new_target, *_):
@@ -40078,6 +40181,7 @@ def TypedArrayPrototype_copyWithin(this_value, new_target, target=None, start=No
 TypedArrayPrototype_copyWithin.length = 2
 TypedArrayPrototype_copyWithin.name = "copyWithin"
 
+
 # 22.2.3.5.1 Runtime Semantics: ValidateTypedArray ( O )
 def ValidateTypedArray(O: JSValue, whoami: str):
     # When called with argument O, the following steps are taken:
@@ -40138,6 +40242,7 @@ def TypedArrayPrototype_every(this_value, new_target, callbackfn=None, thisArg=N
 TypedArrayPrototype_every.length = 1
 TypedArrayPrototype_every.name = "every"
 
+
 # 22.2.3.8 %TypedArray%.prototype.fill ( value [ , start [ , end ] ] )
 def TypedArrayPrototype_fill(this_value, new_target, value=None, start=None, end=None, *_):
     # The interpretation and use of the arguments of %TypedArray%.prototype.fill are the same as for
@@ -40186,6 +40291,7 @@ def TypedArrayPrototype_fill(this_value, new_target, value=None, start=None, end
 TypedArrayPrototype_fill.length = 1
 TypedArrayPrototype_fill.name = "fill"
 
+
 # 22.2.3.9% TypedArray%.prototype.filter ( callbackfn [ , thisArg ] )
 def TypedArrayPrototype_filter(O, new_target, callbackfn=None, T=None, *_):
     # The interpretation and use of the arguments of %TypedArray%.prototype.filter are the same as for
@@ -40228,6 +40334,7 @@ def TypedArrayPrototype_filter(O, new_target, callbackfn=None, T=None, *_):
 TypedArrayPrototype_filter.length = 1
 TypedArrayPrototype_filter.name = "filter"
 
+
 # 22.2.3.10 %TypedArray%.prototype.find ( predicate [ , thisArg ] )
 def TypedArrayPrototype_find(O, new_target, predicate=None, T=None, *_):
     # %TypedArray%.prototype.find is a distinct function that implements the same algorithm as Array.prototype.find
@@ -40254,6 +40361,7 @@ def TypedArrayPrototype_find(O, new_target, predicate=None, T=None, *_):
 TypedArrayPrototype_find.length = 1
 TypedArrayPrototype_find.name = "find"
 
+
 # 22.2.3.11 %TypedArray%.prototype.findIndex ( predicate [ , thisArg ] )
 def TypedArrayPrototype_findIndex(O, new_target, predicate=None, T=None, *_):
     # %TypedArray%.prototype.findIndex is a distinct function that implements the same algorithm as
@@ -40278,6 +40386,7 @@ def TypedArrayPrototype_findIndex(O, new_target, predicate=None, T=None, *_):
 TypedArrayPrototype_findIndex.name = "findIndex"
 TypedArrayPrototype_findIndex.length = 1
 
+
 # 22.2.3.12 %TypedArray%.prototype.forEach ( callbackfn [ , thisArg ] )
 def TypedArrayPrototype_forEach(O, new_target, callbackfn=None, T=None, *_):
     # %TypedArray%.prototype.forEach is a distinct function that implements the same algorithm as
@@ -40300,6 +40409,7 @@ def TypedArrayPrototype_forEach(O, new_target, callbackfn=None, T=None, *_):
 
 TypedArrayPrototype_forEach.name = "forEach"
 TypedArrayPrototype_forEach.length = 1
+
 
 # 22.2.3.13 %TypedArray%.prototype.includes ( searchElement [ , fromIndex ] )
 def TypedArrayPrototype_includes(O, new_target, searchElement=None, fromIndex=None, *_):
@@ -40326,6 +40436,7 @@ def TypedArrayPrototype_includes(O, new_target, searchElement=None, fromIndex=No
 
 TypedArrayPrototype_includes.name = "includes"
 TypedArrayPrototype_includes.length = 1
+
 
 # 22.2.3.14 %TypedArray%.prototype.indexOf ( searchElement [ , fromIndex ] )
 def TypedArrayPrototype_indexOf(O, new_target, searchElement=None, fromIndex=None, *_):
@@ -40355,6 +40466,7 @@ def TypedArrayPrototype_indexOf(O, new_target, searchElement=None, fromIndex=Non
 
 TypedArrayPrototype_indexOf.name = "indexOf"
 TypedArrayPrototype_indexOf.length = 1
+
 
 # 22.2.3.15 %TypedArray%.prototype.join ( separator )
 def TypedArrayPrototype_join(O, new_target, separator=None, *_):
@@ -40425,6 +40537,7 @@ def TypedArrayPrototype_lastIndexOf(O, new_target, searchElement=None, fromIndex
 
 TypedArrayPrototype_lastIndexOf.name = "lastIndexOf"
 TypedArrayPrototype_lastIndexOf.length = 1
+
 
 # 22.2.3.18 get %TypedArray%.prototype.length
 def TypedArrayPrototype_getLength(this_value, new_target, *_):
@@ -40581,6 +40694,7 @@ def TypedArrayPrototype_reverse(O, new_target, *_):
 TypedArrayPrototype_reverse.name = "reverse"
 TypedArrayPrototype_reverse.length = 0
 
+
 # 22.2.3.23 %TypedArray%.prototype.set ( overloaded [ , offset ] )
 def TypedArrayPrototype_set(this_value, new_target, overloaded=None, offset=None, *_):
     # %TypedArray%.prototype.set is a single function whose behaviour is overloaded based upon the type of its first
@@ -40594,6 +40708,7 @@ def TypedArrayPrototype_set(this_value, new_target, overloaded=None, offset=None
 
 TypedArrayPrototype_set.name = "set"
 TypedArrayPrototype_set.length = 1
+
 
 # 22.2.3.23.1 %TypedArray%.prototype.set ( array [ , offset ] )
 def TAP_set_other(target, array, offset):
@@ -41593,6 +41708,7 @@ def MapFunction(this_value, new_target, iterable=None, *_):
 MapFunction.name = "Map"
 MapFunction.length = 0
 
+
 # 23.1.1.2 AddEntriesFromIterable ( target, iterable, adder )
 def AddEntriesFromIterable(target, iterable, adder):
     # The abstract operation AddEntriesFromIterable accepts a target object, an iterable of entries, and an adder
@@ -41705,6 +41821,7 @@ def MapPrototype_clear(this_value, new_target, *_):
 MapPrototype_clear.name = "clear"
 MapPrototype_clear.length = 0
 
+
 # 23.1.3.3 Map.prototype.delete ( key )
 def MapPrototype_delete(this_value, new_target, key=None, *_):
     # The following steps are taken:
@@ -41735,6 +41852,7 @@ def MapPrototype_delete(this_value, new_target, key=None, *_):
 MapPrototype_delete.name = "delete"
 MapPrototype_delete.length = 1
 
+
 # 23.1.3.4 Map.prototype.entries ( )
 def MapPrototype_entries(this_value, new_target, *_):
     # The following steps are taken:
@@ -41745,6 +41863,7 @@ def MapPrototype_entries(this_value, new_target, *_):
 
 MapPrototype_entries.name = "entries"
 MapPrototype_entries.length = 0
+
 
 # 23.1.3.5 Map.prototype.forEach ( callbackfn [ , thisArg ] )
 def MapPrototype_forEach(this_value, new_target, callbackfn=None, thisArg=None, *_):
@@ -41796,6 +41915,7 @@ def MapPrototype_forEach(this_value, new_target, callbackfn=None, thisArg=None, 
 MapPrototype_forEach.name = "forEach"
 MapPrototype_forEach.length = 1
 
+
 # 23.1.3.6 Map.prototype.get ( key )
 def MapPrototype_get(this_value, new_target, key=None, *_):
     # The following steps are taken:
@@ -41814,6 +41934,7 @@ def MapPrototype_get(this_value, new_target, key=None, *_):
 
 MapPrototype_get.name = "get"
 MapPrototype_get.length = 1
+
 
 # 23.1.3.7 Map.prototype.has ( key )
 def MapPrototype_has(this_value, new_target, key=None, *_):
@@ -41834,6 +41955,7 @@ def MapPrototype_has(this_value, new_target, key=None, *_):
 MapPrototype_has.name = "has"
 MapPrototype_has.length = 1
 
+
 # 23.1.3.8 Map.prototype.keys ( )
 def MapPrototype_keys(this_value, new_target, *_):
     # The following steps are taken:
@@ -41844,6 +41966,7 @@ def MapPrototype_keys(this_value, new_target, *_):
 
 MapPrototype_keys.name = "keys"
 MapPrototype_length = 0
+
 
 # 23.1.3.9 Map.prototype.set ( key, value )
 def MapPrototype_set(this_value, new_target, key=None, value=None, *_):
@@ -41870,6 +41993,7 @@ def MapPrototype_set(this_value, new_target, key=None, value=None, *_):
 MapPrototype_set.name = "set"
 MapPrototype_set.length = 2
 
+
 # 23.1.3.10 get Map.prototype.size
 def MapPrototype_get_size(this_value, new_target, *_):
     # Map.prototype.size is an accessor property whose set accessor function is undefined. Its get accessor function
@@ -41890,6 +42014,7 @@ def MapPrototype_get_size(this_value, new_target, *_):
 
 MapPrototype_get_size.name = "get size"
 MapPrototype_get_size.length = 0
+
 
 # 23.1.3.11 Map.prototype.values ( )
 def MapPrototype_values(this_value, new_target, *_):
@@ -41918,6 +42043,7 @@ def MapFixups(realm):
 # A Map Iterator is an object, that represents a specific iteration over some specific Map instance object. There is
 # not a named constructor for Map Iterator objects. Instead, map iterator objects are created by calling certain
 # methods of Map instance objects.
+
 
 # 23.1.5.1 CreateMapIterator ( map, kind )
 def CreateMapIterator(map, kind):
@@ -42169,6 +42295,7 @@ SetFunction.length = 0
 #
 # This property has the attributes { [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: false }.
 
+
 # 23.2.3 Properties of the Set Prototype Object
 # The Set prototype object:
 #   * is the intrinsic object %SetPrototype%.
@@ -42234,6 +42361,7 @@ def SetPrototype_add(this_value, new_target, value=None, *_):
 SetPrototype_add.name = "add"
 SetPrototype_add.length = 1
 
+
 # 23.2.3.2 Set.prototype.clear ( )
 def SetPrototype_clear(this_value, new_target, *_):
     # The following steps are taken:
@@ -42253,6 +42381,7 @@ def SetPrototype_clear(this_value, new_target, *_):
 
 SetPrototype_clear.name = "clear"
 SetPrototype_clear.length = 0
+
 
 # 23.2.3.4 Set.prototype.delete ( value )
 def SetPrototype_delete(this_value, new_target, value=None, *_):
@@ -42278,6 +42407,7 @@ def SetPrototype_delete(this_value, new_target, value=None, *_):
 SetPrototype_delete.name = "delete"
 SetPrototype_delete.length = 1
 
+
 # 23.2.3.5 Set.prototype.entries ( )
 def SetPrototype_entries(this_value, new_target, *_):
     # The following steps are taken:
@@ -42290,6 +42420,7 @@ def SetPrototype_entries(this_value, new_target, *_):
 
 SetPrototype_entries.name = "entries"
 SetPrototype_entries.length = 0
+
 
 # 23.2.3.6 Set.prototype.forEach ( callbackfn [ , thisArg ] )
 def SetPrototype_forEach(this_value, new_target, callbackfn=None, thisArg=None, *_):
@@ -42337,6 +42468,7 @@ def SetPrototype_forEach(this_value, new_target, callbackfn=None, thisArg=None, 
 SetPrototype_forEach.name = "forEach"
 SetPrototype_forEach.length = 1
 
+
 # 23.2.3.7 Set.prototype.has ( value )
 def SetPrototype_has(this_value, new_target, value=None, *_):
     # The following steps are taken:
@@ -42373,6 +42505,7 @@ def SetPrototype_get_size(this_value, new_target, *_):
 
 SetPrototype_get_size.name = "get size"
 SetPrototype_get_size.length = 0
+
 
 # 23.2.3.10 Set.prototype.values ( )
 def SetPrototype_values(this_value, new_target, *_):
@@ -42414,6 +42547,7 @@ def SetFixups(realm):
 # A Set Iterator is an ordinary object, with the structure defined below, that represents a specific iteration over
 # some specific Set instance object. There is not a named constructor for Set Iterator objects. Instead, set
 # iterator objects are created by calling certain methods of Set instance objects.
+
 
 # 23.2.5.1 CreateSetIterator ( set, kind )
 def CreateSetIterator(setobj, kind):
@@ -42515,6 +42649,7 @@ def SetIteratorPrototype_next(this_value, new_target, *_):
 # 24.1 ArrayBuffer Objects
 
 # 24.1.1 Abstract Operations For ArrayBuffer Objects
+
 
 # 24.1.1.1 AllocateArrayBuffer ( constructor, byteLength )
 def AllocateArrayBuffer(constructor, byteLength):
@@ -42623,6 +42758,7 @@ conversion_ops = {
     "Int32": ToInt32,
     "Uint32": ToUint32,
 }
+
 
 # 24.1.1.5 RawBytesToNumber ( type, rawBytes, isLittleEndian )
 def RawBytesToNumber(type, rawBytes, isLittleEndian):
@@ -42808,6 +42944,7 @@ def CreateArrayBufferConstructor(realm):
         desc = PropertyDescriptor(value=value, writable=False, enumerable=False, configurable=True)
         DefinePropertyOrThrow(obj, key, desc)
     BindBuiltinFunctions(realm, obj, [("isView", ArrayBuffer_isView, 1)])
+
     # 24.1.3.3 get ArrayBuffer [ @@species ]
     # ArrayBuffer[@@species] is an accessor property whose set accessor function is undefined. Its get accessor function
     # performs the following steps:
@@ -43009,6 +43146,7 @@ def ArrayBufferFixups(realm):
 ######################################################################################################################################################################################################################################################################
 # 24.2 SharedArrayBuffer Objects
 
+
 # 24.2.1.2 IsSharedArrayBuffer ( obj )
 def IsSharedArrayBuffer(obj):
     # IsSharedArrayBuffer tests whether an object is an ArrayBuffer, a SharedArrayBuffer, or a subtype of either. It
@@ -43139,6 +43277,7 @@ def JSON_parse(this_value, new_target, text=None, reviver=None, *_):
 
 JSON_parse.length = 2
 JSON_parse.name = "parse"
+
 
 # 24.5.1.1 Runtime Semantics: InternalizeJSONProperty ( holder, name )
 def InternalizeJSONProperty(holder, name, reviver):
@@ -43804,6 +43943,7 @@ d88P"             888       888         888   888    88888888 888     .d888888 8
 # |          |                | absent from the conforming object if it does not inherit an explicit value property.  |
 # +----------+----------------+---------------------------------------------------------------------------------------+
 
+
 # 25.1.2 The %IteratorPrototype% Object
 # The %IteratorPrototype% object:
 #   * has a [[Prototype]] internal slot whose value is the intrinsic object %ObjectPrototype%.
@@ -43821,6 +43961,7 @@ def IteratorPrototype_iterator(this_value, new_target, *_):
 
 IteratorPrototype_iterator.name = "[Symbol.iterator]"
 IteratorPrototype_iterator.length = 0
+
 
 # 25.1.4 Async-from-Sync Iterator Objects
 # 25.1.4.1 CreateAsyncFromSyncIterator ( syncIteratorRecord )
@@ -43861,6 +44002,7 @@ def CreateAsyncFromSyncIterator(syncIteratorRecord):
 #   direct instances of GeneratorFunction. There is no syntactic means to create instances of GeneratorFunction
 #   subclasses.
 
+
 # 25.2.1.1 GeneratorFunction ( p1, p2, … , pn, body )
 def GeneratorFunctionFunction(this_value, new_target, *args):
     # The last argument specifies the body (executable code) of a generator function; any preceding arguments specify
@@ -43884,6 +44026,7 @@ def GeneratorFunctionFunction(this_value, new_target, *args):
 # * has a [[Prototype]] internal slot whose value is the intrinsic object %Function%.
 # * has a name property whose value is "GeneratorFunction".
 # * has the following properties:
+
 
 # 25.2.2.1 GeneratorFunction.length
 # This is a data property with a value of 1. This property has the attributes { [[Writable]]: false,
@@ -44233,6 +44376,7 @@ def AsyncGeneratorYield(value):
 # 26 Reflection
 # 26.1 The Reflect Object
 
+
 # The Reflect object:
 #
 #   * is the intrinsic object %Reflect%.
@@ -44303,6 +44447,7 @@ def Reflect_construct(this_value, new_target, target=None, argumentsList=None, n
 Reflect_construct.length = 2
 Reflect_construct.name = "construct"
 
+
 # 26.1.3 Reflect.defineProperty ( target, propertyKey, attributes )
 def Reflect_defineProperty(this_value, new_target, target=None, propertyKey=None, attributes=None, *_):
     # When the defineProperty function is called with arguments target, propertyKey, and attributes, the following
@@ -44348,6 +44493,7 @@ def Reflect_get(this_value, new_target, target=None, propertyKey=None, receiver=
 
 Reflect_get.length = 2
 Reflect_get.name = "get"
+
 
 # 26.1.6 Reflect.getOwnPropertyDescriptor ( target, propertyKey )
 def Reflect_getOwnPropertyDescriptor(this_value, new_target, target=None, propertyKey=None, *_):
@@ -44433,6 +44579,7 @@ def Reflect_set(this_value, new_target, target=None, propertyKey=None, V=None, r
 Reflect_set.length = 3
 Reflect_set.name = "set"
 
+
 # 26.1.13 Reflect.setPrototypeOf ( target, proto )
 def Reflect_setPrototypeOf(this_value, new_target, target=None, proto=None, *_):
     # When the setPrototypeOf function is called with arguments target and proto, the following steps are taken:
@@ -44486,6 +44633,7 @@ def ProxyFunction(this_value, new_target, target=None, handler=None, *_):
 #   * does not have a prototype property because proxy exotic objects do not have a [[Prototype]] internal slot that
 #     requires initialization.
 #   * has the following properties:
+
 
 # 26.2.2.1 Proxy.revocable ( target, handler )
 def Proxy_revocable(this_value, new_target, target=None, handler=None, *_):
