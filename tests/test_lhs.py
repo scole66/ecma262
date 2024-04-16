@@ -9,6 +9,7 @@ from .helpers import *
 import ecmascript.ecmascript as e
 import ecmascript.lexer2 as lexer2
 
+
 #### MemberExpression #################################################################################################################################
 #
 # 888b     d888                        888                       8888888888                                                      d8b

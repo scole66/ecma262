@@ -738,11 +738,15 @@ class parse_test:
         # that marker should be one of "+", "~", or "?"
         ch_names = self.called_argnames[name]
         return tuple(
-            True
-            if chn[0] == "+"
-            else False
-            if chn[0] == "~"
-            else first(bool(val) for name, val in zip(tgt_names, args) if name == chn[1:])
+            (
+                True
+                if chn[0] == "+"
+                else (
+                    False
+                    if chn[0] == "~"
+                    else first(bool(val) for name, val in zip(tgt_names, args) if name == chn[1:])
+                )
+            )
             for chn in ch_names
         )
 

@@ -10,8 +10,7 @@ C = TypeVar("C")
 
 class Functor(Generic[A], metaclass=ABCMeta):
     @abstractmethod
-    def map(self, f: Callable[[Optional[A]], B]) -> "Functor[B]":
-        ...
+    def map(self, f: Callable[[Optional[A]], B]) -> "Functor[B]": ...
 
 
 class Maybe(Functor[A]):
